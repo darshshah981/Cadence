@@ -1,0 +1,533 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		085F8699DA3FA31F07454F68 /* MockTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1415E369EBA08477F186E174 /* MockTranscriptionEngine.swift */; };
+		1F7C84EF357CDA7FF73E0A76 /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB0424A3CB813F296F829A8 /* DictationCoordinator.swift */; };
+		2697492C0DFAF6205CCEC772 /* MenuContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E699157182100A322460BBA0 /* MenuContentView.swift */; };
+		352C865DCF261AD7CCC3A9C8 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E702AE4E0109F188340DEB9 /* HUDWindowController.swift */; };
+		3EC037B350A9E3556A4DE42C /* DictationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08F97763D51B4E84ECCC4C6 /* DictationModels.swift */; };
+		458D3EE76E89550A9D112406 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00435979AD8D5B11BDAA497 /* HotkeyService.swift */; };
+		56E01B5F57508D1ED4C2039E /* FlowStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEE2751D89CB1FC24C27CE7C /* FlowStateTests.swift */; };
+		5A3BF0A2A737D2E9FCBBFEE4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3CE69CC8582DB4564F4C9A /* SettingsView.swift */; };
+		5BA192F7BC428145928FC1AB /* PermissionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E140DBFA8FC90A1216E621D /* PermissionsService.swift */; };
+		63B06AACA381556456065335 /* TextInsertionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C07D72E137AC4D4042004AB /* TextInsertionService.swift */; };
+		6D35008598422E1320289362 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB8304731287F9C45902B72 /* AppModel.swift */; };
+		73488FA6C8FE46321714ABF7 /* PermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD49EF70236E15CC47A60EF0 /* PermissionsView.swift */; };
+		82E0DA26A2B28D2A74D8C006 /* WhisperModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8D4D871AC85414FFDA5263 /* WhisperModelManager.swift */; };
+		8BE957060FAE6F1D64CD97B6 /* LocalWhisperTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30269D2F5DFC9ADB1CF5BC50 /* LocalWhisperTranscriptionEngine.swift */; };
+		A67245F8DE29D25C178B82DB /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = 091B9638FBE83A086BE9640F /* whisper */; };
+		B5B3802E7FB85CFEBD4986CB /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9E6138A724F9DEAA0A24F3E /* AudioCaptureService.swift */; };
+		B78D6E38E6F3910E5AF92FDB /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB25C7EAA477B12EF91129C6 /* AppDelegate.swift */; };
+		CA8ED2724BF3A00F8433367C /* TranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F86B42D6A5B7605AF7C58D01 /* TranscriptionEngine.swift */; };
+		CB11F5CC5B2DCA9A7ACC38E7 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55C3C82972CA51191B1DA75 /* HUDView.swift */; };
+		EFD15C03891CBF91D8FA416B /* FlowStateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF5ED2798DF8336DEC6F3410 /* FlowStateApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		86DEB914E3B751ED46517688 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D95320817CFB076B990AB65D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B3ED34AAFC4954607107B3AC;
+			remoteInfo = FlowState;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0C07D72E137AC4D4042004AB /* TextInsertionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionService.swift; sourceTree = "<group>"; };
+		0E140DBFA8FC90A1216E621D /* PermissionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsService.swift; sourceTree = "<group>"; };
+		1415E369EBA08477F186E174 /* MockTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTranscriptionEngine.swift; sourceTree = "<group>"; };
+		26E874253066BBC3E3599B8C /* whisper.spm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = whisper.spm; path = Vendor/whisper.spm; sourceTree = SOURCE_ROOT; };
+		30269D2F5DFC9ADB1CF5BC50 /* LocalWhisperTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWhisperTranscriptionEngine.swift; sourceTree = "<group>"; };
+		5AB0424A3CB813F296F829A8 /* DictationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCoordinator.swift; sourceTree = "<group>"; };
+		7B8D4D871AC85414FFDA5263 /* WhisperModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperModelManager.swift; sourceTree = "<group>"; };
+		7E702AE4E0109F188340DEB9 /* HUDWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDWindowController.swift; sourceTree = "<group>"; };
+		A08F97763D51B4E84ECCC4C6 /* DictationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModels.swift; sourceTree = "<group>"; };
+		ACB8304731287F9C45902B72 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		BB25C7EAA477B12EF91129C6 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		C00435979AD8D5B11BDAA497 /* HotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyService.swift; sourceTree = "<group>"; };
+		CD49EF70236E15CC47A60EF0 /* PermissionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsView.swift; sourceTree = "<group>"; };
+		CF5ED2798DF8336DEC6F3410 /* FlowStateApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowStateApp.swift; sourceTree = "<group>"; };
+		D55C3C82972CA51191B1DA75 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
+		D9E6138A724F9DEAA0A24F3E /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
+		DEE2751D89CB1FC24C27CE7C /* FlowStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowStateTests.swift; sourceTree = "<group>"; };
+		E2CD7B2E848586423E3ADBC0 /* FlowState.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlowState.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E699157182100A322460BBA0 /* MenuContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuContentView.swift; sourceTree = "<group>"; };
+		F86B42D6A5B7605AF7C58D01 /* TranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionEngine.swift; sourceTree = "<group>"; };
+		FA3CE69CC8582DB4564F4C9A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		FE931B3A5B203E8BBCA4854C /* FlowStateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FlowStateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4A4BBA2151859AB19D3D28FE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A67245F8DE29D25C178B82DB /* whisper in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		07463E9AE2E269EF72C74570 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E2CD7B2E848586423E3ADBC0 /* FlowState.app */,
+				FE931B3A5B203E8BBCA4854C /* FlowStateTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		196ACC34C1D9B26411B261B5 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				26E874253066BBC3E3599B8C /* whisper.spm */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		60C0F241B4E00BC8DBE16693 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				BB25C7EAA477B12EF91129C6 /* AppDelegate.swift */,
+				ACB8304731287F9C45902B72 /* AppModel.swift */,
+				CF5ED2798DF8336DEC6F3410 /* FlowStateApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		677470F8AE7ED508088F65F2 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A08F97763D51B4E84ECCC4C6 /* DictationModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		7DD5E2BF4A0034402067BA03 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				D55C3C82972CA51191B1DA75 /* HUDView.swift */,
+				E699157182100A322460BBA0 /* MenuContentView.swift */,
+				CD49EF70236E15CC47A60EF0 /* PermissionsView.swift */,
+				FA3CE69CC8582DB4564F4C9A /* SettingsView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		A8D5BBAA355967B19B67ABAF /* FlowState */ = {
+			isa = PBXGroup;
+			children = (
+				60C0F241B4E00BC8DBE16693 /* App */,
+				677470F8AE7ED508088F65F2 /* Models */,
+				FDF1E6A1A516C7B743D29324 /* Services */,
+				7DD5E2BF4A0034402067BA03 /* UI */,
+			);
+			path = FlowState;
+			sourceTree = "<group>";
+		};
+		BDFCBE74E37FCA6A2544D8AC = {
+			isa = PBXGroup;
+			children = (
+				A8D5BBAA355967B19B67ABAF /* FlowState */,
+				ECAA08400F9C3D2AB0462555 /* FlowStateTests */,
+				196ACC34C1D9B26411B261B5 /* Packages */,
+				07463E9AE2E269EF72C74570 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		ECAA08400F9C3D2AB0462555 /* FlowStateTests */ = {
+			isa = PBXGroup;
+			children = (
+				DEE2751D89CB1FC24C27CE7C /* FlowStateTests.swift */,
+			);
+			path = FlowStateTests;
+			sourceTree = "<group>";
+		};
+		FDF1E6A1A516C7B743D29324 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				D9E6138A724F9DEAA0A24F3E /* AudioCaptureService.swift */,
+				5AB0424A3CB813F296F829A8 /* DictationCoordinator.swift */,
+				C00435979AD8D5B11BDAA497 /* HotkeyService.swift */,
+				7E702AE4E0109F188340DEB9 /* HUDWindowController.swift */,
+				30269D2F5DFC9ADB1CF5BC50 /* LocalWhisperTranscriptionEngine.swift */,
+				1415E369EBA08477F186E174 /* MockTranscriptionEngine.swift */,
+				0E140DBFA8FC90A1216E621D /* PermissionsService.swift */,
+				0C07D72E137AC4D4042004AB /* TextInsertionService.swift */,
+				F86B42D6A5B7605AF7C58D01 /* TranscriptionEngine.swift */,
+				7B8D4D871AC85414FFDA5263 /* WhisperModelManager.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2B7AFE2F373C09439DB05682 /* FlowStateTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2D24508452EADE0CA99CA721 /* Build configuration list for PBXNativeTarget "FlowStateTests" */;
+			buildPhases = (
+				50145D8F0D377511299DE6A0 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B9F1834DCDEAD9E4FD67843D /* PBXTargetDependency */,
+			);
+			name = FlowStateTests;
+			packageProductDependencies = (
+			);
+			productName = FlowStateTests;
+			productReference = FE931B3A5B203E8BBCA4854C /* FlowStateTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B3ED34AAFC4954607107B3AC /* FlowState */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CADF37DC5C4F14B92615D4BA /* Build configuration list for PBXNativeTarget "FlowState" */;
+			buildPhases = (
+				67EE514588DB7A5767548748 /* Sources */,
+				4A4BBA2151859AB19D3D28FE /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FlowState;
+			packageProductDependencies = (
+				091B9638FBE83A086BE9640F /* whisper */,
+			);
+			productName = FlowState;
+			productReference = E2CD7B2E848586423E3ADBC0 /* FlowState.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D95320817CFB076B990AB65D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					B3ED34AAFC4954607107B3AC = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = C8FCB529F8090F1265478DD5 /* Build configuration list for PBXProject "FlowState" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = BDFCBE74E37FCA6A2544D8AC;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9BD180EF835D0183952A9490 /* XCLocalSwiftPackageReference "Vendor/whisper.spm" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 07463E9AE2E269EF72C74570 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B3ED34AAFC4954607107B3AC /* FlowState */,
+				2B7AFE2F373C09439DB05682 /* FlowStateTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		50145D8F0D377511299DE6A0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				56E01B5F57508D1ED4C2039E /* FlowStateTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		67EE514588DB7A5767548748 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B78D6E38E6F3910E5AF92FDB /* AppDelegate.swift in Sources */,
+				6D35008598422E1320289362 /* AppModel.swift in Sources */,
+				B5B3802E7FB85CFEBD4986CB /* AudioCaptureService.swift in Sources */,
+				1F7C84EF357CDA7FF73E0A76 /* DictationCoordinator.swift in Sources */,
+				3EC037B350A9E3556A4DE42C /* DictationModels.swift in Sources */,
+				EFD15C03891CBF91D8FA416B /* FlowStateApp.swift in Sources */,
+				CB11F5CC5B2DCA9A7ACC38E7 /* HUDView.swift in Sources */,
+				352C865DCF261AD7CCC3A9C8 /* HUDWindowController.swift in Sources */,
+				458D3EE76E89550A9D112406 /* HotkeyService.swift in Sources */,
+				8BE957060FAE6F1D64CD97B6 /* LocalWhisperTranscriptionEngine.swift in Sources */,
+				2697492C0DFAF6205CCEC772 /* MenuContentView.swift in Sources */,
+				085F8699DA3FA31F07454F68 /* MockTranscriptionEngine.swift in Sources */,
+				5BA192F7BC428145928FC1AB /* PermissionsService.swift in Sources */,
+				73488FA6C8FE46321714ABF7 /* PermissionsView.swift in Sources */,
+				5A3BF0A2A737D2E9FCBBFEE4 /* SettingsView.swift in Sources */,
+				63B06AACA381556456065335 /* TextInsertionService.swift in Sources */,
+				CA8ED2724BF3A00F8433367C /* TranscriptionEngine.swift in Sources */,
+				82E0DA26A2B28D2A74D8C006 /* WhisperModelManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B9F1834DCDEAD9E4FD67843D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B3ED34AAFC4954607107B3AC /* FlowState */;
+			targetProxy = 86DEB914E3B751ED46517688 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		18C1001F6B1928570EA62286 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_NAME = FlowState;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		2C9000457F20DA25D0231047 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FlowState.app/Contents/MacOS/FlowState";
+			};
+			name = Debug;
+		};
+		4CA24949178E8034D6DC422E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = FlowState;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "FlowState needs microphone access for push-to-talk dictation.";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.darshshah.FlowState;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.1;
+			};
+			name = Release;
+		};
+		561B9380CC80C16ACE016950 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_NAME = FlowState;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		58EA1972CB87BF094054292F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FlowState.app/Contents/MacOS/FlowState";
+			};
+			name = Release;
+		};
+		D4191A0BC5ADD64E55BD188D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = FlowState;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "FlowState needs microphone access for push-to-talk dictation.";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.darshshah.FlowState;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.1;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2D24508452EADE0CA99CA721 /* Build configuration list for PBXNativeTarget "FlowStateTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2C9000457F20DA25D0231047 /* Debug */,
+				58EA1972CB87BF094054292F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C8FCB529F8090F1265478DD5 /* Build configuration list for PBXProject "FlowState" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D4191A0BC5ADD64E55BD188D /* Debug */,
+				4CA24949178E8034D6DC422E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CADF37DC5C4F14B92615D4BA /* Build configuration list for PBXNativeTarget "FlowState" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				18C1001F6B1928570EA62286 /* Debug */,
+				561B9380CC80C16ACE016950 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		9BD180EF835D0183952A9490 /* XCLocalSwiftPackageReference "Vendor/whisper.spm" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/whisper.spm;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		091B9638FBE83A086BE9640F /* whisper */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = whisper;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = D95320817CFB076B990AB65D /* Project object */;
+}

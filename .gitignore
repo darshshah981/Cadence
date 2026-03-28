@@ -1,0 +1,11 @@
+.DS_Store
+Artifacts/
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# SwiftPM / build products
+.build/
+DerivedData/
