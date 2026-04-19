@@ -2,6 +2,7 @@ import AVFoundation
 import ApplicationServices
 import AppKit
 import Foundation
+import IOKit.hidsystem
 
 @MainActor
 final class PermissionsService {
@@ -14,7 +15,7 @@ final class PermissionsService {
         PermissionsSnapshot(
             microphoneGranted: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
             accessibilityGranted: AXIsProcessTrusted(),
-            inputMonitoringGranted: CGPreflightListenEventAccess()
+            inputMonitoringGranted: inputMonitoringGranted()
         )
     }
 
@@ -29,6 +30,7 @@ final class PermissionsService {
     }
 
     func requestInputMonitoringAccess() {
+        _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
         _ = CGRequestListenEventAccess()
         openPrivacyPane(PrivacyPane.inputMonitoring)
     }
@@ -40,5 +42,10 @@ final class PermissionsService {
     private func openPrivacyPane(_ string: String) {
         guard let url = URL(string: string) else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    private func inputMonitoringGranted() -> Bool {
+        let hidAccess = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
+        return CGPreflightListenEventAccess() && hidAccess == kIOHIDAccessTypeGranted
     }
 }

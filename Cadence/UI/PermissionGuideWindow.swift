@@ -18,7 +18,7 @@ final class PermissionGuideWindowController: NSWindowController {
 
     convenience init() {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 430, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 560),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -31,6 +31,8 @@ final class PermissionGuideWindowController: NSWindowController {
         panel.isReleasedWhenClosed = false
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
+        panel.minSize = NSSize(width: 460, height: 560)
+        panel.maxSize = NSSize(width: 460, height: 560)
 
         self.init(window: panel)
     }
@@ -71,7 +73,7 @@ final class PermissionGuideWindowController: NSWindowController {
         self.hostingController = hostingController
         window?.title = "Set Up \(appName)"
         window?.contentViewController = hostingController
-        window?.setContentSize(NSSize(width: 430, height: 520))
+        window?.setContentSize(NSSize(width: 460, height: 560))
         window?.center()
         showWindow(nil)
         window?.orderFrontRegardless()
@@ -111,34 +113,18 @@ private struct PermissionWizardView: View {
     let onRestartApp: () -> Void
     let onClose: () -> Void
 
-    @State private var iconNudge = false
-
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    header
-                    instruction
-                    permissionList
-                    appPath
-                }
-                .padding(18)
-            }
-
-            Divider()
-                .overlay(FlowTheme.border)
-
+        VStack(alignment: .leading, spacing: 14) {
+            header
+            instruction
+            permissionList
+            appPath
+            Spacer(minLength: 0)
             actions
-                .padding(14)
-                .background(FlowTheme.elevated)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(18)
+        .frame(width: 460, height: 560, alignment: .topLeading)
         .background(FlowTheme.background)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                iconNudge = true
-            }
-        }
     }
 
     private var header: some View {
@@ -153,8 +139,6 @@ private struct PermissionWizardView: View {
                     .frame(width: 24, height: 24)
                     .background(FlowTheme.accent, in: Circle())
                     .offset(x: 5, y: 5)
-                    .scaleEffect(iconNudge ? 1.08 : 0.94)
-                    .opacity(iconNudge ? 1 : 0.7)
             }
             .frame(width: 74, height: 74)
 
@@ -167,17 +151,18 @@ private struct PermissionWizardView: View {
                 Text(state.permissions.allRequiredGranted ? "Everything is ready." : "Grant the access Cadence needs.")
                     .font(.system(size: 13))
                     .foregroundStyle(FlowTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(height: 78)
     }
 
     private var instruction: some View {
         Text(activeInstruction)
             .font(.system(size: 13, weight: .medium))
             .foregroundStyle(FlowTheme.textPrimary)
-            .fixedSize(horizontal: false, vertical: true)
+            .lineLimit(3)
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(FlowTheme.accentSubtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -225,7 +210,7 @@ private struct PermissionWizardView: View {
             Text("If Cadence is missing from System Settings, drag the app icon above into the list.")
                 .font(.system(size: 12))
                 .foregroundStyle(FlowTheme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(2)
 
             Text(appURL.path)
                 .font(.system(size: 11, design: .monospaced))
@@ -261,6 +246,12 @@ private struct PermissionWizardView: View {
             }
         }
         .controlSize(.regular)
+        .padding(12)
+        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(FlowTheme.border, lineWidth: 1)
+        )
     }
 
     private var divider: some View {
@@ -309,7 +300,7 @@ private struct PermissionWizardRow: View {
                 Text(description)
                     .font(.system(size: 12))
                     .foregroundStyle(FlowTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
             }
 
             Spacer()
