@@ -67,7 +67,7 @@ final class PermissionGuideWindowController: NSWindowController {
         let hostingController = NSHostingController(rootView: view)
         self.hostingController = hostingController
         window?.contentViewController = hostingController
-        window?.setContentSize(NSSize(width: 360, height: 300))
+        window?.setContentSize(NSSize(width: 380, height: 340))
         window?.center()
         showWindow(nil)
         window?.orderFrontRegardless()
@@ -75,13 +75,18 @@ final class PermissionGuideWindowController: NSWindowController {
 
     private static func relaunch(appURL: URL) {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = [appURL.path]
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = [
+            "-c",
+            """
+            while /bin/kill -0 "$0" 2>/dev/null; do /bin/sleep 0.1; done
+            /usr/bin/open "$1"
+            """,
+            String(ProcessInfo.processInfo.processIdentifier),
+            appURL.path
+        ]
         try? process.run()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            NSApp.terminate(nil)
-        }
+        NSApp.terminate(nil)
     }
 }
 
@@ -113,7 +118,13 @@ struct PermissionGuideView: View {
                 PermissionGuideStep(number: 1, text: "Find Cadence in System Settings.")
                 PermissionGuideStep(number: 2, text: "Turn it on for \(kind.settingsName).")
                 PermissionGuideStep(number: 3, text: "If it is missing, drag this Cadence icon into the app list.")
+                PermissionGuideStep(number: 4, text: "Come back here and click Restart Cadence.")
             }
+
+            Text("Use this restart button after granting access. The macOS Quit & Reopen prompt can miss menu bar apps.")
+                .font(.system(size: 12))
+                .foregroundStyle(FlowTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(appURL.path)
                 .font(.system(size: 11, design: .monospaced))

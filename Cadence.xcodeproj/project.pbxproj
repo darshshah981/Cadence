@@ -300,11 +300,14 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Cadence Debug";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_NAME = Cadence;
+				PRODUCT_BUNDLE_IDENTIFIER = com.darshshah.Cadence.debug;
+				PRODUCT_MODULE_NAME = Cadence;
+				PRODUCT_NAME = "Cadence Debug";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -398,7 +401,7 @@
 					"@loader_path/../Frameworks",
 				);
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cadence.app/Contents/MacOS/Cadence";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cadence Debug.app/Contents/MacOS/Cadence Debug";
 			};
 			name = Debug;
 		};
