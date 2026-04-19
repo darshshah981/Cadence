@@ -10,6 +10,7 @@ struct SettingsView: View {
             transcriptionSection
             audioSection
             vocabularySection
+            privacySection
             permissionsSection
             versionFooter
         }
@@ -185,6 +186,19 @@ struct SettingsView: View {
         }
     }
 
+    private var privacySection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FlowSectionHeader(title: "Privacy")
+            FlowSectionCard {
+                SettingsToggleRow(
+                    title: "Share analytics",
+                    description: "Sends privacy-safe product events. Never includes audio, transcripts, vocabulary, or shortcut keys.",
+                    isOn: analyticsEnabledBinding
+                )
+            }
+        }
+    }
+
     private var versionFooter: some View {
         Text("Cadence \(appVersion)")
             .font(.system(size: 11))
@@ -244,6 +258,13 @@ struct SettingsView: View {
         Binding(
             get: { appModel.transcriptionConfiguration.tapStopsOnNextKeyPress },
             set: { appModel.setTapStopsOnNextKeyPress($0) }
+        )
+    }
+
+    private var analyticsEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { appModel.analyticsEnabled },
+            set: { appModel.setAnalyticsEnabled($0) }
         )
     }
 

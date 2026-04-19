@@ -53,6 +53,7 @@ final class DictationCoordinator {
     private let transcriptionEngine: TranscriptionEngine
     private let textInsertionService: TextInsertionServing
     private let hudController: HUDWindowController
+    private let analytics: AnalyticsService
     private var transcriptionConfiguration = TranscriptionConfiguration()
     private var activeTriggerMode: DictationTriggerMode?
     private var stopTapDictationOnNextKeyPress = false
@@ -73,7 +74,8 @@ final class DictationCoordinator {
         audioCaptureService: AudioCaptureServing,
         transcriptionEngine: TranscriptionEngine,
         textInsertionService: TextInsertionServing,
-        hudController: HUDWindowController
+        hudController: HUDWindowController,
+        analytics: AnalyticsService
     ) {
         self.hotkeyService = hotkeyService
         self.permissionsService = permissionsService
@@ -81,6 +83,7 @@ final class DictationCoordinator {
         self.transcriptionEngine = transcriptionEngine
         self.textInsertionService = textInsertionService
         self.hudController = hudController
+        self.analytics = analytics
 
         self.hudController.onStop = { [weak self] in
             Task { await self?.stopFromHUD() }
@@ -178,10 +181,12 @@ final class DictationCoordinator {
         do {
             let permissions = permissionsService.snapshot()
             guard permissions.allRequiredGranted else {
+                analytics.track("dictation_blocked", properties: ["reason": "permissions"])
                 throw CadenceError.missingRequiredPermissions
             }
 
             activeTriggerMode = triggerMode
+            analytics.track("dictation_started", properties: ["trigger": triggerMode.rawValue])
 
             try await transcriptionEngine.startSession()
             try audioCaptureService.startCapture { [weak self] chunk, level in
@@ -308,6 +313,15 @@ final class DictationCoordinator {
             dictationLogger.info(
                 "Cadence timing finalize complete total=\(Self.formatSeconds(totalElapsed), privacy: .public)s insert=\(Self.formatSeconds(insertionElapsed), privacy: .public)s chars=\(correctedText.count, privacy: .public)"
             )
+            analytics.track(
+                "dictation_completed",
+                properties: [
+                    "durationBucket": Self.durationBucket(metrics.duration),
+                    "speechBucket": Self.durationBucket(speechDuration),
+                    "charactersBucket": Self.countBucket(correctedText.count),
+                    "trigger": activeTriggerMode?.rawValue ?? "unknown"
+                ]
+            )
 
             state = .idle
             activeTriggerMode = nil
@@ -318,6 +332,10 @@ final class DictationCoordinator {
         } catch {
             dictationLogger.error(
                 "Cadence timing finalize failed total=\(Self.formatSeconds(Date().timeIntervalSince(finalizeStartedAt)), privacy: .public)s error=\(error.localizedDescription, privacy: .public)"
+            )
+            analytics.track(
+                "dictation_failed",
+                properties: ["reason": Self.analyticsErrorReason(for: error)]
             )
             activeTriggerMode = nil
             publishError(error.localizedDescription)
@@ -448,6 +466,47 @@ final class DictationCoordinator {
 
     private static func formatSeconds(_ seconds: TimeInterval) -> String {
         String(format: "%.3f", seconds)
+    }
+
+    private static func durationBucket(_ seconds: TimeInterval) -> String {
+        switch seconds {
+        case ..<2:
+            return "0-2s"
+        case ..<10:
+            return "2-10s"
+        case ..<30:
+            return "10-30s"
+        default:
+            return "30s+"
+        }
+    }
+
+    private static func countBucket(_ count: Int) -> String {
+        switch count {
+        case 0..<50:
+            return "0-49"
+        case 50..<200:
+            return "50-199"
+        case 200..<800:
+            return "200-799"
+        default:
+            return "800+"
+        }
+    }
+
+    private static func analyticsErrorReason(for error: Error) -> String {
+        switch error {
+        case WhisperEngineError.emptyAudio:
+            return "emptyAudio"
+        case WhisperEngineError.noTranscript:
+            return "noTranscript"
+        case CadenceError.missingRequiredPermissions:
+            return "permissions"
+        case CadenceError.accessibilityPermissionMissing:
+            return "accessibility"
+        default:
+            return "other"
+        }
     }
 
     private func stopFromHUD() async {

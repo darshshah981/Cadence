@@ -26,6 +26,7 @@ final class AppModel: ObservableObject {
         static let livePreviewEnabled = "FlowState.livePreviewEnabled"
         static let tapStopsOnNextKeyPress = "FlowState.tapStopsOnNextKeyPress"
         static let vocabularyText = "FlowState.vocabularyText"
+        static let analyticsEnabled = "Cadence.analyticsEnabled"
         static let holdEnabled = "FlowState.holdEnabled"
         static let holdKeyCode = "FlowState.holdKeyCode"
         static let holdModifiers = "FlowState.holdModifiers"
@@ -53,6 +54,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var copiedTranscriptID: UUID?
     @Published private(set) var backendDescription = "Loading transcription backend"
     @Published private(set) var transcriptionConfiguration: TranscriptionConfiguration
+    @Published private(set) var analyticsEnabled: Bool
     @Published var menuScreen: MenuScreen = .home
 
     @Published private(set) var holdToTalkBinding: HotkeyBinding
@@ -61,6 +63,7 @@ final class AppModel: ObservableObject {
     private let permissionsService: PermissionsService
     private let permissionGuideWindowController = PermissionGuideWindowController()
     private let coordinator: DictationCoordinator
+    private let analytics: AnalyticsService
     private let defaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
     private var lastExternalApplication: NSRunningApplication?
@@ -71,6 +74,9 @@ final class AppModel: ObservableObject {
         let initialTapBinding = AppModel.loadBinding(defaults: defaults, action: .tapToStartStop)
         self.defaults = defaults
         self.transcriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
+        let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
+        self.analyticsEnabled = analyticsEnabled
+        self.analytics = AnalyticsService(isEnabled: analyticsEnabled)
         self.holdToTalkBinding = initialHoldBinding
         self.tapToStartStopBinding = initialTapBinding
         self.transcriptHistory = AppModel.loadTranscriptHistory(defaults: defaults)
@@ -90,7 +96,8 @@ final class AppModel: ObservableObject {
             audioCaptureService: audioCaptureService,
             transcriptionEngine: transcriptionEngine,
             textInsertionService: textInsertionService,
-            hudController: hudController
+            hudController: hudController,
+            analytics: analytics
         )
 
         bindCoordinator()
@@ -100,6 +107,13 @@ final class AppModel: ObservableObject {
             await applyTranscriptionConfiguration(prewarm: false)
             await warmBackend()
         }
+        analytics.track(
+            "app_launched",
+            properties: [
+                "model": transcriptionConfiguration.model.rawValue,
+                "decoding": transcriptionConfiguration.decodingMode.rawValue
+            ]
+        )
     }
 
     var menuBarSymbolName: String {
@@ -133,9 +147,18 @@ final class AppModel: ObservableObject {
     func refreshPermissions() async {
         permissions = permissionsService.snapshot()
         permissionGuideWindowController.updatePermissions(permissions)
+        analytics.track(
+            "permissions_refreshed",
+            properties: [
+                "microphone": String(permissions.microphoneGranted),
+                "accessibility": String(permissions.accessibilityGranted),
+                "inputMonitoring": String(permissions.inputMonitoringGranted)
+            ]
+        )
     }
 
     func requestMicrophoneAccess() {
+        analytics.track("permission_request_clicked", properties: ["permission": "microphone"])
         Task {
             _ = await permissionsService.requestMicrophoneAccess()
             await refreshPermissions()
@@ -144,16 +167,19 @@ final class AppModel: ObservableObject {
     }
 
     func requestAccessibilityAccess() {
+        analytics.track("permission_request_clicked", properties: ["permission": "accessibility"])
         permissionsService.requestAccessibilityAccess()
         schedulePermissionRefreshBurst()
     }
 
     func requestInputMonitoringAccess() {
+        analytics.track("permission_request_clicked", properties: ["permission": "inputMonitoring"])
         permissionsService.requestInputMonitoringAccess()
         schedulePermissionRefreshBurst()
     }
 
     func openPermissionsWizard() {
+        analytics.track("permissions_wizard_opened")
         NSApp.activate(ignoringOtherApps: true)
         permissionGuideWindowController.show(
             permissions: permissions,
@@ -175,10 +201,12 @@ final class AppModel: ObservableObject {
     }
 
     func showSettingsScreen() {
+        analytics.track("screen_opened", properties: ["screen": "settings"])
         menuScreen = .settings
     }
 
     func showHomeScreen() {
+        analytics.track("screen_opened", properties: ["screen": "home"])
         menuScreen = .home
     }
 
@@ -207,26 +235,32 @@ final class AppModel: ObservableObject {
     }
 
     func setWhisperModel(_ model: WhisperModelOption) {
+        analytics.track("setting_changed", properties: ["setting": "model", "value": model.rawValue])
         updateTranscriptionConfiguration { $0.model = model }
     }
 
     func setDecodingMode(_ decodingMode: WhisperDecodingMode) {
+        analytics.track("setting_changed", properties: ["setting": "decoding", "value": decodingMode.rawValue])
         updateTranscriptionConfiguration { $0.decodingMode = decodingMode }
     }
 
     func setFillerWordPolicy(_ fillerWordPolicy: FillerWordPolicy) {
+        analytics.track("setting_changed", properties: ["setting": "fillers", "value": fillerWordPolicy.rawValue])
         updateTranscriptionConfiguration { $0.fillerWordPolicy = fillerWordPolicy }
     }
 
     func setKeepContext(_ keepContext: Bool) {
+        analytics.track("setting_changed", properties: ["setting": "keepContext", "value": String(keepContext)])
         updateTranscriptionConfiguration { $0.keepContext = keepContext }
     }
 
     func setTrimSilence(_ trimSilence: Bool) {
+        analytics.track("setting_changed", properties: ["setting": "trimSilence", "value": String(trimSilence)])
         updateTranscriptionConfiguration { $0.trimSilence = trimSilence }
     }
 
     func setNormalizeAudio(_ normalizeAudio: Bool) {
+        analytics.track("setting_changed", properties: ["setting": "normalizeAudio", "value": String(normalizeAudio)])
         updateTranscriptionConfiguration { $0.normalizeAudio = normalizeAudio }
     }
 
@@ -235,6 +269,7 @@ final class AppModel: ObservableObject {
     }
 
     func setTapStopsOnNextKeyPress(_ enabled: Bool) {
+        analytics.track("setting_changed", properties: ["setting": "tapStopsOnNextKeyPress", "value": String(enabled)])
         updateTranscriptionConfiguration { $0.tapStopsOnNextKeyPress = enabled }
     }
 
@@ -243,6 +278,7 @@ final class AppModel: ObservableObject {
     }
 
     func resetToRecommendedPreset() {
+        analytics.track("recommended_preset_reset")
         transcriptionConfiguration = TranscriptionConfiguration()
         persist(configuration: transcriptionConfiguration)
 
@@ -253,6 +289,7 @@ final class AppModel: ObservableObject {
 
     func setHoldToTalkEnabled(_ isEnabled: Bool) {
         guard holdToTalkBinding.isEnabled != isEnabled else { return }
+        analytics.track("shortcut_enabled_changed", properties: ["shortcut": "holdToTalk", "enabled": String(isEnabled)])
         holdToTalkBinding.isEnabled = isEnabled
         persist(binding: holdToTalkBinding)
         refreshRegisteredHotkeys()
@@ -260,6 +297,7 @@ final class AppModel: ObservableObject {
 
     func setTapToStartStopEnabled(_ isEnabled: Bool) {
         guard tapToStartStopBinding.isEnabled != isEnabled else { return }
+        analytics.track("shortcut_enabled_changed", properties: ["shortcut": "tapToStartStop", "enabled": String(isEnabled)])
         tapToStartStopBinding.isEnabled = isEnabled
         persist(binding: tapToStartStopBinding)
         refreshRegisteredHotkeys()
@@ -276,10 +314,12 @@ final class AppModel: ObservableObject {
         switch action {
         case .holdToTalk:
             guard holdToTalkBinding.shortcut != shortcut else { return }
+            analytics.track("shortcut_changed", properties: ["shortcut": "holdToTalk"])
             holdToTalkBinding.shortcut = shortcut
             persist(binding: holdToTalkBinding)
         case .tapToStartStop:
             guard tapToStartStopBinding.shortcut != shortcut else { return }
+            analytics.track("shortcut_changed", properties: ["shortcut": "tapToStartStop"])
             tapToStartStopBinding.shortcut = shortcut
             persist(binding: tapToStartStopBinding)
         }
@@ -292,6 +332,7 @@ final class AppModel: ObservableObject {
     }
 
     func copyTranscript(_ item: TranscriptHistoryItem) {
+        analytics.track("transcript_copied", properties: ["charactersBucket": Self.countBucket(item.text.count)])
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(item.text, forType: .string)
@@ -303,6 +344,13 @@ final class AppModel: ObservableObject {
                 self?.copiedTranscriptID = nil
             }
         }
+    }
+
+    func setAnalyticsEnabled(_ isEnabled: Bool) {
+        guard analyticsEnabled != isEnabled else { return }
+        analyticsEnabled = isEnabled
+        defaults.set(isEnabled, forKey: PreferenceKey.analyticsEnabled)
+        analytics.setEnabled(isEnabled)
     }
 
     private var currentHotkeyBindings: [HotkeyBinding] {
@@ -378,6 +426,7 @@ final class AppModel: ObservableObject {
     private func appendTranscriptToHistory(_ transcript: String) {
         let cleaned = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return }
+        analytics.track("transcript_created", properties: ["charactersBucket": Self.countBucket(cleaned.count)])
 
         transcriptHistory.insert(TranscriptHistoryItem(text: cleaned), at: 0)
         if transcriptHistory.count > 20 {
@@ -559,6 +608,19 @@ final class AppModel: ObservableObject {
             return []
         }
         return history
+    }
+
+    private static func countBucket(_ count: Int) -> String {
+        switch count {
+        case 0..<50:
+            return "0-49"
+        case 50..<200:
+            return "50-199"
+        case 200..<800:
+            return "200-799"
+        default:
+            return "800+"
+        }
     }
 
     private static func preferenceKeys(for action: HotkeyAction) -> (enabled: String, keyCode: String, modifiers: String, keyDisplay: String) {

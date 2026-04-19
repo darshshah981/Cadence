@@ -4,6 +4,20 @@ import Testing
 
 struct CadenceTests {
     @Test
+    @MainActor
+    func analyticsServiceRequiresOptInAndSanitizesProperties() {
+        let sink = CapturingAnalyticsSink()
+        let analytics = AnalyticsService(isEnabled: false, sink: sink)
+
+        analytics.track("ignored")
+        analytics.setEnabled(true)
+        analytics.track("sample", properties: ["detail": "hello\nworld"])
+
+        #expect(sink.events.map(\.name) == ["analytics_consent_updated", "sample"])
+        #expect(sink.events.last?.properties["detail"] == "hello world")
+    }
+
+    @Test
     func permissionsSnapshotRequiresMicrophoneAccessibilityAndInputMonitoring() {
         let missingInputMonitoring = PermissionsSnapshot(
             microphoneGranted: true,
@@ -131,5 +145,13 @@ struct CadenceTests {
         )
 
         #expect(result == "this is a test.")
+    }
+}
+
+private final class CapturingAnalyticsSink: AnalyticsSink, @unchecked Sendable {
+    private(set) var events = [AnalyticsEvent]()
+
+    func send(_ event: AnalyticsEvent) {
+        events.append(event)
     }
 }
