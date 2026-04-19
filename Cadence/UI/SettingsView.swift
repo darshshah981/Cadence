@@ -177,25 +177,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             FlowSectionHeader(title: "Permissions")
             FlowSectionCard {
-                PermissionRow(
-                    title: "Microphone",
-                    isGranted: appModel.permissions.microphoneGranted,
-                    actionTitle: "Request",
-                    action: appModel.requestMicrophoneAccess
-                )
-                insetDivider
-                PermissionRow(
-                    title: "Accessibility",
-                    isGranted: appModel.permissions.accessibilityGranted,
-                    actionTitle: "Open Settings",
-                    action: appModel.requestAccessibilityAccess
-                )
-                insetDivider
-                PermissionRow(
-                    title: "Input Monitoring",
-                    isGranted: appModel.permissions.inputMonitoringGranted,
-                    actionTitle: "Open Settings",
-                    action: appModel.requestInputMonitoringAccess
+                PermissionWizardRow(
+                    permissions: appModel.permissions,
+                    action: appModel.openPermissionsWizard
                 )
             }
         }
@@ -355,39 +339,49 @@ private struct SettingsToggleRow: View {
     }
 }
 
-private struct PermissionRow: View {
-    let title: String
-    let isGranted: Bool
-    let actionTitle: String
+private struct PermissionWizardRow: View {
+    let permissions: PermissionsSnapshot
     let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Text(title)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(FlowTheme.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(2)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(permissions.allRequiredGranted ? "Cadence is ready" : "Finish setup")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(FlowTheme.textPrimary)
 
-            PermissionBadge(isGranted: isGranted)
-                .fixedSize()
-
-            if !isGranted {
-                Button(action: action) {
-                    Text(actionTitle)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(FlowTheme.accent)
-                        .lineLimit(1)
-                        .frame(width: 96, alignment: .trailing)
-                }
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(summary)
+                    .font(.system(size: 12))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            Spacer()
+
+            Button(action: action) {
+                Text(permissions.allRequiredGranted ? "Review" : "Open Wizard")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(FlowTheme.accent)
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 52)
+        .padding(12)
+    }
+
+    private var summary: String {
+        if permissions.allRequiredGranted {
+            return "Microphone, Accessibility, and Input Monitoring are enabled."
+        }
+
+        let missing = [
+            permissions.microphoneGranted ? nil : "Microphone",
+            permissions.accessibilityGranted ? nil : "Accessibility",
+            permissions.inputMonitoringGranted ? nil : "Input Monitoring"
+        ]
+        .compactMap { $0 }
+        .joined(separator: ", ")
+
+        return "Missing: \(missing)"
     }
 }
 

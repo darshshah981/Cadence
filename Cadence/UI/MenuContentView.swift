@@ -144,7 +144,9 @@ struct MenuContentView: View {
                         needsPermissions: !appModel.permissions.allRequiredGranted,
                         expandedTranscriptIDs: $expandedTranscriptIDs,
                         onCopy: appModel.copyTranscript,
-                        onOpenSettings: appModel.showSettingsScreen
+                        onOpenSettings: appModel.permissions.allRequiredGranted
+                            ? appModel.showSettingsScreen
+                            : appModel.openPermissionsWizard
                     )
                 case .settings:
                     SettingsView(appModel: appModel)

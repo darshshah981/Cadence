@@ -2,41 +2,28 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum PermissionGuideKind {
-    case accessibility
-    case inputMonitoring
+@MainActor
+final class PermissionWizardState: ObservableObject {
+    @Published var permissions: PermissionsSnapshot
 
-    var title: String {
-        switch self {
-        case .accessibility:
-            return "Accessibility"
-        case .inputMonitoring:
-            return "Input Monitoring"
-        }
-    }
-
-    var settingsName: String {
-        switch self {
-        case .accessibility:
-            return "Accessibility"
-        case .inputMonitoring:
-            return "Input Monitoring"
-        }
+    init(permissions: PermissionsSnapshot) {
+        self.permissions = permissions
     }
 }
 
 @MainActor
 final class PermissionGuideWindowController: NSWindowController {
-    private var hostingController: NSHostingController<PermissionGuideView>?
+    private var hostingController: NSHostingController<PermissionWizardView>?
+    private var state: PermissionWizardState?
 
     convenience init() {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 430, height: 520),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        panel.title = "Grant Cadence Access"
+        panel.title = "Set Up Cadence"
         panel.titlebarAppearsTransparent = true
         panel.isFloatingPanel = true
         panel.level = .floating
@@ -49,14 +36,27 @@ final class PermissionGuideWindowController: NSWindowController {
         self.init(window: panel)
     }
 
-    func show(kind: PermissionGuideKind, appURL: URL) {
+    func show(
+        permissions: PermissionsSnapshot,
+        appURL: URL,
+        onRequestMicrophone: @escaping () -> Void,
+        onRequestAccessibility: @escaping () -> Void,
+        onRequestInputMonitoring: @escaping () -> Void,
+        onRefresh: @escaping () -> Void
+    ) {
         let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
             ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
             ?? "Cadence"
-        let view = PermissionGuideView(
-            kind: kind,
+        let state = PermissionWizardState(permissions: permissions)
+        self.state = state
+        let view = PermissionWizardView(
+            state: state,
             appURL: appURL,
             appName: appName,
+            onRequestMicrophone: onRequestMicrophone,
+            onRequestAccessibility: onRequestAccessibility,
+            onRequestInputMonitoring: onRequestInputMonitoring,
+            onRefresh: onRefresh,
             onRevealApp: {
                 NSWorkspace.shared.activateFileViewerSelecting([appURL])
             },
@@ -70,12 +70,16 @@ final class PermissionGuideWindowController: NSWindowController {
 
         let hostingController = NSHostingController(rootView: view)
         self.hostingController = hostingController
-        window?.title = "Grant \(appName) Access"
+        window?.title = "Set Up \(appName)"
         window?.contentViewController = hostingController
-        window?.setContentSize(NSSize(width: 380, height: 340))
+        window?.setContentSize(NSSize(width: 430, height: 520))
         window?.center()
         showWindow(nil)
         window?.orderFrontRegardless()
+    }
+
+    func updatePermissions(_ permissions: PermissionsSnapshot) {
+        state?.permissions = permissions
     }
 
     private static func relaunch(appURL: URL) {
@@ -95,39 +99,117 @@ final class PermissionGuideWindowController: NSWindowController {
     }
 }
 
-struct PermissionGuideView: View {
-    let kind: PermissionGuideKind
+private struct PermissionWizardView: View {
+    @ObservedObject var state: PermissionWizardState
+
     let appURL: URL
     let appName: String
+    let onRequestMicrophone: () -> Void
+    let onRequestAccessibility: () -> Void
+    let onRequestInputMonitoring: () -> Void
+    let onRefresh: () -> Void
     let onRevealApp: () -> Void
     let onRestartApp: () -> Void
     let onClose: () -> Void
 
+    @State private var iconNudge = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center, spacing: 12) {
+            header
+            instruction
+            permissionList
+            appPath
+            actions
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(FlowTheme.background)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                iconNudge = true
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 14) {
+            ZStack(alignment: .bottomTrailing) {
                 AppBundleDragView(appURL: appURL)
-                    .frame(width: 62, height: 62)
+                    .frame(width: 66, height: 66)
+                    .offset(x: iconNudge ? 8 : 0, y: iconNudge ? -3 : 0)
+                    .scaleEffect(iconNudge ? 1.04 : 1)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Grant \(appName)")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(FlowTheme.textPrimary)
-
-                    Text(kind.title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(FlowTheme.accent)
-                }
+                Image(systemName: "arrow.up.forward")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(FlowTheme.background)
+                    .frame(width: 24, height: 24)
+                    .background(FlowTheme.accent, in: Circle())
+                    .offset(x: 5, y: 5)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                PermissionGuideStep(number: 1, text: "Find \(appName) in System Settings.")
-                PermissionGuideStep(number: 2, text: "Turn it on for \(kind.settingsName).")
-                PermissionGuideStep(number: 3, text: "If it is missing, drag this \(appName) icon into the app list.")
-                PermissionGuideStep(number: 4, text: "Come back here and click Restart \(appName).")
-            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Set up \(appName)")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
 
-            Text("Use this restart button after granting access. The macOS Quit & Reopen prompt can miss menu bar apps.")
+                Text(state.permissions.allRequiredGranted ? "Everything is ready." : "Grant the access Cadence needs.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(FlowTheme.textSecondary)
+            }
+        }
+    }
+
+    private var instruction: some View {
+        Text(activeInstruction)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(FlowTheme.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(FlowTheme.accentSubtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(FlowTheme.accentBorder, lineWidth: 1)
+            )
+    }
+
+    private var permissionList: some View {
+        VStack(spacing: 0) {
+            PermissionWizardRow(
+                title: "Microphone",
+                description: "Allow recording when you dictate.",
+                isGranted: state.permissions.microphoneGranted,
+                actionTitle: "Request",
+                action: onRequestMicrophone
+            )
+            divider
+            PermissionWizardRow(
+                title: "Accessibility",
+                description: "Allow Cadence to insert text into the focused app.",
+                isGranted: state.permissions.accessibilityGranted,
+                actionTitle: "Open Settings",
+                action: onRequestAccessibility
+            )
+            divider
+            PermissionWizardRow(
+                title: "Input Monitoring",
+                description: "Allow global shortcuts to work while other apps are active.",
+                isGranted: state.permissions.inputMonitoringGranted,
+                actionTitle: "Open Settings",
+                action: onRequestInputMonitoring
+            )
+        }
+        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(FlowTheme.border, lineWidth: 1)
+        )
+    }
+
+    private var appPath: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("If Cadence is missing from System Settings, drag the app icon above into the list.")
                 .font(.system(size: 12))
                 .foregroundStyle(FlowTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -140,44 +222,87 @@ struct PermissionGuideView: View {
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            HStack(spacing: 8) {
-                Button("Reveal App", action: onRevealApp)
-                    .buttonStyle(.bordered)
-
-                Button("Restart \(appName)", action: onRestartApp)
-                    .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button("Done", action: onClose)
-                    .buttonStyle(.borderedProminent)
-            }
-            .controlSize(.regular)
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(FlowTheme.background)
+    }
+
+    private var actions: some View {
+        HStack(spacing: 8) {
+            Button("Reveal App", action: onRevealApp)
+                .buttonStyle(.bordered)
+
+            Button("Check Again", action: onRefresh)
+                .buttonStyle(.bordered)
+
+            Button("Restart \(appName)", action: onRestartApp)
+                .buttonStyle(.bordered)
+
+            Spacer()
+
+            Button("Done", action: onClose)
+                .buttonStyle(.borderedProminent)
+        }
+        .controlSize(.regular)
+    }
+
+    private var divider: some View {
+        Rectangle()
+            .fill(FlowTheme.border)
+            .frame(height: 1)
+            .padding(.leading, 12)
+    }
+
+    private var activeInstruction: String {
+        if !state.permissions.microphoneGranted {
+            return "Start with Microphone. Click Request, then allow Cadence when macOS asks."
+        }
+
+        if !state.permissions.accessibilityGranted {
+            return "Open Accessibility, turn on Cadence, or drag this Cadence icon into the list if it is missing."
+        }
+
+        if !state.permissions.inputMonitoringGranted {
+            return "Open Input Monitoring, turn on Cadence, or drag this Cadence icon into the list if it is missing."
+        }
+
+        return "All permissions are enabled. Restart Cadence if macOS asked you to relaunch."
     }
 }
 
-private struct PermissionGuideStep: View {
-    let number: Int
-    let text: String
+private struct PermissionWizardRow: View {
+    let title: String
+    let description: String
+    let isGranted: Bool
+    let actionTitle: String
+    let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text("\(number)")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(FlowTheme.background)
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: isGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(isGranted ? FlowTheme.success : FlowTheme.error)
                 .frame(width: 20, height: 20)
-                .background(FlowTheme.accent, in: Circle())
 
-            Text(text)
-                .font(.system(size: 13))
-                .foregroundStyle(FlowTheme.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(FlowTheme.textPrimary)
+
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+
+            if !isGranted {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
         }
+        .padding(12)
+        .frame(minHeight: 66)
     }
 }
 

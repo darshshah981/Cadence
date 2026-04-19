@@ -132,6 +132,7 @@ final class AppModel: ObservableObject {
 
     func refreshPermissions() async {
         permissions = permissionsService.snapshot()
+        permissionGuideWindowController.updatePermissions(permissions)
     }
 
     func requestMicrophoneAccess() {
@@ -143,13 +144,32 @@ final class AppModel: ObservableObject {
 
     func requestAccessibilityAccess() {
         permissionsService.requestAccessibilityAccess()
-        showPermissionGuide(for: .accessibility)
         schedulePermissionRefreshBurst()
     }
 
     func requestInputMonitoringAccess() {
         permissionsService.requestInputMonitoringAccess()
-        showPermissionGuide(for: .inputMonitoring)
+        schedulePermissionRefreshBurst()
+    }
+
+    func openPermissionsWizard() {
+        NSApp.activate(ignoringOtherApps: true)
+        permissionGuideWindowController.show(
+            permissions: permissions,
+            appURL: Bundle.main.bundleURL,
+            onRequestMicrophone: { [weak self] in
+                self?.requestMicrophoneAccess()
+            },
+            onRequestAccessibility: { [weak self] in
+                self?.requestAccessibilityAccess()
+            },
+            onRequestInputMonitoring: { [weak self] in
+                self?.requestInputMonitoringAccess()
+            },
+            onRefresh: { [weak self] in
+                Task { await self?.refreshPermissions() }
+            }
+        )
         schedulePermissionRefreshBurst()
     }
 
@@ -339,11 +359,6 @@ final class AppModel: ObservableObject {
                 self?.lastExternalApplication = application
             }
             .store(in: &cancellables)
-    }
-
-    private func showPermissionGuide(for kind: PermissionGuideKind) {
-        NSApp.activate(ignoringOtherApps: true)
-        permissionGuideWindowController.show(kind: kind, appURL: Bundle.main.bundleURL)
     }
 
     private func schedulePermissionRefreshBurst() {
