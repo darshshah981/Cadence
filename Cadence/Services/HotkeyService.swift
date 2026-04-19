@@ -1,6 +1,12 @@
 import Carbon
 import AppKit
 import Foundation
+import OSLog
+
+private let hotkeyLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Cadence",
+    category: "Hotkey"
+)
 
 protocol HotkeyServing: AnyObject {
     var onPress: ((HotkeyAction) -> Void)? { get set }
@@ -77,7 +83,7 @@ final class HotkeyService: HotkeyServing {
             EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))
         ]
 
-        InstallEventHandler(
+        let status = InstallEventHandler(
             GetApplicationEventTarget(),
             { _, event, userData in
                 guard let userData else { return noErr }
@@ -108,9 +114,11 @@ final class HotkeyService: HotkeyServing {
 
                 switch kind {
                 case UInt32(kEventHotKeyPressed):
+                    hotkeyLogger.info("Hotkey pressed action=\(action.displayName, privacy: .public)")
                     service.suppressNextAnyKeyPress = action == .tapToStartStop
                     service.onPress?(action)
                 case UInt32(kEventHotKeyReleased):
+                    hotkeyLogger.info("Hotkey released action=\(action.displayName, privacy: .public)")
                     service.onRelease?(action)
                 default:
                     break
@@ -123,6 +131,12 @@ final class HotkeyService: HotkeyServing {
             UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
             &eventHandler
         )
+
+        if status == noErr {
+            hotkeyLogger.info("Installed Carbon hotkey event handler")
+        } else {
+            hotkeyLogger.error("Failed to install Carbon hotkey event handler status=\(status, privacy: .public)")
+        }
     }
 
     private func registerHotKeys() {
@@ -133,7 +147,7 @@ final class HotkeyService: HotkeyServing {
                 id: binding.action.eventHotKeyID
             )
 
-            RegisterEventHotKey(
+            let status = RegisterEventHotKey(
                 binding.shortcut.keyCode,
                 binding.shortcut.carbonModifiers,
                 hotKeyID,
@@ -144,6 +158,13 @@ final class HotkeyService: HotkeyServing {
 
             if let hotKeyRef {
                 hotKeyRefs[binding.action] = hotKeyRef
+                hotkeyLogger.info(
+                    "Registered hotkey action=\(binding.action.displayName, privacy: .public) shortcut=\(binding.shortcut.displayName, privacy: .public)"
+                )
+            } else {
+                hotkeyLogger.error(
+                    "Failed to register hotkey action=\(binding.action.displayName, privacy: .public) shortcut=\(binding.shortcut.displayName, privacy: .public) status=\(status, privacy: .public)"
+                )
             }
         }
     }
@@ -172,6 +193,7 @@ final class HotkeyService: HotkeyServing {
             self?.handleModifierFlagsChanged(event)
             return event
         }
+        hotkeyLogger.info("Installed key and modifier monitors")
     }
 
     private func removeMonitors() {
@@ -215,6 +237,7 @@ final class HotkeyService: HotkeyServing {
                     self.pendingModifierOnlyWorkItems[action] = nil
                     self.activeModifierOnlyActions.insert(action)
                     self.suppressNextAnyKeyPress = action == .tapToStartStop
+                    hotkeyLogger.info("Modifier-only hotkey pressed action=\(action.displayName, privacy: .public)")
                     self.onPress?(action)
                 }
                 pendingModifierOnlyWorkItems[action] = workItem
@@ -224,6 +247,7 @@ final class HotkeyService: HotkeyServing {
                 pendingModifierOnlyWorkItems[action] = nil
             } else if !matches && isActive {
                 activeModifierOnlyActions.remove(action)
+                hotkeyLogger.info("Modifier-only hotkey released action=\(action.displayName, privacy: .public)")
                 onRelease?(action)
             }
         }

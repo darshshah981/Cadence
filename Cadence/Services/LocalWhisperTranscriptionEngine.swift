@@ -385,7 +385,7 @@ final actor LocalWhisperPreviewEngine {
         switch configuration.model {
         case .tinyEnglish, .baseEnglish:
             return configuration.model
-        case .smallEnglish, .mediumEnglish:
+        case .smallEnglish, .mediumEnglish, .largeV3:
             return .tinyEnglish
         }
     }

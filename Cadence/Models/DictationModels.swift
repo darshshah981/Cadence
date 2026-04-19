@@ -46,6 +46,7 @@ enum WhisperModelOption: String, CaseIterable, Identifiable, Sendable {
     case baseEnglish
     case smallEnglish
     case mediumEnglish
+    case largeV3
 
     var id: String { rawValue }
 
@@ -59,6 +60,8 @@ enum WhisperModelOption: String, CaseIterable, Identifiable, Sendable {
             return "ggml-small.en.bin"
         case .mediumEnglish:
             return "ggml-medium.en.bin"
+        case .largeV3:
+            return "ggml-large-v3-turbo.bin"
         }
     }
 
@@ -84,6 +87,8 @@ enum WhisperModelOption: String, CaseIterable, Identifiable, Sendable {
             return "Small English"
         case .mediumEnglish:
             return "Medium English"
+        case .largeV3:
+            return "Large v3"
         }
     }
 
@@ -97,6 +102,8 @@ enum WhisperModelOption: String, CaseIterable, Identifiable, Sendable {
             return "small.en"
         case .mediumEnglish:
             return "medium.en"
+        case .largeV3:
+            return "large-v3"
         }
     }
 
@@ -110,6 +117,8 @@ enum WhisperModelOption: String, CaseIterable, Identifiable, Sendable {
             return "~460 MB"
         case .mediumEnglish:
             return "~1.5 GB"
+        case .largeV3:
+            return "~626 MB"
         }
     }
 
@@ -123,6 +132,8 @@ enum WhisperModelOption: String, CaseIterable, Identifiable, Sendable {
             return "Precise"
         case .mediumEnglish:
             return "High"
+        case .largeV3:
+            return "Most accurate"
         }
     }
 }

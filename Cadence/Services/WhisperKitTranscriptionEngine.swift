@@ -14,6 +14,8 @@ final actor WhisperKitTranscriptionEngine: TranscriptionEngine {
     private var configuration = TranscriptionConfiguration()
     private var pipeline: WhisperKit?
     private var loadedModelName: String?
+    private var prepareTask: Task<WhisperKit, Error>?
+    private var preparingModelName: String?
     private var samples = [Float]()
 
     func updateConfiguration(_ configuration: TranscriptionConfiguration) async throws {
@@ -23,12 +25,24 @@ final actor WhisperKitTranscriptionEngine: TranscriptionEngine {
             loadedModelName = nil
         }
 
+        if let preparingModelName, preparingModelName != nextModelName {
+            prepareTask?.cancel()
+            prepareTask = nil
+            self.preparingModelName = nil
+        }
+
         self.configuration = configuration
     }
 
     func prepare() async throws {
         let modelName = Self.modelName(for: configuration.model)
         if pipeline != nil, loadedModelName == modelName {
+            return
+        }
+
+        if let prepareTask, preparingModelName == modelName {
+            pipeline = try await prepareTask.value
+            loadedModelName = modelName
             return
         }
 
@@ -49,21 +63,39 @@ final actor WhisperKitTranscriptionEngine: TranscriptionEngine {
             useBackgroundDownloadSession: false
         )
 
-        let newPipeline: WhisperKit
-        do {
-            newPipeline = try await WhisperKit(config)
-        } catch {
-            whisperKitLogger.error(
-                "Cadence timing whisperKitPrepare failed model=\(modelName, privacy: .public) elapsed=\(Self.formatSeconds(Date().timeIntervalSince(startedAt)), privacy: .public)s error=\(String(describing: error), privacy: .public)"
+        let task = Task {
+            let newPipeline: WhisperKit
+            do {
+                newPipeline = try await WhisperKit(config)
+            } catch {
+                whisperKitLogger.error(
+                    "Cadence timing whisperKitPrepare failed model=\(modelName, privacy: .public) elapsed=\(Self.formatSeconds(Date().timeIntervalSince(startedAt)), privacy: .public)s error=\(String(describing: error), privacy: .public)"
+                )
+                throw error
+            }
+
+            whisperKitLogger.info(
+                "Cadence timing whisperKitPrepare model=\(modelName, privacy: .public) elapsed=\(Self.formatSeconds(Date().timeIntervalSince(startedAt)), privacy: .public)s folder=\(newPipeline.modelFolder?.path ?? "unknown", privacy: .public)"
             )
+            return newPipeline
+        }
+
+        prepareTask = task
+        preparingModelName = modelName
+        defer {
+            if preparingModelName == modelName {
+                prepareTask = nil
+                preparingModelName = nil
+            }
+        }
+
+        do {
+            let newPipeline = try await task.value
+            pipeline = newPipeline
+            loadedModelName = modelName
+        } catch {
             throw error
         }
-        pipeline = newPipeline
-        loadedModelName = modelName
-
-        whisperKitLogger.info(
-            "Cadence timing whisperKitPrepare model=\(modelName, privacy: .public) elapsed=\(Self.formatSeconds(Date().timeIntervalSince(startedAt)), privacy: .public)s folder=\(newPipeline.modelFolder?.path ?? "unknown", privacy: .public)"
-        )
     }
 
     func startSession() async throws {
@@ -185,6 +217,8 @@ final actor WhisperKitTranscriptionEngine: TranscriptionEngine {
             return "openai_whisper-small.en"
         case .mediumEnglish:
             return "openai_whisper-small.en"
+        case .largeV3:
+            return "openai_whisper-large-v3-v20240930_626MB"
         }
     }
 
@@ -192,6 +226,8 @@ final actor WhisperKitTranscriptionEngine: TranscriptionEngine {
         switch model {
         case .mediumEnglish:
             return "small.en"
+        case .largeV3:
+            return "large-v3"
         default:
             return model.shortLabel
         }
