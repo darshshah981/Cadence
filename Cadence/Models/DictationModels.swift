@@ -66,6 +66,14 @@ enum WhisperModelOption: String, CaseIterable, Identifiable, Sendable {
         URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/\(fileName)")!
     }
 
+    var coreMLEncoderFileName: String {
+        fileName.replacingOccurrences(of: ".bin", with: "-encoder.mlmodelc")
+    }
+
+    var coreMLEncoderArchiveURL: URL {
+        URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/\(coreMLEncoderFileName).zip")!
+    }
+
     var displayName: String {
         switch self {
         case .tinyEnglish:
