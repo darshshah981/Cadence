@@ -27,6 +27,7 @@ let platforms: [SupportedPlatform]? = [
 let exclude: [String] = ["Sources/whisper/ggml-metal.m", "Sources/whisper/ggml-metal.metal"]
 let additionalSources: [String] = []
 let additionalSettings: [CSetting] = []
+let optimizationFlags = ["-O3", "-DNDEBUG"]
 
 //let exclude: [String] = []
 //let additionalSources: [String] = ["Sources/whisper/ggml-metal.m"]
@@ -40,6 +41,7 @@ let platforms: [SupportedPlatform]? = nil
 let exclude: [String] = ["Sources/whisper/ggml-metal.m", "Sources/whisper/ggml-metal.metal"]
 let additionalSources: [String] = []
 let additionalSettings: [CSetting] = []
+let optimizationFlags = ["-O3", "-DNDEBUG"]
 #endif
 
 let package = Package(
@@ -67,11 +69,14 @@ let package = Package(
             ] + additionalSources,
             publicHeadersPath: "Sources/whisper/include",
             cSettings: [
-                .unsafeFlags(["-Wno-shorten-64-to-32"]),
+                .unsafeFlags(optimizationFlags + ["-Wno-shorten-64-to-32"]),
                 .define("GGML_USE_ACCELERATE"),
                 .define("WHISPER_USE_COREML"),
                 .define("WHISPER_COREML_ALLOW_FALLBACK")
             ] + additionalSettings,
+            cxxSettings: [
+                .unsafeFlags(optimizationFlags)
+            ],
             linkerSettings: [
                 .linkedFramework("Accelerate")
             ]
