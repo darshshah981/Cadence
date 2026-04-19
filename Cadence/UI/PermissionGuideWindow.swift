@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 @MainActor
 final class PermissionWizardState: ObservableObject {
     @Published var permissions: PermissionsSnapshot
-    @Published var didManuallyCheckPermissions = false
 
     init(permissions: PermissionsSnapshot) {
         self.permissions = permissions
@@ -58,10 +57,7 @@ final class PermissionGuideWindowController: NSWindowController {
             onRequestMicrophone: onRequestMicrophone,
             onRequestAccessibility: onRequestAccessibility,
             onRequestInputMonitoring: onRequestInputMonitoring,
-            onRefresh: { [weak state] in
-                state?.didManuallyCheckPermissions = true
-                onRefresh()
-            },
+            onRefresh: onRefresh,
             onRevealApp: {
                 NSWorkspace.shared.activateFileViewerSelecting([appURL])
             },
@@ -196,11 +192,10 @@ private struct PermissionWizardView: View {
             divider
             PermissionWizardRow(
                 title: "Input Monitoring",
-                description: inputMonitoringDescription,
+                description: "Allow global shortcuts to work while other apps are active.",
                 isGranted: state.permissions.inputMonitoringGranted,
                 actionTitle: "Open Settings",
-                action: onRequestInputMonitoring,
-                needsRestartVerification: state.didManuallyCheckPermissions && state.permissions.inputMonitoringGranted
+                action: onRequestInputMonitoring
             )
         }
         .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -241,7 +236,7 @@ private struct PermissionWizardView: View {
             }
 
             HStack(spacing: 8) {
-                Button("Restart & Check", action: onRestartApp)
+                Button("Restart \(appName)", action: onRestartApp)
                     .buttonStyle(.bordered)
 
                 Spacer()
@@ -279,19 +274,7 @@ private struct PermissionWizardView: View {
             return "Open Input Monitoring, turn on Cadence, or drag this Cadence icon into the list if it is missing."
         }
 
-        if state.didManuallyCheckPermissions {
-            return "If you removed Cadence with the minus button, macOS can keep reporting access until Cadence restarts."
-        }
-
         return "All permissions are enabled. Restart Cadence if macOS asked you to relaunch."
-    }
-
-    private var inputMonitoringDescription: String {
-        if state.didManuallyCheckPermissions && state.permissions.inputMonitoringGranted {
-            return "Granted for this running session. Restart if you removed Cadence with the minus button."
-        }
-
-        return "Allow global shortcuts to work while other apps are active."
     }
 }
 
@@ -301,13 +284,12 @@ private struct PermissionWizardRow: View {
     let isGranted: Bool
     let actionTitle: String
     let action: () -> Void
-    var needsRestartVerification = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            Image(systemName: iconName)
+            Image(systemName: isGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(iconColor)
+                .foregroundStyle(isGranted ? FlowTheme.success : FlowTheme.error)
                 .frame(width: 20, height: 20)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -331,20 +313,6 @@ private struct PermissionWizardRow: View {
         }
         .padding(12)
         .frame(minHeight: 66)
-    }
-
-    private var iconName: String {
-        if needsRestartVerification {
-            return "exclamationmark.circle.fill"
-        }
-        return isGranted ? "checkmark.circle.fill" : "xmark.circle.fill"
-    }
-
-    private var iconColor: Color {
-        if needsRestartVerification {
-            return FlowTheme.accent
-        }
-        return isGranted ? FlowTheme.success : FlowTheme.error
     }
 }
 
