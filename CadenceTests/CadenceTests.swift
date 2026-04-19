@@ -4,14 +4,20 @@ import Testing
 
 struct CadenceTests {
     @Test
-    func permissionsSnapshotRequiresMicrophoneAndAccessibility() {
-        let snapshot = PermissionsSnapshot(
+    func permissionsSnapshotRequiresMicrophoneAccessibilityAndInputMonitoring() {
+        let missingInputMonitoring = PermissionsSnapshot(
             microphoneGranted: true,
             accessibilityGranted: true,
             inputMonitoringGranted: false
         )
+        let allGranted = PermissionsSnapshot(
+            microphoneGranted: true,
+            accessibilityGranted: true,
+            inputMonitoringGranted: true
+        )
 
-        #expect(snapshot.allRequiredGranted)
+        #expect(!missingInputMonitoring.allRequiredGranted)
+        #expect(allGranted.allRequiredGranted)
     }
 
     @Test

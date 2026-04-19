@@ -629,6 +629,6 @@ struct PermissionsSnapshot: Equatable {
     let inputMonitoringGranted: Bool
 
     var allRequiredGranted: Bool {
-        microphoneGranted && accessibilityGranted
+        microphoneGranted && accessibilityGranted && inputMonitoringGranted
     }
 }
