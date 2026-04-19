@@ -99,10 +99,6 @@ final actor WhisperKitTranscriptionEngine: TranscriptionEngine {
     }
 
     func startSession() async throws {
-        if pipeline == nil {
-            try await prepare()
-        }
-
         samples.removeAll(keepingCapacity: true)
     }
 

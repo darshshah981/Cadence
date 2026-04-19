@@ -106,8 +106,8 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
     }
 
     func startSession() async throws {
-        guard context != nil else {
-            throw WhisperEngineError.contextInitializationFailed
+        if context == nil {
+            try await prepare()
         }
 
         samples.removeAll(keepingCapacity: true)

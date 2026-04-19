@@ -183,8 +183,6 @@ final class DictationCoordinator {
 
             activeTriggerMode = triggerMode
 
-            let summary = try await prewarmBackend()
-            onBackendStatus?(summary)
             try await transcriptionEngine.startSession()
             try audioCaptureService.startCapture { [weak self] chunk, level in
                 Task { @MainActor [weak self] in
@@ -221,9 +219,24 @@ final class DictationCoordinator {
                 waveformLevels: latestWaveformLevels,
                 showsSubtitle: false
             )
+            warmBackendForCurrentSession()
         } catch {
             activeTriggerMode = nil
             publishError(error.localizedDescription)
+        }
+    }
+
+    private func warmBackendForCurrentSession() {
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                _ = try await self.prewarmBackend()
+            } catch {
+                dictationLogger.error(
+                    "Cadence timing backgroundPrepare failed error=\(error.localizedDescription, privacy: .public)"
+                )
+            }
         }
     }
 
