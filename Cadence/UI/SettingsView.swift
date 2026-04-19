@@ -135,12 +135,6 @@ struct SettingsView: View {
                 )
                 insetDivider
                 SettingsToggleRow(
-                    title: "Live subtitles",
-                    description: "Shows live transcription above the pill while dictating.",
-                    isOn: livePreviewBinding
-                )
-                insetDivider
-                SettingsToggleRow(
                     title: "Stop on next key press",
                     description: "For press-to-start mode, stop dictation as soon as you begin typing.",
                     isOn: tapStopsOnNextKeyPressBinding
@@ -252,13 +246,6 @@ struct SettingsView: View {
         Binding(
             get: { appModel.transcriptionConfiguration.normalizeAudio },
             set: { appModel.setNormalizeAudio($0) }
-        )
-    }
-
-    private var livePreviewBinding: Binding<Bool> {
-        Binding(
-            get: { appModel.transcriptionConfiguration.livePreviewEnabled },
-            set: { appModel.setLivePreviewEnabled($0) }
         )
     }
 
