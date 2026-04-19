@@ -7,194 +7,176 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		085F8699DA3FA31F07454F68 /* MockTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1415E369EBA08477F186E174 /* MockTranscriptionEngine.swift */; };
-		1F7C84EF357CDA7FF73E0A76 /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB0424A3CB813F296F829A8 /* DictationCoordinator.swift */; };
-		2697492C0DFAF6205CCEC772 /* MenuContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E699157182100A322460BBA0 /* MenuContentView.swift */; };
-		352C865DCF261AD7CCC3A9C8 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E702AE4E0109F188340DEB9 /* HUDWindowController.swift */; };
-		3EC037B350A9E3556A4DE42C /* DictationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08F97763D51B4E84ECCC4C6 /* DictationModels.swift */; };
-		458D3EE76E89550A9D112406 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00435979AD8D5B11BDAA497 /* HotkeyService.swift */; };
-		56E01B5F57508D1ED4C2039E /* CadenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEE2751D89CB1FC24C27CE7C /* CadenceTests.swift */; };
-		5A3BF0A2A737D2E9FCBBFEE4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3CE69CC8582DB4564F4C9A /* SettingsView.swift */; };
-		5BA192F7BC428145928FC1AB /* PermissionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E140DBFA8FC90A1216E621D /* PermissionsService.swift */; };
-		63B06AACA381556456065335 /* TextInsertionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C07D72E137AC4D4042004AB /* TextInsertionService.swift */; };
-		6D35008598422E1320289362 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB8304731287F9C45902B72 /* AppModel.swift */; };
-		73488FA6C8FE46321714ABF7 /* PermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD49EF70236E15CC47A60EF0 /* PermissionsView.swift */; };
-		82E0DA26A2B28D2A74D8C006 /* WhisperModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8D4D871AC85414FFDA5263 /* WhisperModelManager.swift */; };
-		8BE957060FAE6F1D64CD97B6 /* LocalWhisperTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30269D2F5DFC9ADB1CF5BC50 /* LocalWhisperTranscriptionEngine.swift */; };
-		A67245F8DE29D25C178B82DB /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = 091B9638FBE83A086BE9640F /* whisper */; };
-		B5B3802E7FB85CFEBD4986CB /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9E6138A724F9DEAA0A24F3E /* AudioCaptureService.swift */; };
-		B78D6E38E6F3910E5AF92FDB /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB25C7EAA477B12EF91129C6 /* AppDelegate.swift */; };
-		CA8ED2724BF3A00F8433367C /* TranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F86B42D6A5B7605AF7C58D01 /* TranscriptionEngine.swift */; };
-		CB11F5CC5B2DCA9A7ACC38E7 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55C3C82972CA51191B1DA75 /* HUDView.swift */; };
-		EFD15C03891CBF91D8FA416B /* CadenceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF5ED2798DF8336DEC6F3410 /* CadenceApp.swift */; };
+		097667E2CBD98ED27B666656 /* MockTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21CC2B73F205DDEA13DE704 /* MockTranscriptionEngine.swift */; };
+		0A71E31A51D2EC604CDAF28F /* DictationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57F88FDABE976A050039E642 /* DictationModels.swift */; };
+		28E458EF554469DF6A804BC5 /* CadenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9880DDA2B852F0ED7E7ECC0F /* CadenceTests.swift */; };
+		374F72155EFC90A04DFF1321 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84BAA74864E494C5E664E268 /* AppModel.swift */; };
+		43A6653D967FC59ABC91624E /* CadenceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD2468FAE7A89F2B18DEDAF /* CadenceApp.swift */; };
+		5E5546C97794520F90E67A53 /* LocalWhisperTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92850F6EFBA47BC3D1219A5A /* LocalWhisperTranscriptionEngine.swift */; };
+		6CB478AD12E64CFE521C6215 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E7124C5AF7EC6EBAB0DE7E /* SettingsView.swift */; };
+		6EEA0FEF55A747191E62FC60 /* MenuContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */; };
+		878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37031AF8A914D482FABFFD6B /* PermissionsService.swift */; };
+		9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC22C16A79401A6870742A6E /* HUDWindowController.swift */; };
+		A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */; };
+		A475674850BEEBA5017F3CE5 /* WhisperModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04F16F71B9B28382493F9055 /* WhisperModelManager.swift */; };
+		ABAAF7AD1FA70D69BA85152C /* TextInsertionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF53A70456557098B43E818E /* TextInsertionService.swift */; };
+		B61EFD617B4E75AC083EF588 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07592451F56FA01E1134A310 /* AppDelegate.swift */; };
+		C7F338241FF54CDBB0035A78 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF63FA1E7E53378DC4B66F6A /* AudioCaptureService.swift */; };
+		CA7DEBC92273F86FC09DB926 /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = F2C93216E5FF2CBC2100307E /* whisper */; };
+		D0ACFD368BDD7CB8693AB2D7 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58943A986FD1C46B9F453ED0 /* HUDView.swift */; };
+		D3E5CC707DAEC25A40DF8435 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36DCCAD2BECF88FDCBA8B4D3 /* HotkeyService.swift */; };
+		EF826D5DA46782A058A62AE8 /* TranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */; };
+		FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		86DEB914E3B751ED46517688 /* PBXContainerItemProxy */ = {
+		690B1C47F49DC7098F27DBE4 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = D95320817CFB076B990AB65D /* Project object */;
+			containerPortal = 9FA114BF81E88A4D01B65D31 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = B3ED34AAFC4954607107B3AC;
+			remoteGlobalIDString = 1D9D0CF3C214130166213D80;
 			remoteInfo = Cadence;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0C07D72E137AC4D4042004AB /* TextInsertionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionService.swift; sourceTree = "<group>"; };
-		0E140DBFA8FC90A1216E621D /* PermissionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsService.swift; sourceTree = "<group>"; };
-		1415E369EBA08477F186E174 /* MockTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTranscriptionEngine.swift; sourceTree = "<group>"; };
-		26E874253066BBC3E3599B8C /* whisper.spm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = whisper.spm; path = Vendor/whisper.spm; sourceTree = SOURCE_ROOT; };
-		30269D2F5DFC9ADB1CF5BC50 /* LocalWhisperTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWhisperTranscriptionEngine.swift; sourceTree = "<group>"; };
-		5AB0424A3CB813F296F829A8 /* DictationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCoordinator.swift; sourceTree = "<group>"; };
-		7B8D4D871AC85414FFDA5263 /* WhisperModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperModelManager.swift; sourceTree = "<group>"; };
-		7E702AE4E0109F188340DEB9 /* HUDWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDWindowController.swift; sourceTree = "<group>"; };
-		A08F97763D51B4E84ECCC4C6 /* DictationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModels.swift; sourceTree = "<group>"; };
-		ACB8304731287F9C45902B72 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
-		BB25C7EAA477B12EF91129C6 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		C00435979AD8D5B11BDAA497 /* HotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyService.swift; sourceTree = "<group>"; };
-		CD49EF70236E15CC47A60EF0 /* PermissionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsView.swift; sourceTree = "<group>"; };
-		CF5ED2798DF8336DEC6F3410 /* CadenceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceApp.swift; sourceTree = "<group>"; };
-		D55C3C82972CA51191B1DA75 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
-		D9E6138A724F9DEAA0A24F3E /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
-		DEE2751D89CB1FC24C27CE7C /* CadenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceTests.swift; sourceTree = "<group>"; };
-		E2CD7B2E848586423E3ADBC0 /* Cadence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cadence.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		E699157182100A322460BBA0 /* MenuContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuContentView.swift; sourceTree = "<group>"; };
-		F86B42D6A5B7605AF7C58D01 /* TranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionEngine.swift; sourceTree = "<group>"; };
-		FA3CE69CC8582DB4564F4C9A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		FE931B3A5B203E8BBCA4854C /* CadenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CadenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		04F16F71B9B28382493F9055 /* WhisperModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperModelManager.swift; sourceTree = "<group>"; };
+		07592451F56FA01E1134A310 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		2747B5C0BD75EFECA1D2569B /* Cadence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cadence.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		36DCCAD2BECF88FDCBA8B4D3 /* HotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyService.swift; sourceTree = "<group>"; };
+		37031AF8A914D482FABFFD6B /* PermissionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsService.swift; sourceTree = "<group>"; };
+		42E7124C5AF7EC6EBAB0DE7E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		53DC5566E2688823A894040D /* CadenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CadenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		57F88FDABE976A050039E642 /* DictationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModels.swift; sourceTree = "<group>"; };
+		58943A986FD1C46B9F453ED0 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
+		74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuContentView.swift; sourceTree = "<group>"; };
+		84BAA74864E494C5E664E268 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		92850F6EFBA47BC3D1219A5A /* LocalWhisperTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWhisperTranscriptionEngine.swift; sourceTree = "<group>"; };
+		9880DDA2B852F0ED7E7ECC0F /* CadenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceTests.swift; sourceTree = "<group>"; };
+		9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCoordinator.swift; sourceTree = "<group>"; };
+		9C7E25967060B388F254437B /* whisper.spm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = whisper.spm; path = Vendor/whisper.spm; sourceTree = SOURCE_ROOT; };
+		A21CC2B73F205DDEA13DE704 /* MockTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTranscriptionEngine.swift; sourceTree = "<group>"; };
+		C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsView.swift; sourceTree = "<group>"; };
+		CCD2468FAE7A89F2B18DEDAF /* CadenceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceApp.swift; sourceTree = "<group>"; };
+		CF63FA1E7E53378DC4B66F6A /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
+		F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionEngine.swift; sourceTree = "<group>"; };
+		FC22C16A79401A6870742A6E /* HUDWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDWindowController.swift; sourceTree = "<group>"; };
+		FF53A70456557098B43E818E /* TextInsertionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		4A4BBA2151859AB19D3D28FE /* Frameworks */ = {
+		56B76F527BA1B0C195D380DB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A67245F8DE29D25C178B82DB /* whisper in Frameworks */,
+				CA7DEBC92273F86FC09DB926 /* whisper in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		07463E9AE2E269EF72C74570 /* Products */ = {
+		474DB1E3FA7ECC764925DA48 /* CadenceTests */ = {
 			isa = PBXGroup;
 			children = (
-				E2CD7B2E848586423E3ADBC0 /* Cadence.app */,
-				FE931B3A5B203E8BBCA4854C /* CadenceTests.xctest */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		196ACC34C1D9B26411B261B5 /* Packages */ = {
-			isa = PBXGroup;
-			children = (
-				26E874253066BBC3E3599B8C /* whisper.spm */,
-			);
-			name = Packages;
-			sourceTree = "<group>";
-		};
-		60C0F241B4E00BC8DBE16693 /* App */ = {
-			isa = PBXGroup;
-			children = (
-				BB25C7EAA477B12EF91129C6 /* AppDelegate.swift */,
-				ACB8304731287F9C45902B72 /* AppModel.swift */,
-				CF5ED2798DF8336DEC6F3410 /* CadenceApp.swift */,
-			);
-			path = App;
-			sourceTree = "<group>";
-		};
-		677470F8AE7ED508088F65F2 /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				A08F97763D51B4E84ECCC4C6 /* DictationModels.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
-		7DD5E2BF4A0034402067BA03 /* UI */ = {
-			isa = PBXGroup;
-			children = (
-				D55C3C82972CA51191B1DA75 /* HUDView.swift */,
-				E699157182100A322460BBA0 /* MenuContentView.swift */,
-				CD49EF70236E15CC47A60EF0 /* PermissionsView.swift */,
-				FA3CE69CC8582DB4564F4C9A /* SettingsView.swift */,
-			);
-			path = UI;
-			sourceTree = "<group>";
-		};
-		A8D5BBAA355967B19B67ABAF /* Cadence */ = {
-			isa = PBXGroup;
-			children = (
-				60C0F241B4E00BC8DBE16693 /* App */,
-				677470F8AE7ED508088F65F2 /* Models */,
-				FDF1E6A1A516C7B743D29324 /* Services */,
-				7DD5E2BF4A0034402067BA03 /* UI */,
-			);
-			path = Cadence;
-			sourceTree = "<group>";
-		};
-		BDFCBE74E37FCA6A2544D8AC = {
-			isa = PBXGroup;
-			children = (
-				A8D5BBAA355967B19B67ABAF /* Cadence */,
-				ECAA08400F9C3D2AB0462555 /* CadenceTests */,
-				196ACC34C1D9B26411B261B5 /* Packages */,
-				07463E9AE2E269EF72C74570 /* Products */,
-			);
-			sourceTree = "<group>";
-		};
-		ECAA08400F9C3D2AB0462555 /* CadenceTests */ = {
-			isa = PBXGroup;
-			children = (
-				DEE2751D89CB1FC24C27CE7C /* CadenceTests.swift */,
+				9880DDA2B852F0ED7E7ECC0F /* CadenceTests.swift */,
 			);
 			path = CadenceTests;
 			sourceTree = "<group>";
 		};
-		FDF1E6A1A516C7B743D29324 /* Services */ = {
+		5875D9DE20878243E04EB85B /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				D9E6138A724F9DEAA0A24F3E /* AudioCaptureService.swift */,
-				5AB0424A3CB813F296F829A8 /* DictationCoordinator.swift */,
-				C00435979AD8D5B11BDAA497 /* HotkeyService.swift */,
-				7E702AE4E0109F188340DEB9 /* HUDWindowController.swift */,
-				30269D2F5DFC9ADB1CF5BC50 /* LocalWhisperTranscriptionEngine.swift */,
-				1415E369EBA08477F186E174 /* MockTranscriptionEngine.swift */,
-				0E140DBFA8FC90A1216E621D /* PermissionsService.swift */,
-				0C07D72E137AC4D4042004AB /* TextInsertionService.swift */,
-				F86B42D6A5B7605AF7C58D01 /* TranscriptionEngine.swift */,
-				7B8D4D871AC85414FFDA5263 /* WhisperModelManager.swift */,
+				57F88FDABE976A050039E642 /* DictationModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		61BD71A810CD4ACDBE6E4E92 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				58943A986FD1C46B9F453ED0 /* HUDView.swift */,
+				74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */,
+				C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */,
+				42E7124C5AF7EC6EBAB0DE7E /* SettingsView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		6A9F1C3B6267176F20AE4B03 = {
+			isa = PBXGroup;
+			children = (
+				FD48710B608BE6A57DA448D7 /* Cadence */,
+				474DB1E3FA7ECC764925DA48 /* CadenceTests */,
+				BE9D6ACC5D9D37512579251A /* Packages */,
+				ADFE63F9A7B11522B6C8E81A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		78D2D1E4520BA69AC30BB1CB /* App */ = {
+			isa = PBXGroup;
+			children = (
+				07592451F56FA01E1134A310 /* AppDelegate.swift */,
+				84BAA74864E494C5E664E268 /* AppModel.swift */,
+				CCD2468FAE7A89F2B18DEDAF /* CadenceApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		ADFE63F9A7B11522B6C8E81A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2747B5C0BD75EFECA1D2569B /* Cadence.app */,
+				53DC5566E2688823A894040D /* CadenceTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		BE9D6ACC5D9D37512579251A /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				9C7E25967060B388F254437B /* whisper.spm */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		C44473C867EA22AD5CDA9820 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				CF63FA1E7E53378DC4B66F6A /* AudioCaptureService.swift */,
+				9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */,
+				36DCCAD2BECF88FDCBA8B4D3 /* HotkeyService.swift */,
+				FC22C16A79401A6870742A6E /* HUDWindowController.swift */,
+				92850F6EFBA47BC3D1219A5A /* LocalWhisperTranscriptionEngine.swift */,
+				A21CC2B73F205DDEA13DE704 /* MockTranscriptionEngine.swift */,
+				37031AF8A914D482FABFFD6B /* PermissionsService.swift */,
+				FF53A70456557098B43E818E /* TextInsertionService.swift */,
+				F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */,
+				04F16F71B9B28382493F9055 /* WhisperModelManager.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		FD48710B608BE6A57DA448D7 /* Cadence */ = {
+			isa = PBXGroup;
+			children = (
+				78D2D1E4520BA69AC30BB1CB /* App */,
+				5875D9DE20878243E04EB85B /* Models */,
+				C44473C867EA22AD5CDA9820 /* Services */,
+				61BD71A810CD4ACDBE6E4E92 /* UI */,
+			);
+			path = Cadence;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		2B7AFE2F373C09439DB05682 /* CadenceTests */ = {
+		1D9D0CF3C214130166213D80 /* Cadence */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 2D24508452EADE0CA99CA721 /* Build configuration list for PBXNativeTarget "CadenceTests" */;
+			buildConfigurationList = 07126B28B5B904C139BBD128 /* Build configuration list for PBXNativeTarget "Cadence" */;
 			buildPhases = (
-				50145D8F0D377511299DE6A0 /* Sources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				B9F1834DCDEAD9E4FD67843D /* PBXTargetDependency */,
-			);
-			name = CadenceTests;
-			packageProductDependencies = (
-			);
-			productName = CadenceTests;
-			productReference = FE931B3A5B203E8BBCA4854C /* CadenceTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		B3ED34AAFC4954607107B3AC /* Cadence */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = CADF37DC5C4F14B92615D4BA /* Build configuration list for PBXNativeTarget "Cadence" */;
-			buildPhases = (
-				67EE514588DB7A5767548748 /* Sources */,
-				4A4BBA2151859AB19D3D28FE /* Frameworks */,
+				1F5350DE3B53E65CAAF89D1D /* Sources */,
+				56B76F527BA1B0C195D380DB /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -202,95 +184,113 @@
 			);
 			name = Cadence;
 			packageProductDependencies = (
-				091B9638FBE83A086BE9640F /* whisper */,
+				F2C93216E5FF2CBC2100307E /* whisper */,
 			);
 			productName = Cadence;
-			productReference = E2CD7B2E848586423E3ADBC0 /* Cadence.app */;
+			productReference = 2747B5C0BD75EFECA1D2569B /* Cadence.app */;
 			productType = "com.apple.product-type.application";
+		};
+		3C958ED18FAE60638046C026 /* CadenceTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 66B1F7C89C12897815378340 /* Build configuration list for PBXNativeTarget "CadenceTests" */;
+			buildPhases = (
+				94943CCF8CDAF6F711DB61FA /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EFC1C557A6F407EF2ED1660D /* PBXTargetDependency */,
+			);
+			name = CadenceTests;
+			packageProductDependencies = (
+			);
+			productName = CadenceTests;
+			productReference = 53DC5566E2688823A894040D /* CadenceTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		D95320817CFB076B990AB65D /* Project object */ = {
+		9FA114BF81E88A4D01B65D31 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
-					B3ED34AAFC4954607107B3AC = {
+					1D9D0CF3C214130166213D80 = {
 						ProvisioningStyle = Automatic;
 					};
 				};
 			};
-			buildConfigurationList = C8FCB529F8090F1265478DD5 /* Build configuration list for PBXProject "Cadence" */;
+			buildConfigurationList = 6735F591880E2DF1BC393107 /* Build configuration list for PBXProject "Cadence" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
 				en,
 			);
-			mainGroup = BDFCBE74E37FCA6A2544D8AC;
+			mainGroup = 6A9F1C3B6267176F20AE4B03;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				9BD180EF835D0183952A9490 /* XCLocalSwiftPackageReference "Vendor/whisper.spm" */,
+				C6CD8081525E20B05C6137BB /* XCLocalSwiftPackageReference "Vendor/whisper.spm" */,
 			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 07463E9AE2E269EF72C74570 /* Products */;
+			productRefGroup = ADFE63F9A7B11522B6C8E81A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				B3ED34AAFC4954607107B3AC /* Cadence */,
-				2B7AFE2F373C09439DB05682 /* CadenceTests */,
+				1D9D0CF3C214130166213D80 /* Cadence */,
+				3C958ED18FAE60638046C026 /* CadenceTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		50145D8F0D377511299DE6A0 /* Sources */ = {
+		1F5350DE3B53E65CAAF89D1D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				56E01B5F57508D1ED4C2039E /* CadenceTests.swift in Sources */,
+				B61EFD617B4E75AC083EF588 /* AppDelegate.swift in Sources */,
+				374F72155EFC90A04DFF1321 /* AppModel.swift in Sources */,
+				C7F338241FF54CDBB0035A78 /* AudioCaptureService.swift in Sources */,
+				43A6653D967FC59ABC91624E /* CadenceApp.swift in Sources */,
+				A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */,
+				0A71E31A51D2EC604CDAF28F /* DictationModels.swift in Sources */,
+				D0ACFD368BDD7CB8693AB2D7 /* HUDView.swift in Sources */,
+				9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */,
+				D3E5CC707DAEC25A40DF8435 /* HotkeyService.swift in Sources */,
+				5E5546C97794520F90E67A53 /* LocalWhisperTranscriptionEngine.swift in Sources */,
+				6EEA0FEF55A747191E62FC60 /* MenuContentView.swift in Sources */,
+				097667E2CBD98ED27B666656 /* MockTranscriptionEngine.swift in Sources */,
+				878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */,
+				FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */,
+				6CB478AD12E64CFE521C6215 /* SettingsView.swift in Sources */,
+				ABAAF7AD1FA70D69BA85152C /* TextInsertionService.swift in Sources */,
+				EF826D5DA46782A058A62AE8 /* TranscriptionEngine.swift in Sources */,
+				A475674850BEEBA5017F3CE5 /* WhisperModelManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		67EE514588DB7A5767548748 /* Sources */ = {
+		94943CCF8CDAF6F711DB61FA /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B78D6E38E6F3910E5AF92FDB /* AppDelegate.swift in Sources */,
-				6D35008598422E1320289362 /* AppModel.swift in Sources */,
-				B5B3802E7FB85CFEBD4986CB /* AudioCaptureService.swift in Sources */,
-				1F7C84EF357CDA7FF73E0A76 /* DictationCoordinator.swift in Sources */,
-				3EC037B350A9E3556A4DE42C /* DictationModels.swift in Sources */,
-				EFD15C03891CBF91D8FA416B /* CadenceApp.swift in Sources */,
-				CB11F5CC5B2DCA9A7ACC38E7 /* HUDView.swift in Sources */,
-				352C865DCF261AD7CCC3A9C8 /* HUDWindowController.swift in Sources */,
-				458D3EE76E89550A9D112406 /* HotkeyService.swift in Sources */,
-				8BE957060FAE6F1D64CD97B6 /* LocalWhisperTranscriptionEngine.swift in Sources */,
-				2697492C0DFAF6205CCEC772 /* MenuContentView.swift in Sources */,
-				085F8699DA3FA31F07454F68 /* MockTranscriptionEngine.swift in Sources */,
-				5BA192F7BC428145928FC1AB /* PermissionsService.swift in Sources */,
-				73488FA6C8FE46321714ABF7 /* PermissionsView.swift in Sources */,
-				5A3BF0A2A737D2E9FCBBFEE4 /* SettingsView.swift in Sources */,
-				63B06AACA381556456065335 /* TextInsertionService.swift in Sources */,
-				CA8ED2724BF3A00F8433367C /* TranscriptionEngine.swift in Sources */,
-				82E0DA26A2B28D2A74D8C006 /* WhisperModelManager.swift in Sources */,
+				28E458EF554469DF6A804BC5 /* CadenceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		B9F1834DCDEAD9E4FD67843D /* PBXTargetDependency */ = {
+		EFC1C557A6F407EF2ED1660D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = B3ED34AAFC4954607107B3AC /* Cadence */;
-			targetProxy = 86DEB914E3B751ED46517688 /* PBXContainerItemProxy */;
+			target = 1D9D0CF3C214130166213D80 /* Cadence */;
+			targetProxy = 690B1C47F49DC7098F27DBE4 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		18C1001F6B1928570EA62286 /* Debug */ = {
+		0AC6D37A18265C6868E862C8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -305,23 +305,22 @@
 			};
 			name = Debug;
 		};
-		2C9000457F20DA25D0231047 /* Debug */ = {
+		66FA57B5F57FFDBD1C1E8963 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
 				);
+				PRODUCT_NAME = Cadence;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cadence.app/Contents/MacOS/Cadence";
 			};
-			name = Debug;
+			name = Release;
 		};
-		4CA24949178E8034D6DC422E /* Release */ = {
+		9DBE9E0079A7DB194A03BF0C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -383,22 +382,7 @@
 			};
 			name = Release;
 		};
-		561B9380CC80C16ACE016950 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				PRODUCT_NAME = Cadence;
-				SDKROOT = macosx;
-			};
-			name = Release;
-		};
-		58EA1972CB87BF094054292F /* Release */ = {
+		A689E1BC11344A42CCA247B3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -412,9 +396,9 @@
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cadence.app/Contents/MacOS/Cadence";
 			};
-			name = Release;
+			name = Debug;
 		};
-		D4191A0BC5ADD64E55BD188D /* Debug */ = {
+		C78721ED836CA881972A504D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -483,32 +467,48 @@
 			};
 			name = Debug;
 		};
+		D702FB8328777E6F85191BAA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cadence.app/Contents/MacOS/Cadence";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		2D24508452EADE0CA99CA721 /* Build configuration list for PBXNativeTarget "CadenceTests" */ = {
+		07126B28B5B904C139BBD128 /* Build configuration list for PBXNativeTarget "Cadence" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				2C9000457F20DA25D0231047 /* Debug */,
-				58EA1972CB87BF094054292F /* Release */,
+				0AC6D37A18265C6868E862C8 /* Debug */,
+				66FA57B5F57FFDBD1C1E8963 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		C8FCB529F8090F1265478DD5 /* Build configuration list for PBXProject "Cadence" */ = {
+		66B1F7C89C12897815378340 /* Build configuration list for PBXNativeTarget "CadenceTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				D4191A0BC5ADD64E55BD188D /* Debug */,
-				4CA24949178E8034D6DC422E /* Release */,
+				A689E1BC11344A42CCA247B3 /* Debug */,
+				D702FB8328777E6F85191BAA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		CADF37DC5C4F14B92615D4BA /* Build configuration list for PBXNativeTarget "Cadence" */ = {
+		6735F591880E2DF1BC393107 /* Build configuration list for PBXProject "Cadence" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				18C1001F6B1928570EA62286 /* Debug */,
-				561B9380CC80C16ACE016950 /* Release */,
+				C78721ED836CA881972A504D /* Debug */,
+				9DBE9E0079A7DB194A03BF0C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -516,18 +516,18 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		9BD180EF835D0183952A9490 /* XCLocalSwiftPackageReference "Vendor/whisper.spm" */ = {
+		C6CD8081525E20B05C6137BB /* XCLocalSwiftPackageReference "Vendor/whisper.spm" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Vendor/whisper.spm;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		091B9638FBE83A086BE9640F /* whisper */ = {
+		F2C93216E5FF2CBC2100307E /* whisper */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = whisper;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = D95320817CFB076B990AB65D /* Project object */;
+	rootObject = 9FA114BF81E88A4D01B65D31 /* Project object */;
 }

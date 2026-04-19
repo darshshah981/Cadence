@@ -221,10 +221,6 @@ final class AppModel: ObservableObject {
     func setHoldToTalkEnabled(_ isEnabled: Bool) {
         guard holdToTalkBinding.isEnabled != isEnabled else { return }
         holdToTalkBinding.isEnabled = isEnabled
-        if isEnabled, tapToStartStopBinding.isEnabled {
-            tapToStartStopBinding.isEnabled = false
-            persist(binding: tapToStartStopBinding)
-        }
         persist(binding: holdToTalkBinding)
         refreshRegisteredHotkeys()
     }
@@ -232,10 +228,6 @@ final class AppModel: ObservableObject {
     func setTapToStartStopEnabled(_ isEnabled: Bool) {
         guard tapToStartStopBinding.isEnabled != isEnabled else { return }
         tapToStartStopBinding.isEnabled = isEnabled
-        if isEnabled, holdToTalkBinding.isEnabled {
-            holdToTalkBinding.isEnabled = false
-            persist(binding: holdToTalkBinding)
-        }
         persist(binding: tapToStartStopBinding)
         refreshRegisteredHotkeys()
     }

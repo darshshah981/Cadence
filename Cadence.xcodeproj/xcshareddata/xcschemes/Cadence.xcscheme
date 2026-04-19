@@ -15,7 +15,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B3ED34AAFC4954607107B3AC"
+               BlueprintIdentifier = "1D9D0CF3C214130166213D80"
                BuildableName = "Cadence.app"
                BlueprintName = "Cadence"
                ReferencedContainer = "container:Cadence.xcodeproj">
@@ -32,7 +32,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "B3ED34AAFC4954607107B3AC"
+            BlueprintIdentifier = "1D9D0CF3C214130166213D80"
             BuildableName = "Cadence.app"
             BlueprintName = "Cadence"
             ReferencedContainer = "container:Cadence.xcodeproj">
@@ -44,7 +44,7 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "2B7AFE2F373C09439DB05682"
+               BlueprintIdentifier = "3C958ED18FAE60638046C026"
                BuildableName = "CadenceTests.xctest"
                BlueprintName = "CadenceTests"
                ReferencedContainer = "container:Cadence.xcodeproj">
@@ -68,7 +68,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "B3ED34AAFC4954607107B3AC"
+            BlueprintIdentifier = "1D9D0CF3C214130166213D80"
             BuildableName = "Cadence.app"
             BlueprintName = "Cadence"
             ReferencedContainer = "container:Cadence.xcodeproj">
@@ -87,7 +87,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "B3ED34AAFC4954607107B3AC"
+            BlueprintIdentifier = "1D9D0CF3C214130166213D80"
             BuildableName = "Cadence.app"
             BlueprintName = "Cadence"
             ReferencedContainer = "container:Cadence.xcodeproj">

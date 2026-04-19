@@ -21,7 +21,7 @@ struct SettingsView: View {
             FlowSectionCard {
                 ShortcutSettingRow(
                     title: HotkeyAction.holdToTalk.displayName,
-                    description: "Modifier keys only. Good for quick dictation bursts.",
+                    description: "Modifier keys only. Good for quick dictation bursts, and can stay enabled alongside Press to Start.",
                     hint: "Try \(appModel.holdToTalkBinding.shortcut.symbolDisplayName) or something like ⌃ ⌥",
                     isEnabled: holdEnabledBinding,
                     shortcut: Binding(
@@ -35,7 +35,7 @@ struct SettingsView: View {
 
                 ShortcutSettingRow(
                     title: "Press to Start",
-                    description: "Starts recording until you stop from the shortcut, next key press, or pill controls.",
+                    description: "Starts recording until you stop from the shortcut, next key press, or pill controls. This can also stay enabled with Hold To Talk.",
                     hint: pressToStartHint,
                     isEnabled: tapEnabledBinding,
                     shortcut: Binding(

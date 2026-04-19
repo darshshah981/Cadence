@@ -157,11 +157,14 @@ struct MenuContentView: View {
     }
 
     private var primaryShortcutHint: String {
-        if appModel.holdToTalkBinding.isEnabled {
-            return appModel.holdToTalkBinding.shortcut.symbolDisplayName
-        }
-        if appModel.tapToStartStopBinding.isEnabled {
-            return appModel.tapToStartStopBinding.shortcut.symbolDisplayName
+        let activeShortcuts = [
+            appModel.holdToTalkBinding.isEnabled ? appModel.holdToTalkBinding.shortcut.symbolDisplayName : nil,
+            appModel.tapToStartStopBinding.isEnabled ? appModel.tapToStartStopBinding.shortcut.symbolDisplayName : nil
+        ]
+        .compactMap { $0 }
+
+        if !activeShortcuts.isEmpty {
+            return activeShortcuts.joined(separator: " or ")
         }
         return "⌃ ⌥"
     }
