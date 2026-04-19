@@ -30,7 +30,6 @@ final class AppModel: ObservableObject {
         static let tapKeyDisplay = "FlowState.tapKeyDisplay"
         static let transcriptHistory = "FlowState.transcriptHistory"
         static let didMigrateToFastDefaults = "FlowState.didMigrateToFastDefaults"
-        static let didMigrateToLivePreviewDefault = "FlowState.didMigrateToLivePreviewDefault.v2"
     }
 
     @Published private(set) var permissions: PermissionsSnapshot
@@ -472,16 +471,10 @@ final class AppModel: ObservableObject {
         if !defaults.bool(forKey: PreferenceKey.didMigrateToFastDefaults) {
             configuration.model = .baseEnglish
             configuration.decodingMode = .greedy
-            configuration.livePreviewEnabled = true
+            configuration.livePreviewEnabled = false
             defaults.set(true, forKey: PreferenceKey.didMigrateToFastDefaults)
             defaults.set(configuration.model.rawValue, forKey: PreferenceKey.whisperModel)
             defaults.set(configuration.decodingMode.rawValue, forKey: PreferenceKey.decodingMode)
-            defaults.set(configuration.livePreviewEnabled, forKey: PreferenceKey.livePreviewEnabled)
-        }
-
-        if !defaults.bool(forKey: PreferenceKey.didMigrateToLivePreviewDefault) {
-            configuration.livePreviewEnabled = true
-            defaults.set(true, forKey: PreferenceKey.didMigrateToLivePreviewDefault)
             defaults.set(configuration.livePreviewEnabled, forKey: PreferenceKey.livePreviewEnabled)
         }
 
