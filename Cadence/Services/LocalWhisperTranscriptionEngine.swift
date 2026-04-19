@@ -1,7 +1,9 @@
 import Foundation
+import OSLog
 import whisper
 
 final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
+    private static let logger = Logger(subsystem: "com.darshshah.Cadence", category: "Whisper")
     private static let dictationPrompt = "This is English dictation for emails, chats, notes, and documents. Prefer literal wording, correct punctuation, and paragraph breaks. Avoid hallucinations."
     private static let silenceWindowSize = 160
     private static let silenceThreshold: Float = 0.008
@@ -41,6 +43,7 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
     }
 
     func prepare() async throws {
+        let startedAt = Date()
         let resolvedModelURL = try await modelManager.ensureModel(configuration.model)
 
         if let currentModelURL = modelURL,
@@ -52,7 +55,10 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
 
         self.modelURL = resolvedModelURL
 
-        guard context == nil else { return }
+        guard context == nil else {
+            Self.logger.debug("Whisper prepare reused context for \(resolvedModelURL.lastPathComponent, privacy: .public) in \(Date().timeIntervalSince(startedAt), format: .fixed(precision: 3))s")
+            return
+        }
 
         var contextParams = whisper_context_default_params()
         contextParams.use_gpu = true
@@ -68,6 +74,7 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
         }
 
         context = newContext
+        Self.logger.info("Whisper prepared \(resolvedModelURL.lastPathComponent, privacy: .public) in \(Date().timeIntervalSince(startedAt), format: .fixed(precision: 3))s")
         try await previewEngine.prepare()
     }
 
@@ -98,6 +105,7 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
     }
 
     func finishSession(metrics: AudioCaptureSessionMetrics) async throws -> FinalTranscript {
+        let finishStartedAt = Date()
         guard let context else {
             throw WhisperEngineError.contextInitializationFailed
         }
@@ -106,17 +114,21 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
             throw WhisperEngineError.emptyAudio
         }
 
+        let preprocessStartedAt = Date()
         let processedSamples = Self.preprocess(samples, configuration: configuration)
         guard !processedSamples.isEmpty else {
             throw WhisperEngineError.emptyAudio
         }
+        let preprocessDuration = Date().timeIntervalSince(preprocessStartedAt)
 
+        let transcriptionStartedAt = Date()
         let text = Self.runTranscription(
             context: context,
             samples: processedSamples,
             configuration: configuration,
             previewOnly: false
         ) ?? ""
+        let transcriptionDuration = Date().timeIntervalSince(transcriptionStartedAt)
 
         guard !text.isEmpty else {
             throw WhisperEngineError.noTranscript
@@ -124,6 +136,10 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
 
         let cleaned = Self.normalizeWhitespace(in: text)
         samples.removeAll(keepingCapacity: true)
+
+        Self.logger.info(
+            "Whisper final audio=\(metrics.duration, format: .fixed(precision: 2))s speech=\(Double(metrics.speechFrameCount) / max(metrics.sampleRate, 1), format: .fixed(precision: 2))s samples=\(processedSamples.count) preprocess=\(preprocessDuration, format: .fixed(precision: 3))s transcribe=\(transcriptionDuration, format: .fixed(precision: 3))s total=\(Date().timeIntervalSince(finishStartedAt), format: .fixed(precision: 3))s"
+        )
 
         return FinalTranscript(rawText: text, cleanedText: cleaned, duration: metrics.duration)
     }
@@ -149,6 +165,7 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
         configuration: TranscriptionConfiguration,
         previewOnly: Bool
     ) -> String? {
+        let isShortFinal = !previewOnly && samples.count <= 128_000
         var params = whisper_full_default_params(
             previewOnly || configuration.decodingMode == .greedy ? WHISPER_SAMPLING_GREEDY : WHISPER_SAMPLING_BEAM_SEARCH
         )
@@ -157,9 +174,9 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
         params.print_timestamps = false
         params.print_special = false
         params.translate = false
-        params.no_context = previewOnly ? true : !configuration.keepContext
+        params.no_context = previewOnly || isShortFinal ? true : !configuration.keepContext
         params.no_timestamps = true
-        params.single_segment = previewOnly
+        params.single_segment = previewOnly || isShortFinal
         params.suppress_blank = true
         params.suppress_non_speech_tokens = true
         params.detect_language = false
@@ -167,7 +184,7 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
         params.temperature_inc = 0
         params.entropy_thold = 2.4
         params.logprob_thold = -1
-        params.max_len = previewOnly ? 80 : 120
+        params.max_len = previewOnly || isShortFinal ? 80 : 120
         params.split_on_word = true
         params.beam_search.beam_size = previewOnly ? 1 : (configuration.decodingMode == .beamSearch ? 5 : 1)
         params.greedy.best_of = 1

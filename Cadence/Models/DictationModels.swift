@@ -193,7 +193,7 @@ struct TranscriptionConfiguration: Equatable, Sendable {
     var keepContext: Bool = true
     var trimSilence: Bool = true
     var normalizeAudio: Bool = true
-    var livePreviewEnabled: Bool = false
+    var livePreviewEnabled: Bool = true
     var tapStopsOnNextKeyPress: Bool = false
     var vocabularyText: String = ""
 

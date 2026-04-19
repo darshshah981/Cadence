@@ -85,6 +85,7 @@ struct CadenceTests {
         #expect(configuration.keepContext)
         #expect(configuration.trimSilence)
         #expect(configuration.normalizeAudio)
+        #expect(configuration.livePreviewEnabled)
         #expect(!configuration.tapStopsOnNextKeyPress)
     }
 
