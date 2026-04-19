@@ -1,7 +1,13 @@
 import AppKit
 import Combine
 import Foundation
+import OSLog
 import SwiftUI
+
+private let preferencesLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Cadence",
+    category: "Preferences"
+)
 
 enum MenuScreen {
     case home
@@ -30,6 +36,9 @@ final class AppModel: ObservableObject {
         static let tapKeyDisplay = "FlowState.tapKeyDisplay"
         static let transcriptHistory = "FlowState.transcriptHistory"
         static let didMigrateToFastDefaults = "FlowState.didMigrateToFastDefaults"
+        static let didMigrateToLivePreviewDefault = "FlowState.didMigrateToLivePreviewDefault"
+        static let didMigrateToLivePreviewDefaultV2 = "FlowState.didMigrateToLivePreviewDefault.v2"
+        static let didUndoLivePreviewDefault = "FlowState.didUndoLivePreviewDefault.v1"
     }
 
     @Published private(set) var permissions: PermissionsSnapshot
@@ -476,6 +485,20 @@ final class AppModel: ObservableObject {
             defaults.set(configuration.model.rawValue, forKey: PreferenceKey.whisperModel)
             defaults.set(configuration.decodingMode.rawValue, forKey: PreferenceKey.decodingMode)
             defaults.set(configuration.livePreviewEnabled, forKey: PreferenceKey.livePreviewEnabled)
+        }
+
+        if !defaults.bool(forKey: PreferenceKey.didUndoLivePreviewDefault) {
+            let hasStaleLivePreviewMigration =
+                defaults.bool(forKey: PreferenceKey.didMigrateToLivePreviewDefault) ||
+                defaults.bool(forKey: PreferenceKey.didMigrateToLivePreviewDefaultV2)
+
+            if hasStaleLivePreviewMigration {
+                configuration.livePreviewEnabled = false
+                defaults.set(false, forKey: PreferenceKey.livePreviewEnabled)
+                preferencesLogger.info("Reset stale live preview default from earlier migration")
+            }
+
+            defaults.set(true, forKey: PreferenceKey.didUndoLivePreviewDefault)
         }
 
         return configuration

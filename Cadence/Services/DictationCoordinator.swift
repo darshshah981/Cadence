@@ -1,4 +1,10 @@
 import Foundation
+import OSLog
+
+private let dictationLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Cadence",
+    category: "Dictation"
+)
 
 enum CadenceError: LocalizedError {
     case missingRequiredPermissions
@@ -224,6 +230,7 @@ final class DictationCoordinator {
     private func finishDictationIfNeeded() async {
         guard state == .listening else { return }
 
+        let finalizeStartedAt = Date()
         state = .finalizing
         publishHUD(
             visualState: .transcribing,
@@ -234,13 +241,20 @@ final class DictationCoordinator {
         )
 
         let metrics = audioCaptureService.stopCapture()
-        let releasePreview = await transcriptionEngine.previewTranscript() ?? latestPreview
+        let releasePreview = latestPreview
+        let speechDuration = metrics.sampleRate > 0
+            ? Double(metrics.speechFrameCount) / metrics.sampleRate
+            : metrics.duration
+        dictationLogger.info(
+            "Cadence timing finalize capture duration=\(Self.formatSeconds(metrics.duration), privacy: .public)s speech=\(Self.formatSeconds(speechDuration), privacy: .public)s frames=\(metrics.frameCount, privacy: .public) speechFrames=\(metrics.speechFrameCount, privacy: .public) livePreview=\(self.transcriptionConfiguration.livePreviewEnabled, privacy: .public) cachedPreview=\(!releasePreview.composedText.isEmpty, privacy: .public)"
+        )
         stopPreviewLoop()
 
         do {
             let correctedText: String
 
             if shouldUsePreviewAsFinal(releasePreview, metrics: metrics) {
+                dictationLogger.info("Cadence timing finalize using cached preview as final")
                 let previewText = releasePreview.composedText
                     .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -254,7 +268,11 @@ final class DictationCoordinator {
                     waveformLevels: latestWaveformLevels,
                     showsSubtitle: false
                 )
+                let engineStartedAt = Date()
                 let transcript = try await transcriptionEngine.finishSession(metrics: metrics)
+                dictationLogger.info(
+                    "Cadence timing finalEngine elapsed=\(Self.formatSeconds(Date().timeIntervalSince(engineStartedAt)), privacy: .public)s"
+                )
                 correctedText = applyPostProcessing(to: transcript.cleanedText)
             }
 
@@ -270,7 +288,13 @@ final class DictationCoordinator {
                 showsSubtitle: false
             )
 
+            let insertionStartedAt = Date()
             try await textInsertionService.insert(correctedText + " ")
+            let insertionElapsed = Date().timeIntervalSince(insertionStartedAt)
+            let totalElapsed = Date().timeIntervalSince(finalizeStartedAt)
+            dictationLogger.info(
+                "Cadence timing finalize complete total=\(Self.formatSeconds(totalElapsed), privacy: .public)s insert=\(Self.formatSeconds(insertionElapsed), privacy: .public)s chars=\(correctedText.count, privacy: .public)"
+            )
 
             state = .idle
             activeTriggerMode = nil
@@ -279,6 +303,9 @@ final class DictationCoordinator {
             try await Task.sleep(for: .milliseconds(700))
             hideHUD()
         } catch {
+            dictationLogger.error(
+                "Cadence timing finalize failed total=\(Self.formatSeconds(Date().timeIntervalSince(finalizeStartedAt)), privacy: .public)s error=\(error.localizedDescription, privacy: .public)"
+            )
             activeTriggerMode = nil
             publishError(error.localizedDescription)
         }
@@ -404,6 +431,10 @@ final class DictationCoordinator {
 
     private func applyPostProcessing(to text: String) -> String {
         VocabularyPostProcessor.apply(to: text, configuration: transcriptionConfiguration)
+    }
+
+    private static func formatSeconds(_ seconds: TimeInterval) -> String {
+        String(format: "%.3f", seconds)
     }
 
     private func stopFromHUD() async {

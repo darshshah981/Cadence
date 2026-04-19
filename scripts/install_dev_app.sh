@@ -43,6 +43,6 @@ rm -rf "$INSTALL_PATH"
 ditto "$SOURCE_APP" "$INSTALL_PATH"
 
 echo "Launching $INSTALL_PATH..."
-open "$INSTALL_PATH"
+open -n "$INSTALL_PATH"
 
 echo "Installed $FULL_PRODUCT_NAME to $INSTALL_PATH"
