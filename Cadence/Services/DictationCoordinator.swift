@@ -26,9 +26,9 @@ enum CadenceError: LocalizedError {
 @MainActor
 final class DictationCoordinator {
     private enum PreviewTuning {
-        static let fallbackInterval: Duration = .milliseconds(1200)
-        static let pauseInterval: Duration = .milliseconds(250)
-        static let pauseThreshold: TimeInterval = 0.32
+        static let fallbackInterval: Duration = .milliseconds(650)
+        static let pauseInterval: Duration = .milliseconds(150)
+        static let pauseThreshold: TimeInterval = 0.18
         static let activeSpeechThreshold = 0.045
         static let fastFinalizeSpeechDuration: TimeInterval = 6.2
         static let holdHintCutoff = 3
@@ -234,7 +234,7 @@ final class DictationCoordinator {
         )
 
         let metrics = audioCaptureService.stopCapture()
-        let releasePreview = await transcriptionEngine.previewTranscript() ?? latestPreview
+        let releasePreview = latestPreview
         stopPreviewLoop()
 
         do {
@@ -246,6 +246,13 @@ final class DictationCoordinator {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 correctedText = applyPostProcessing(to: previewText)
                 await transcriptionEngine.cancelSession()
+                NSLog(
+                    "Cadence Dictation used preview final audio=%.2fs speech=%.2fs previewWait=%.3fs chars=%ld",
+                    metrics.duration,
+                    Double(metrics.speechFrameCount) / max(metrics.sampleRate, 1),
+                    0,
+                    correctedText.count
+                )
             } else {
                 publishHUD(
                     visualState: .transcribing,
