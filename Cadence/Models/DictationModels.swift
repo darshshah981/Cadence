@@ -50,33 +50,6 @@ enum WhisperModelOption: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var fileName: String {
-        switch self {
-        case .tinyEnglish:
-            return "ggml-tiny.en.bin"
-        case .baseEnglish:
-            return "ggml-base.en.bin"
-        case .smallEnglish:
-            return "ggml-small.en.bin"
-        case .mediumEnglish:
-            return "ggml-medium.en.bin"
-        case .largeV3:
-            return "ggml-large-v3-turbo.bin"
-        }
-    }
-
-    var downloadURL: URL {
-        URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/\(fileName)")!
-    }
-
-    var coreMLEncoderFileName: String {
-        fileName.replacingOccurrences(of: ".bin", with: "-encoder.mlmodelc")
-    }
-
-    var coreMLEncoderArchiveURL: URL {
-        URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/\(coreMLEncoderFileName).zip")!
-    }
-
     var displayName: String {
         switch self {
         case .tinyEnglish:
@@ -172,40 +145,6 @@ enum WhisperDecodingMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-enum TranscriptionBackendOption: String, CaseIterable, Identifiable, Sendable {
-    case whisperKit
-    case whisperCpp
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .whisperKit:
-            return "WhisperKit"
-        case .whisperCpp:
-            return "whisper.cpp"
-        }
-    }
-
-    var shortLabel: String {
-        switch self {
-        case .whisperKit:
-            return "wk"
-        case .whisperCpp:
-            return "cpp"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .whisperKit:
-            return "Core ML backend from Argmax. Best path for fast local transcription."
-        case .whisperCpp:
-            return "Bundled GGML backend. Useful as a local fallback while testing."
-        }
-    }
-}
-
 enum FillerWordPolicy: String, CaseIterable, Identifiable, Sendable {
     case preserve
     case remove
@@ -232,7 +171,6 @@ enum FillerWordPolicy: String, CaseIterable, Identifiable, Sendable {
 }
 
 struct TranscriptionConfiguration: Equatable, Sendable {
-    var backend: TranscriptionBackendOption = .whisperKit
     var model: WhisperModelOption = .baseEnglish
     var decodingMode: WhisperDecodingMode = .greedy
     var fillerWordPolicy: FillerWordPolicy = .preserve
@@ -244,7 +182,7 @@ struct TranscriptionConfiguration: Equatable, Sendable {
     var vocabularyText: String = ""
 
     var summary: String {
-        "\(backend.shortLabel) • \(model.shortLabel) • \(decodingMode.shortLabel) • " +
+        "\(model.shortLabel) • \(decodingMode.shortLabel) • " +
         fillerWordPolicy.rawValue + " • " +
         (keepContext ? "context" : "isolated") + " • " +
         (trimSilence ? "trim" : "raw") + " • " +

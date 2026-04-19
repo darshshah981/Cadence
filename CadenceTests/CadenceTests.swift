@@ -79,7 +79,6 @@ struct CadenceTests {
     func defaultTranscriptionConfigurationUsesFastPreset() {
         let configuration = TranscriptionConfiguration()
 
-        #expect(configuration.backend == .whisperKit)
         #expect(configuration.model == .baseEnglish)
         #expect(configuration.decodingMode == .greedy)
         #expect(configuration.fillerWordPolicy == .preserve)

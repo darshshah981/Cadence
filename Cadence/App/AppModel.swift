@@ -17,7 +17,6 @@ enum MenuScreen {
 @MainActor
 final class AppModel: ObservableObject {
     private enum PreferenceKey {
-        static let transcriptionBackend = "FlowState.transcriptionBackend"
         static let whisperModel = "FlowState.whisperModel"
         static let decodingMode = "FlowState.decodingMode"
         static let fillerWordPolicy = "FlowState.fillerWordPolicy"
@@ -81,10 +80,7 @@ final class AppModel: ObservableObject {
         self.permissions = permissionsService.snapshot()
 
         let hudController = HUDWindowController()
-        let transcriptionEngine = SwitchingTranscriptionEngine(
-            whisperKitEngine: WhisperKitTranscriptionEngine(),
-            whisperCppEngine: LocalWhisperTranscriptionEngine(modelManager: WhisperModelManager())
-        )
+        let transcriptionEngine = WhisperKitTranscriptionEngine()
         let audioCaptureService = AudioCaptureService()
         let textInsertionService = TextInsertionService()
 
@@ -187,10 +183,6 @@ final class AppModel: ObservableObject {
             lastError = error.localizedDescription
             backendDescription = "Transcription backend unavailable"
         }
-    }
-
-    func setTranscriptionBackend(_ backend: TranscriptionBackendOption) {
-        updateTranscriptionConfiguration { $0.backend = backend }
     }
 
     func setWhisperModel(_ model: WhisperModelOption) {
@@ -419,7 +411,6 @@ final class AppModel: ObservableObject {
     }
 
     private func persist(configuration: TranscriptionConfiguration) {
-        defaults.set(configuration.backend.rawValue, forKey: PreferenceKey.transcriptionBackend)
         defaults.set(configuration.model.rawValue, forKey: PreferenceKey.whisperModel)
         defaults.set(configuration.decodingMode.rawValue, forKey: PreferenceKey.decodingMode)
         defaults.set(configuration.fillerWordPolicy.rawValue, forKey: PreferenceKey.fillerWordPolicy)
@@ -446,11 +437,6 @@ final class AppModel: ObservableObject {
 
     private static func loadConfiguration(defaults: UserDefaults) -> TranscriptionConfiguration {
         var configuration = TranscriptionConfiguration()
-
-        if let rawValue = defaults.string(forKey: PreferenceKey.transcriptionBackend),
-           let backend = TranscriptionBackendOption(rawValue: rawValue) {
-            configuration.backend = backend
-        }
 
         if let rawValue = defaults.string(forKey: PreferenceKey.whisperModel),
            let model = WhisperModelOption(rawValue: rawValue) {
@@ -496,7 +482,6 @@ final class AppModel: ObservableObject {
             configuration.decodingMode = .greedy
             configuration.livePreviewEnabled = false
             defaults.set(true, forKey: PreferenceKey.didMigrateToFastDefaults)
-            defaults.set(configuration.backend.rawValue, forKey: PreferenceKey.transcriptionBackend)
             defaults.set(configuration.model.rawValue, forKey: PreferenceKey.whisperModel)
             defaults.set(configuration.decodingMode.rawValue, forKey: PreferenceKey.decodingMode)
             defaults.set(configuration.livePreviewEnabled, forKey: PreferenceKey.livePreviewEnabled)

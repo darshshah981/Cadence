@@ -10,3 +10,20 @@ protocol TranscriptionEngine: AnyObject {
     func cancelSession() async
     func statusSummary() async -> String
 }
+
+enum WhisperEngineError: LocalizedError {
+    case contextInitializationFailed
+    case emptyAudio
+    case noTranscript
+
+    var errorDescription: String? {
+        switch self {
+        case .contextInitializationFailed:
+            return "Cadence could not initialize the transcription model."
+        case .emptyAudio:
+            return "No speech audio was captured."
+        case .noTranscript:
+            return "Whisper did not return any transcript text."
+        }
+    }
+}
