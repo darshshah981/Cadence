@@ -50,9 +50,13 @@ final class PermissionGuideWindowController: NSWindowController {
     }
 
     func show(kind: PermissionGuideKind, appURL: URL) {
+        let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+            ?? "Cadence"
         let view = PermissionGuideView(
             kind: kind,
             appURL: appURL,
+            appName: appName,
             onRevealApp: {
                 NSWorkspace.shared.activateFileViewerSelecting([appURL])
             },
@@ -66,6 +70,7 @@ final class PermissionGuideWindowController: NSWindowController {
 
         let hostingController = NSHostingController(rootView: view)
         self.hostingController = hostingController
+        window?.title = "Grant \(appName) Access"
         window?.contentViewController = hostingController
         window?.setContentSize(NSSize(width: 380, height: 340))
         window?.center()
@@ -93,6 +98,7 @@ final class PermissionGuideWindowController: NSWindowController {
 struct PermissionGuideView: View {
     let kind: PermissionGuideKind
     let appURL: URL
+    let appName: String
     let onRevealApp: () -> Void
     let onRestartApp: () -> Void
     let onClose: () -> Void
@@ -104,7 +110,7 @@ struct PermissionGuideView: View {
                     .frame(width: 62, height: 62)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Grant Cadence")
+                    Text("Grant \(appName)")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(FlowTheme.textPrimary)
 
@@ -115,10 +121,10 @@ struct PermissionGuideView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                PermissionGuideStep(number: 1, text: "Find Cadence in System Settings.")
+                PermissionGuideStep(number: 1, text: "Find \(appName) in System Settings.")
                 PermissionGuideStep(number: 2, text: "Turn it on for \(kind.settingsName).")
-                PermissionGuideStep(number: 3, text: "If it is missing, drag this Cadence icon into the app list.")
-                PermissionGuideStep(number: 4, text: "Come back here and click Restart Cadence.")
+                PermissionGuideStep(number: 3, text: "If it is missing, drag this \(appName) icon into the app list.")
+                PermissionGuideStep(number: 4, text: "Come back here and click Restart \(appName).")
             }
 
             Text("Use this restart button after granting access. The macOS Quit & Reopen prompt can miss menu bar apps.")
@@ -139,7 +145,7 @@ struct PermissionGuideView: View {
                 Button("Reveal App", action: onRevealApp)
                     .buttonStyle(.bordered)
 
-                Button("Restart Cadence", action: onRestartApp)
+                Button("Restart \(appName)", action: onRestartApp)
                     .buttonStyle(.bordered)
 
                 Spacer()
