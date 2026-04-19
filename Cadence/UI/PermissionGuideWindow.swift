@@ -19,12 +19,11 @@ final class PermissionGuideWindowController: NSWindowController {
     convenience init() {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 430, height: 520),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         panel.title = "Set Up Cadence"
-        panel.titlebarAppearsTransparent = true
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -115,18 +114,28 @@ private struct PermissionWizardView: View {
     @State private var iconNudge = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            header
-            instruction
-            permissionList
-            appPath
+        VStack(spacing: 0) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                    instruction
+                    permissionList
+                    appPath
+                }
+                .padding(18)
+            }
+
+            Divider()
+                .overlay(FlowTheme.border)
+
             actions
+                .padding(14)
+                .background(FlowTheme.elevated)
         }
-        .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(FlowTheme.background)
         .onAppear {
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
                 iconNudge = true
             }
         }
@@ -137,8 +146,6 @@ private struct PermissionWizardView: View {
             ZStack(alignment: .bottomTrailing) {
                 AppBundleDragView(appURL: appURL)
                     .frame(width: 66, height: 66)
-                    .offset(x: iconNudge ? 8 : 0, y: iconNudge ? -3 : 0)
-                    .scaleEffect(iconNudge ? 1.04 : 1)
 
                 Image(systemName: "arrow.up.forward")
                     .font(.system(size: 13, weight: .bold))
@@ -146,17 +153,23 @@ private struct PermissionWizardView: View {
                     .frame(width: 24, height: 24)
                     .background(FlowTheme.accent, in: Circle())
                     .offset(x: 5, y: 5)
+                    .scaleEffect(iconNudge ? 1.08 : 0.94)
+                    .opacity(iconNudge ? 1 : 0.7)
             }
+            .frame(width: 74, height: 74)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Set up \(appName)")
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(FlowTheme.textPrimary)
+                    .lineLimit(1)
 
                 Text(state.permissions.allRequiredGranted ? "Everything is ready." : "Grant the access Cadence needs.")
                     .font(.system(size: 13))
                     .foregroundStyle(FlowTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -226,20 +239,26 @@ private struct PermissionWizardView: View {
     }
 
     private var actions: some View {
-        HStack(spacing: 8) {
-            Button("Reveal App", action: onRevealApp)
-                .buttonStyle(.bordered)
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Button("Reveal App", action: onRevealApp)
+                    .buttonStyle(.bordered)
 
-            Button("Check Again", action: onRefresh)
-                .buttonStyle(.bordered)
+                Button("Check Again", action: onRefresh)
+                    .buttonStyle(.bordered)
 
-            Button("Restart \(appName)", action: onRestartApp)
-                .buttonStyle(.bordered)
+                Spacer()
+            }
 
-            Spacer()
+            HStack(spacing: 8) {
+                Button("Restart \(appName)", action: onRestartApp)
+                    .buttonStyle(.bordered)
 
-            Button("Done", action: onClose)
-                .buttonStyle(.borderedProminent)
+                Spacer()
+
+                Button("Done", action: onClose)
+                    .buttonStyle(.borderedProminent)
+            }
         }
         .controlSize(.regular)
     }
