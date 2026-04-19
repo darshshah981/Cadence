@@ -56,11 +56,6 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
         self.modelURL = resolvedModelURL
 
         guard context == nil else {
-            NSLog(
-                "Cadence Whisper prepare reused context for %@ in %.3fs",
-                resolvedModelURL.lastPathComponent,
-                Date().timeIntervalSince(startedAt)
-            )
             Self.logger.debug("Whisper prepare reused context for \(resolvedModelURL.lastPathComponent, privacy: .public) in \(Date().timeIntervalSince(startedAt), format: .fixed(precision: 3))s")
             return
         }
@@ -79,11 +74,6 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
         }
 
         context = newContext
-        NSLog(
-            "Cadence Whisper prepared %@ in %.3fs",
-            resolvedModelURL.lastPathComponent,
-            Date().timeIntervalSince(startedAt)
-        )
         Self.logger.info("Whisper prepared \(resolvedModelURL.lastPathComponent, privacy: .public) in \(Date().timeIntervalSince(startedAt), format: .fixed(precision: 3))s")
         try await previewEngine.prepare()
     }
@@ -150,15 +140,6 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
         Self.logger.info(
             "Whisper final audio=\(metrics.duration, format: .fixed(precision: 2))s speech=\(Double(metrics.speechFrameCount) / max(metrics.sampleRate, 1), format: .fixed(precision: 2))s samples=\(processedSamples.count) preprocess=\(preprocessDuration, format: .fixed(precision: 3))s transcribe=\(transcriptionDuration, format: .fixed(precision: 3))s total=\(Date().timeIntervalSince(finishStartedAt), format: .fixed(precision: 3))s"
         )
-        NSLog(
-            "Cadence Whisper final audio=%.2fs speech=%.2fs samples=%ld preprocess=%.3fs transcribe=%.3fs total=%.3fs",
-            metrics.duration,
-            Double(metrics.speechFrameCount) / max(metrics.sampleRate, 1),
-            processedSamples.count,
-            preprocessDuration,
-            transcriptionDuration,
-            Date().timeIntervalSince(finishStartedAt)
-        )
 
         return FinalTranscript(rawText: text, cleanedText: cleaned, duration: metrics.duration)
     }
@@ -204,14 +185,13 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
         params.entropy_thold = 2.4
         params.logprob_thold = -1
         params.max_len = previewOnly || isShortFinal ? 80 : 120
-        params.max_tokens = previewOnly ? 16 : (isShortFinal ? 24 : 0)
         params.split_on_word = true
         params.beam_search.beam_size = previewOnly ? 1 : (configuration.decodingMode == .beamSearch ? 5 : 1)
         params.greedy.best_of = 1
         params.length_penalty = -1
         params.n_threads = Int32(min(8, max(1, ProcessInfo.processInfo.activeProcessorCount - 1)))
 
-        let prompt = previewOnly || isShortFinal ? "" : initialPrompt(for: configuration)
+        let prompt = initialPrompt(for: configuration)
         let result: Int32 = prompt.withCString { promptPointer in
             params.initial_prompt = promptPointer
             return "en".withCString { languagePointer in
@@ -363,7 +343,6 @@ final actor LocalWhisperPreviewEngine {
     func prepare() async throws {
         guard configuration.livePreviewEnabled else { return }
 
-        let startedAt = Date()
         let previewModel = previewModel(for: configuration)
         let resolvedModelURL = try await modelManager.ensureModel(previewModel)
 
@@ -376,14 +355,7 @@ final actor LocalWhisperPreviewEngine {
 
         self.modelURL = resolvedModelURL
 
-        guard context == nil else {
-            NSLog(
-                "Cadence Whisper preview prepare reused context for %@ in %.3fs",
-                resolvedModelURL.lastPathComponent,
-                Date().timeIntervalSince(startedAt)
-            )
-            return
-        }
+        guard context == nil else { return }
 
         var contextParams = whisper_context_default_params()
         contextParams.use_gpu = true
@@ -399,17 +371,11 @@ final actor LocalWhisperPreviewEngine {
         }
 
         context = newContext
-        NSLog(
-            "Cadence Whisper preview prepared %@ in %.3fs",
-            resolvedModelURL.lastPathComponent,
-            Date().timeIntervalSince(startedAt)
-        )
     }
 
     func transcribePreview(from samples: [Float]) async -> PreviewTranscript? {
         guard configuration.livePreviewEnabled else { return nil }
 
-        let startedAt = Date()
         if context == nil {
             try? await prepare()
         }
@@ -426,12 +392,6 @@ final actor LocalWhisperPreviewEngine {
 
         let preview = Self.makePreview(previous: previousPreviewText, current: previewText)
         previousPreviewText = previewText
-        NSLog(
-            "Cadence Whisper preview samples=%ld transcribe=%.3fs chars=%ld",
-            samples.count,
-            Date().timeIntervalSince(startedAt),
-            previewText.count
-        )
         return preview
     }
 
@@ -441,9 +401,9 @@ final actor LocalWhisperPreviewEngine {
 
     private func previewModel(for configuration: TranscriptionConfiguration) -> WhisperModelOption {
         switch configuration.model {
-        case .tinyEnglish:
+        case .tinyEnglish, .baseEnglish:
             return configuration.model
-        case .baseEnglish, .smallEnglish, .mediumEnglish:
+        case .smallEnglish, .mediumEnglish:
             return .tinyEnglish
         }
     }
