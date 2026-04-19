@@ -7,6 +7,8 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
     private static let silenceThreshold: Float = 0.008
     private static let trimPaddingSamples = 2_400
     private static let previewSampleCount = 96_000
+    private static let minimumFinalTimeout: TimeInterval = 20
+    private static let maximumFinalTimeout: TimeInterval = 180
 
     private let modelManager: WhisperModelManager
     private let previewEngine: LocalWhisperPreviewEngine
@@ -111,12 +113,23 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
             throw WhisperEngineError.emptyAudio
         }
 
-        let text = Self.runTranscription(
+        let runResult = Self.runTranscription(
             context: context,
             samples: processedSamples,
             configuration: configuration,
-            previewOnly: false
-        ) ?? ""
+            previewOnly: false,
+            timeout: Self.finalTimeout(for: metrics)
+        )
+
+        let text: String
+        switch runResult {
+        case .success(let transcript):
+            text = transcript
+        case .aborted:
+            throw WhisperEngineError.transcriptionTimedOut
+        case .failed(let code):
+            throw WhisperEngineError.transcriptionFailed(code: code)
+        }
 
         guard !text.isEmpty else {
             throw WhisperEngineError.noTranscript
@@ -143,12 +156,23 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    fileprivate enum TranscriptionRunResult {
+        case success(String)
+        case aborted
+        case failed(Int32)
+    }
+
+    fileprivate struct WhisperAbortState {
+        let deadlineUptimeNanoseconds: UInt64
+    }
+
     fileprivate static func runTranscription(
         context: OpaquePointer,
         samples: [Float],
         configuration: TranscriptionConfiguration,
-        previewOnly: Bool
-    ) -> String? {
+        previewOnly: Bool,
+        timeout: TimeInterval? = nil
+    ) -> TranscriptionRunResult {
         var params = whisper_full_default_params(
             previewOnly || configuration.decodingMode == .greedy ? WHISPER_SAMPLING_GREEDY : WHISPER_SAMPLING_BEAM_SEARCH
         )
@@ -175,22 +199,42 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
         params.n_threads = Int32(min(8, max(1, ProcessInfo.processInfo.activeProcessorCount - 1)))
 
         let prompt = initialPrompt(for: configuration)
+
+        var abortState: WhisperAbortState?
+        if let timeout {
+            abortState = WhisperAbortState(
+                deadlineUptimeNanoseconds: DispatchTime.now().uptimeNanoseconds + UInt64(timeout * 1_000_000_000)
+            )
+            params.abort_callback = { userData in
+                guard let userData else { return false }
+                let state = userData.assumingMemoryBound(to: WhisperAbortState.self)
+                return DispatchTime.now().uptimeNanoseconds >= state.pointee.deadlineUptimeNanoseconds
+            }
+        }
+
         let result: Int32 = prompt.withCString { promptPointer in
             params.initial_prompt = promptPointer
             return "en".withCString { languagePointer in
                 params.language = languagePointer
                 return samples.withUnsafeBufferPointer { buffer in
-                    whisper_full(context, params, buffer.baseAddress, Int32(buffer.count))
+                    if var abortState {
+                        return withUnsafeMutablePointer(to: &abortState) { abortStatePointer in
+                            params.abort_callback_user_data = UnsafeMutableRawPointer(abortStatePointer)
+                            return whisper_full(context, params, buffer.baseAddress, Int32(buffer.count))
+                        }
+                    }
+
+                    return whisper_full(context, params, buffer.baseAddress, Int32(buffer.count))
                 }
             }
         }
 
         guard result == 0 else {
-            return nil
+            return result == -6 ? .aborted : .failed(result)
         }
 
         let segmentCount = Int(whisper_full_n_segments(context))
-        return (0..<segmentCount)
+        let transcript = (0..<segmentCount)
             .compactMap { index -> String? in
                 guard let pointer = whisper_full_get_segment_text(context, Int32(index)) else {
                     return nil
@@ -200,6 +244,15 @@ final actor LocalWhisperTranscriptionEngine: TranscriptionEngine {
             .filter { !$0.isEmpty }
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return .success(transcript)
+    }
+
+    private static func finalTimeout(for metrics: AudioCaptureSessionMetrics) -> TimeInterval {
+        let speechDuration = metrics.sampleRate > 0
+            ? Double(metrics.speechFrameCount) / metrics.sampleRate
+            : metrics.duration
+        return min(maximumFinalTimeout, max(minimumFinalTimeout, speechDuration * 3))
     }
 
     fileprivate static func initialPrompt(for configuration: TranscriptionConfiguration) -> String {
@@ -364,12 +417,14 @@ final actor LocalWhisperPreviewEngine {
         }
         guard let context else { return nil }
 
-        guard let previewText = LocalWhisperTranscriptionEngine.runTranscription(
+        let previewResult = LocalWhisperTranscriptionEngine.runTranscription(
             context: context,
             samples: samples,
             configuration: configuration,
             previewOnly: true
-        ), !previewText.isEmpty else {
+        )
+
+        guard case .success(let previewText) = previewResult, !previewText.isEmpty else {
             return nil
         }
 
@@ -413,6 +468,7 @@ enum WhisperEngineError: LocalizedError {
     case contextInitializationFailed
     case emptyAudio
     case noTranscript
+    case transcriptionTimedOut
     case transcriptionFailed(code: Int32)
 
     var errorDescription: String? {
@@ -423,6 +479,8 @@ enum WhisperEngineError: LocalizedError {
             return "No speech audio was captured."
         case .noTranscript:
             return "Whisper did not return any transcript text."
+        case .transcriptionTimedOut:
+            return "Transcription took too long and was stopped."
         case .transcriptionFailed(let code):
             return "Local Whisper transcription failed with code \(code)."
         }
