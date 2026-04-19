@@ -50,6 +50,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var tapToStartStopBinding: HotkeyBinding
 
     private let permissionsService: PermissionsService
+    private let permissionGuideWindowController = PermissionGuideWindowController()
     private let coordinator: DictationCoordinator
     private let defaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
@@ -133,11 +134,13 @@ final class AppModel: ObservableObject {
 
     func requestAccessibilityAccess() {
         permissionsService.requestAccessibilityAccess()
+        showPermissionGuide(for: .accessibility)
         schedulePermissionRefreshBurst()
     }
 
     func requestInputMonitoringAccess() {
         permissionsService.requestInputMonitoringAccess()
+        showPermissionGuide(for: .inputMonitoring)
         schedulePermissionRefreshBurst()
     }
 
@@ -327,6 +330,11 @@ final class AppModel: ObservableObject {
                 self?.lastExternalApplication = application
             }
             .store(in: &cancellables)
+    }
+
+    private func showPermissionGuide(for kind: PermissionGuideKind) {
+        NSApp.activate(ignoringOtherApps: true)
+        permissionGuideWindowController.show(kind: kind, appURL: Bundle.main.bundleURL)
     }
 
     private func schedulePermissionRefreshBurst() {

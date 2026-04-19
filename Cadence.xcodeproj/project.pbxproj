@@ -15,6 +15,7 @@
 		5E5546C97794520F90E67A53 /* LocalWhisperTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92850F6EFBA47BC3D1219A5A /* LocalWhisperTranscriptionEngine.swift */; };
 		6CB478AD12E64CFE521C6215 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E7124C5AF7EC6EBAB0DE7E /* SettingsView.swift */; };
 		6EEA0FEF55A747191E62FC60 /* MenuContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */; };
+		7318AC7A3BBE4D07A5E2F6A1 /* PermissionGuideWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7318AC793BBE4D07A5E2F6A1 /* PermissionGuideWindow.swift */; };
 		878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37031AF8A914D482FABFFD6B /* PermissionsService.swift */; };
 		9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC22C16A79401A6870742A6E /* HUDWindowController.swift */; };
 		A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */; };
@@ -49,6 +50,7 @@
 		53DC5566E2688823A894040D /* CadenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CadenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		57F88FDABE976A050039E642 /* DictationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModels.swift; sourceTree = "<group>"; };
 		58943A986FD1C46B9F453ED0 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
+		7318AC793BBE4D07A5E2F6A1 /* PermissionGuideWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGuideWindow.swift; sourceTree = "<group>"; };
 		74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuContentView.swift; sourceTree = "<group>"; };
 		84BAA74864E494C5E664E268 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		92850F6EFBA47BC3D1219A5A /* LocalWhisperTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWhisperTranscriptionEngine.swift; sourceTree = "<group>"; };
@@ -97,6 +99,7 @@
 			children = (
 				58943A986FD1C46B9F453ED0 /* HUDView.swift */,
 				74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */,
+				7318AC793BBE4D07A5E2F6A1 /* PermissionGuideWindow.swift */,
 				C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */,
 				42E7124C5AF7EC6EBAB0DE7E /* SettingsView.swift */,
 			);
@@ -262,6 +265,7 @@
 				5E5546C97794520F90E67A53 /* LocalWhisperTranscriptionEngine.swift in Sources */,
 				6EEA0FEF55A747191E62FC60 /* MenuContentView.swift in Sources */,
 				097667E2CBD98ED27B666656 /* MockTranscriptionEngine.swift in Sources */,
+				7318AC7A3BBE4D07A5E2F6A1 /* PermissionGuideWindow.swift in Sources */,
 				878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */,
 				FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */,
 				6CB478AD12E64CFE521C6215 /* SettingsView.swift in Sources */,
