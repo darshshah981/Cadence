@@ -139,6 +139,7 @@ final class AppModel: ObservableObject {
         Task {
             _ = await permissionsService.requestMicrophoneAccess()
             await refreshPermissions()
+            schedulePermissionRefreshBurst()
         }
     }
 

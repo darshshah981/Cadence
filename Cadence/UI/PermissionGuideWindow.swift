@@ -178,7 +178,7 @@ private struct PermissionWizardView: View {
                 title: "Microphone",
                 description: "Allow recording when you dictate.",
                 isGranted: state.permissions.microphoneGranted,
-                actionTitle: "Request",
+                actionTitle: "Open Settings",
                 action: onRequestMicrophone
             )
             divider

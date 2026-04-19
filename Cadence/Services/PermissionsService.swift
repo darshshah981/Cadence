@@ -7,6 +7,7 @@ import IOKit.hidsystem
 @MainActor
 final class PermissionsService {
     private enum PrivacyPane {
+        static let microphone = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
         static let accessibility = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         static let inputMonitoring = "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
     }
@@ -20,7 +21,22 @@ final class PermissionsService {
     }
 
     func requestMicrophoneAccess() async -> Bool {
-        await AVCaptureDevice.requestAccess(for: .audio)
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            return true
+        case .notDetermined:
+            let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            if !granted {
+                openPrivacyPane(PrivacyPane.microphone)
+            }
+            return granted
+        case .denied, .restricted:
+            openPrivacyPane(PrivacyPane.microphone)
+            return false
+        @unknown default:
+            openPrivacyPane(PrivacyPane.microphone)
+            return false
+        }
     }
 
     func requestAccessibilityAccess() {
