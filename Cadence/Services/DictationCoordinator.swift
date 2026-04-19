@@ -469,7 +469,10 @@ final class DictationCoordinator {
         if raw.contains("Whisper did not return any transcript text") {
             return "Nothing picked up"
         }
-        if raw.contains("Local Whisper unavailable") || raw.contains("loading local Whisper backend") {
+        if raw.contains("Local Whisper unavailable") ||
+            raw.contains("loading local Whisper backend") ||
+            raw.contains("Transcription backend unavailable") ||
+            raw.contains("Loading transcription backend") {
             return "Model not loaded yet"
         }
         if raw.contains("Microphone") {

@@ -17,6 +17,7 @@ enum MenuScreen {
 @MainActor
 final class AppModel: ObservableObject {
     private enum PreferenceKey {
+        static let transcriptionBackend = "FlowState.transcriptionBackend"
         static let whisperModel = "FlowState.whisperModel"
         static let decodingMode = "FlowState.decodingMode"
         static let fillerWordPolicy = "FlowState.fillerWordPolicy"
@@ -51,7 +52,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastError: String?
     @Published private(set) var shortcutValidationMessage: String?
     @Published private(set) var copiedTranscriptID: UUID?
-    @Published private(set) var backendDescription = "Loading local Whisper backend"
+    @Published private(set) var backendDescription = "Loading transcription backend"
     @Published private(set) var transcriptionConfiguration: TranscriptionConfiguration
     @Published var menuScreen: MenuScreen = .home
 
@@ -80,7 +81,10 @@ final class AppModel: ObservableObject {
         self.permissions = permissionsService.snapshot()
 
         let hudController = HUDWindowController()
-        let transcriptionEngine = LocalWhisperTranscriptionEngine(modelManager: WhisperModelManager())
+        let transcriptionEngine = SwitchingTranscriptionEngine(
+            whisperKitEngine: WhisperKitTranscriptionEngine(),
+            whisperCppEngine: LocalWhisperTranscriptionEngine(modelManager: WhisperModelManager())
+        )
         let audioCaptureService = AudioCaptureService()
         let textInsertionService = TextInsertionService()
 
@@ -181,8 +185,12 @@ final class AppModel: ObservableObject {
             backendDescription = summary
         } catch {
             lastError = error.localizedDescription
-            backendDescription = "Local Whisper unavailable"
+            backendDescription = "Transcription backend unavailable"
         }
+    }
+
+    func setTranscriptionBackend(_ backend: TranscriptionBackendOption) {
+        updateTranscriptionConfiguration { $0.backend = backend }
     }
 
     func setWhisperModel(_ model: WhisperModelOption) {
@@ -406,11 +414,12 @@ final class AppModel: ObservableObject {
             }
         } catch {
             lastError = error.localizedDescription
-            backendDescription = "Local Whisper unavailable"
+            backendDescription = "Transcription backend unavailable"
         }
     }
 
     private func persist(configuration: TranscriptionConfiguration) {
+        defaults.set(configuration.backend.rawValue, forKey: PreferenceKey.transcriptionBackend)
         defaults.set(configuration.model.rawValue, forKey: PreferenceKey.whisperModel)
         defaults.set(configuration.decodingMode.rawValue, forKey: PreferenceKey.decodingMode)
         defaults.set(configuration.fillerWordPolicy.rawValue, forKey: PreferenceKey.fillerWordPolicy)
@@ -437,6 +446,11 @@ final class AppModel: ObservableObject {
 
     private static func loadConfiguration(defaults: UserDefaults) -> TranscriptionConfiguration {
         var configuration = TranscriptionConfiguration()
+
+        if let rawValue = defaults.string(forKey: PreferenceKey.transcriptionBackend),
+           let backend = TranscriptionBackendOption(rawValue: rawValue) {
+            configuration.backend = backend
+        }
 
         if let rawValue = defaults.string(forKey: PreferenceKey.whisperModel),
            let model = WhisperModelOption(rawValue: rawValue) {
@@ -482,6 +496,7 @@ final class AppModel: ObservableObject {
             configuration.decodingMode = .greedy
             configuration.livePreviewEnabled = false
             defaults.set(true, forKey: PreferenceKey.didMigrateToFastDefaults)
+            defaults.set(configuration.backend.rawValue, forKey: PreferenceKey.transcriptionBackend)
             defaults.set(configuration.model.rawValue, forKey: PreferenceKey.whisperModel)
             defaults.set(configuration.decodingMode.rawValue, forKey: PreferenceKey.decodingMode)
             defaults.set(configuration.livePreviewEnabled, forKey: PreferenceKey.livePreviewEnabled)

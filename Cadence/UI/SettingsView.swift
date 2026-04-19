@@ -56,6 +56,27 @@ struct SettingsView: View {
                 insetDivider
 
                 VStack(alignment: .leading, spacing: 12) {
+                    Text("Engine")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(FlowTheme.textPrimary)
+
+                    BackendSegmentedControl(
+                        selection: Binding(
+                            get: { appModel.transcriptionConfiguration.backend },
+                            set: { appModel.setTranscriptionBackend($0) }
+                        )
+                    )
+
+                    Text(appModel.transcriptionConfiguration.backend.description)
+                        .font(.system(size: 12))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+
+                insetDivider
+
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Model")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(FlowTheme.textPrimary)
@@ -413,6 +434,41 @@ private struct PermissionBadge: View {
             .foregroundStyle(isGranted ? FlowTheme.success : FlowTheme.error)
             .frame(width: 18, height: 18)
             .accessibilityLabel(isGranted ? "Granted" : "Not granted")
+    }
+}
+
+private struct BackendSegmentedControl: View {
+    @Binding var selection: TranscriptionBackendOption
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(TranscriptionBackendOption.allCases) { backend in
+                Button {
+                    selection = backend
+                } label: {
+                    Text(backend.displayName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(selection == backend ? FlowTheme.textPrimary : FlowTheme.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(selection == backend ? FlowTheme.elevated : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .stroke(selection == backend ? FlowTheme.borderStrong : Color.clear, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(FlowTheme.border, lineWidth: 1)
+        )
     }
 }
 
