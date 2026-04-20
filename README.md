@@ -29,30 +29,33 @@ Cadence is a small menu bar app for push-to-talk dictation. Hold a shortcut, spe
 
 ## Download
 
-Cadence will be distributed through GitHub Releases.
+Cadence will be distributed through GitHub Releases as a DMG:
 
-The release artifact should always be the production app:
+[Download the latest Cadence release](https://github.com/darshshah981/Cadence/releases/latest)
+
+The release artifact should always be the production DMG:
 
 ```text
-Cadence.app
+Cadence.dmg
 ```
 
 Do not distribute:
 
 ```text
 Cadence Debug.app
+Cadence Debug.dmg
 ```
 
-Once the Developer ID certificate is available, create the GitHub release zip with:
+Once the Developer ID certificate is available, create the GitHub release DMG with:
 
 ```zsh
 scripts/package_release.sh
 ```
 
-The script builds the Release configuration, notarizes the app, staples the notarization ticket, validates Gatekeeper acceptance, and writes:
+The script builds the Release configuration, creates a DMG, notarizes it, staples the notarization ticket, validates Gatekeeper acceptance, and writes:
 
 ```text
-Build/Release/Cadence.zip
+Build/Release/Cadence.dmg
 ```
 
 ## Setup
@@ -100,5 +103,5 @@ Before publishing a GitHub Release:
 - Sign with `Developer ID Application`.
 - Notarize and staple.
 - Verify with `spctl`.
-- Upload `Build/Release/Cadence.zip`.
+- Upload `Build/Release/Cadence.dmg`.
 - Include the screenshots and GIFs from `docs/media`.

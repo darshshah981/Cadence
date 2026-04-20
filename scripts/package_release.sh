@@ -11,17 +11,17 @@ BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/Build/Release}"
 ARCHIVE_PATH="${ARCHIVE_PATH:-$BUILD_DIR/Cadence.xcarchive}"
 EXPORT_PATH="${EXPORT_PATH:-$BUILD_DIR/Export}"
 EXPORT_OPTIONS_PLIST="$BUILD_DIR/ExportOptions.plist"
-SUBMISSION_ZIP="$BUILD_DIR/Cadence-notary.zip"
-FINAL_ZIP="$BUILD_DIR/Cadence.zip"
+DMG_STAGING_DIR="$BUILD_DIR/DMG"
+FINAL_DMG="$BUILD_DIR/Cadence.dmg"
 SKIP_NOTARIZATION=0
 
 usage() {
   cat <<EOF
 Usage: scripts/package_release.sh [--skip-notarization]
 
-Builds a Developer ID signed Cadence.app, optionally submits it to Apple for
-notarization, staples the notarization ticket, validates Gatekeeper acceptance,
-and creates Build/Release/Cadence.zip for distribution.
+Builds a Developer ID signed Cadence.app, creates a DMG, optionally submits it
+to Apple for notarization, staples the notarization ticket, validates Gatekeeper
+acceptance, and creates Build/Release/Cadence.dmg for distribution.
 
 This script packages the Release app only. It must never be used to distribute
 Cadence Debug.app.
@@ -151,29 +151,35 @@ echo "Verifying code signature..."
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 codesign -dvvv --entitlements :- "$APP_PATH"
 
-rm -f "$SUBMISSION_ZIP" "$FINAL_ZIP"
+rm -rf "$DMG_STAGING_DIR"
+rm -f "$FINAL_DMG"
+mkdir -p "$DMG_STAGING_DIR"
+ditto "$APP_PATH" "$DMG_STAGING_DIR/Cadence.app"
+ln -s /Applications "$DMG_STAGING_DIR/Applications"
+
+echo "Creating distribution DMG..."
+hdiutil create \
+  -volname "Cadence" \
+  -srcfolder "$DMG_STAGING_DIR" \
+  -ov \
+  -format UDZO \
+  "$FINAL_DMG"
 
 if [[ "$SKIP_NOTARIZATION" == "1" ]]; then
-  echo "Skipping notarization. Creating unsigned-for-Gatekeeper validation zip..."
+  echo "Skipping notarization. DMG created without notarization."
 else
-  echo "Creating notarization upload..."
-  ditto -c -k --keepParent "$APP_PATH" "$SUBMISSION_ZIP"
-
   echo "Submitting to Apple notarization service..."
-  xcrun notarytool submit "$SUBMISSION_ZIP" \
+  xcrun notarytool submit "$FINAL_DMG" \
     --keychain-profile "$NOTARY_PROFILE" \
     --wait
 
   echo "Stapling notarization ticket..."
-  xcrun stapler staple "$APP_PATH"
+  xcrun stapler staple "$FINAL_DMG"
 
   echo "Validating Gatekeeper acceptance..."
-  spctl -a -vv "$APP_PATH"
+  spctl -a -vv -t open "$FINAL_DMG"
 fi
-
-echo "Creating distribution zip..."
-ditto -c -k --keepParent "$APP_PATH" "$FINAL_ZIP"
 
 echo "Done:"
 echo "  App: $APP_PATH"
-echo "  Zip: $FINAL_ZIP"
+echo "  DMG: $FINAL_DMG"

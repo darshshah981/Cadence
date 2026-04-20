@@ -7,20 +7,20 @@ Cadence is distributed through GitHub Releases as a production macOS app.
 Upload only:
 
 ```text
-Build/Release/Cadence.zip
+Build/Release/Cadence.dmg
 ```
 
 Do not upload:
 
 ```text
 Cadence Debug.app
-Cadence Debug.zip
+Cadence Debug.dmg
 Build/DerivedData
 ```
 
 ## Build
 
-Create the release zip:
+Create the release DMG:
 
 ```zsh
 scripts/package_release.sh
@@ -33,8 +33,7 @@ The script must:
 - Sign with `Developer ID Application`.
 - Submit to Apple notarization.
 - Staple the notarization ticket.
-- Verify Gatekeeper acceptance.
-- Zip the notarized app.
+- Verify Gatekeeper acceptance for the DMG.
 
 ## Release Notes
 
@@ -60,9 +59,9 @@ Fast local dictation for macOS.
 
 ### Install
 
-1. Download `Cadence.zip`.
-2. Unzip it.
-3. Move `Cadence.app` to Applications.
+1. Download `Cadence.dmg`.
+2. Open the DMG.
+3. Drag `Cadence.app` to Applications.
 4. Open Cadence and complete the permissions wizard.
 
 ### Known Notes
