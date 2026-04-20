@@ -240,6 +240,10 @@ final class AppModel: ObservableObject {
             let summary = try await coordinator.prewarmBackend()
             backendDescription = summary
         } catch {
+            guard !Self.isBenignModelLoadCancellation(error) else {
+                preferencesLogger.info("Ignored canceled background model load")
+                return
+            }
             lastError = error.localizedDescription
             backendDescription = "Transcription backend unavailable"
         }
@@ -492,11 +496,12 @@ final class AppModel: ObservableObject {
         mutate(&next)
         guard next != transcriptionConfiguration else { return }
 
+        let shouldPrewarm = next.model != transcriptionConfiguration.model
         transcriptionConfiguration = next
         persist(configuration: next)
 
         Task {
-            await applyTranscriptionConfiguration(prewarm: true)
+            await applyTranscriptionConfiguration(prewarm: shouldPrewarm)
         }
     }
 
@@ -508,9 +513,22 @@ final class AppModel: ObservableObject {
                 await warmBackend()
             }
         } catch {
+            guard !Self.isBenignModelLoadCancellation(error) else {
+                preferencesLogger.info("Ignored canceled transcription configuration apply")
+                return
+            }
             lastError = error.localizedDescription
             backendDescription = "Transcription backend unavailable"
         }
+    }
+
+    private static func isBenignModelLoadCancellation(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
 
     private func persist(configuration: TranscriptionConfiguration) {
