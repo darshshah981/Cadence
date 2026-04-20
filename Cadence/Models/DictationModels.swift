@@ -145,6 +145,66 @@ enum WhisperDecodingMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum DictationQualityPreset: String, CaseIterable, Identifiable, Sendable {
+    case fast
+    case balanced
+    case mostAccurate
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .fast:
+            return "Fast"
+        case .balanced:
+            return "Balanced"
+        case .mostAccurate:
+            return "Most accurate"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .fast:
+            return "For quick notes and short bursts."
+        case .balanced:
+            return "Recommended for everyday dictation."
+        case .mostAccurate:
+            return "Best when accuracy matters more than speed."
+        }
+    }
+
+    var model: WhisperModelOption {
+        switch self {
+        case .fast:
+            return .baseEnglish
+        case .balanced, .mostAccurate:
+            return .largeV3
+        }
+    }
+
+    var decodingMode: WhisperDecodingMode {
+        switch self {
+        case .fast, .balanced:
+            return .greedy
+        case .mostAccurate:
+            return .beamSearch
+        }
+    }
+
+    static func matching(_ configuration: TranscriptionConfiguration) -> DictationQualityPreset {
+        if configuration.model == .largeV3, configuration.decodingMode == .beamSearch {
+            return .mostAccurate
+        }
+
+        if configuration.model == .largeV3 {
+            return .balanced
+        }
+
+        return .fast
+    }
+}
+
 enum FillerWordPolicy: String, CaseIterable, Identifiable, Sendable {
     case preserve
     case remove

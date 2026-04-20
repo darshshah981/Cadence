@@ -16,6 +16,9 @@ packages:
   argmax-oss-swift:
     url: https://github.com/argmaxinc/argmax-oss-swift.git
     from: 0.18.0
+  TelemetryDeck:
+    url: https://github.com/TelemetryDeck/SwiftSDK.git
+    from: 2.12.0
 
 targets:
   Cadence:
@@ -26,6 +29,8 @@ targets:
     dependencies:
       - package: argmax-oss-swift
         product: WhisperKit
+      - package: TelemetryDeck
+        product: TelemetryDeck
     settings:
       base:
         PRODUCT_NAME: Cadence
@@ -40,6 +45,11 @@ targets:
           PRODUCT_BUNDLE_IDENTIFIER: com.darshshah.Cadence.debug
           INFOPLIST_KEY_CFBundleDisplayName: Cadence Debug
         Release:
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+          CODE_SIGN_STYLE: Manual
+          DEVELOPMENT_TEAM: P3MT7UXJ5N
+          ENABLE_HARDENED_RUNTIME: YES
           PRODUCT_BUNDLE_IDENTIFIER: com.darshshah.Cadence
           INFOPLIST_KEY_CFBundleDisplayName: Cadence
     scheme:

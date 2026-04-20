@@ -1,5 +1,6 @@
 .DS_Store
 Artifacts/
+Build/
 
 # Xcode user state
 xcuserdata/

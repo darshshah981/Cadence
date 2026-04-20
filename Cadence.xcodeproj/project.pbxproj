@@ -17,8 +17,10 @@
 		541432DC77D74A0DAB846DAB /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD8226A6E492745025CF418 /* AnalyticsService.swift */; };
 		6CB478AD12E64CFE521C6215 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E7124C5AF7EC6EBAB0DE7E /* SettingsView.swift */; };
 		6EEA0FEF55A747191E62FC60 /* MenuContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */; };
+		8006F55E629A70E7ED335961 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 40FEC6F1B63663537E6E73B3 /* Assets.xcassets */; };
 		878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37031AF8A914D482FABFFD6B /* PermissionsService.swift */; };
 		9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC22C16A79401A6870742A6E /* HUDWindowController.swift */; };
+		A0B10965E26138F42C677BE1 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = BC0A996EB1B3486F274826C5 /* TelemetryDeck */; };
 		A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */; };
 		ABAAF7AD1FA70D69BA85152C /* TextInsertionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF53A70456557098B43E818E /* TextInsertionService.swift */; };
 		B61EFD617B4E75AC083EF588 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07592451F56FA01E1134A310 /* AppDelegate.swift */; };
@@ -48,6 +50,7 @@
 		36DCCAD2BECF88FDCBA8B4D3 /* HotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyService.swift; sourceTree = "<group>"; };
 		37031AF8A914D482FABFFD6B /* PermissionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsService.swift; sourceTree = "<group>"; };
 		3BD8226A6E492745025CF418 /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
+		40FEC6F1B63663537E6E73B3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		42E7124C5AF7EC6EBAB0DE7E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		53DC5566E2688823A894040D /* CadenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CadenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		57F88FDABE976A050039E642 /* DictationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModels.swift; sourceTree = "<group>"; };
@@ -73,6 +76,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CA7DEBC92273F86FC09DB926 /* WhisperKit in Frameworks */,
+				A0B10965E26138F42C677BE1 /* TelemetryDeck in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -156,6 +160,7 @@
 		FD48710B608BE6A57DA448D7 /* Cadence */ = {
 			isa = PBXGroup;
 			children = (
+				40FEC6F1B63663537E6E73B3 /* Assets.xcassets */,
 				78D2D1E4520BA69AC30BB1CB /* App */,
 				5875D9DE20878243E04EB85B /* Models */,
 				C44473C867EA22AD5CDA9820 /* Services */,
@@ -172,6 +177,7 @@
 			buildConfigurationList = 07126B28B5B904C139BBD128 /* Build configuration list for PBXNativeTarget "Cadence" */;
 			buildPhases = (
 				1F5350DE3B53E65CAAF89D1D /* Sources */,
+				BFA5A0EE784FE6F59E5E0293 /* Resources */,
 				56B76F527BA1B0C195D380DB /* Frameworks */,
 			);
 			buildRules = (
@@ -181,6 +187,7 @@
 			name = Cadence;
 			packageProductDependencies = (
 				C989632B526AB096BA7C8AAB /* WhisperKit */,
+				BC0A996EB1B3486F274826C5 /* TelemetryDeck */,
 			);
 			productName = Cadence;
 			productReference = 2747B5C0BD75EFECA1D2569B /* Cadence.app */;
@@ -213,6 +220,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					1D9D0CF3C214130166213D80 = {
+						DevelopmentTeam = P3MT7UXJ5N;
+						ProvisioningStyle = Manual;
+					};
 				};
 			};
 			buildConfigurationList = 6735F591880E2DF1BC393107 /* Build configuration list for PBXProject "Cadence" */;
@@ -225,6 +236,7 @@
 			mainGroup = 6A9F1C3B6267176F20AE4B03;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				C583289605A13DE61E5C25F4 /* XCRemoteSwiftPackageReference "SwiftSDK" */,
 				5AA91E44175587E60289FC93 /* XCRemoteSwiftPackageReference "argmax-oss-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -237,6 +249,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BFA5A0EE784FE6F59E5E0293 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8006F55E629A70E7ED335961 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1F5350DE3B53E65CAAF89D1D /* Sources */ = {
@@ -309,8 +332,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = P3MT7UXJ5N;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Cadence;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -526,9 +553,22 @@
 				minimumVersion = 0.18.0;
 			};
 		};
+		C583289605A13DE61E5C25F4 /* XCRemoteSwiftPackageReference "SwiftSDK" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/TelemetryDeck/SwiftSDK.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.12.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		BC0A996EB1B3486F274826C5 /* TelemetryDeck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C583289605A13DE61E5C25F4 /* XCRemoteSwiftPackageReference "SwiftSDK" */;
+			productName = TelemetryDeck;
+		};
 		C989632B526AB096BA7C8AAB /* WhisperKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 5AA91E44175587E60289FC93 /* XCRemoteSwiftPackageReference "argmax-oss-swift" */;

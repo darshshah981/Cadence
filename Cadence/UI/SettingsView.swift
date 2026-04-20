@@ -3,88 +3,82 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var appModel: AppModel
+    @State private var isAdvancedExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
+            setupSection
             shortcutsSection
-            transcriptionSection
-            audioSection
-            vocabularySection
-            privacySection
-            permissionsSection
+            dictationSection
+            advancedSection
             versionFooter
+        }
+    }
+
+    private var setupSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FlowSectionHeader(title: "Setup")
+            FlowSectionCard {
+                PermissionWizardRow(
+                    permissions: appModel.permissions,
+                    action: appModel.openPermissionsWizard
+                )
+            }
         }
     }
 
     private var shortcutsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "Shortcuts")
+            FlowSectionHeader(title: "Shortcut")
             FlowSectionCard {
-                ShortcutSettingRow(
-                    title: HotkeyAction.holdToTalk.displayName,
-                    description: "Modifier keys only. Good for quick dictation bursts, and can stay enabled alongside Press to Start.",
-                    hint: "Try \(appModel.holdToTalkBinding.shortcut.symbolDisplayName) or something like ⌃ ⌥",
-                    isEnabled: holdEnabledBinding,
-                    shortcut: Binding(
-                        get: { appModel.holdToTalkBinding.shortcut },
-                        set: { appModel.setShortcut($0, for: .holdToTalk) }
-                    ),
-                    onRecordingChange: appModel.setShortcutRecordingActive
-                )
+                VStack(alignment: .leading, spacing: 10) {
+                    SettingsLabelRow(
+                        title: "Dictation shortcut",
+                        description: shortcutDescription
+                    )
+
+                    ShortcutRecorderField(
+                        shortcut: primaryShortcutBinding,
+                        onRecordingChange: appModel.setShortcutRecordingActive
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 42)
+                }
+                .padding(12)
 
                 insetDivider
 
-                ShortcutSettingRow(
-                    title: "Press to Start",
-                    description: "Starts recording until you stop from the shortcut, next key press, or pill controls. This can also stay enabled with Hold To Talk.",
-                    hint: pressToStartHint,
-                    isEnabled: tapEnabledBinding,
-                    shortcut: Binding(
-                        get: { appModel.tapToStartStopBinding.shortcut },
-                        set: { appModel.setShortcut($0, for: .tapToStartStop) }
-                    ),
-                    onRecordingChange: appModel.setShortcutRecordingActive
-                )
+                VStack(alignment: .leading, spacing: 10) {
+                    SettingsLabelRow(
+                        title: "Mode",
+                        description: appModel.primaryTriggerMode.shortDescription
+                    )
+
+                    TriggerModeSegmentedControl(
+                        selection: Binding(
+                            get: { appModel.primaryTriggerMode },
+                            set: { appModel.setPrimaryTriggerMode($0) }
+                        )
+                    )
+                }
+                .padding(12)
             }
         }
     }
 
-    private var transcriptionSection: some View {
+    private var dictationSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "Transcription")
+            FlowSectionHeader(title: "Dictation")
             FlowSectionCard {
-                FlowInfoRow(label: "Language", value: "English-first")
-                insetDivider
-
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Model")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(FlowTheme.textPrimary)
+                    SettingsLabelRow(
+                        title: "Quality",
+                        description: appModel.dictationQualityPreset.description
+                    )
 
-                    VStack(spacing: 8) {
-                        ForEach(WhisperModelOption.allCases) { model in
-                            ModelOptionRow(
-                                model: model,
-                                isSelected: appModel.transcriptionConfiguration.model == model
-                            ) {
-                                appModel.setWhisperModel(model)
-                            }
-                        }
-                    }
-                }
-                .padding(12)
-
-                insetDivider
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Decoding")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(FlowTheme.textPrimary)
-
-                    DecodingSegmentedControl(
+                    QualityPresetSegmentedControl(
                         selection: Binding(
-                            get: { appModel.transcriptionConfiguration.decodingMode },
-                            set: { appModel.setDecodingMode($0) }
+                            get: { appModel.dictationQualityPreset },
+                            set: { appModel.setDictationQualityPreset($0) }
                         )
                     )
                 }
@@ -93,24 +87,86 @@ struct SettingsView: View {
                 insetDivider
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Fillers")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(FlowTheme.textPrimary)
-
-                    FillerWordSegmentedControl(
-                        selection: Binding(
-                            get: { appModel.transcriptionConfiguration.fillerWordPolicy },
-                            set: { appModel.setFillerWordPolicy($0) }
-                        )
+                    SettingsLabelRow(
+                        title: "Filler words",
+                        description: appModel.transcriptionConfiguration.fillerWordPolicy.description
                     )
 
-                    Text(appModel.transcriptionConfiguration.fillerWordPolicy.description)
-                        .font(.system(size: 12))
-                        .foregroundStyle(FlowTheme.textSecondary)
+                    FillerWordSegmentedControl(selection: fillerWordPolicyBinding)
                 }
                 .padding(12)
             }
         }
+    }
+
+    private var advancedSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FlowSectionHeader(title: "Advanced")
+            FlowSectionCard {
+                DisclosureGroup(isExpanded: $isAdvancedExpanded) {
+                    advancedContent
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Advanced settings")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(FlowTheme.textPrimary)
+
+                        Text("Models, audio behavior, custom words, and privacy.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(FlowTheme.textSecondary)
+                    }
+                }
+                .padding(12)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var advancedContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            insetDivider
+            advancedModelControls
+            insetDivider
+            advancedAudioControls
+            insetDivider
+            vocabularyControls
+            insetDivider
+            privacyControls
+        }
+        .padding(.top, 10)
+    }
+
+    private var advancedModelControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsLabelRow(
+                title: "Model",
+                description: "Manual model selection for testing speed and accuracy."
+            )
+
+            VStack(spacing: 8) {
+                ForEach(WhisperModelOption.allCases) { model in
+                    ModelOptionRow(
+                        model: model,
+                        isSelected: appModel.transcriptionConfiguration.model == model
+                    ) {
+                        appModel.setWhisperModel(model)
+                    }
+                }
+            }
+
+            SettingsLabelRow(
+                title: "Decoding",
+                description: "Fast is lower latency; Accurate searches harder."
+            )
+
+            DecodingSegmentedControl(
+                selection: Binding(
+                    get: { appModel.transcriptionConfiguration.decodingMode },
+                    set: { appModel.setDecodingMode($0) }
+                )
+            )
+        }
+        .padding(12)
     }
 
     private var audioSection: some View {
@@ -144,58 +200,86 @@ struct SettingsView: View {
         }
     }
 
-    private var vocabularySection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "Vocabulary")
-            FlowSectionCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Custom terms and aliases")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(FlowTheme.textPrimary)
+    private var advancedAudioControls: some View {
+        VStack(spacing: 0) {
+            SettingsToggleRow(
+                title: "Trim silence",
+                description: "Removes dead air before and after speech.",
+                isOn: trimSilenceBinding
+            )
+            insetDivider
+            SettingsToggleRow(
+                title: "Normalize audio",
+                description: "Brings quiet recordings into a steadier range.",
+                isOn: normalizeAudioBinding
+            )
+            insetDivider
+            SettingsToggleRow(
+                title: "Keep context",
+                description: "Helps punctuation and continuity during longer dictation.",
+                isOn: keepContextBinding
+            )
+            insetDivider
+            SettingsToggleRow(
+                title: "Stop on next key press",
+                description: "For press-to-start mode, stop dictation as soon as you begin typing.",
+                isOn: tapStopsOnNextKeyPressBinding
+            )
+        }
+    }
 
-                    Text("One preferred term per line. Example: `Epic Games: Epic`")
-                        .font(.system(size: 12))
-                        .foregroundStyle(FlowTheme.textSecondary)
+    private var vocabularyControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Names & custom words")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(FlowTheme.textPrimary)
 
-                    TextEditor(text: vocabularyBinding)
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(FlowTheme.textPrimary)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 88)
-                        .padding(8)
-                        .background(FlowTheme.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(FlowTheme.border, lineWidth: 1)
-                        )
+            Text("One preferred term per line. Example: `Epic Games: Epic`")
+                .font(.system(size: 12))
+                .foregroundStyle(FlowTheme.textSecondary)
+
+            TextEditor(text: vocabularyBinding)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(FlowTheme.textPrimary)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 88)
+                .padding(8)
+                .background(FlowTheme.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(FlowTheme.border, lineWidth: 1)
+                )
+        }
+        .padding(12)
+    }
+
+    private var privacyControls: some View {
+        VStack(spacing: 0) {
+            SettingsToggleRow(
+                title: "Share analytics",
+                description: "Sends privacy-safe product events. Never includes audio, transcripts, vocabulary, or shortcut keys.",
+                isOn: analyticsEnabledBinding
+            )
+
+            insetDivider
+
+            HStack {
+                SettingsLabelRow(
+                    title: "Privacy",
+                    description: "Read what Cadence collects and what stays on your Mac."
+                )
+
+                Spacer()
+
+                Button("Open") {
+                    if let url = URL(string: "https://github.com/darshshah981/Cadence/blob/main/docs/privacy.md") {
+                        NSWorkspace.shared.open(url)
+                    }
                 }
-                .padding(12)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-        }
-    }
-
-    private var permissionsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "Permissions")
-            FlowSectionCard {
-                PermissionWizardRow(
-                    permissions: appModel.permissions,
-                    action: appModel.openPermissionsWizard
-                )
-            }
-        }
-    }
-
-    private var privacySection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "Privacy")
-            FlowSectionCard {
-                SettingsToggleRow(
-                    title: "Share analytics",
-                    description: "Sends privacy-safe product events. Never includes audio, transcripts, vocabulary, or shortcut keys.",
-                    isOn: analyticsEnabledBinding
-                )
-            }
+            .padding(12)
         }
     }
 
@@ -211,6 +295,15 @@ struct SettingsView: View {
         let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
         return [short, build].compactMap { $0 }.joined(separator: " • ")
+    }
+
+    private var shortcutDescription: String {
+        switch appModel.primaryTriggerMode {
+        case .holdToTalk:
+            return "Press and hold to dictate, then release to finish."
+        case .tapToStartStop:
+            return "Press once to start, then stop from the shortcut or pill."
+        }
     }
 
     private var pressToStartHint: String {
@@ -252,6 +345,38 @@ struct SettingsView: View {
             get: { appModel.transcriptionConfiguration.vocabularyText },
             set: { appModel.setVocabularyText($0) }
         )
+    }
+
+    private var fillerWordPolicyBinding: Binding<FillerWordPolicy> {
+        Binding(
+            get: { appModel.transcriptionConfiguration.fillerWordPolicy },
+            set: { appModel.setFillerWordPolicy($0) }
+        )
+    }
+
+    private var primaryShortcutBinding: Binding<HotkeyConfiguration> {
+        Binding(
+            get: {
+                switch appModel.primaryTriggerMode {
+                case .holdToTalk:
+                    return appModel.holdToTalkBinding.shortcut
+                case .tapToStartStop:
+                    return appModel.tapToStartStopBinding.shortcut
+                }
+            },
+            set: { shortcut in
+                appModel.setShortcut(shortcut, for: primaryShortcutAction)
+            }
+        )
+    }
+
+    private var primaryShortcutAction: HotkeyAction {
+        switch appModel.primaryTriggerMode {
+        case .holdToTalk:
+            return .holdToTalk
+        case .tapToStartStop:
+            return .tapToStartStop
+        }
     }
 
     private var tapStopsOnNextKeyPressBinding: Binding<Bool> {
@@ -299,6 +424,94 @@ private struct FlowInfoRow: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 40)
+    }
+}
+
+private struct SettingsLabelRow: View {
+    let title: String
+    let description: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(FlowTheme.textPrimary)
+
+            Text(description)
+                .font(.system(size: 12))
+                .foregroundStyle(FlowTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct TriggerModeSegmentedControl: View {
+    @Binding var selection: DictationTriggerMode
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(DictationTriggerMode.allCases) { mode in
+                Button {
+                    selection = mode
+                } label: {
+                    Text(mode.displayName.replacingOccurrences(of: " To ", with: " to "))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(selection == mode ? FlowTheme.textPrimary : FlowTheme.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(selection == mode ? FlowTheme.elevated : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .stroke(selection == mode ? FlowTheme.borderStrong : Color.clear, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(FlowTheme.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct QualityPresetSegmentedControl: View {
+    @Binding var selection: DictationQualityPreset
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(DictationQualityPreset.allCases) { preset in
+                Button {
+                    selection = preset
+                } label: {
+                    Text(preset.displayName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(selection == preset ? FlowTheme.textPrimary : FlowTheme.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(selection == preset ? FlowTheme.elevated : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .stroke(selection == preset ? FlowTheme.borderStrong : Color.clear, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(FlowTheme.border, lineWidth: 1)
+        )
     }
 }
 

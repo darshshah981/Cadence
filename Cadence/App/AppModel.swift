@@ -138,6 +138,17 @@ final class AppModel: ObservableObject {
             .joined(separator: " • ")
     }
 
+    var primaryTriggerMode: DictationTriggerMode {
+        if tapToStartStopBinding.isEnabled, !holdToTalkBinding.isEnabled {
+            return .tapToStartStop
+        }
+        return .holdToTalk
+    }
+
+    var dictationQualityPreset: DictationQualityPreset {
+        DictationQualityPreset.matching(transcriptionConfiguration)
+    }
+
     var hotkeyConflictMessage: String? {
         guard holdToTalkBinding.isEnabled, tapToStartStopBinding.isEnabled else { return nil }
         guard holdToTalkBinding.shortcut.conflicts(with: tapToStartStopBinding.shortcut) else { return nil }
@@ -277,6 +288,15 @@ final class AppModel: ObservableObject {
         updateTranscriptionConfiguration { $0.vocabularyText = vocabularyText }
     }
 
+    func setDictationQualityPreset(_ preset: DictationQualityPreset) {
+        guard dictationQualityPreset != preset else { return }
+        analytics.track("setting_changed", properties: ["setting": "qualityPreset", "value": preset.rawValue])
+        updateTranscriptionConfiguration {
+            $0.model = preset.model
+            $0.decodingMode = preset.decodingMode
+        }
+    }
+
     func resetToRecommendedPreset() {
         analytics.track("recommended_preset_reset")
         transcriptionConfiguration = TranscriptionConfiguration()
@@ -299,6 +319,24 @@ final class AppModel: ObservableObject {
         guard tapToStartStopBinding.isEnabled != isEnabled else { return }
         analytics.track("shortcut_enabled_changed", properties: ["shortcut": "tapToStartStop", "enabled": String(isEnabled)])
         tapToStartStopBinding.isEnabled = isEnabled
+        persist(binding: tapToStartStopBinding)
+        refreshRegisteredHotkeys()
+    }
+
+    func setPrimaryTriggerMode(_ mode: DictationTriggerMode) {
+        guard primaryTriggerMode != mode || holdToTalkBinding.isEnabled == tapToStartStopBinding.isEnabled else { return }
+        analytics.track("shortcut_mode_changed", properties: ["mode": mode.rawValue])
+
+        switch mode {
+        case .holdToTalk:
+            holdToTalkBinding.isEnabled = true
+            tapToStartStopBinding.isEnabled = false
+        case .tapToStartStop:
+            holdToTalkBinding.isEnabled = false
+            tapToStartStopBinding.isEnabled = true
+        }
+
+        persist(binding: holdToTalkBinding)
         persist(binding: tapToStartStopBinding)
         refreshRegisteredHotkeys()
     }
