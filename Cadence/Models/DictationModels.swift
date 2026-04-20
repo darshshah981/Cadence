@@ -147,8 +147,8 @@ enum WhisperDecodingMode: String, CaseIterable, Identifiable, Sendable {
 
 enum DictationQualityPreset: String, CaseIterable, Identifiable, Sendable {
     case fast
-    case balanced
-    case mostAccurate
+    case everyday = "balanced"
+    case bestAccuracy = "mostAccurate"
 
     var id: String { rawValue }
 
@@ -156,10 +156,10 @@ enum DictationQualityPreset: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .fast:
             return "Fast"
-        case .balanced:
-            return "Balanced"
-        case .mostAccurate:
-            return "Most accurate"
+        case .everyday:
+            return "Everyday"
+        case .bestAccuracy:
+            return "Best accuracy"
         }
     }
 
@@ -167,9 +167,9 @@ enum DictationQualityPreset: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .fast:
             return "For quick notes and short bursts."
-        case .balanced:
+        case .everyday:
             return "Recommended for everyday dictation."
-        case .mostAccurate:
+        case .bestAccuracy:
             return "Best when accuracy matters more than speed."
         }
     }
@@ -178,27 +178,27 @@ enum DictationQualityPreset: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .fast:
             return .baseEnglish
-        case .balanced, .mostAccurate:
+        case .everyday, .bestAccuracy:
             return .largeV3
         }
     }
 
     var decodingMode: WhisperDecodingMode {
         switch self {
-        case .fast, .balanced:
+        case .fast, .everyday:
             return .greedy
-        case .mostAccurate:
+        case .bestAccuracy:
             return .beamSearch
         }
     }
 
     static func matching(_ configuration: TranscriptionConfiguration) -> DictationQualityPreset {
         if configuration.model == .largeV3, configuration.decodingMode == .beamSearch {
-            return .mostAccurate
+            return .bestAccuracy
         }
 
         if configuration.model == .largeV3 {
-            return .balanced
+            return .everyday
         }
 
         return .fast

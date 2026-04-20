@@ -126,7 +126,7 @@ struct MenuContentView: View {
     private var headerTitle: String {
         switch appModel.menuScreen {
         case .home:
-            return "Transcripts"
+            return "Cadence"
         case .settings:
             return "Settings"
         }
@@ -137,16 +137,17 @@ struct MenuContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 switch appModel.menuScreen {
                 case .home:
-                    TranscriptListView(
+                    HomeDashboardView(
+                        appModel: appModel,
                         transcriptHistory: appModel.transcriptHistory,
                         copiedTranscriptID: appModel.copiedTranscriptID,
                         shortcutHint: primaryShortcutHint,
-                        needsPermissions: !appModel.permissions.allRequiredGranted,
                         expandedTranscriptIDs: $expandedTranscriptIDs,
                         onCopy: appModel.copyTranscript,
-                        onOpenSettings: appModel.permissions.allRequiredGranted
-                            ? appModel.showSettingsScreen
-                            : appModel.openPermissionsWizard
+                        onOpenPermissionsWizard: appModel.openPermissionsWizard,
+                        onOpenSettings: appModel.showSettingsScreen,
+                        onRunSetupCheck: appModel.runSetupCheck,
+                        onTestInsertion: appModel.startStopDemoInsert
                     )
                 case .settings:
                     SettingsView(appModel: appModel)
@@ -172,10 +173,10 @@ struct MenuContentView: View {
     }
 
     private var statusModel: StatusPillModel? {
-        if let lastError = appModel.lastError?.trimmingCharacters(in: .whitespacesAndNewlines), !lastError.isEmpty {
+        if let message = appModel.userFacingErrorMessage {
             return StatusPillModel(
                 kind: .error,
-                text: humanizedError(lastError)
+                text: message
             )
         }
 
@@ -187,21 +188,8 @@ struct MenuContentView: View {
         case .finalizing, .inserting:
             return StatusPillModel(kind: .transcribing, text: "Transcribing")
         case .error(let message):
-            return StatusPillModel(kind: .error, text: humanizedError(message))
+            return StatusPillModel(kind: .error, text: AppModel.humanizedErrorMessage(message))
         }
-    }
-
-    private func humanizedError(_ raw: String) -> String {
-        if raw.contains("Whisper did not return any transcript text") {
-            return "Nothing picked up. Try speaking louder or check your mic."
-        }
-        if raw.contains("Press To Start/Stop shortcut rejected") {
-            return "Shortcut needs 3+ keys. Try something like ⌃ ⌥ SPACE."
-        }
-        if raw.contains("Hold To Talk shortcut rejected") {
-            return "Hold to Talk works best with 1-2 modifier keys."
-        }
-        return raw
     }
 }
 
@@ -352,6 +340,172 @@ private struct TranscriptListView: View {
     }
 }
 
+private struct HomeDashboardView: View {
+    @ObservedObject var appModel: AppModel
+    let transcriptHistory: [TranscriptHistoryItem]
+    let copiedTranscriptID: UUID?
+    let shortcutHint: String
+    @Binding var expandedTranscriptIDs: Set<UUID>
+    let onCopy: (TranscriptHistoryItem) -> Void
+    let onOpenPermissionsWizard: () -> Void
+    let onOpenSettings: () -> Void
+    let onRunSetupCheck: () -> Void
+    let onTestInsertion: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            setupCard
+            shortcutCard
+            modelCard
+            transcriptSection
+        }
+    }
+
+    private var setupCard: some View {
+        HomeCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: appModel.permissions.allRequiredGranted ? "checkmark.seal.fill" : "hand.raised.fill")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(appModel.permissions.allRequiredGranted ? FlowTheme.success : FlowTheme.accent)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(appModel.setupSummaryTitle)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(FlowTheme.textPrimary)
+
+                        Text(appModel.setupSummaryDetail)
+                            .font(.system(size: 12))
+                            .foregroundStyle(FlowTheme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer()
+                }
+
+                HStack {
+                    Text(appModel.setupProgressLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(FlowTheme.textTertiary)
+
+                    Spacer()
+
+                    Button(appModel.permissions.allRequiredGranted ? "Check setup" : "Open setup") {
+                        appModel.permissions.allRequiredGranted ? onRunSetupCheck() : onOpenPermissionsWizard()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(FlowTheme.accent)
+                }
+            }
+        }
+    }
+
+    private var shortcutCard: some View {
+        HomeCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("How to start")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+
+                Text("Use \(shortcutHint) to start dictating.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(FlowTheme.textSecondary)
+
+                HStack(spacing: 8) {
+                    Button("Edit shortcut", action: onOpenSettings)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(FlowTheme.accent)
+
+                    Spacer()
+
+                    Button("Test insertion", action: onTestInsertion)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(FlowTheme.accent)
+                }
+            }
+        }
+    }
+
+    private var modelCard: some View {
+        let summary = appModel.modelReadinessSummary
+
+        return HomeCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(statusColor(for: summary.tone))
+                        .frame(width: 8, height: 8)
+
+                    Text(summary.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textPrimary)
+                }
+
+                Text(summary.detail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button("Open settings", action: onOpenSettings)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(FlowTheme.accent)
+            }
+        }
+    }
+
+    private var transcriptSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FlowSectionHeader(title: "Recent")
+
+            TranscriptListView(
+                transcriptHistory: transcriptHistory,
+                copiedTranscriptID: copiedTranscriptID,
+                shortcutHint: shortcutHint,
+                needsPermissions: !appModel.permissions.allRequiredGranted,
+                expandedTranscriptIDs: $expandedTranscriptIDs,
+                onCopy: onCopy,
+                onOpenSettings: appModel.permissions.allRequiredGranted ? onOpenSettings : onOpenPermissionsWizard
+            )
+        }
+    }
+
+    private func statusColor(for tone: ModelReadinessSummary.Tone) -> Color {
+        switch tone {
+        case .ready:
+            return FlowTheme.success
+        case .working:
+            return FlowTheme.accent
+        case .attention:
+            return FlowTheme.error
+        }
+    }
+}
+
+private struct HomeCard<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(FlowTheme.border, lineWidth: 1)
+        )
+    }
+}
+
 private struct EmptyTranscriptStateView: View {
     let shortcutHint: String
     let needsPermissions: Bool
@@ -370,8 +524,8 @@ private struct EmptyTranscriptStateView: View {
 
             Text(
                 needsPermissions
-                    ? "Grant microphone and keyboard access, then choose a shortcut to start dictating."
-                    : "Use \(shortcutHint) and start speaking."
+                    ? "Finish setup, choose a shortcut, and your first dictation will show up here."
+                    : "Your recent dictations show up here. Use \(shortcutHint) and start speaking."
             )
             .font(.system(size: 13))
             .foregroundStyle(FlowTheme.textSecondary)

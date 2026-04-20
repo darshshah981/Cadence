@@ -7,31 +7,27 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            setupSection
-            shortcutsSection
-            dictationSection
+            generalSection
             advancedSection
             versionFooter
         }
     }
 
-    private var setupSection: some View {
+    private var generalSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "Setup")
+            FlowSectionHeader(title: "General")
             FlowSectionCard {
-                PermissionWizardRow(
-                    permissions: appModel.permissions,
-                    action: appModel.openPermissionsWizard
-                )
-            }
-        }
-    }
+                if appModel.permissions.allRequiredGranted {
+                    setupCompleteRow
+                } else {
+                    PermissionWizardRow(
+                        permissions: appModel.permissions,
+                        action: appModel.openPermissionsWizard
+                    )
+                }
+                insetDivider
 
-    private var shortcutsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "Shortcut")
-            FlowSectionCard {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     SettingsLabelRow(
                         title: "Dictation shortcut",
                         description: shortcutDescription
@@ -61,14 +57,9 @@ struct SettingsView: View {
                     )
                 }
                 .padding(12)
-            }
-        }
-    }
 
-    private var dictationSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "Dictation")
-            FlowSectionCard {
+                insetDivider
+
                 VStack(alignment: .leading, spacing: 12) {
                     SettingsLabelRow(
                         title: "Quality",
@@ -81,18 +72,26 @@ struct SettingsView: View {
                             set: { appModel.setDictationQualityPreset($0) }
                         )
                     )
+
+                    ModelReadinessInlineView(summary: appModel.modelReadinessSummary)
                 }
                 .padding(12)
 
                 insetDivider
 
-                VStack(alignment: .leading, spacing: 12) {
+                HStack {
                     SettingsLabelRow(
-                        title: "Filler words",
-                        description: appModel.transcriptionConfiguration.fillerWordPolicy.description
+                        title: "Check setup",
+                        description: "Refresh permissions and make sure the current model is ready."
                     )
 
-                    FillerWordSegmentedControl(selection: fillerWordPolicyBinding)
+                    Spacer()
+
+                    Button("Run") {
+                        appModel.runSetupCheck()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
                 .padding(12)
             }
@@ -104,14 +103,26 @@ struct SettingsView: View {
             FlowSectionHeader(title: "Advanced")
             FlowSectionCard {
                 DisclosureGroup(isExpanded: $isAdvancedExpanded) {
-                    advancedContent
+                    VStack(alignment: .leading, spacing: 0) {
+                        insetDivider
+                        advancedModelControls
+                        insetDivider
+                        advancedAudioControls
+                        insetDivider
+                        fillerWordControls
+                        insetDivider
+                        vocabularyControls
+                        insetDivider
+                        privacyControls
+                    }
+                    .padding(.top, 10)
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Advanced settings")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(FlowTheme.textPrimary)
 
-                        Text("Models, audio behavior, custom words, and privacy.")
+                        Text("Model selection, cleanup rules, custom words, and privacy.")
                             .font(.system(size: 12))
                             .foregroundStyle(FlowTheme.textSecondary)
                     }
@@ -119,21 +130,6 @@ struct SettingsView: View {
                 .padding(12)
             }
         }
-    }
-
-    @ViewBuilder
-    private var advancedContent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            insetDivider
-            advancedModelControls
-            insetDivider
-            advancedAudioControls
-            insetDivider
-            vocabularyControls
-            insetDivider
-            privacyControls
-        }
-        .padding(.top, 10)
     }
 
     private var advancedModelControls: some View {
@@ -165,6 +161,18 @@ struct SettingsView: View {
                     set: { appModel.setDecodingMode($0) }
                 )
             )
+        }
+        .padding(12)
+    }
+
+    private var fillerWordControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsLabelRow(
+                title: "Filler words",
+                description: appModel.transcriptionConfiguration.fillerWordPolicy.description
+            )
+
+            FillerWordSegmentedControl(selection: fillerWordPolicyBinding)
         }
         .padding(12)
     }
@@ -306,6 +314,34 @@ struct SettingsView: View {
         }
     }
 
+    private var setupCompleteRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(FlowTheme.success)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Mac setup complete")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(FlowTheme.textPrimary)
+
+                Text("Microphone, Accessibility, and Input Monitoring are all ready.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+
+            Button("Review") {
+                appModel.openPermissionsWizard()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(12)
+    }
+
     private var pressToStartHint: String {
         let current = appModel.tapToStartStopBinding.shortcut.symbolDisplayName
         let examples = ["⌃ ⌥ SPACE", "⌃ ⇧ D"]
@@ -405,6 +441,70 @@ struct SettingsView: View {
             get: { appModel.tapToStartStopBinding.isEnabled },
             set: { appModel.setTapToStartStopEnabled($0) }
         )
+    }
+}
+
+private struct ModelReadinessInlineView: View {
+    let summary: ModelReadinessSummary
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(tint)
+                .frame(width: 8, height: 8)
+                .padding(.top, 4)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(summary.title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(FlowTheme.textPrimary)
+
+                Text(summary.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(border, lineWidth: 1)
+        )
+    }
+
+    private var tint: Color {
+        switch summary.tone {
+        case .ready:
+            return FlowTheme.success
+        case .working:
+            return FlowTheme.accent
+        case .attention:
+            return FlowTheme.error
+        }
+    }
+
+    private var background: Color {
+        switch summary.tone {
+        case .ready:
+            return FlowTheme.successSubtle
+        case .working:
+            return FlowTheme.accentSubtle
+        case .attention:
+            return FlowTheme.errorSubtle
+        }
+    }
+
+    private var border: Color {
+        switch summary.tone {
+        case .ready:
+            return FlowTheme.success
+        case .working:
+            return FlowTheme.accentBorder
+        case .attention:
+            return FlowTheme.error
+        }
     }
 }
 

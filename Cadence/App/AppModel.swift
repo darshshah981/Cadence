@@ -14,6 +14,18 @@ enum MenuScreen {
     case settings
 }
 
+struct ModelReadinessSummary {
+    enum Tone {
+        case ready
+        case working
+        case attention
+    }
+
+    let title: String
+    let detail: String
+    let tone: Tone
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     private enum PreferenceKey {
@@ -67,6 +79,7 @@ final class AppModel: ObservableObject {
     private let defaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
     private var lastExternalApplication: NSRunningApplication?
+    private var transcriptionConfigurationTask: Task<Void, Never>?
 
     init() {
         let defaults = UserDefaults.standard
@@ -155,6 +168,80 @@ final class AppModel: ObservableObject {
         return "Hold To Talk and Press To Start/Stop cannot use the same shortcut at the same time."
     }
 
+    var setupProgressLabel: String {
+        let completed = [permissions.microphoneGranted, permissions.accessibilityGranted, permissions.inputMonitoringGranted]
+            .filter { $0 }
+            .count
+        return "\(completed)/3 permissions ready"
+    }
+
+    var setupSummaryTitle: String {
+        permissions.allRequiredGranted ? "Mac setup complete" : "Finish setup"
+    }
+
+    var setupSummaryDetail: String {
+        if permissions.allRequiredGranted {
+            return "Cadence has microphone, accessibility, and shortcut access."
+        }
+
+        let missing = missingPermissionNames
+        if missing.count == 1, let item = missing.first {
+            return "Grant \(item.lowercased()) to start dictating anywhere."
+        }
+        return "Grant \(missing.joined(separator: ", ").lowercased()) to finish setup."
+    }
+
+    var modelReadinessSummary: ModelReadinessSummary {
+        if let error = userFacingErrorMessage {
+            return ModelReadinessSummary(
+                title: "Model setup needs attention",
+                detail: error,
+                tone: .attention
+            )
+        }
+
+        let lowercasedSummary = backendDescription.lowercased()
+        let presetName = dictationQualityPreset.displayName
+
+        if lowercasedSummary.contains("ready to load") || lowercasedSummary.contains("loading transcription backend") {
+            return ModelReadinessSummary(
+                title: "\(presetName) is ready when you are",
+                detail: "Cadence will finish loading this model the first time you dictate.",
+                tone: .ready
+            )
+        }
+
+        if lowercasedSummary.contains("unavailable") {
+            return ModelReadinessSummary(
+                title: "Model setup needs attention",
+                detail: "Cadence could not prepare the selected model yet.",
+                tone: .attention
+            )
+        }
+
+        if lowercasedSummary.contains("download") || lowercasedSummary.contains("prepare") {
+            return ModelReadinessSummary(
+                title: "Preparing \(presetName.lowercased())",
+                detail: "Cadence may need a moment to finish local model setup.",
+                tone: .working
+            )
+        }
+
+        return ModelReadinessSummary(
+            title: "\(presetName) is ready",
+            detail: "Using \(transcriptionConfiguration.model.shortLabel) for \(primaryTriggerMode.shortDescription.lowercased())",
+            tone: .ready
+        )
+    }
+
+    var userFacingErrorMessage: String? {
+        guard let lastError = lastError?.trimmingCharacters(in: .whitespacesAndNewlines), !lastError.isEmpty else {
+            return nil
+        }
+
+        return Self.humanizedErrorMessage(lastError)
+    }
+
     func refreshPermissions() async {
         permissions = permissionsService.snapshot()
         permissionGuideWindowController.updatePermissions(permissions)
@@ -229,15 +316,26 @@ final class AppModel: ObservableObject {
                     try? await Task.sleep(for: .milliseconds(180))
                 }
                 try await coordinator.insertPreviewText()
+                lastError = nil
             } catch {
                 lastError = error.localizedDescription
             }
         }
     }
 
+    func runSetupCheck() {
+        analytics.track("setup_check_started")
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.refreshPermissions()
+            await self.warmBackend()
+        }
+    }
+
     func warmBackend() async {
         do {
             let summary = try await coordinator.prewarmBackend()
+            lastError = nil
             backendDescription = summary
         } catch {
             guard !Self.isBenignModelLoadCancellation(error) else {
@@ -499,15 +597,18 @@ final class AppModel: ObservableObject {
         let shouldPrewarm = next.model != transcriptionConfiguration.model
         transcriptionConfiguration = next
         persist(configuration: next)
+        lastError = nil
 
-        Task {
-            await applyTranscriptionConfiguration(prewarm: shouldPrewarm)
+        transcriptionConfigurationTask?.cancel()
+        transcriptionConfigurationTask = Task { @MainActor [weak self] in
+            await self?.applyTranscriptionConfiguration(prewarm: shouldPrewarm)
         }
     }
 
     private func applyTranscriptionConfiguration(prewarm: Bool) async {
         do {
             let summary = try await coordinator.updateTranscriptionConfiguration(transcriptionConfiguration)
+            lastError = nil
             backendDescription = summary
             if prewarm {
                 await warmBackend()
@@ -528,7 +629,21 @@ final class AppModel: ObservableObject {
         }
 
         let nsError = error as NSError
-        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+            return true
+        }
+
+        let message = [
+            nsError.localizedDescription,
+            String(describing: error),
+            nsError.userInfo.description
+        ]
+        .joined(separator: " ")
+        .lowercased()
+
+        return message.contains("nsurlerrordomain") &&
+            message.contains("code=-999") &&
+            message.contains("cancel")
     }
 
     private func persist(configuration: TranscriptionConfiguration) {
@@ -677,6 +792,45 @@ final class AppModel: ObservableObject {
         default:
             return "800+"
         }
+    }
+
+    private var missingPermissionNames: [String] {
+        var missing = [String]()
+        if !permissions.microphoneGranted {
+            missing.append("Microphone")
+        }
+        if !permissions.accessibilityGranted {
+            missing.append("Accessibility")
+        }
+        if !permissions.inputMonitoringGranted {
+            missing.append("Input Monitoring")
+        }
+        return missing
+    }
+
+    static func humanizedErrorMessage(_ raw: String) -> String {
+        if raw.contains("Whisper did not return any transcript text") {
+            return "Nothing was picked up. Try speaking a little louder or closer to the mic."
+        }
+        if raw.contains("Press To Start/Stop shortcut rejected") {
+            return "Press to Start/Stop needs 3 or more keys. Try something like Control + Option + Space."
+        }
+        if raw.contains("Hold To Talk shortcut rejected") {
+            return "Hold To Talk works best with 1 or 2 modifier keys."
+        }
+
+        let lowercased = raw.lowercased()
+        if lowercased.contains("nsurlerrordomain") && lowercased.contains("code=-999") {
+            return "Model download was interrupted. Try the quality mode again in a moment."
+        }
+        if lowercased.contains("model not found") || lowercased.contains("repo name") {
+            return "Cadence could not find that model yet. Try again while connected to the internet."
+        }
+        if lowercased.contains("internet") || lowercased.contains("offline") || lowercased.contains("timed out") {
+            return "Cadence needs internet once to finish downloading this model."
+        }
+
+        return raw
     }
 
     private static func preferenceKeys(for action: HotkeyAction) -> (enabled: String, keyCode: String, modifiers: String, keyDisplay: String) {
