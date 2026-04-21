@@ -2,21 +2,7 @@
 
 Fast local dictation for macOS.
 
-![Cadence hero](docs/media/hero.png)
-
 Cadence is a small menu bar app for push-to-talk dictation. Hold a shortcut, speak, release, and Cadence inserts the text into the app you were already using.
-
-## Demo
-
-| Dictate anywhere | Guided permissions |
-| --- | --- |
-| ![Cadence dictation demo](docs/media/demo-dictation.gif) | ![Cadence permissions demo](docs/media/demo-permissions.gif) |
-
-## Screenshots
-
-| Transcripts | Settings | Permissions |
-| --- | --- | --- |
-| ![Transcripts](docs/media/screenshot-transcripts.png) | ![Settings](docs/media/screenshot-settings.png) | ![Permissions](docs/media/screenshot-permissions.png) |
 
 ## Features
 
@@ -104,4 +90,3 @@ Before publishing a GitHub Release:
 - Notarize and staple.
 - Verify with `spctl`.
 - Upload `Build/Release/Cadence.dmg`.
-- Include the screenshots and GIFs from `docs/media`.

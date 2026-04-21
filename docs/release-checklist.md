@@ -43,7 +43,6 @@ Include:
 - Minimum macOS version.
 - Permission setup note.
 - Known issues.
-- Screenshots and GIFs from `docs/media`.
 
 ## Minimum Release Notes Template
 
