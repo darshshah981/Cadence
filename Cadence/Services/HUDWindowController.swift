@@ -4,10 +4,11 @@ import SwiftUI
 @MainActor
 final class HUDWindowController {
     private enum Metrics {
-        static let holdSize = NSSize(width: 140, height: 32)
-        static let holdHintSize = NSSize(width: 228, height: 32)
-        static let controlsSize = NSSize(width: 188, height: 32)
-        static let statusSize = NSSize(width: 196, height: 32)
+        static let pillHeight: CGFloat = 38
+        static let holdSize = NSSize(width: 140, height: pillHeight)
+        static let holdHintSize = NSSize(width: 228, height: pillHeight)
+        static let controlsSize = NSSize(width: 188, height: pillHeight)
+        static let statusSize = NSSize(width: 196, height: pillHeight)
         static let subtitleSize = NSSize(width: 320, height: 36)
         static let bottomInset: CGFloat = 32
         static let subtitleGap: CGFloat = 8
@@ -55,6 +56,8 @@ final class HUDWindowController {
         if pillHostingView == nil {
             let hostingView = NSHostingView(rootView: HUDView(model: viewModel))
             hostingView.translatesAutoresizingMaskIntoConstraints = false
+            hostingView.wantsLayer = true
+            hostingView.layer?.backgroundColor = NSColor.clear.cgColor
             pillPanel.contentView = hostingView
             NSLayoutConstraint.activate([
                 hostingView.leadingAnchor.constraint(equalTo: pillPanel.contentView!.leadingAnchor),
@@ -75,6 +78,8 @@ final class HUDWindowController {
             if subtitleHostingView == nil {
                 let hostingView = NSHostingView(rootView: HUDSubtitleView(model: viewModel))
                 hostingView.translatesAutoresizingMaskIntoConstraints = false
+                hostingView.wantsLayer = true
+                hostingView.layer?.backgroundColor = NSColor.clear.cgColor
                 subtitlePanel.contentView = hostingView
                 NSLayoutConstraint.activate([
                     hostingView.leadingAnchor.constraint(equalTo: subtitlePanel.contentView!.leadingAnchor),

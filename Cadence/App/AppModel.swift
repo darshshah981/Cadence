@@ -411,6 +411,14 @@ final class AppModel: ObservableObject {
 
     func setHoldToTalkEnabled(_ isEnabled: Bool) {
         guard holdToTalkBinding.isEnabled != isEnabled else { return }
+        if isEnabled,
+           tapToStartStopBinding.isEnabled,
+           holdToTalkBinding.shortcut.conflicts(with: tapToStartStopBinding.shortcut) {
+            shortcutValidationMessage = "Hold To Talk and Press To Start/Stop need different shortcuts."
+            return
+        }
+
+        shortcutValidationMessage = nil
         analytics.track("shortcut_enabled_changed", properties: ["shortcut": "holdToTalk", "enabled": String(isEnabled)])
         holdToTalkBinding.isEnabled = isEnabled
         persist(binding: holdToTalkBinding)
@@ -419,6 +427,14 @@ final class AppModel: ObservableObject {
 
     func setTapToStartStopEnabled(_ isEnabled: Bool) {
         guard tapToStartStopBinding.isEnabled != isEnabled else { return }
+        if isEnabled,
+           holdToTalkBinding.isEnabled,
+           tapToStartStopBinding.shortcut.conflicts(with: holdToTalkBinding.shortcut) {
+            shortcutValidationMessage = "Hold To Talk and Press To Start/Stop need different shortcuts."
+            return
+        }
+
+        shortcutValidationMessage = nil
         analytics.track("shortcut_enabled_changed", properties: ["shortcut": "tapToStartStop", "enabled": String(isEnabled)])
         tapToStartStopBinding.isEnabled = isEnabled
         persist(binding: tapToStartStopBinding)
@@ -447,6 +463,23 @@ final class AppModel: ObservableObject {
         guard action.supports(shortcut) else {
             shortcutValidationMessage = "\(action.displayName) shortcut rejected. \(action.shortcutRuleDescription)"
             return
+        }
+
+        switch action {
+        case .holdToTalk:
+            if holdToTalkBinding.isEnabled,
+               tapToStartStopBinding.isEnabled,
+               shortcut.conflicts(with: tapToStartStopBinding.shortcut) {
+                shortcutValidationMessage = "Hold To Talk and Press To Start/Stop need different shortcuts."
+                return
+            }
+        case .tapToStartStop:
+            if tapToStartStopBinding.isEnabled,
+               holdToTalkBinding.isEnabled,
+               shortcut.conflicts(with: holdToTalkBinding.shortcut) {
+                shortcutValidationMessage = "Hold To Talk and Press To Start/Stop need different shortcuts."
+                return
+            }
         }
 
         shortcutValidationMessage = nil

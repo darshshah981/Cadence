@@ -27,36 +27,7 @@ struct SettingsView: View {
                 }
                 insetDivider
 
-                VStack(alignment: .leading, spacing: 12) {
-                    SettingsLabelRow(
-                        title: "Dictation shortcut",
-                        description: shortcutDescription
-                    )
-
-                    ShortcutRecorderField(
-                        shortcut: primaryShortcutBinding,
-                        onRecordingChange: appModel.setShortcutRecordingActive
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 42)
-                }
-                .padding(12)
-
-                insetDivider
-
-                VStack(alignment: .leading, spacing: 10) {
-                    SettingsLabelRow(
-                        title: "Mode",
-                        description: appModel.primaryTriggerMode.shortDescription
-                    )
-
-                    TriggerModeSegmentedControl(
-                        selection: Binding(
-                            get: { appModel.primaryTriggerMode },
-                            set: { appModel.setPrimaryTriggerMode($0) }
-                        )
-                    )
-                }
-                .padding(12)
+                shortcutsSection
 
                 insetDivider
 
@@ -305,12 +276,47 @@ struct SettingsView: View {
         return [short, build].compactMap { $0 }.joined(separator: " • ")
     }
 
-    private var shortcutDescription: String {
-        switch appModel.primaryTriggerMode {
-        case .holdToTalk:
-            return "Press and hold to dictate, then release to finish."
-        case .tapToStartStop:
-            return "Press once to start, then stop from the shortcut or pill."
+    private var shortcutsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Shortcuts")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(FlowTheme.textPrimary)
+
+                Text("Enable either mode, or keep both on with different shortcuts.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+
+            if let message = appModel.shortcutValidationMessage ?? appModel.hotkeyConflictMessage {
+                ShortcutWarningView(message: message)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+            }
+
+            insetDivider
+
+            ShortcutSettingRow(
+                title: "Hold to speak",
+                description: "Hold the shortcut, speak, then release to insert.",
+                hint: "Best for quick bursts. Modifier-only shortcuts are easiest here.",
+                isEnabled: holdEnabledBinding,
+                shortcut: holdShortcutBinding,
+                onRecordingChange: appModel.setShortcutRecordingActive
+            )
+
+            insetDivider
+
+            ShortcutSettingRow(
+                title: "Press to start/stop",
+                description: "Press once to start, then press again or use the pill to stop.",
+                hint: pressToStartHint,
+                isEnabled: tapEnabledBinding,
+                shortcut: tapShortcutBinding,
+                onRecordingChange: appModel.setShortcutRecordingActive
+            )
         }
     }
 
@@ -390,29 +396,18 @@ struct SettingsView: View {
         )
     }
 
-    private var primaryShortcutBinding: Binding<HotkeyConfiguration> {
+    private var holdShortcutBinding: Binding<HotkeyConfiguration> {
         Binding(
-            get: {
-                switch appModel.primaryTriggerMode {
-                case .holdToTalk:
-                    return appModel.holdToTalkBinding.shortcut
-                case .tapToStartStop:
-                    return appModel.tapToStartStopBinding.shortcut
-                }
-            },
-            set: { shortcut in
-                appModel.setShortcut(shortcut, for: primaryShortcutAction)
-            }
+            get: { appModel.holdToTalkBinding.shortcut },
+            set: { appModel.setShortcut($0, for: .holdToTalk) }
         )
     }
 
-    private var primaryShortcutAction: HotkeyAction {
-        switch appModel.primaryTriggerMode {
-        case .holdToTalk:
-            return .holdToTalk
-        case .tapToStartStop:
-            return .tapToStartStop
-        }
+    private var tapShortcutBinding: Binding<HotkeyConfiguration> {
+        Binding(
+            get: { appModel.tapToStartStopBinding.shortcut },
+            set: { appModel.setShortcut($0, for: .tapToStartStop) }
+        )
     }
 
     private var tapStopsOnNextKeyPressBinding: Binding<Bool> {
@@ -542,6 +537,31 @@ private struct SettingsLabelRow: View {
                 .foregroundStyle(FlowTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+private struct ShortcutWarningView: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(FlowTheme.error)
+                .padding(.top, 1)
+
+            Text(message)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(FlowTheme.error)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FlowTheme.errorSubtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(FlowTheme.error.opacity(0.55), lineWidth: 1)
+        )
     }
 }
 

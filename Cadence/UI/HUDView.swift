@@ -32,7 +32,7 @@ struct HUDView: View {
             if triggerMode == .holdToTalk, showsHint {
                 Text("Release to stop")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.35))
+                    .foregroundStyle(FlowTheme.textSecondary)
                     .lineLimit(1)
                     .fixedSize()
             }
@@ -42,7 +42,7 @@ struct HUDView: View {
             }
         }
         .padding(.horizontal, triggerMode == .tapToStartStop ? 8 : 14)
-        .frame(width: pillWidth(triggerMode: triggerMode, showsHint: showsHint), height: 32)
+        .frame(width: pillWidth(triggerMode: triggerMode, showsHint: showsHint), height: 38)
         .background(pillBackground)
         .overlay(pillStroke)
     }
@@ -55,16 +55,16 @@ struct HUDView: View {
             case .error:
                 Image(systemName: "exclamationmark")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color(red: 1.0, green: 0.71, blue: 0.63))
+                    .foregroundStyle(FlowTheme.error)
             }
 
             Text(text)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(icon == .error ? Color(red: 1.0, green: 0.71, blue: 0.63) : Color.white.opacity(0.65))
+                .foregroundStyle(icon == .error ? FlowTheme.error : FlowTheme.textSecondary)
                 .lineLimit(1)
         }
         .padding(.horizontal, 12)
-        .frame(height: 32)
+        .frame(height: 38)
         .background(pillBackground)
         .overlay(pillStroke)
     }
@@ -73,11 +73,11 @@ struct HUDView: View {
         Button(action: { model.onCancel?() }) {
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.14))
-                    .frame(width: 16, height: 16)
+                    .fill(FlowTheme.subtle)
+                    .frame(width: 20, height: 20)
                 Image(systemName: "xmark")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(Color.white.opacity(0.75))
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(FlowTheme.textSecondary)
             }
         }
         .buttonStyle(HUDControlButtonStyle())
@@ -86,8 +86,10 @@ struct HUDView: View {
     private var stopButton: some View {
         Button(action: { model.onStop?() }) {
             RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(Color.white.opacity(0.75))
+                .fill(Color.white)
                 .frame(width: 16, height: 16)
+                .padding(10)
+                .background(FlowTheme.accent, in: Circle())
         }
         .buttonStyle(HUDControlButtonStyle())
     }
@@ -103,13 +105,12 @@ struct HUDView: View {
 
     private var pillBackground: some View {
         Capsule(style: .continuous)
-            .fill(Color(red: 30 / 255, green: 28 / 255, blue: 26 / 255, opacity: 0.72))
-            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .fill(FlowTheme.elevated)
     }
 
     private var pillStroke: some View {
         Capsule(style: .continuous)
-            .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
+            .stroke(FlowTheme.border, lineWidth: 1)
     }
 
     private enum StatusIcon {
@@ -135,7 +136,7 @@ private struct HUDSpinnerView: View {
     var body: some View {
         Image(systemName: "arrow.triangle.2.circlepath")
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(Color.white.opacity(0.78))
+            .foregroundStyle(FlowTheme.accent)
             .rotationEffect(.degrees(isAnimating ? 360 : 0))
             .frame(width: 14, height: 14)
             .onAppear {
@@ -172,7 +173,7 @@ private struct WaveformCanvasView: View {
                 let y = (size.height - barHeight) / 2
                 let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
                 let path = Path(roundedRect: rect, cornerRadius: 2)
-                context.fill(path, with: .color(Color.white.opacity(0.85)))
+                context.fill(path, with: .color(FlowTheme.accent.opacity(0.82)))
             }
         }
     }

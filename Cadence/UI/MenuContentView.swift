@@ -1,22 +1,25 @@
 import SwiftUI
 
 enum FlowTheme {
-    static let background = Color(dynamicLight: 0xF8F7F4, dark: 0x1A1917)
-    static let elevated = Color(dynamicLight: 0xFFFFFF, dark: 0x242220)
-    static let subtle = Color(dynamicLight: 0xF0EEE9, dark: 0x2C2925)
-    static let border = Color(dynamicLight: 0xE4E1DA, dark: 0x38352F)
-    static let borderStrong = Color(dynamicLight: 0xC9C5BC, dark: 0x4A453E)
-    static let textPrimary = Color(dynamicLight: 0x1C1A17, dark: 0xF0EDE8)
-    static let textSecondary = Color(dynamicLight: 0x6B6860, dark: 0xB8B1A7)
-    static let textTertiary = Color(dynamicLight: 0xA39F96, dark: 0x8B857B)
-    static let placeholder = Color(dynamicLight: 0xC2BDB5, dark: 0x70695F)
-    static let accent = Color(dynamicLight: 0xD97316, dark: 0xF59E0B)
-    static let accentSubtle = Color(dynamicLight: 0xFEF3C7, dark: 0x3A2B12)
-    static let accentBorder = Color(dynamicLight: 0xFDE68A, dark: 0x8A6115)
-    static let success = Color(dynamicLight: 0x16A34A, dark: 0x4ADE80)
-    static let successSubtle = Color(dynamicLight: 0xDCFCE7, dark: 0x16311F)
-    static let error = Color(dynamicLight: 0xDC2626, dark: 0xF87171)
-    static let errorSubtle = Color(dynamicLight: 0xFEE2E2, dark: 0x351B1B)
+    static let background = Color(dynamicLight: 0xFAF8F5, dark: 0x171615)
+    static let elevated = Color(dynamicLight: 0xFFFDFB, dark: 0x22201E)
+    static let subtle = Color(dynamicLight: 0xF3EEE9, dark: 0x2B2825)
+    static let border = Color(dynamicLight: 0xE4DBD4, dark: 0x3C3732)
+    static let borderStrong = Color(dynamicLight: 0xCABBB0, dark: 0x575049)
+    static let textPrimary = Color(dynamicLight: 0x1E1B18, dark: 0xF4EFEA)
+    static let textSecondary = Color(dynamicLight: 0x69615A, dark: 0xBDB4AA)
+    static let textTertiary = Color(dynamicLight: 0x91887F, dark: 0x8D8378)
+    static let placeholder = Color(dynamicLight: 0xC7BDB4, dark: 0x70675E)
+    static let accent = Color(dynamicLight: 0xFF5C48, dark: 0xFF7A66)
+    static let accentPressed = Color(dynamicLight: 0xE64B3B, dark: 0xFF8A78)
+    static let accentSubtle = Color(dynamicLight: 0xFFF1EC, dark: 0x3A211D)
+    static let accentBorder = Color(dynamicLight: 0xFFC8BB, dark: 0x7D3A31)
+    static let success = Color(dynamicLight: 0x29A36A, dark: 0x58D594)
+    static let successSubtle = Color(dynamicLight: 0xEAF8F0, dark: 0x173226)
+    static let teal = Color(dynamicLight: 0x169B8F, dark: 0x4DD4C6)
+    static let tealSubtle = Color(dynamicLight: 0xE8F8F6, dark: 0x12312E)
+    static let error = Color(dynamicLight: 0xDC3C32, dark: 0xFF7F72)
+    static let errorSubtle = Color(dynamicLight: 0xFFF0ED, dark: 0x391B18)
 }
 
 extension Color {
@@ -50,9 +53,9 @@ struct FlowSectionCard<Content: View>: View {
         VStack(spacing: 0) {
             content
         }
-        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(FlowTheme.border, lineWidth: 1)
         )
     }
@@ -63,8 +66,8 @@ struct FlowSectionHeader: View {
 
     var body: some View {
         Text(title.uppercased())
-            .font(.system(size: 11, weight: .medium))
-            .kerning(0.8)
+            .font(.system(size: 10, weight: .semibold))
+            .kerning(0.7)
             .foregroundStyle(FlowTheme.textSecondary)
             .padding(.bottom, 8)
     }
@@ -96,16 +99,16 @@ struct MenuContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MenuHeaderView(title: headerTitle) {
+            MenuHeaderView(title: headerTitle, status: headerStatus) {
                 NSApp.terminate(nil)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 12)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
 
             if let statusModel {
                 StatusPillView(model: statusModel)
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, 16)
                     .padding(.bottom, 10)
             }
 
@@ -113,8 +116,8 @@ struct MenuContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             MenuTabBar(selection: $appModel.menuScreen)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(FlowTheme.background)
@@ -145,17 +148,15 @@ struct MenuContentView: View {
                         expandedTranscriptIDs: $expandedTranscriptIDs,
                         onCopy: appModel.copyTranscript,
                         onOpenPermissionsWizard: appModel.openPermissionsWizard,
-                        onOpenSettings: appModel.showSettingsScreen,
-                        onRunSetupCheck: appModel.runSetupCheck,
-                        onTestInsertion: appModel.startStopDemoInsert
+                        onOpenSettings: appModel.showSettingsScreen
                     )
                 case .settings:
                     SettingsView(appModel: appModel)
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.bottom, 6)
-            .padding(.top, 2)
+            .padding(.top, 0)
         }
     }
 
@@ -170,6 +171,27 @@ struct MenuContentView: View {
             return activeShortcuts.joined(separator: " or ")
         }
         return "⌃ ⌥"
+    }
+
+    private var headerStatus: MenuHeaderStatus {
+        if appModel.userFacingErrorMessage != nil {
+            return MenuHeaderStatus(text: "Needs attention", color: FlowTheme.error)
+        }
+
+        if !appModel.permissions.allRequiredGranted {
+            return MenuHeaderStatus(text: "Setup needed", color: FlowTheme.accent)
+        }
+
+        switch appModel.state {
+        case .idle:
+            return MenuHeaderStatus(text: "Ready", color: FlowTheme.success)
+        case .listening:
+            return MenuHeaderStatus(text: "Recording", color: FlowTheme.accent)
+        case .finalizing, .inserting:
+            return MenuHeaderStatus(text: "Working", color: FlowTheme.teal)
+        case .error:
+            return MenuHeaderStatus(text: "Needs attention", color: FlowTheme.error)
+        }
     }
 
     private var statusModel: StatusPillModel? {
@@ -193,32 +215,64 @@ struct MenuContentView: View {
     }
 }
 
+private struct MenuHeaderStatus {
+    let text: String
+    let color: Color
+}
+
 private struct MenuHeaderView: View {
     let title: String
+    let status: MenuHeaderStatus
     let onQuit: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(title)
-                .font(.system(size: 16, weight: .semibold))
-                .kerning(-0.16)
-                .foregroundStyle(FlowTheme.textPrimary)
+            CadenceMarkView(size: 42)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(status.color)
+                        .frame(width: 8, height: 8)
+
+                    Text(status.text)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(status.color)
+                }
+            }
 
             Spacer()
 
             Button(action: onQuit) {
                 Image(systemName: "power")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(FlowTheme.textTertiary)
-                    .frame(width: 30, height: 30)
-                    .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(FlowTheme.border, lineWidth: 1)
-                    )
+                    .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+private struct CadenceMarkView: View {
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                .fill(FlowTheme.accent)
+
+            Text("C")
+                .font(.system(size: size * 0.56, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.white)
+        }
+        .frame(width: size, height: size)
+        .shadow(color: FlowTheme.accent.opacity(0.18), radius: 10, y: 5)
     }
 }
 
@@ -349,117 +403,131 @@ private struct HomeDashboardView: View {
     let onCopy: (TranscriptHistoryItem) -> Void
     let onOpenPermissionsWizard: () -> Void
     let onOpenSettings: () -> Void
-    let onRunSetupCheck: () -> Void
-    let onTestInsertion: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            setupCard
-            shortcutCard
-            modelCard
+        VStack(alignment: .leading, spacing: 14) {
+            if !appModel.permissions.allRequiredGranted {
+                attentionCard
+            }
+            commandStrip
             transcriptSection
         }
     }
 
-    private var setupCard: some View {
-        HomeCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: appModel.permissions.allRequiredGranted ? "checkmark.seal.fill" : "hand.raised.fill")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(appModel.permissions.allRequiredGranted ? FlowTheme.success : FlowTheme.accent)
+    private var commandStrip: some View {
+        HStack(spacing: 10) {
+            Image(systemName: appModel.primaryTriggerMode == .holdToTalk ? "mic.fill" : "record.circle")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(FlowTheme.accent)
+                .frame(width: 26, height: 26)
+                .background(FlowTheme.accentSubtle, in: Circle())
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(appModel.setupSummaryTitle)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(FlowTheme.textPrimary)
-
-                        Text(appModel.setupSummaryDetail)
-                            .font(.system(size: 12))
-                            .foregroundStyle(FlowTheme.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Spacer()
-                }
-
-                HStack {
-                    Text(appModel.setupProgressLabel)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(FlowTheme.textTertiary)
-
-                    Spacer()
-
-                    Button(appModel.permissions.allRequiredGranted ? "Check setup" : "Open setup") {
-                        appModel.permissions.allRequiredGranted ? onRunSetupCheck() : onOpenPermissionsWizard()
-                    }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(FlowTheme.accent)
-                }
-            }
-        }
-    }
-
-    private var shortcutCard: some View {
-        HomeCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("How to start")
-                    .font(.system(size: 15, weight: .semibold))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(commandStatusTitle)
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(FlowTheme.textPrimary)
 
-                Text("Use \(shortcutHint) to start dictating.")
-                    .font(.system(size: 12))
+                Text(commandHint)
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(FlowTheme.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
 
-                HStack(spacing: 8) {
-                    Button("Edit shortcut", action: onOpenSettings)
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(FlowTheme.accent)
+            Spacer(minLength: 8)
 
-                    Spacer()
+            Button(action: onOpenSettings) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textTertiary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(FlowTheme.border, lineWidth: 1)
+        )
+    }
 
-                    Button("Test insertion", action: onTestInsertion)
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(FlowTheme.accent)
+    private var attentionCard: some View {
+        HomeCard {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "hand.raised.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(FlowTheme.accent)
+                    .frame(width: 22, height: 22)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Finish setup")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textPrimary)
+
+                    Text(appModel.setupSummaryDetail)
+                        .font(.system(size: 12))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Spacer()
+
+                Button("Open") {
+                    onOpenPermissionsWizard()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(FlowTheme.accent)
             }
         }
     }
 
-    private var modelCard: some View {
-        let summary = appModel.modelReadinessSummary
-
-        return HomeCard {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(statusColor(for: summary.tone))
-                        .frame(width: 8, height: 8)
-
-                    Text(summary.title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(FlowTheme.textPrimary)
-                }
-
-                Text(summary.detail)
-                    .font(.system(size: 12))
-                    .foregroundStyle(FlowTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button("Open settings", action: onOpenSettings)
-                    .buttonStyle(.plain)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(FlowTheme.accent)
-            }
+    private var commandStatusTitle: String {
+        if appModel.hotkeyConflictMessage != nil {
+            return "Shortcut conflict"
         }
+
+        guard appModel.holdToTalkBinding.isEnabled || appModel.tapToStartStopBinding.isEnabled else {
+            return "Shortcuts off"
+        }
+
+        return appModel.permissions.allRequiredGranted ? "Ready to dictate" : "Setup needed"
+    }
+
+    private var commandHint: String {
+        if appModel.hotkeyConflictMessage != nil {
+            return "Choose different shortcuts in Settings"
+        }
+
+        let hold = appModel.holdToTalkBinding.isEnabled ? "Hold \(appModel.holdToTalkBinding.shortcut.symbolDisplayName)" : nil
+        let tap = appModel.tapToStartStopBinding.isEnabled ? "Press \(appModel.tapToStartStopBinding.shortcut.symbolDisplayName)" : nil
+        let hints = [hold, tap].compactMap { $0 }
+
+        if hints.isEmpty {
+            return "Enable a shortcut in Settings"
+        }
+
+        return hints.joined(separator: " · ")
     }
 
     private var transcriptSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            FlowSectionHeader(title: "Recent")
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recent transcripts")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+
+                Spacer()
+
+                if !transcriptHistory.isEmpty {
+                    Text("\(transcriptHistory.count)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textTertiary)
+                }
+            }
 
             TranscriptListView(
                 transcriptHistory: transcriptHistory,
@@ -473,16 +541,6 @@ private struct HomeDashboardView: View {
         }
     }
 
-    private func statusColor(for tone: ModelReadinessSummary.Tone) -> Color {
-        switch tone {
-        case .ready:
-            return FlowTheme.success
-        case .working:
-            return FlowTheme.accent
-        case .attention:
-            return FlowTheme.error
-        }
-    }
 }
 
 private struct HomeCard<Content: View>: View {
@@ -498,9 +556,9 @@ private struct HomeCard<Content: View>: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(FlowTheme.border, lineWidth: 1)
         )
     }
@@ -557,41 +615,40 @@ private struct TranscriptCardView: View {
     let onCopy: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(item.createdAt.formatted(.dateTime.weekday(.wide).hour().minute()))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(FlowTheme.textTertiary)
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(FlowTheme.textSecondary)
+                .frame(width: 30, height: 30)
+                .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-                Spacer()
-
-                Button(action: onCopy) {
-                    Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(isCopied ? FlowTheme.accent : FlowTheme.textSecondary)
-                        .frame(width: 24, height: 24)
+            VStack(alignment: .leading, spacing: 6) {
+                Button(action: onToggleExpanded) {
+                    Text(item.text)
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(FlowTheme.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(isExpanded ? nil : 2)
+                        .multilineTextAlignment(.leading)
                 }
                 .buttonStyle(.plain)
-            }
 
-            Button(action: onToggleExpanded) {
-                Text(item.text)
-                    .font(.system(size: 13))
-                    .foregroundStyle(FlowTheme.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .lineLimit(isExpanded ? nil : 3)
-                    .multilineTextAlignment(.leading)
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                Text("\(item.text.count) characters • \(wordCount) words")
-                    .font(.system(size: 11))
+                Text(isExpanded ? "\(item.text.count) characters • \(wordCount) words" : item.createdAt.formatted(.dateTime.hour().minute()))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(FlowTheme.textTertiary)
             }
+
+            Button(action: onCopy) {
+                Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isCopied ? FlowTheme.accent : FlowTheme.textSecondary)
+                    .frame(width: 26, height: 26)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
