@@ -179,7 +179,12 @@ final class DictationCoordinator {
         }
 
         do {
-            let permissions = permissionsService.snapshot()
+            var permissions = permissionsService.snapshot()
+            if !permissions.microphoneGranted {
+                _ = await permissionsService.requestMicrophoneAccess()
+                permissions = permissionsService.snapshot()
+            }
+
             guard permissions.allRequiredGranted else {
                 analytics.track("dictation_blocked", properties: ["reason": "permissions"])
                 throw CadenceError.missingRequiredPermissions
