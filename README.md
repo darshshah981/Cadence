@@ -4,9 +4,17 @@ Fast local dictation for macOS.
 
 Cadence is a small menu bar app for push-to-talk dictation. Hold a shortcut, speak, release, and Cadence inserts the text into the app you were already using.
 
+![Cadence demo showing the menu bar popover and recording pill](docs/assets/cadence-demo.gif)
+
+## Design
+
+Cadence is designed as a quiet menu bar utility: recent transcripts stay front and center, shortcut controls stay compact, and the recording pill appears only while dictation is active.
+
+![Cadence app design with compact transcript list and recording pill](docs/assets/cadence-design.png)
+
 ## Features
 
-- Hold-to-talk and press-to-start dictation modes.
+- Hold-to-talk and press-to-start dictation modes, enabled separately or together with different shortcuts.
 - Local WhisperKit transcription.
 - Direct text insertion into the focused Mac app.
 - Guided setup for Microphone, Accessibility, and Input Monitoring permissions.
