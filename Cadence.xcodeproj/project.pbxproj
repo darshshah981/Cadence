@@ -20,7 +20,6 @@
 		8006F55E629A70E7ED335961 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 40FEC6F1B63663537E6E73B3 /* Assets.xcassets */; };
 		878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37031AF8A914D482FABFFD6B /* PermissionsService.swift */; };
 		9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC22C16A79401A6870742A6E /* HUDWindowController.swift */; };
-		A0B10965E26138F42C677BE1 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = BC0A996EB1B3486F274826C5 /* TelemetryDeck */; };
 		A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */; };
 		ABAAF7AD1FA70D69BA85152C /* TextInsertionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF53A70456557098B43E818E /* TextInsertionService.swift */; };
 		B61EFD617B4E75AC083EF588 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07592451F56FA01E1134A310 /* AppDelegate.swift */; };
@@ -47,6 +46,7 @@
 		07592451F56FA01E1134A310 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		2747B5C0BD75EFECA1D2569B /* Cadence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cadence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B5252E71CDD37942299004F /* PermissionGuideWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGuideWindow.swift; sourceTree = "<group>"; };
+		2D05198AB1A24815EC49E523 /* Cadence.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Cadence.entitlements; sourceTree = "<group>"; };
 		36DCCAD2BECF88FDCBA8B4D3 /* HotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyService.swift; sourceTree = "<group>"; };
 		37031AF8A914D482FABFFD6B /* PermissionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsService.swift; sourceTree = "<group>"; };
 		3BD8226A6E492745025CF418 /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
@@ -76,7 +76,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				CA7DEBC92273F86FC09DB926 /* WhisperKit in Frameworks */,
-				A0B10965E26138F42C677BE1 /* TelemetryDeck in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -161,6 +160,7 @@
 			isa = PBXGroup;
 			children = (
 				40FEC6F1B63663537E6E73B3 /* Assets.xcassets */,
+				2D05198AB1A24815EC49E523 /* Cadence.entitlements */,
 				78D2D1E4520BA69AC30BB1CB /* App */,
 				5875D9DE20878243E04EB85B /* Models */,
 				C44473C867EA22AD5CDA9820 /* Services */,
@@ -187,7 +187,6 @@
 			name = Cadence;
 			packageProductDependencies = (
 				C989632B526AB096BA7C8AAB /* WhisperKit */,
-				BC0A996EB1B3486F274826C5 /* TelemetryDeck */,
 			);
 			productName = Cadence;
 			productReference = 2747B5C0BD75EFECA1D2569B /* Cadence.app */;
@@ -236,7 +235,6 @@
 			mainGroup = 6A9F1C3B6267176F20AE4B03;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				C583289605A13DE61E5C25F4 /* XCRemoteSwiftPackageReference "SwiftSDK" */,
 				5AA91E44175587E60289FC93 /* XCRemoteSwiftPackageReference "argmax-oss-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -555,22 +553,9 @@
 				minimumVersion = 0.18.0;
 			};
 		};
-		C583289605A13DE61E5C25F4 /* XCRemoteSwiftPackageReference "SwiftSDK" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/TelemetryDeck/SwiftSDK.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.12.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		BC0A996EB1B3486F274826C5 /* TelemetryDeck */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C583289605A13DE61E5C25F4 /* XCRemoteSwiftPackageReference "SwiftSDK" */;
-			productName = TelemetryDeck;
-		};
 		C989632B526AB096BA7C8AAB /* WhisperKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 5AA91E44175587E60289FC93 /* XCRemoteSwiftPackageReference "argmax-oss-swift" */;

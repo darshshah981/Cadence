@@ -1,14 +1,15 @@
 import Foundation
 import OSLog
-import TelemetryDeck
 
 struct AnalyticsEvent: Equatable, Sendable {
     let name: String
     let properties: [String: String]
+    let timestamp: Date
 
-    init(_ name: String, properties: [String: String] = [:]) {
+    init(_ name: String, properties: [String: String] = [:], timestamp: Date = .now) {
         self.name = name
         self.properties = properties
+        self.timestamp = timestamp
     }
 }
 
@@ -61,39 +62,86 @@ struct LoggingAnalyticsSink: AnalyticsSink {
     }
 }
 
-final class TelemetryDeckAnalyticsSink: AnalyticsSink, @unchecked Sendable {
+final class PostHogAnalyticsSink: AnalyticsSink, @unchecked Sendable {
     private enum Configuration {
-        static let appID = "0757A647-D529-4A65-A630-7507D3088454"
-        static let namespace = "xyz.darshshah"
-        static let signalPrefix = "Cadence."
-        static let parameterPrefix = "Cadence."
+        static let apiKey = "phc_kt6sLgHbU9jDQLCnjDEKb4Xtt7Ei9oAfWPBFPNPjQvu4"
+        static let captureURL = URL(string: "https://us.i.posthog.com/capture/")!
+        static let distinctIDDefaultsKey = "Cadence.analyticsDistinctID"
     }
 
-    private let configuration: TelemetryDeck.Config
+    private struct CaptureRequest: Encodable {
+        let api_key: String
+        let event: String
+        let properties: [String: String]
+        let timestamp: String
+    }
 
-    init(isEnabled: Bool) {
-        let configuration = TelemetryDeck.Config(
-            appID: Configuration.appID,
-            namespace: Configuration.namespace
-        )
-        configuration.analyticsDisabled = !isEnabled
-        configuration.defaultSignalPrefix = Configuration.signalPrefix
-        configuration.defaultParameterPrefix = Configuration.parameterPrefix
-        configuration.sendNewSessionBeganSignal = false
-        configuration.sessionStatsEnabled = false
-        self.configuration = configuration
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Cadence",
+        category: "PostHog"
+    )
 
-        if !TelemetryManager.isInitialized {
-            TelemetryDeck.initialize(config: configuration)
-        }
+    private let session: URLSession
+    private let encoder = JSONEncoder()
+    private let iso8601Formatter = ISO8601DateFormatter()
+    private let distinctID: String
+    private var isEnabled: Bool
+
+    init(isEnabled: Bool, session: URLSession = .shared, defaults: UserDefaults = .standard) {
+        self.session = session
+        self.isEnabled = isEnabled
+        self.distinctID = Self.loadOrCreateDistinctID(defaults: defaults)
     }
 
     func setEnabled(_ isEnabled: Bool) {
-        configuration.analyticsDisabled = !isEnabled
+        self.isEnabled = isEnabled
     }
 
     func send(_ event: AnalyticsEvent) {
-        TelemetryDeck.signal(event.name, parameters: event.properties)
+        guard isEnabled else { return }
+
+        var properties = event.properties
+        properties["distinct_id"] = distinctID
+        properties["$process_person_profile"] = "false"
+
+        let requestBody = CaptureRequest(
+            api_key: Configuration.apiKey,
+            event: event.name,
+            properties: properties,
+            timestamp: iso8601Formatter.string(from: event.timestamp)
+        )
+
+        do {
+            var request = URLRequest(url: Configuration.captureURL)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try encoder.encode(requestBody)
+
+            let task = session.dataTask(with: request) { [logger] _, response, error in
+                if let error {
+                    logger.error("posthog send failed error=\(error.localizedDescription, privacy: .public)")
+                    return
+                }
+
+                if let httpResponse = response as? HTTPURLResponse,
+                   !(200...299).contains(httpResponse.statusCode) {
+                    logger.error("posthog send failed status=\(httpResponse.statusCode, privacy: .public)")
+                }
+            }
+            task.resume()
+        } catch {
+            logger.error("posthog encode failed error=\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private static func loadOrCreateDistinctID(defaults: UserDefaults) -> String {
+        if let existing = defaults.string(forKey: Configuration.distinctIDDefaultsKey), !existing.isEmpty {
+            return existing
+        }
+
+        let distinctID = "cadence-macos-" + UUID().uuidString.lowercased()
+        defaults.set(distinctID, forKey: Configuration.distinctIDDefaultsKey)
+        return distinctID
     }
 }
 
@@ -109,7 +157,7 @@ final class AnalyticsService {
         self.isEnabled = isEnabled
         self.sink = sink ?? CompositeAnalyticsSink(
             LoggingAnalyticsSink(),
-            TelemetryDeckAnalyticsSink(isEnabled: isEnabled)
+            PostHogAnalyticsSink(isEnabled: isEnabled)
         )
     }
 
