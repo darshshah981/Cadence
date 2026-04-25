@@ -87,6 +87,7 @@ final class AppModel: ObservableObject {
     private var lastExternalApplication: NSRunningApplication?
     private var transcriptionConfigurationTask: Task<Void, Never>?
     private var lastTrackedCorrectionTranscriptID: UUID?
+    private var lastTrackedCorrectionSessionID: String?
 
     init() {
         let defaults = UserDefaults.standard
@@ -365,8 +366,8 @@ final class AppModel: ObservableObject {
             lastError = nil
             backendDescription = summary
             var completedProperties = properties
-            completedProperties["durationMs"] = Self.analyticsMilliseconds(Date().timeIntervalSince(startedAt))
-            completedProperties["backend"] = "whisperkit"
+            completedProperties["durationMs"] = .int(Self.analyticsMilliseconds(Date().timeIntervalSince(startedAt)))
+            completedProperties["backend"] = .string("whisperkit")
             analytics.track("engine_prepare_completed", properties: completedProperties)
         } catch {
             guard !Self.isBenignModelLoadCancellation(error) else {
@@ -376,8 +377,8 @@ final class AppModel: ObservableObject {
             lastError = error.localizedDescription
             backendDescription = "Transcription backend unavailable"
             var failureProperties = properties
-            failureProperties["durationMs"] = Self.analyticsMilliseconds(Date().timeIntervalSince(startedAt))
-            failureProperties["reason"] = Self.analyticsErrorReason(for: error)
+            failureProperties["durationMs"] = .int(Self.analyticsMilliseconds(Date().timeIntervalSince(startedAt)))
+            failureProperties["reason"] = .string(Self.analyticsErrorReason(for: error))
             analytics.track("engine_prepare_failed", properties: failureProperties)
             analytics.track("model_load_failed", properties: failureProperties)
         }
@@ -557,19 +558,21 @@ final class AppModel: ObservableObject {
         analytics.track(
             "transcript_copied",
             properties: [
-                "charactersBucket": Self.countBucket(item.text.count),
-                "characterCount": String(item.text.count),
-                "wordsBucket": Self.countBucket(wordCount),
-                "wordCount": String(wordCount)
+                "sessionID": .string(item.analyticsSessionID ?? "history-only"),
+                "charactersBucket": .string(Self.countBucket(item.text.count)),
+                "characterCount": .int(item.text.count),
+                "wordsBucket": .string(Self.countBucket(wordCount)),
+                "wordCount": .int(wordCount)
             ]
         )
         if Date().timeIntervalSince(item.createdAt) <= AnalyticsTuning.followUpWindow {
             analytics.track(
                 "manual_copy_after_dictation",
                 properties: [
-                    "secondsSinceTranscript": Self.analyticsSeconds(Date().timeIntervalSince(item.createdAt)),
-                    "characterCount": String(item.text.count),
-                    "wordCount": String(wordCount)
+                    "sessionID": .string(item.analyticsSessionID ?? "history-only"),
+                    "secondsSinceTranscript": .double(Self.analyticsSeconds(Date().timeIntervalSince(item.createdAt))),
+                    "characterCount": .int(item.text.count),
+                    "wordCount": .int(wordCount)
                 ]
             )
         }
@@ -606,9 +609,9 @@ final class AppModel: ObservableObject {
             self?.hudState = hudState
         }
 
-        coordinator.onTranscript = { [weak self] transcript in
+        coordinator.onTranscript = { [weak self] transcript, sessionID in
             self?.lastTranscript = transcript
-            self?.appendTranscriptToHistory(transcript)
+            self?.appendTranscriptToHistory(transcript, sessionID: sessionID)
             self?.livePreviewConfirmedText = ""
             self?.livePreviewUnconfirmedText = ""
         }
@@ -673,23 +676,25 @@ final class AppModel: ObservableObject {
         coordinator.updateHotkeyBindings(sanitizedHotkeyBindings())
     }
 
-    private func appendTranscriptToHistory(_ transcript: String) {
+    private func appendTranscriptToHistory(_ transcript: String, sessionID: String?) {
         let cleaned = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return }
         let wordCount = Self.wordCount(in: cleaned)
-        let item = TranscriptHistoryItem(text: cleaned)
+        let item = TranscriptHistoryItem(text: cleaned, analyticsSessionID: sessionID)
         analytics.track(
             "transcript_created",
             properties: [
-                "charactersBucket": Self.countBucket(cleaned.count),
-                "characterCount": String(cleaned.count),
-                "wordsBucket": Self.countBucket(wordCount),
-                "wordCount": String(wordCount)
+                "sessionID": .string(sessionID ?? "unknown"),
+                "charactersBucket": .string(Self.countBucket(cleaned.count)),
+                "characterCount": .int(cleaned.count),
+                "wordsBucket": .string(Self.countBucket(wordCount)),
+                "wordCount": .int(wordCount)
             ]
         )
         trackFirstSuccessfulDictationIfNeeded(item: item, wordCount: wordCount)
         transcriptHistory.insert(item, at: 0)
         lastTrackedCorrectionTranscriptID = nil
+        lastTrackedCorrectionSessionID = nil
         if transcriptHistory.count > 20 {
             transcriptHistory = Array(transcriptHistory.prefix(20))
         }
@@ -748,16 +753,22 @@ final class AppModel: ObservableObject {
         guard event.isDeleteOrUndo else { return }
         guard let latestTranscript = transcriptHistory.first else { return }
         guard latestTranscript.id != lastTrackedCorrectionTranscriptID else { return }
+        guard latestTranscript.analyticsSessionID != lastTrackedCorrectionSessionID else { return }
 
         let secondsSinceTranscript = Date().timeIntervalSince(latestTranscript.createdAt)
         guard secondsSinceTranscript <= AnalyticsTuning.followUpWindow else { return }
 
         lastTrackedCorrectionTranscriptID = latestTranscript.id
+        lastTrackedCorrectionSessionID = latestTranscript.analyticsSessionID
+        let wordCount = Self.wordCount(in: latestTranscript.text)
         analytics.track(
             "backspace_or_replace_soon_after_insert",
             properties: [
-                "signal": event.keyCode == 6 ? "undo" : "delete",
-                "secondsSinceTranscript": Self.analyticsSeconds(secondsSinceTranscript)
+                "sessionID": .string(latestTranscript.analyticsSessionID ?? "history-only"),
+                "signal": .string(event.keyCode == 6 ? "undo" : "delete"),
+                "secondsSinceTranscript": .double(Self.analyticsSeconds(secondsSinceTranscript)),
+                "characterCount": .int(latestTranscript.text.count),
+                "wordCount": .int(wordCount)
             ]
         )
     }
@@ -768,18 +779,19 @@ final class AppModel: ObservableObject {
         analytics.track(
             "first_successful_dictation",
             properties: [
-                "characterCount": String(item.text.count),
-                "wordCount": String(wordCount)
+                "sessionID": .string(item.analyticsSessionID ?? "unknown"),
+                "characterCount": .int(item.text.count),
+                "wordCount": .int(wordCount)
             ]
         )
     }
 
-    private func backendAnalyticsProperties() -> [String: String] {
+    private func backendAnalyticsProperties() -> [String: AnalyticsValue] {
         [
-            "backend": "whisperkit",
-            "model": transcriptionConfiguration.model.rawValue,
-            "decoding": transcriptionConfiguration.decodingMode.rawValue,
-            "preset": dictationQualityPreset.rawValue
+            "backend": .string("whisperkit"),
+            "model": .string(transcriptionConfiguration.model.rawValue),
+            "decoding": .string(transcriptionConfiguration.decodingMode.rawValue),
+            "preset": .string(dictationQualityPreset.rawValue)
         ]
     }
 
@@ -958,12 +970,12 @@ final class AppModel: ObservableObject {
         text.split { $0.isWhitespace || $0.isNewline }.count
     }
 
-    private static func analyticsMilliseconds(_ seconds: TimeInterval) -> String {
-        String(Int((max(seconds, 0) * 1000).rounded()))
+    private static func analyticsMilliseconds(_ seconds: TimeInterval) -> Int {
+        Int((max(seconds, 0) * 1000).rounded())
     }
 
-    private static func analyticsSeconds(_ seconds: TimeInterval) -> String {
-        String(format: "%.2f", max(seconds, 0))
+    private static func analyticsSeconds(_ seconds: TimeInterval) -> Double {
+        (max(seconds, 0) * 100).rounded() / 100
     }
 
     private static func analyticsErrorReason(for error: Error) -> String {

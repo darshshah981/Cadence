@@ -1,12 +1,46 @@
 import Foundation
 import OSLog
 
+enum AnalyticsValue: Equatable, Sendable, Encodable {
+    case string(String)
+    case int(Int)
+    case double(Double)
+    case bool(Bool)
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case let .string(value):
+            try container.encode(value)
+        case let .int(value):
+            try container.encode(value)
+        case let .double(value):
+            try container.encode(value)
+        case let .bool(value):
+            try container.encode(value)
+        }
+    }
+
+    var logDescription: String {
+        switch self {
+        case let .string(value):
+            return value
+        case let .int(value):
+            return String(value)
+        case let .double(value):
+            return String(format: "%.2f", value)
+        case let .bool(value):
+            return String(value)
+        }
+    }
+}
+
 struct AnalyticsEvent: Equatable, Sendable {
     let name: String
-    let properties: [String: String]
+    let properties: [String: AnalyticsValue]
     let timestamp: Date
 
-    init(_ name: String, properties: [String: String] = [:], timestamp: Date = .now) {
+    init(_ name: String, properties: [String: AnalyticsValue] = [:], timestamp: Date = .now) {
         self.name = name
         self.properties = properties
         self.timestamp = timestamp
@@ -54,10 +88,10 @@ struct LoggingAnalyticsSink: AnalyticsSink {
         )
     }
 
-    private static func format(_ properties: [String: String]) -> String {
+    private static func format(_ properties: [String: AnalyticsValue]) -> String {
         properties
             .sorted { $0.key < $1.key }
-            .map { "\($0.key)=\($0.value)" }
+            .map { "\($0.key)=\($0.value.logDescription)" }
             .joined(separator: ",")
     }
 }
@@ -72,7 +106,7 @@ final class PostHogAnalyticsSink: AnalyticsSink, @unchecked Sendable {
     private struct CaptureRequest: Encodable {
         let api_key: String
         let event: String
-        let properties: [String: String]
+        let properties: [String: AnalyticsValue]
         let timestamp: String
     }
 
@@ -101,8 +135,8 @@ final class PostHogAnalyticsSink: AnalyticsSink, @unchecked Sendable {
         guard isEnabled else { return }
 
         var properties = event.properties
-        properties["distinct_id"] = distinctID
-        properties["$process_person_profile"] = "false"
+        properties["distinct_id"] = .string(distinctID)
+        properties["$process_person_profile"] = .bool(false)
 
         let requestBody = CaptureRequest(
             api_key: Configuration.apiKey,
@@ -169,12 +203,29 @@ final class AnalyticsService {
 
     func track(_ name: String, properties: [String: String] = [:]) {
         guard isEnabled else { return }
-        sink.send(AnalyticsEvent(name, properties: sanitized(properties)))
+        sink.send(AnalyticsEvent(name, properties: sanitizedStringProperties(properties)))
     }
 
-    private func sanitized(_ properties: [String: String]) -> [String: String] {
+    func track(_ name: String, properties: [String: AnalyticsValue]) {
+        guard isEnabled else { return }
+        sink.send(AnalyticsEvent(name, properties: sanitizedProperties(properties)))
+    }
+
+    private func sanitizedStringProperties(_ properties: [String: String]) -> [String: AnalyticsValue] {
         properties.reduce(into: [:]) { result, item in
-            result[Self.sanitize(item.key)] = Self.sanitize(item.value)
+            result[Self.sanitize(item.key)] = .string(Self.sanitize(item.value))
+        }
+    }
+
+    private func sanitizedProperties(_ properties: [String: AnalyticsValue]) -> [String: AnalyticsValue] {
+        properties.reduce(into: [:]) { result, item in
+            let sanitizedKey = Self.sanitize(item.key)
+            switch item.value {
+            case let .string(value):
+                result[sanitizedKey] = .string(Self.sanitize(value))
+            case .int, .double, .bool:
+                result[sanitizedKey] = item.value
+            }
         }
     }
 

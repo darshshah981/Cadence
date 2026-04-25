@@ -279,11 +279,13 @@ struct TranscriptHistoryItem: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let text: String
     let createdAt: Date
+    let analyticsSessionID: String?
 
-    init(id: UUID = UUID(), text: String, createdAt: Date = .now) {
+    init(id: UUID = UUID(), text: String, createdAt: Date = .now, analyticsSessionID: String? = nil) {
         self.id = id
         self.text = text
         self.createdAt = createdAt
+        self.analyticsSessionID = analyticsSessionID
     }
 }
 

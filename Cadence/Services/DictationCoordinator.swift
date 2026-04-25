@@ -42,7 +42,7 @@ final class DictationCoordinator {
 
     var onStateChange: ((DictationSessionState) -> Void)?
     var onHUDChange: ((HUDState) -> Void)?
-    var onTranscript: ((String) -> Void)?
+    var onTranscript: ((String, String?) -> Void)?
     var onPreviewTranscript: ((PreviewTranscript) -> Void)?
     var onError: ((String) -> Void)?
     var onBackendStatus: ((String) -> Void)?
@@ -64,6 +64,7 @@ final class DictationCoordinator {
     private var lastSpeechTimestamp = Date()
     private var lastPreviewTimestamp = Date.distantPast
     private var sessionStartedAt: Date?
+    private var activeSessionID: String?
     private var firstPreviewTracked = false
     private var lastSuccessfulCompletionAt: Date?
 
@@ -194,6 +195,8 @@ final class DictationCoordinator {
             }
 
             activeTriggerMode = triggerMode
+            let sessionID = Self.makeAnalyticsSessionID()
+            activeSessionID = sessionID
             let repeatedWithinTenSeconds = lastSuccessfulCompletionAt.map {
                 Date().timeIntervalSince($0) <= 10
             } ?? false
@@ -201,12 +204,13 @@ final class DictationCoordinator {
                 analytics.track(
                     "repeat_dictation_within_10s",
                     properties: [
-                        "secondsSincePrevious": Self.analyticsSeconds(Date().timeIntervalSince(lastSuccessfulCompletionAt)),
-                        "trigger": triggerMode.rawValue
+                        "sessionID": .string(sessionID),
+                        "secondsSincePrevious": .double(Date().timeIntervalSince(lastSuccessfulCompletionAt)),
+                        "trigger": .string(triggerMode.rawValue)
                     ]
                 )
             }
-            analytics.track("shortcut_used", properties: ["mode": triggerMode.rawValue])
+            analytics.track("shortcut_used", properties: ["sessionID": .string(sessionID), "mode": .string(triggerMode.rawValue)])
             analytics.track("dictation_started", properties: sessionAnalyticsProperties(triggerMode: triggerMode))
 
             try await transcriptionEngine.startSession()
@@ -237,11 +241,13 @@ final class DictationCoordinator {
                 analytics.track(
                     "audio_capture_failed",
                     properties: [
-                        "trigger": triggerMode.rawValue,
-                        "reason": Self.analyticsErrorReason(for: error)
+                        "sessionID": .string(sessionID),
+                        "trigger": .string(triggerMode.rawValue),
+                        "reason": .string(Self.analyticsErrorReason(for: error))
                     ]
                 )
                 await transcriptionEngine.cancelSession()
+                activeSessionID = nil
                 throw error
             }
 
@@ -333,7 +339,7 @@ final class DictationCoordinator {
             let finalTranscriptLatency = Date().timeIntervalSince(transcriptReadyStartedAt)
             let wordCount = Self.wordCount(in: correctedText)
 
-            onTranscript?(correctedText)
+            onTranscript?(correctedText, activeSessionID)
             incrementSuccessfulRecordingCount()
 
             state = .inserting
@@ -352,8 +358,9 @@ final class DictationCoordinator {
                 analytics.track(
                     "text_insertion_failed",
                     properties: [
-                        "trigger": activeTriggerMode?.rawValue ?? "unknown",
-                        "reason": Self.analyticsErrorReason(for: error)
+                        "sessionID": .string(activeSessionID ?? "unknown"),
+                        "trigger": .string(activeTriggerMode?.rawValue ?? "unknown"),
+                        "reason": .string(Self.analyticsErrorReason(for: error))
                     ]
                 )
                 throw error
@@ -367,23 +374,25 @@ final class DictationCoordinator {
             analytics.track(
                 "dictation_completed",
                 properties: [
-                    "durationBucket": Self.durationBucket(metrics.duration),
-                    "speechBucket": Self.durationBucket(speechDuration),
-                    "durationSeconds": Self.analyticsSeconds(metrics.duration),
-                    "speechSeconds": Self.analyticsSeconds(speechDuration),
-                    "finalTranscriptLatencyMs": Self.analyticsMilliseconds(finalTranscriptLatency),
-                    "insertionLatencyMs": Self.analyticsMilliseconds(insertionElapsed),
-                    "totalSessionLatencyMs": Self.analyticsMilliseconds(sessionElapsed),
-                    "charactersBucket": Self.countBucket(correctedText.count),
-                    "characterCount": String(correctedText.count),
-                    "wordsBucket": Self.countBucket(wordCount),
-                    "wordCount": String(wordCount),
-                    "trigger": activeTriggerMode?.rawValue ?? "unknown",
-                    "model": transcriptionConfiguration.model.rawValue,
-                    "decoding": transcriptionConfiguration.decodingMode.rawValue,
-                    "preset": DictationQualityPreset.matching(transcriptionConfiguration).rawValue,
-                    "previewUsedAsFinal": String(usedPreviewAsFinal),
-                    "livePreviewEnabled": String(transcriptionConfiguration.livePreviewEnabled)
+                    "sessionID": .string(activeSessionID ?? "unknown"),
+                    "durationBucket": .string(Self.durationBucket(metrics.duration)),
+                    "speechBucket": .string(Self.durationBucket(speechDuration)),
+                    "durationSeconds": .double(metrics.duration),
+                    "speechSeconds": .double(speechDuration),
+                    "finalTranscriptLatencyMs": .int(Self.analyticsMilliseconds(finalTranscriptLatency)),
+                    "insertionLatencyMs": .int(Self.analyticsMilliseconds(insertionElapsed)),
+                    "totalSessionLatencyMs": .int(Self.analyticsMilliseconds(sessionElapsed)),
+                    "charactersBucket": .string(Self.countBucket(correctedText.count)),
+                    "characterCount": .int(correctedText.count),
+                    "wordsBucket": .string(Self.countBucket(wordCount)),
+                    "wordCount": .int(wordCount),
+                    "wordsPerMinute": .double(Self.wordsPerMinute(wordCount: wordCount, speechSeconds: speechDuration)),
+                    "trigger": .string(activeTriggerMode?.rawValue ?? "unknown"),
+                    "model": .string(transcriptionConfiguration.model.rawValue),
+                    "decoding": .string(transcriptionConfiguration.decodingMode.rawValue),
+                    "preset": .string(DictationQualityPreset.matching(transcriptionConfiguration).rawValue),
+                    "previewUsedAsFinal": .bool(usedPreviewAsFinal),
+                    "livePreviewEnabled": .bool(transcriptionConfiguration.livePreviewEnabled)
                 ]
             )
             lastSuccessfulCompletionAt = Date()
@@ -391,6 +400,7 @@ final class DictationCoordinator {
             state = .idle
             activeTriggerMode = nil
             sessionStartedAt = nil
+            activeSessionID = nil
             hideHUD()
 
             try await Task.sleep(for: .milliseconds(700))
@@ -402,24 +412,27 @@ final class DictationCoordinator {
             analytics.track(
                 "dictation_failed",
                 properties: [
-                    "reason": Self.analyticsErrorReason(for: error),
-                    "trigger": activeTriggerMode?.rawValue ?? "unknown",
-                    "durationSeconds": Self.analyticsSeconds(metrics.duration),
-                    "speechSeconds": Self.analyticsSeconds(speechDuration)
+                    "sessionID": .string(activeSessionID ?? "unknown"),
+                    "reason": .string(Self.analyticsErrorReason(for: error)),
+                    "trigger": .string(activeTriggerMode?.rawValue ?? "unknown"),
+                    "durationSeconds": .double(metrics.duration),
+                    "speechSeconds": .double(speechDuration)
                 ]
             )
             if Self.shouldTrackAbandonment(for: error) {
                 analytics.track(
                     "dictation_abandoned",
                     properties: [
-                        "reason": Self.analyticsErrorReason(for: error),
-                        "trigger": activeTriggerMode?.rawValue ?? "unknown",
-                        "durationSeconds": Self.analyticsSeconds(metrics.duration)
+                        "sessionID": .string(activeSessionID ?? "unknown"),
+                        "reason": .string(Self.analyticsErrorReason(for: error)),
+                        "trigger": .string(activeTriggerMode?.rawValue ?? "unknown"),
+                        "durationSeconds": .double(metrics.duration)
                     ]
                 )
             }
             activeTriggerMode = nil
             sessionStartedAt = nil
+            activeSessionID = nil
             publishError(error.localizedDescription)
         }
     }
@@ -507,8 +520,9 @@ final class DictationCoordinator {
                         self.analytics.track(
                             "first_preview_latency_ms",
                             properties: [
-                                "value": Self.analyticsMilliseconds(Date().timeIntervalSince(sessionStartedAt)),
-                                "trigger": self.activeTriggerMode?.rawValue ?? "unknown"
+                                "sessionID": .string(self.activeSessionID ?? "unknown"),
+                                "value": .int(Self.analyticsMilliseconds(Date().timeIntervalSince(sessionStartedAt))),
+                                "trigger": .string(self.activeTriggerMode?.rawValue ?? "unknown")
                             ]
                         )
                     }
@@ -590,12 +604,12 @@ final class DictationCoordinator {
         text.split { $0.isWhitespace || $0.isNewline }.count
     }
 
-    private static func analyticsSeconds(_ seconds: TimeInterval) -> String {
-        String(format: "%.2f", max(seconds, 0))
+    private static func analyticsSeconds(_ seconds: TimeInterval) -> Double {
+        (max(seconds, 0) * 100).rounded() / 100
     }
 
-    private static func analyticsMilliseconds(_ seconds: TimeInterval) -> String {
-        String(Int((max(seconds, 0) * 1000).rounded()))
+    private static func analyticsMilliseconds(_ seconds: TimeInterval) -> Int {
+        Int((max(seconds, 0) * 1000).rounded())
     }
 
     private static func analyticsErrorReason(for error: Error) -> String {
@@ -634,27 +648,30 @@ final class DictationCoordinator {
         analytics.track(
             "dictation_cancelled",
             properties: [
-                "trigger": activeTriggerMode?.rawValue ?? "unknown",
-                "durationSeconds": Self.analyticsSeconds(metrics.duration),
-                "speechSeconds": Self.analyticsSeconds(
+                "sessionID": .string(activeSessionID ?? "unknown"),
+                "trigger": .string(activeTriggerMode?.rawValue ?? "unknown"),
+                "durationSeconds": .double(metrics.duration),
+                "speechSeconds": .double(
                     metrics.sampleRate > 0 ? Double(metrics.speechFrameCount) / metrics.sampleRate : metrics.duration
                 )
             ]
         )
         activeTriggerMode = nil
         sessionStartedAt = nil
+        activeSessionID = nil
         state = .idle
         hideHUD()
     }
 
-    private func sessionAnalyticsProperties(triggerMode: DictationTriggerMode) -> [String: String] {
+    private func sessionAnalyticsProperties(triggerMode: DictationTriggerMode) -> [String: AnalyticsValue] {
         [
-            "trigger": triggerMode.rawValue,
-            "model": transcriptionConfiguration.model.rawValue,
-            "decoding": transcriptionConfiguration.decodingMode.rawValue,
-            "preset": DictationQualityPreset.matching(transcriptionConfiguration).rawValue,
-            "livePreviewEnabled": String(transcriptionConfiguration.livePreviewEnabled),
-            "tapStopsOnNextKeyPress": String(transcriptionConfiguration.tapStopsOnNextKeyPress)
+            "sessionID": .string(activeSessionID ?? "unknown"),
+            "trigger": .string(triggerMode.rawValue),
+            "model": .string(transcriptionConfiguration.model.rawValue),
+            "decoding": .string(transcriptionConfiguration.decodingMode.rawValue),
+            "preset": .string(DictationQualityPreset.matching(transcriptionConfiguration).rawValue),
+            "livePreviewEnabled": .bool(transcriptionConfiguration.livePreviewEnabled),
+            "tapStopsOnNextKeyPress": .bool(transcriptionConfiguration.tapStopsOnNextKeyPress)
         ]
     }
 
@@ -665,6 +682,15 @@ final class DictationCoordinator {
         default:
             return false
         }
+    }
+
+    private static func makeAnalyticsSessionID() -> String {
+        UUID().uuidString.lowercased()
+    }
+
+    private static func wordsPerMinute(wordCount: Int, speechSeconds: TimeInterval) -> Double {
+        guard wordCount > 0, speechSeconds > 0 else { return 0 }
+        return (Double(wordCount) / speechSeconds) * 60
     }
 
     private func shouldShowHoldHint(for triggerMode: DictationTriggerMode) -> Bool {
