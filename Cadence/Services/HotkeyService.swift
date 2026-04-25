@@ -12,8 +12,19 @@ protocol HotkeyServing: AnyObject {
     var onPress: ((HotkeyAction) -> Void)? { get set }
     var onRelease: ((HotkeyAction) -> Void)? { get set }
     var onAnyKeyPress: (() -> Void)? { get set }
+    var onObservedKeyEvent: ((ObservedKeyEvent) -> Void)? { get set }
+    var onDiagnosticsEvent: ((String, [String: String]) -> Void)? { get set }
     func updateBindings(_ bindings: [HotkeyBinding])
     func setPaused(_ paused: Bool)
+}
+
+struct ObservedKeyEvent: Sendable {
+    let keyCode: UInt16
+    let modifiers: NSEvent.ModifierFlags
+
+    var isDeleteOrUndo: Bool {
+        keyCode == 51 || keyCode == 117 || (keyCode == 6 && modifiers.contains(.command))
+    }
 }
 
 final class HotkeyService: HotkeyServing {
@@ -24,6 +35,8 @@ final class HotkeyService: HotkeyServing {
     var onPress: ((HotkeyAction) -> Void)?
     var onRelease: ((HotkeyAction) -> Void)?
     var onAnyKeyPress: (() -> Void)?
+    var onObservedKeyEvent: ((ObservedKeyEvent) -> Void)?
+    var onDiagnosticsEvent: ((String, [String: String]) -> Void)?
 
     private var bindings: [HotkeyBinding]
     private var hotKeyRefs: [HotkeyAction: EventHotKeyRef] = [:]
@@ -136,6 +149,13 @@ final class HotkeyService: HotkeyServing {
             hotkeyLogger.info("Installed Carbon hotkey event handler")
         } else {
             hotkeyLogger.error("Failed to install Carbon hotkey event handler status=\(status, privacy: .public)")
+            onDiagnosticsEvent?(
+                "hotkey_registration_failed",
+                [
+                    "stage": "eventHandler",
+                    "status": String(status)
+                ]
+            )
         }
     }
 
@@ -165,6 +185,15 @@ final class HotkeyService: HotkeyServing {
                 hotkeyLogger.error(
                     "Failed to register hotkey action=\(binding.action.displayName, privacy: .public) shortcut=\(binding.shortcut.displayName, privacy: .public) status=\(status, privacy: .public)"
                 )
+                onDiagnosticsEvent?(
+                    "hotkey_registration_failed",
+                    [
+                        "stage": "registerHotKey",
+                        "action": binding.action.rawValue,
+                        "shortcut": binding.shortcut.displayName,
+                        "status": String(status)
+                    ]
+                )
             }
         }
     }
@@ -179,12 +208,15 @@ final class HotkeyService: HotkeyServing {
     private func installMonitorsIfNeeded() {
         guard globalKeyMonitor == nil else { return }
 
-        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] _ in
-            self?.handleAnyKeyPress()
+        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleAnyKeyPress(event)
         }
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            self?.handleAnyKeyPress()
+            self?.handleAnyKeyPress(event)
             return event
+        }
+        if globalKeyMonitor == nil || localKeyMonitor == nil {
+            onDiagnosticsEvent?("hotkey_registration_failed", ["stage": "keyMonitor"])
         }
         globalFlagsMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             self?.handleModifierFlagsChanged(event)
@@ -210,9 +242,12 @@ final class HotkeyService: HotkeyServing {
         cancelPendingModifierOnlyActions()
     }
 
-    private func handleAnyKeyPress() {
+    private func handleAnyKeyPress(_ event: NSEvent? = nil) {
         guard !isPaused else { return }
         cancelPendingModifierOnlyActions()
+        if let event {
+            onObservedKeyEvent?(ObservedKeyEvent(keyCode: event.keyCode, modifiers: event.modifierFlags))
+        }
         if suppressNextAnyKeyPress {
             suppressNextAnyKeyPress = false
             return

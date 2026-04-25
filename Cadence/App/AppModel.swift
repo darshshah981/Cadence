@@ -48,10 +48,15 @@ final class AppModel: ObservableObject {
         static let tapModifiers = "FlowState.tapModifiers"
         static let tapKeyDisplay = "FlowState.tapKeyDisplay"
         static let transcriptHistory = "FlowState.transcriptHistory"
+        static let firstSuccessfulDictationTracked = "Cadence.firstSuccessfulDictationTracked"
         static let didMigrateToFastDefaults = "FlowState.didMigrateToFastDefaults"
         static let didMigrateToLivePreviewDefault = "FlowState.didMigrateToLivePreviewDefault"
         static let didMigrateToLivePreviewDefaultV2 = "FlowState.didMigrateToLivePreviewDefault.v2"
         static let didUndoLivePreviewDefault = "FlowState.didUndoLivePreviewDefault.v1"
+    }
+
+    private enum AnalyticsTuning {
+        static let followUpWindow: TimeInterval = 10
     }
 
     @Published private(set) var permissions: PermissionsSnapshot
@@ -74,12 +79,14 @@ final class AppModel: ObservableObject {
 
     private let permissionsService: PermissionsService
     private let permissionGuideWindowController = PermissionGuideWindowController()
+    private let hotkeyService: HotkeyService
     private let coordinator: DictationCoordinator
     private let analytics: AnalyticsService
     private let defaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
     private var lastExternalApplication: NSRunningApplication?
     private var transcriptionConfigurationTask: Task<Void, Never>?
+    private var lastTrackedCorrectionTranscriptID: UUID?
 
     init() {
         let defaults = UserDefaults.standard
@@ -102,9 +109,11 @@ final class AppModel: ObservableObject {
         let transcriptionEngine = WhisperKitTranscriptionEngine()
         let audioCaptureService = AudioCaptureService()
         let textInsertionService = TextInsertionService()
+        let hotkeyService = HotkeyService(bindings: Self.currentHotkeyBindings(hold: initialHoldBinding, tap: initialTapBinding))
+        self.hotkeyService = hotkeyService
 
         self.coordinator = DictationCoordinator(
-            hotkeyService: HotkeyService(bindings: Self.currentHotkeyBindings(hold: initialHoldBinding, tap: initialTapBinding)),
+            hotkeyService: hotkeyService,
             permissionsService: permissionsService,
             audioCaptureService: audioCaptureService,
             transcriptionEngine: transcriptionEngine,
@@ -114,6 +123,7 @@ final class AppModel: ObservableObject {
         )
 
         bindCoordinator()
+        bindHotkeyDiagnostics()
         bindPermissionRefresh()
         Task {
             await refreshPermissions()
@@ -243,8 +253,22 @@ final class AppModel: ObservableObject {
     }
 
     func refreshPermissions() async {
+        let previousPermissions = permissions
         permissions = permissionsService.snapshot()
         permissionGuideWindowController.updatePermissions(permissions)
+        if permissions != previousPermissions {
+            analytics.track(
+                "permissions_granted_changed",
+                properties: [
+                    "microphone": String(permissions.microphoneGranted),
+                    "accessibility": String(permissions.accessibilityGranted),
+                    "inputMonitoring": String(permissions.inputMonitoringGranted)
+                ]
+            )
+            if !previousPermissions.allRequiredGranted, permissions.allRequiredGranted {
+                analytics.track("setup_completed")
+            }
+        }
         analytics.track(
             "permissions_refreshed",
             properties: [
@@ -333,10 +357,17 @@ final class AppModel: ObservableObject {
     }
 
     func warmBackend() async {
+        let startedAt = Date()
+        let properties = backendAnalyticsProperties()
+        analytics.track("engine_prepare_started", properties: properties)
         do {
             let summary = try await coordinator.prewarmBackend()
             lastError = nil
             backendDescription = summary
+            var completedProperties = properties
+            completedProperties["durationMs"] = Self.analyticsMilliseconds(Date().timeIntervalSince(startedAt))
+            completedProperties["backend"] = "whisperkit"
+            analytics.track("engine_prepare_completed", properties: completedProperties)
         } catch {
             guard !Self.isBenignModelLoadCancellation(error) else {
                 preferencesLogger.info("Ignored canceled background model load")
@@ -344,6 +375,11 @@ final class AppModel: ObservableObject {
             }
             lastError = error.localizedDescription
             backendDescription = "Transcription backend unavailable"
+            var failureProperties = properties
+            failureProperties["durationMs"] = Self.analyticsMilliseconds(Date().timeIntervalSince(startedAt))
+            failureProperties["reason"] = Self.analyticsErrorReason(for: error)
+            analytics.track("engine_prepare_failed", properties: failureProperties)
+            analytics.track("model_load_failed", properties: failureProperties)
         }
     }
 
@@ -378,6 +414,7 @@ final class AppModel: ObservableObject {
     }
 
     func setLivePreviewEnabled(_ livePreviewEnabled: Bool) {
+        analytics.track("setting_changed", properties: ["setting": "livePreviewEnabled", "value": String(livePreviewEnabled)])
         updateTranscriptionConfiguration { $0.livePreviewEnabled = livePreviewEnabled }
     }
 
@@ -387,6 +424,13 @@ final class AppModel: ObservableObject {
     }
 
     func setVocabularyText(_ vocabularyText: String) {
+        analytics.track(
+            "setting_changed",
+            properties: [
+                "setting": "vocabularyText",
+                "value": vocabularyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "empty" : "custom"
+            ]
+        )
         updateTranscriptionConfiguration { $0.vocabularyText = vocabularyText }
     }
 
@@ -415,6 +459,7 @@ final class AppModel: ObservableObject {
            tapToStartStopBinding.isEnabled,
            holdToTalkBinding.shortcut.conflicts(with: tapToStartStopBinding.shortcut) {
             shortcutValidationMessage = "Hold To Talk and Press To Start/Stop need different shortcuts."
+            analytics.track("shortcut_conflict_detected", properties: ["shortcut": "holdToTalk", "stage": "enable"])
             return
         }
 
@@ -431,6 +476,7 @@ final class AppModel: ObservableObject {
            holdToTalkBinding.isEnabled,
            tapToStartStopBinding.shortcut.conflicts(with: holdToTalkBinding.shortcut) {
             shortcutValidationMessage = "Hold To Talk and Press To Start/Stop need different shortcuts."
+            analytics.track("shortcut_conflict_detected", properties: ["shortcut": "tapToStartStop", "stage": "enable"])
             return
         }
 
@@ -471,6 +517,7 @@ final class AppModel: ObservableObject {
                tapToStartStopBinding.isEnabled,
                shortcut.conflicts(with: tapToStartStopBinding.shortcut) {
                 shortcutValidationMessage = "Hold To Talk and Press To Start/Stop need different shortcuts."
+                analytics.track("shortcut_conflict_detected", properties: ["shortcut": "holdToTalk", "stage": "change"])
                 return
             }
         case .tapToStartStop:
@@ -478,6 +525,7 @@ final class AppModel: ObservableObject {
                holdToTalkBinding.isEnabled,
                shortcut.conflicts(with: holdToTalkBinding.shortcut) {
                 shortcutValidationMessage = "Hold To Talk and Press To Start/Stop need different shortcuts."
+                analytics.track("shortcut_conflict_detected", properties: ["shortcut": "tapToStartStop", "stage": "change"])
                 return
             }
         }
@@ -505,7 +553,26 @@ final class AppModel: ObservableObject {
     }
 
     func copyTranscript(_ item: TranscriptHistoryItem) {
-        analytics.track("transcript_copied", properties: ["charactersBucket": Self.countBucket(item.text.count)])
+        let wordCount = Self.wordCount(in: item.text)
+        analytics.track(
+            "transcript_copied",
+            properties: [
+                "charactersBucket": Self.countBucket(item.text.count),
+                "characterCount": String(item.text.count),
+                "wordsBucket": Self.countBucket(wordCount),
+                "wordCount": String(wordCount)
+            ]
+        )
+        if Date().timeIntervalSince(item.createdAt) <= AnalyticsTuning.followUpWindow {
+            analytics.track(
+                "manual_copy_after_dictation",
+                properties: [
+                    "secondsSinceTranscript": Self.analyticsSeconds(Date().timeIntervalSince(item.createdAt)),
+                    "characterCount": String(item.text.count),
+                    "wordCount": String(wordCount)
+                ]
+            )
+        }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(item.text, forType: .string)
@@ -560,6 +627,16 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func bindHotkeyDiagnostics() {
+        hotkeyService.onDiagnosticsEvent = { [weak self] name, properties in
+            self?.analytics.track(name, properties: properties)
+        }
+
+        hotkeyService.onObservedKeyEvent = { [weak self] event in
+            self?.handleObservedKeyEvent(event)
+        }
+    }
+
     private func bindPermissionRefresh() {
         NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
             .receive(on: RunLoop.main)
@@ -599,9 +676,20 @@ final class AppModel: ObservableObject {
     private func appendTranscriptToHistory(_ transcript: String) {
         let cleaned = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return }
-        analytics.track("transcript_created", properties: ["charactersBucket": Self.countBucket(cleaned.count)])
-
-        transcriptHistory.insert(TranscriptHistoryItem(text: cleaned), at: 0)
+        let wordCount = Self.wordCount(in: cleaned)
+        let item = TranscriptHistoryItem(text: cleaned)
+        analytics.track(
+            "transcript_created",
+            properties: [
+                "charactersBucket": Self.countBucket(cleaned.count),
+                "characterCount": String(cleaned.count),
+                "wordsBucket": Self.countBucket(wordCount),
+                "wordCount": String(wordCount)
+            ]
+        )
+        trackFirstSuccessfulDictationIfNeeded(item: item, wordCount: wordCount)
+        transcriptHistory.insert(item, at: 0)
+        lastTrackedCorrectionTranscriptID = nil
         if transcriptHistory.count > 20 {
             transcriptHistory = Array(transcriptHistory.prefix(20))
         }
@@ -654,6 +742,45 @@ final class AppModel: ObservableObject {
             lastError = error.localizedDescription
             backendDescription = "Transcription backend unavailable"
         }
+    }
+
+    private func handleObservedKeyEvent(_ event: ObservedKeyEvent) {
+        guard event.isDeleteOrUndo else { return }
+        guard let latestTranscript = transcriptHistory.first else { return }
+        guard latestTranscript.id != lastTrackedCorrectionTranscriptID else { return }
+
+        let secondsSinceTranscript = Date().timeIntervalSince(latestTranscript.createdAt)
+        guard secondsSinceTranscript <= AnalyticsTuning.followUpWindow else { return }
+
+        lastTrackedCorrectionTranscriptID = latestTranscript.id
+        analytics.track(
+            "backspace_or_replace_soon_after_insert",
+            properties: [
+                "signal": event.keyCode == 6 ? "undo" : "delete",
+                "secondsSinceTranscript": Self.analyticsSeconds(secondsSinceTranscript)
+            ]
+        )
+    }
+
+    private func trackFirstSuccessfulDictationIfNeeded(item: TranscriptHistoryItem, wordCount: Int) {
+        guard !defaults.bool(forKey: PreferenceKey.firstSuccessfulDictationTracked) else { return }
+        defaults.set(true, forKey: PreferenceKey.firstSuccessfulDictationTracked)
+        analytics.track(
+            "first_successful_dictation",
+            properties: [
+                "characterCount": String(item.text.count),
+                "wordCount": String(wordCount)
+            ]
+        )
+    }
+
+    private func backendAnalyticsProperties() -> [String: String] {
+        [
+            "backend": "whisperkit",
+            "model": transcriptionConfiguration.model.rawValue,
+            "decoding": transcriptionConfiguration.decodingMode.rawValue,
+            "preset": dictationQualityPreset.rawValue
+        ]
     }
 
     private static func isBenignModelLoadCancellation(_ error: Error) -> Bool {
@@ -824,6 +951,31 @@ final class AppModel: ObservableObject {
             return "200-799"
         default:
             return "800+"
+        }
+    }
+
+    private static func wordCount(in text: String) -> Int {
+        text.split { $0.isWhitespace || $0.isNewline }.count
+    }
+
+    private static func analyticsMilliseconds(_ seconds: TimeInterval) -> String {
+        String(Int((max(seconds, 0) * 1000).rounded()))
+    }
+
+    private static func analyticsSeconds(_ seconds: TimeInterval) -> String {
+        String(format: "%.2f", max(seconds, 0))
+    }
+
+    private static func analyticsErrorReason(for error: Error) -> String {
+        switch error {
+        case WhisperEngineError.contextInitializationFailed:
+            return "contextInitializationFailed"
+        case WhisperEngineError.emptyAudio:
+            return "emptyAudio"
+        case WhisperEngineError.noTranscript:
+            return "noTranscript"
+        default:
+            return "other"
         }
     }
 

@@ -63,6 +63,9 @@ final class DictationCoordinator {
     private var latestWaveformLevels = Array(repeating: 0.0, count: 16)
     private var lastSpeechTimestamp = Date()
     private var lastPreviewTimestamp = Date.distantPast
+    private var sessionStartedAt: Date?
+    private var firstPreviewTracked = false
+    private var lastSuccessfulCompletionAt: Date?
 
     private var state: DictationSessionState = .idle {
         didSet { onStateChange?(state) }
@@ -191,32 +194,59 @@ final class DictationCoordinator {
             }
 
             activeTriggerMode = triggerMode
-            analytics.track("dictation_started", properties: ["trigger": triggerMode.rawValue])
+            let repeatedWithinTenSeconds = lastSuccessfulCompletionAt.map {
+                Date().timeIntervalSince($0) <= 10
+            } ?? false
+            if repeatedWithinTenSeconds, let lastSuccessfulCompletionAt {
+                analytics.track(
+                    "repeat_dictation_within_10s",
+                    properties: [
+                        "secondsSincePrevious": Self.analyticsSeconds(Date().timeIntervalSince(lastSuccessfulCompletionAt)),
+                        "trigger": triggerMode.rawValue
+                    ]
+                )
+            }
+            analytics.track("shortcut_used", properties: ["mode": triggerMode.rawValue])
+            analytics.track("dictation_started", properties: sessionAnalyticsProperties(triggerMode: triggerMode))
 
             try await transcriptionEngine.startSession()
-            try audioCaptureService.startCapture { [weak self] chunk, level in
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    await transcriptionEngine.appendAudio(chunk)
-                    latestAudioLevel = level
-                    latestWaveformLevels = Self.waveformLevels(from: chunk.samples)
-                    if level >= PreviewTuning.activeSpeechThreshold {
-                        lastSpeechTimestamp = Date()
+            do {
+                try audioCaptureService.startCapture { [weak self] chunk, level in
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        await transcriptionEngine.appendAudio(chunk)
+                        latestAudioLevel = level
+                        latestWaveformLevels = Self.waveformLevels(from: chunk.samples)
+                        if level >= PreviewTuning.activeSpeechThreshold {
+                            lastSpeechTimestamp = Date()
+                        }
+                        guard state == .listening else { return }
+                        publishHUD(
+                            visualState: .recording(
+                                triggerMode: activeTriggerMode ?? triggerMode,
+                                showsHint: shouldShowHoldHint(for: activeTriggerMode ?? triggerMode)
+                            ),
+                            subtitle: latestPreview.composedText,
+                            level: level,
+                            waveformLevels: latestWaveformLevels,
+                            showsSubtitle: !latestPreview.composedText.isEmpty
+                        )
                     }
-                    guard state == .listening else { return }
-                    publishHUD(
-                        visualState: .recording(
-                            triggerMode: activeTriggerMode ?? triggerMode,
-                            showsHint: shouldShowHoldHint(for: activeTriggerMode ?? triggerMode)
-                        ),
-                        subtitle: latestPreview.composedText,
-                        level: level,
-                        waveformLevels: latestWaveformLevels,
-                        showsSubtitle: !latestPreview.composedText.isEmpty
-                    )
                 }
+            } catch {
+                analytics.track(
+                    "audio_capture_failed",
+                    properties: [
+                        "trigger": triggerMode.rawValue,
+                        "reason": Self.analyticsErrorReason(for: error)
+                    ]
+                )
+                await transcriptionEngine.cancelSession()
+                throw error
             }
 
+            sessionStartedAt = Date()
+            firstPreviewTracked = false
             state = .listening
             startPreviewLoop()
             publishHUD(
@@ -265,6 +295,7 @@ final class DictationCoordinator {
 
         let metrics = audioCaptureService.stopCapture()
         let releasePreview = latestPreview
+        let usedPreviewAsFinal = shouldUsePreviewAsFinal(releasePreview, metrics: metrics)
         let speechDuration = metrics.sampleRate > 0
             ? Double(metrics.speechFrameCount) / metrics.sampleRate
             : metrics.duration
@@ -276,7 +307,8 @@ final class DictationCoordinator {
         do {
             let correctedText: String
 
-            if shouldUsePreviewAsFinal(releasePreview, metrics: metrics) {
+            let transcriptReadyStartedAt = Date()
+            if usedPreviewAsFinal {
                 dictationLogger.info("Cadence timing finalize using cached preview as final")
                 let previewText = releasePreview.composedText
                     .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
@@ -298,6 +330,8 @@ final class DictationCoordinator {
                 )
                 correctedText = applyPostProcessing(to: transcript.cleanedText)
             }
+            let finalTranscriptLatency = Date().timeIntervalSince(transcriptReadyStartedAt)
+            let wordCount = Self.wordCount(in: correctedText)
 
             onTranscript?(correctedText)
             incrementSuccessfulRecordingCount()
@@ -312,9 +346,21 @@ final class DictationCoordinator {
             )
 
             let insertionStartedAt = Date()
-            try await textInsertionService.insert(correctedText + " ")
+            do {
+                try await textInsertionService.insert(correctedText + " ")
+            } catch {
+                analytics.track(
+                    "text_insertion_failed",
+                    properties: [
+                        "trigger": activeTriggerMode?.rawValue ?? "unknown",
+                        "reason": Self.analyticsErrorReason(for: error)
+                    ]
+                )
+                throw error
+            }
             let insertionElapsed = Date().timeIntervalSince(insertionStartedAt)
             let totalElapsed = Date().timeIntervalSince(finalizeStartedAt)
+            let sessionElapsed = sessionStartedAt.map { Date().timeIntervalSince($0) } ?? metrics.duration
             dictationLogger.info(
                 "Cadence timing finalize complete total=\(Self.formatSeconds(totalElapsed), privacy: .public)s insert=\(Self.formatSeconds(insertionElapsed), privacy: .public)s chars=\(correctedText.count, privacy: .public)"
             )
@@ -323,13 +369,28 @@ final class DictationCoordinator {
                 properties: [
                     "durationBucket": Self.durationBucket(metrics.duration),
                     "speechBucket": Self.durationBucket(speechDuration),
+                    "durationSeconds": Self.analyticsSeconds(metrics.duration),
+                    "speechSeconds": Self.analyticsSeconds(speechDuration),
+                    "finalTranscriptLatencyMs": Self.analyticsMilliseconds(finalTranscriptLatency),
+                    "insertionLatencyMs": Self.analyticsMilliseconds(insertionElapsed),
+                    "totalSessionLatencyMs": Self.analyticsMilliseconds(sessionElapsed),
                     "charactersBucket": Self.countBucket(correctedText.count),
-                    "trigger": activeTriggerMode?.rawValue ?? "unknown"
+                    "characterCount": String(correctedText.count),
+                    "wordsBucket": Self.countBucket(wordCount),
+                    "wordCount": String(wordCount),
+                    "trigger": activeTriggerMode?.rawValue ?? "unknown",
+                    "model": transcriptionConfiguration.model.rawValue,
+                    "decoding": transcriptionConfiguration.decodingMode.rawValue,
+                    "preset": DictationQualityPreset.matching(transcriptionConfiguration).rawValue,
+                    "previewUsedAsFinal": String(usedPreviewAsFinal),
+                    "livePreviewEnabled": String(transcriptionConfiguration.livePreviewEnabled)
                 ]
             )
+            lastSuccessfulCompletionAt = Date()
 
             state = .idle
             activeTriggerMode = nil
+            sessionStartedAt = nil
             hideHUD()
 
             try await Task.sleep(for: .milliseconds(700))
@@ -340,9 +401,25 @@ final class DictationCoordinator {
             )
             analytics.track(
                 "dictation_failed",
-                properties: ["reason": Self.analyticsErrorReason(for: error)]
+                properties: [
+                    "reason": Self.analyticsErrorReason(for: error),
+                    "trigger": activeTriggerMode?.rawValue ?? "unknown",
+                    "durationSeconds": Self.analyticsSeconds(metrics.duration),
+                    "speechSeconds": Self.analyticsSeconds(speechDuration)
+                ]
             )
+            if Self.shouldTrackAbandonment(for: error) {
+                analytics.track(
+                    "dictation_abandoned",
+                    properties: [
+                        "reason": Self.analyticsErrorReason(for: error),
+                        "trigger": activeTriggerMode?.rawValue ?? "unknown",
+                        "durationSeconds": Self.analyticsSeconds(metrics.duration)
+                    ]
+                )
+            }
             activeTriggerMode = nil
+            sessionStartedAt = nil
             publishError(error.localizedDescription)
         }
     }
@@ -425,6 +502,16 @@ final class DictationCoordinator {
                         confirmedText: self.applyPostProcessing(to: preview.confirmedText),
                         unconfirmedText: self.applyPostProcessing(to: preview.unconfirmedText)
                     )
+                    if !self.firstPreviewTracked, !correctedPreview.composedText.isEmpty, let sessionStartedAt = self.sessionStartedAt {
+                        self.firstPreviewTracked = true
+                        self.analytics.track(
+                            "first_preview_latency_ms",
+                            properties: [
+                                "value": Self.analyticsMilliseconds(Date().timeIntervalSince(sessionStartedAt)),
+                                "trigger": self.activeTriggerMode?.rawValue ?? "unknown"
+                            ]
+                        )
+                    }
                     self.latestPreview = correctedPreview
                     self.onPreviewTranscript?(correctedPreview)
                     self.publishHUD(
@@ -499,16 +586,34 @@ final class DictationCoordinator {
         }
     }
 
+    private static func wordCount(in text: String) -> Int {
+        text.split { $0.isWhitespace || $0.isNewline }.count
+    }
+
+    private static func analyticsSeconds(_ seconds: TimeInterval) -> String {
+        String(format: "%.2f", max(seconds, 0))
+    }
+
+    private static func analyticsMilliseconds(_ seconds: TimeInterval) -> String {
+        String(Int((max(seconds, 0) * 1000).rounded()))
+    }
+
     private static func analyticsErrorReason(for error: Error) -> String {
         switch error {
         case WhisperEngineError.emptyAudio:
             return "emptyAudio"
         case WhisperEngineError.noTranscript:
             return "noTranscript"
+        case WhisperEngineError.contextInitializationFailed:
+            return "contextInitializationFailed"
         case CadenceError.missingRequiredPermissions:
             return "permissions"
         case CadenceError.accessibilityPermissionMissing:
             return "accessibility"
+        case CadenceError.audioInputUnavailable:
+            return "audioInputUnavailable"
+        case CadenceError.eventSourceUnavailable:
+            return "eventSourceUnavailable"
         default:
             return "other"
         }
@@ -523,12 +628,43 @@ final class DictationCoordinator {
         guard activeTriggerMode == .tapToStartStop else { return }
         guard state == .listening else { return }
 
-        _ = audioCaptureService.stopCapture()
+        let metrics = audioCaptureService.stopCapture()
         stopPreviewLoop()
         await transcriptionEngine.cancelSession()
+        analytics.track(
+            "dictation_cancelled",
+            properties: [
+                "trigger": activeTriggerMode?.rawValue ?? "unknown",
+                "durationSeconds": Self.analyticsSeconds(metrics.duration),
+                "speechSeconds": Self.analyticsSeconds(
+                    metrics.sampleRate > 0 ? Double(metrics.speechFrameCount) / metrics.sampleRate : metrics.duration
+                )
+            ]
+        )
         activeTriggerMode = nil
+        sessionStartedAt = nil
         state = .idle
         hideHUD()
+    }
+
+    private func sessionAnalyticsProperties(triggerMode: DictationTriggerMode) -> [String: String] {
+        [
+            "trigger": triggerMode.rawValue,
+            "model": transcriptionConfiguration.model.rawValue,
+            "decoding": transcriptionConfiguration.decodingMode.rawValue,
+            "preset": DictationQualityPreset.matching(transcriptionConfiguration).rawValue,
+            "livePreviewEnabled": String(transcriptionConfiguration.livePreviewEnabled),
+            "tapStopsOnNextKeyPress": String(transcriptionConfiguration.tapStopsOnNextKeyPress)
+        ]
+    }
+
+    private static func shouldTrackAbandonment(for error: Error) -> Bool {
+        switch error {
+        case WhisperEngineError.emptyAudio, WhisperEngineError.noTranscript:
+            return true
+        default:
+            return false
+        }
     }
 
     private func shouldShowHoldHint(for triggerMode: DictationTriggerMode) -> Bool {
