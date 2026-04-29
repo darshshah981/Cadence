@@ -603,6 +603,9 @@ final class AppModel: ObservableObject {
     private func bindCoordinator() {
         coordinator.onStateChange = { [weak self] state in
             self?.state = state
+            if case .listening = state {
+                self?.clearTransientCaptureErrorIfNeeded()
+            }
         }
 
         coordinator.onHUDChange = { [weak self] hudState in
@@ -610,6 +613,7 @@ final class AppModel: ObservableObject {
         }
 
         coordinator.onTranscript = { [weak self] transcript, sessionID in
+            self?.clearTransientCaptureErrorIfNeeded()
             self?.lastTranscript = transcript
             self?.appendTranscriptToHistory(transcript, sessionID: sessionID)
             self?.livePreviewConfirmedText = ""
@@ -617,6 +621,10 @@ final class AppModel: ObservableObject {
         }
 
         coordinator.onPreviewTranscript = { [weak self] preview in
+            if !preview.confirmedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                !preview.unconfirmedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                self?.clearTransientCaptureErrorIfNeeded()
+            }
             self?.livePreviewConfirmedText = preview.confirmedText
             self?.livePreviewUnconfirmedText = preview.unconfirmedText
         }
@@ -699,6 +707,11 @@ final class AppModel: ObservableObject {
             transcriptHistory = Array(transcriptHistory.prefix(20))
         }
         persistTranscriptHistory()
+    }
+
+    private func clearTransientCaptureErrorIfNeeded() {
+        guard let lastError, Self.isTransientCaptureError(lastError) else { return }
+        self.lastError = nil
     }
 
     private func sanitizedHotkeyBindings() -> [HotkeyBinding] {
@@ -1005,7 +1018,16 @@ final class AppModel: ObservableObject {
         return missing
     }
 
+    private static func isTransientCaptureError(_ raw: String) -> Bool {
+        let lowercased = raw.lowercased()
+        return lowercased.contains("no speech audio was captured") ||
+            lowercased.contains("whisper did not return any transcript text")
+    }
+
     static func humanizedErrorMessage(_ raw: String) -> String {
+        if raw.contains("No speech audio was captured.") {
+            return "Nothing was picked up. Try speaking a little louder or closer to the mic."
+        }
         if raw.contains("Whisper did not return any transcript text") {
             return "Nothing was picked up. Try speaking a little louder or closer to the mic."
         }
