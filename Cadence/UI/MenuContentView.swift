@@ -115,6 +115,17 @@ struct MenuContentView: View {
             contentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+            if appModel.menuScreen == .home && appModel.showsShortcutDock {
+                HomeShortcutDockView(appModel: appModel) {
+                    appModel.showSettingsScreen()
+                } onHide: {
+                    appModel.setShowsShortcutDock(false)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 2)
+            }
+
             MenuTabBar(selection: $appModel.menuScreen)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
@@ -227,20 +238,20 @@ private struct MenuHeaderView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            CadenceMarkView(size: 42)
+            CadenceMarkView(size: 28)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(FlowTheme.textPrimary)
 
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(status.color)
-                        .frame(width: 8, height: 8)
+                        .fill(status.color.opacity(0.92))
+                        .frame(width: 6, height: 6)
 
                     Text(status.text)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(status.color)
                 }
             }
@@ -249,9 +260,9 @@ private struct MenuHeaderView: View {
 
             Button(action: onQuit) {
                 Image(systemName: "power")
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(FlowTheme.textTertiary)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -261,18 +272,32 @@ private struct MenuHeaderView: View {
 
 private struct CadenceMarkView: View {
     let size: CGFloat
+    private let appIcon = NSApp.applicationIconImage
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                .fill(FlowTheme.accent)
+        Group {
+            if let appIcon {
+                Image(nsImage: appIcon)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                        .fill(FlowTheme.accent)
 
-            Text("C")
-                .font(.system(size: size * 0.56, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.white)
+                    Text("C")
+                        .font(.system(size: size * 0.56, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.white)
+                }
+            }
         }
         .frame(width: size, height: size)
-        .shadow(color: FlowTheme.accent.opacity(0.18), radius: 10, y: 5)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                .stroke(FlowTheme.border.opacity(0.65), lineWidth: 1)
+        )
     }
 }
 
@@ -409,49 +434,8 @@ private struct HomeDashboardView: View {
             if !appModel.permissions.allRequiredGranted {
                 attentionCard
             }
-            commandStrip
             transcriptSection
         }
-    }
-
-    private var commandStrip: some View {
-        HStack(spacing: 10) {
-            Image(systemName: appModel.primaryTriggerMode == .holdToTalk ? "mic.fill" : "record.circle")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(FlowTheme.accent)
-                .frame(width: 26, height: 26)
-                .background(FlowTheme.accentSubtle, in: Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(commandStatusTitle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(FlowTheme.textPrimary)
-
-                Text(commandHint)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(FlowTheme.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-            }
-
-            Spacer(minLength: 8)
-
-            Button(action: onOpenSettings) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(FlowTheme.textTertiary)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(FlowTheme.border, lineWidth: 1)
-        )
     }
 
     private var attentionCard: some View {
@@ -485,34 +469,6 @@ private struct HomeDashboardView: View {
         }
     }
 
-    private var commandStatusTitle: String {
-        if appModel.hotkeyConflictMessage != nil {
-            return "Shortcut conflict"
-        }
-
-        guard appModel.holdToTalkBinding.isEnabled || appModel.tapToStartStopBinding.isEnabled else {
-            return "Shortcuts off"
-        }
-
-        return appModel.permissions.allRequiredGranted ? "Ready to dictate" : "Setup needed"
-    }
-
-    private var commandHint: String {
-        if appModel.hotkeyConflictMessage != nil {
-            return "Choose different shortcuts in Settings"
-        }
-
-        let hold = appModel.holdToTalkBinding.isEnabled ? "Hold \(appModel.holdToTalkBinding.shortcut.symbolDisplayName)" : nil
-        let tap = appModel.tapToStartStopBinding.isEnabled ? "Press \(appModel.tapToStartStopBinding.shortcut.symbolDisplayName)" : nil
-        let hints = [hold, tap].compactMap { $0 }
-
-        if hints.isEmpty {
-            return "Enable a shortcut in Settings"
-        }
-
-        return hints.joined(separator: " · ")
-    }
-
     private var transcriptSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
@@ -541,6 +497,168 @@ private struct HomeDashboardView: View {
         }
     }
 
+}
+
+private struct HomeShortcutDockView: View {
+    @ObservedObject var appModel: AppModel
+    let onOpenSettings: () -> Void
+    let onHide: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text(commandStatusTitle)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(commandStatusColor)
+                    .textCase(.uppercase)
+
+                Spacer(minLength: 8)
+
+                Button(action: onOpenSettings) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textTertiary)
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onHide) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textTertiary)
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if commandHintTokens.isEmpty {
+                Text(commandHint)
+                    .font(.system(size: 12))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(commandHintTokens) { token in
+                        ShortcutChip(token: token)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(backgroundColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(borderColor, lineWidth: 1)
+        )
+    }
+
+    private var commandStatusTitle: String {
+        if appModel.hotkeyConflictMessage != nil {
+            return "Shortcut conflict"
+        }
+
+        guard appModel.holdToTalkBinding.isEnabled || appModel.tapToStartStopBinding.isEnabled else {
+            return "Shortcuts"
+        }
+
+        return appModel.permissions.allRequiredGranted ? "Shortcuts" : "Setup needed"
+    }
+
+    private var commandHint: String {
+        if appModel.hotkeyConflictMessage != nil {
+            return "Choose different shortcuts in Settings"
+        }
+
+        let hold = appModel.holdToTalkBinding.isEnabled ? "Hold \(appModel.holdToTalkBinding.shortcut.symbolDisplayName)" : nil
+        let tap = appModel.tapToStartStopBinding.isEnabled ? "Press \(appModel.tapToStartStopBinding.shortcut.symbolDisplayName)" : nil
+        let hints = [hold, tap].compactMap { $0 }
+
+        if hints.isEmpty {
+            return "Enable a shortcut in Settings"
+        }
+
+        return hints.joined(separator: "  ")
+    }
+
+    private var commandHintTokens: [ShortcutHintToken] {
+        guard appModel.hotkeyConflictMessage == nil else { return [] }
+
+        return [
+            appModel.holdToTalkBinding.isEnabled
+                ? ShortcutHintToken(label: "Hold", value: appModel.holdToTalkBinding.shortcut.symbolDisplayName)
+                : nil,
+            appModel.tapToStartStopBinding.isEnabled
+                ? ShortcutHintToken(label: "Press", value: appModel.tapToStartStopBinding.shortcut.symbolDisplayName)
+                : nil
+        ]
+        .compactMap { $0 }
+    }
+
+    private var commandStatusColor: Color {
+        if appModel.hotkeyConflictMessage != nil {
+            return FlowTheme.error
+        }
+        if !appModel.permissions.allRequiredGranted {
+            return FlowTheme.accent
+        }
+        return FlowTheme.textTertiary
+    }
+
+    private var backgroundColor: Color {
+        if appModel.hotkeyConflictMessage != nil {
+            return FlowTheme.errorSubtle
+        }
+        if !appModel.permissions.allRequiredGranted {
+            return FlowTheme.elevated
+        }
+        return FlowTheme.subtle
+    }
+
+    private var borderColor: Color {
+        if appModel.hotkeyConflictMessage != nil {
+            return FlowTheme.error.opacity(0.6)
+        }
+        if !appModel.permissions.allRequiredGranted {
+            return FlowTheme.border
+        }
+        return FlowTheme.border.opacity(0.75)
+    }
+}
+
+private struct ShortcutHintToken: Identifiable {
+    let label: String
+    let value: String
+
+    var id: String { "\(label)-\(value)" }
+}
+
+private struct ShortcutChip: View {
+    let token: ShortcutHintToken
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(token.label)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(FlowTheme.textTertiary)
+                .textCase(.uppercase)
+
+            Text(token.value)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(FlowTheme.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background(FlowTheme.elevated.opacity(0.6), in: Capsule(style: .continuous))
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(FlowTheme.border.opacity(0.55), lineWidth: 1)
+        )
+    }
 }
 
 private struct HomeCard<Content: View>: View {

@@ -48,6 +48,7 @@ final class AppModel: ObservableObject {
         static let tapModifiers = "FlowState.tapModifiers"
         static let tapKeyDisplay = "FlowState.tapKeyDisplay"
         static let transcriptHistory = "FlowState.transcriptHistory"
+        static let showsShortcutDock = "Cadence.showsShortcutDock"
         static let firstSuccessfulDictationTracked = "Cadence.firstSuccessfulDictationTracked"
         static let didMigrateToFastDefaults = "FlowState.didMigrateToFastDefaults"
         static let didMigrateToLivePreviewDefault = "FlowState.didMigrateToLivePreviewDefault"
@@ -72,6 +73,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var backendDescription = "Loading transcription backend"
     @Published private(set) var transcriptionConfiguration: TranscriptionConfiguration
     @Published private(set) var analyticsEnabled: Bool
+    @Published private(set) var showsShortcutDock: Bool
     @Published var menuScreen: MenuScreen = .home
 
     @Published private(set) var holdToTalkBinding: HotkeyBinding
@@ -96,7 +98,9 @@ final class AppModel: ObservableObject {
         self.defaults = defaults
         self.transcriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
         let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
+        let showsShortcutDock = (defaults.object(forKey: PreferenceKey.showsShortcutDock) as? Bool) ?? true
         self.analyticsEnabled = analyticsEnabled
+        self.showsShortcutDock = showsShortcutDock
         self.analytics = AnalyticsService(isEnabled: analyticsEnabled)
         self.holdToTalkBinding = initialHoldBinding
         self.tapToStartStopBinding = initialTapBinding
@@ -594,6 +598,13 @@ final class AppModel: ObservableObject {
         analyticsEnabled = isEnabled
         defaults.set(isEnabled, forKey: PreferenceKey.analyticsEnabled)
         analytics.setEnabled(isEnabled)
+    }
+
+    func setShowsShortcutDock(_ isVisible: Bool) {
+        guard showsShortcutDock != isVisible else { return }
+        showsShortcutDock = isVisible
+        defaults.set(isVisible, forKey: PreferenceKey.showsShortcutDock)
+        analytics.track("shortcut_dock_visibility_changed", properties: ["visible": String(isVisible)])
     }
 
     private var currentHotkeyBindings: [HotkeyBinding] {

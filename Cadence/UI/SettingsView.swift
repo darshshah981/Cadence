@@ -317,6 +317,14 @@ struct SettingsView: View {
                 shortcut: tapShortcutBinding,
                 onRecordingChange: appModel.setShortcutRecordingActive
             )
+
+            insetDivider
+
+            SettingsToggleRow(
+                title: "Show shortcut dock",
+                description: "Keep the floating shortcut reminder above the bottom bar on the home screen.",
+                isOn: showsShortcutDockBinding
+            )
         }
     }
 
@@ -421,6 +429,13 @@ struct SettingsView: View {
         Binding(
             get: { appModel.analyticsEnabled },
             set: { appModel.setAnalyticsEnabled($0) }
+        )
+    }
+
+    private var showsShortcutDockBinding: Binding<Bool> {
+        Binding(
+            get: { appModel.showsShortcutDock },
+            set: { appModel.setShowsShortcutDock($0) }
         )
     }
 
