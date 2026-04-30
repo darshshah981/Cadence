@@ -23,7 +23,11 @@ Cadence is designed as a quiet menu bar utility: recent transcripts stay front a
 
 ## Download
 
-Cadence will be distributed through GitHub Releases as a DMG:
+Cadence can be downloaded directly from this repository:
+
+[Download Cadence.dmg](releases/Cadence.dmg)
+
+Cadence will also be distributed through GitHub Releases as a DMG:
 
 [Download the latest Cadence release](https://github.com/darshshah981/Cadence/releases/latest)
 
@@ -40,7 +44,7 @@ Cadence Debug.app
 Cadence Debug.dmg
 ```
 
-Once the Developer ID certificate is available, create the GitHub release DMG with:
+Create the GitHub release DMG with:
 
 ```zsh
 scripts/package_release.sh
