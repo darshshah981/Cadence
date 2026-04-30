@@ -22,6 +22,17 @@ enum FlowTheme {
     static let errorSubtle = Color(dynamicLight: 0xFFF0ED, dark: 0x391B18)
 }
 
+enum FlowMotion {
+    static let control = Animation.spring(response: 0.26, dampingFraction: 0.86, blendDuration: 0.04)
+    static let page = Animation.spring(response: 0.34, dampingFraction: 0.9, blendDuration: 0.04)
+    static let section = Animation.spring(response: 0.3, dampingFraction: 0.88, blendDuration: 0.04)
+    static let quick = Animation.easeOut(duration: 0.16)
+
+    static func enabled(_ animation: Animation, reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : animation
+    }
+}
+
 extension Color {
     init(dynamicLight lightHex: UInt32, dark darkHex: UInt32) {
         self.init(
@@ -74,28 +85,38 @@ struct FlowSectionHeader: View {
 }
 
 struct FlowToggleStyle: ToggleStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         Button {
-            configuration.isOn.toggle()
+            withAnimation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion)) {
+                configuration.isOn.toggle()
+            }
         } label: {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(configuration.isOn ? FlowTheme.accent : FlowTheme.border)
-                .frame(width: 30, height: 18)
-                .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(configuration.isOn ? FlowTheme.accent : FlowTheme.border)
+
+                HStack {
                     Circle()
                         .fill(Color.white)
                         .frame(width: 12, height: 12)
-                        .padding(3)
+                        .offset(x: configuration.isOn ? 12 : 0)
+                    Spacer(minLength: 0)
                 }
-                .animation(.easeOut(duration: 0.15), value: configuration.isOn)
+                .padding(3)
+            }
+            .frame(width: 30, height: 18)
         }
         .buttonStyle(.plain)
+        .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: configuration.isOn)
     }
 }
 
 struct MenuContentView: View {
     @ObservedObject var appModel: AppModel
     @State private var expandedTranscriptIDs = Set<UUID>()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -110,6 +131,7 @@ struct MenuContentView: View {
                 StatusPillView(model: statusModel)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 10)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             contentArea
@@ -124,6 +146,7 @@ struct MenuContentView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 2)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
             MenuTabBar(selection: $appModel.menuScreen)
@@ -132,6 +155,9 @@ struct MenuContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(FlowTheme.background)
+        .animation(FlowMotion.enabled(FlowMotion.quick, reduceMotion: reduceMotion), value: statusModel?.text)
+        .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: appModel.showsShortcutDock)
+        .animation(FlowMotion.enabled(FlowMotion.page, reduceMotion: reduceMotion), value: appModel.menuScreen)
         .task {
             await appModel.refreshPermissions()
         }
@@ -149,25 +175,47 @@ struct MenuContentView: View {
     private var contentArea: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
-                switch appModel.menuScreen {
-                case .home:
-                    HomeDashboardView(
-                        appModel: appModel,
-                        transcriptHistory: appModel.transcriptHistory,
-                        copiedTranscriptID: appModel.copiedTranscriptID,
-                        shortcutHint: primaryShortcutHint,
-                        expandedTranscriptIDs: $expandedTranscriptIDs,
-                        onCopy: appModel.copyTranscript,
-                        onOpenPermissionsWizard: appModel.openPermissionsWizard,
-                        onOpenSettings: appModel.showSettingsScreen
-                    )
-                case .settings:
-                    SettingsView(appModel: appModel)
-                }
+                currentScreenView
+                    .id(appModel.menuScreen)
+                    .transition(reduceMotion ? .opacity : screenTransition)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 6)
             .padding(.top, 0)
+        }
+    }
+
+    @ViewBuilder
+    private var currentScreenView: some View {
+        switch appModel.menuScreen {
+        case .home:
+            HomeDashboardView(
+                appModel: appModel,
+                transcriptHistory: appModel.transcriptHistory,
+                copiedTranscriptID: appModel.copiedTranscriptID,
+                shortcutHint: primaryShortcutHint,
+                expandedTranscriptIDs: $expandedTranscriptIDs,
+                onCopy: appModel.copyTranscript,
+                onOpenPermissionsWizard: appModel.openPermissionsWizard,
+                onOpenSettings: appModel.showSettingsScreen
+            )
+        case .settings:
+            SettingsView(appModel: appModel)
+        }
+    }
+
+    private var screenTransition: AnyTransition {
+        switch appModel.menuScreen {
+        case .home:
+            return .asymmetric(
+                insertion: .move(edge: .leading).combined(with: .opacity),
+                removal: .move(edge: .trailing).combined(with: .opacity)
+            )
+        case .settings:
+            return .asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            )
         }
     }
 
@@ -377,6 +425,7 @@ private struct TranscriptListView: View {
     @Binding var expandedTranscriptIDs: Set<UUID>
     let onCopy: (TranscriptHistoryItem) -> Void
     let onOpenSettings: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if transcriptHistory.isEmpty {
@@ -394,10 +443,12 @@ private struct TranscriptListView: View {
                         isExpanded: expandedTranscriptIDs.contains(item.id),
                         isCopied: copiedTranscriptID == item.id,
                         onToggleExpanded: {
-                            if expandedTranscriptIDs.contains(item.id) {
-                                expandedTranscriptIDs.remove(item.id)
-                            } else {
-                                expandedTranscriptIDs.insert(item.id)
+                            withAnimation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion)) {
+                                if expandedTranscriptIDs.contains(item.id) {
+                                    expandedTranscriptIDs.remove(item.id)
+                                } else {
+                                    expandedTranscriptIDs.insert(item.id)
+                                }
                             }
                         },
                         onCopy: {
@@ -731,6 +782,7 @@ private struct TranscriptCardView: View {
     let isCopied: Bool
     let onToggleExpanded: () -> Void
     let onCopy: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -754,6 +806,7 @@ private struct TranscriptCardView: View {
                 Text(isExpanded ? "\(item.text.count) characters • \(wordCount) words" : item.createdAt.formatted(.dateTime.hour().minute()))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(FlowTheme.textTertiary)
+                    .contentTransition(.opacity)
             }
 
             Button(action: onCopy) {
@@ -761,6 +814,7 @@ private struct TranscriptCardView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(isCopied ? FlowTheme.accent : FlowTheme.textSecondary)
                     .frame(width: 26, height: 26)
+                    .scaleEffect(isCopied ? 1.08 : 1)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -769,6 +823,8 @@ private struct TranscriptCardView: View {
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+        .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: isExpanded)
+        .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: isCopied)
     }
 
     private var wordCount: Int {
@@ -778,23 +834,27 @@ private struct TranscriptCardView: View {
 
 private struct MenuTabBar: View {
     @Binding var selection: MenuScreen
+    @Namespace private var selectionNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 6) {
             MenuTabButton(
                 title: "Transcripts",
                 symbolName: "text.bubble",
-                isSelected: selection == .home
+                isSelected: selection == .home,
+                namespace: selectionNamespace
             ) {
-                selection = .home
+                select(.home)
             }
 
             MenuTabButton(
                 title: "Settings",
                 symbolName: "slider.horizontal.3",
-                isSelected: selection == .settings
+                isSelected: selection == .settings,
+                namespace: selectionNamespace
             ) {
-                selection = .settings
+                select(.settings)
             }
         }
         .padding(4)
@@ -803,6 +863,14 @@ private struct MenuTabBar: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(FlowTheme.border, lineWidth: 1)
         )
+        .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: selection)
+    }
+
+    private func select(_ screen: MenuScreen) {
+        guard selection != screen else { return }
+        withAnimation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion)) {
+            selection = screen
+        }
     }
 }
 
@@ -810,6 +878,7 @@ private struct MenuTabButton: View {
     let title: String
     let symbolName: String
     let isSelected: Bool
+    let namespace: Namespace.ID
     let action: () -> Void
 
     var body: some View {
@@ -823,14 +892,18 @@ private struct MenuTabButton: View {
             .foregroundStyle(isSelected ? FlowTheme.textPrimary : FlowTheme.textSecondary)
             .frame(maxWidth: .infinity)
             .frame(height: 30)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? FlowTheme.elevated : Color.clear)
-            )
-            .overlay(
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(FlowTheme.elevated)
+                        .matchedGeometryEffect(id: "selected-tab", in: namespace)
+                }
+            }
+            .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(isSelected ? FlowTheme.border : Color.clear, lineWidth: 1)
-            )
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
     }

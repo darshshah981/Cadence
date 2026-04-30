@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var appModel: AppModel
     @State private var isAdvancedExpanded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -11,6 +12,8 @@ struct SettingsView: View {
             advancedSection
             versionFooter
         }
+        .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: isAdvancedExpanded)
+        .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: appModel.dictationQualityPreset)
     }
 
     private var generalSection: some View {
@@ -73,7 +76,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             FlowSectionHeader(title: "Advanced")
             FlowSectionCard {
-                DisclosureGroup(isExpanded: $isAdvancedExpanded) {
+                DisclosureGroup(isExpanded: advancedExpandedBinding) {
                     VStack(alignment: .leading, spacing: 0) {
                         insetDivider
                         advancedModelControls
@@ -87,6 +90,7 @@ struct SettingsView: View {
                         privacyControls
                     }
                     .padding(.top, 10)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Advanced settings")
@@ -452,6 +456,17 @@ struct SettingsView: View {
             set: { appModel.setTapToStartStopEnabled($0) }
         )
     }
+
+    private var advancedExpandedBinding: Binding<Bool> {
+        Binding(
+            get: { isAdvancedExpanded },
+            set: { newValue in
+                withAnimation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion)) {
+                    isAdvancedExpanded = newValue
+                }
+            }
+        )
+    }
 }
 
 private struct ModelReadinessInlineView: View {
@@ -584,33 +599,10 @@ private struct TriggerModeSegmentedControl: View {
     @Binding var selection: DictationTriggerMode
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(DictationTriggerMode.allCases) { mode in
-                Button {
-                    selection = mode
-                } label: {
-                    Text(mode.displayName.replacingOccurrences(of: " To ", with: " to "))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(selection == mode ? FlowTheme.textPrimary : FlowTheme.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 28)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(selection == mode ? FlowTheme.elevated : Color.clear)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(selection == mode ? FlowTheme.borderStrong : Color.clear, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(4)
-        .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(FlowTheme.border, lineWidth: 1)
+        FlowSegmentedControl(
+            options: Array(DictationTriggerMode.allCases),
+            selection: $selection,
+            title: { $0.displayName.replacingOccurrences(of: " To ", with: " to ") }
         )
     }
 }
@@ -619,33 +611,10 @@ private struct QualityPresetSegmentedControl: View {
     @Binding var selection: DictationQualityPreset
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(DictationQualityPreset.allCases) { preset in
-                Button {
-                    selection = preset
-                } label: {
-                    Text(preset.displayName)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(selection == preset ? FlowTheme.textPrimary : FlowTheme.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 28)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(selection == preset ? FlowTheme.elevated : Color.clear)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(selection == preset ? FlowTheme.borderStrong : Color.clear, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(4)
-        .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(FlowTheme.border, lineWidth: 1)
+        FlowSegmentedControl(
+            options: Array(DictationQualityPreset.allCases),
+            selection: $selection,
+            title: \.displayName
         )
     }
 }
@@ -654,22 +623,26 @@ private struct FillerWordSegmentedControl: View {
     @Binding var selection: FillerWordPolicy
 
     var body: some View {
+        FlowSegmentedControl(
+            options: Array(FillerWordPolicy.allCases),
+            selection: $selection,
+            title: \.displayName
+        )
+    }
+}
+
+private struct FlowSegmentedControl<Option: Identifiable & Equatable>: View {
+    let options: [Option]
+    @Binding var selection: Option
+    let title: (Option) -> String
+
+    @Namespace private var selectionNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
         HStack(spacing: 4) {
-            ForEach(FillerWordPolicy.allCases) { policy in
-                Button {
-                    selection = policy
-                } label: {
-                    Text(policy.displayName)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(selection == policy ? FlowTheme.textPrimary : FlowTheme.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 28)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(selection == policy ? FlowTheme.elevated : Color.clear)
-                        )
-                }
-                .buttonStyle(.plain)
+            ForEach(options) { option in
+                segmentButton(for: option)
             }
         }
         .padding(4)
@@ -678,6 +651,37 @@ private struct FillerWordSegmentedControl: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(FlowTheme.border, lineWidth: 1)
         )
+        .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: selection)
+    }
+
+    private func segmentButton(for option: Option) -> some View {
+        let isSelected = selection == option
+
+        return Button {
+            guard selection != option else { return }
+            withAnimation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion)) {
+                selection = option
+            }
+        } label: {
+            Text(title(option))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isSelected ? FlowTheme.textPrimary : FlowTheme.textSecondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(FlowTheme.elevated)
+                            .matchedGeometryEffect(id: "selected-segment", in: selectionNamespace)
+                    }
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(isSelected ? FlowTheme.borderStrong : Color.clear, lineWidth: 1)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -770,9 +774,14 @@ private struct ModelOptionRow: View {
     let model: WhisperModelOption
     let isSelected: Bool
     let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            withAnimation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion)) {
+                action()
+            }
+        } label: {
             HStack(spacing: 10) {
                 Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
                     .font(.system(size: 13))
@@ -798,6 +807,7 @@ private struct ModelOptionRow: View {
             )
         }
         .buttonStyle(.plain)
+        .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: isSelected)
     }
 }
 
@@ -805,33 +815,10 @@ private struct DecodingSegmentedControl: View {
     @Binding var selection: WhisperDecodingMode
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(WhisperDecodingMode.allCases) { mode in
-                Button {
-                    selection = mode
-                } label: {
-                    Text(mode.productLabel)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(selection == mode ? FlowTheme.textPrimary : FlowTheme.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 28)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(selection == mode ? FlowTheme.elevated : Color.clear)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(selection == mode ? FlowTheme.borderStrong : Color.clear, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(4)
-        .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(FlowTheme.border, lineWidth: 1)
+        FlowSegmentedControl(
+            options: Array(WhisperDecodingMode.allCases),
+            selection: $selection,
+            title: \.productLabel
         )
     }
 }

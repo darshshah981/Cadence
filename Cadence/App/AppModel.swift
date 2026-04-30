@@ -9,7 +9,7 @@ private let preferencesLogger = Logger(
     category: "Preferences"
 )
 
-enum MenuScreen {
+enum MenuScreen: Equatable {
     case home
     case settings
 }
