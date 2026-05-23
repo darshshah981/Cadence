@@ -14,7 +14,7 @@ struct CadenceTests {
         analytics.track("sample", properties: ["detail": "hello\nworld"])
 
         #expect(sink.events.map(\.name) == ["analytics_consent_updated", "sample"])
-        #expect(sink.events.last?.properties["detail"] == "hello world")
+        #expect(sink.events.last?.properties["detail"] == .string("hello world"))
     }
 
     @Test
@@ -59,6 +59,33 @@ struct CadenceTests {
 
         #expect(configuration.isModifierOnly)
         #expect(configuration.displayName == "Control + Option")
+    }
+
+    @Test
+    func sidedModifierShortcutKeepsLeftAndRightIdentity() {
+        let configuration = HotkeyConfiguration.from(
+            keyCode: 49,
+            modifiers: [.option, .shift],
+            characters: " ",
+            sidedModifierKeyCodes: [58, 60]
+        )
+
+        #expect(configuration.requiresSpecificModifierSides)
+        #expect(configuration.displayName == "Left Option + Right Shift + Space")
+        #expect(configuration.symbolDisplayName == "L⌥ R⇧ SPACE")
+    }
+
+    @Test
+    func sidedModifierShortcutOnlyMatchesCapturedSides() {
+        let configuration = HotkeyConfiguration.from(
+            keyCode: 49,
+            modifiers: [.option, .shift],
+            characters: " ",
+            sidedModifierKeyCodes: [58, 60]
+        )
+
+        #expect(configuration.matches(keyCode: 49, modifiers: [.option, .shift], activeModifierKeyCodes: [58, 60]))
+        #expect(!configuration.matches(keyCode: 49, modifiers: [.option, .shift], activeModifierKeyCodes: [58, 56]))
     }
 
     @Test

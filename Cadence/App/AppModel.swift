@@ -43,10 +43,12 @@ final class AppModel: ObservableObject {
         static let holdKeyCode = "FlowState.holdKeyCode"
         static let holdModifiers = "FlowState.holdModifiers"
         static let holdKeyDisplay = "FlowState.holdKeyDisplay"
+        static let holdSidedModifierKeyCodes = "Cadence.holdSidedModifierKeyCodes"
         static let tapEnabled = "FlowState.tapEnabled"
         static let tapKeyCode = "FlowState.tapKeyCode"
         static let tapModifiers = "FlowState.tapModifiers"
         static let tapKeyDisplay = "FlowState.tapKeyDisplay"
+        static let tapSidedModifierKeyCodes = "Cadence.tapSidedModifierKeyCodes"
         static let transcriptHistory = "FlowState.transcriptHistory"
         static let showsShortcutDock = "Cadence.showsShortcutDock"
         static let firstSuccessfulDictationTracked = "Cadence.firstSuccessfulDictationTracked"
@@ -860,6 +862,10 @@ final class AppModel: ObservableObject {
         defaults.set(binding.shortcut.keyCode, forKey: keys.keyCode)
         defaults.set(binding.shortcut.carbonModifiers, forKey: keys.modifiers)
         defaults.set(binding.shortcut.keyDisplay, forKey: keys.keyDisplay)
+        defaults.set(
+            HotkeyConfiguration.encodedSidedModifierKeyCodes(binding.shortcut.sidedModifierKeyCodes),
+            forKey: keys.sidedModifierKeyCodes
+        )
     }
 
     private func persistTranscriptHistory() {
@@ -962,6 +968,10 @@ final class AppModel: ObservableObject {
             binding.shortcut.keyDisplay = keyDisplay
         }
 
+        binding.shortcut.sidedModifierKeyCodes = HotkeyConfiguration.sidedModifierKeyCodes(
+            from: defaults.string(forKey: keys.sidedModifierKeyCodes)
+        )
+
         return binding
     }
 
@@ -1063,21 +1073,25 @@ final class AppModel: ObservableObject {
         return raw
     }
 
-    private static func preferenceKeys(for action: HotkeyAction) -> (enabled: String, keyCode: String, modifiers: String, keyDisplay: String) {
+    private static func preferenceKeys(
+        for action: HotkeyAction
+    ) -> (enabled: String, keyCode: String, modifiers: String, keyDisplay: String, sidedModifierKeyCodes: String) {
         switch action {
         case .holdToTalk:
             return (
                 enabled: PreferenceKey.holdEnabled,
                 keyCode: PreferenceKey.holdKeyCode,
                 modifiers: PreferenceKey.holdModifiers,
-                keyDisplay: PreferenceKey.holdKeyDisplay
+                keyDisplay: PreferenceKey.holdKeyDisplay,
+                sidedModifierKeyCodes: PreferenceKey.holdSidedModifierKeyCodes
             )
         case .tapToStartStop:
             return (
                 enabled: PreferenceKey.tapEnabled,
                 keyCode: PreferenceKey.tapKeyCode,
                 modifiers: PreferenceKey.tapModifiers,
-                keyDisplay: PreferenceKey.tapKeyDisplay
+                keyDisplay: PreferenceKey.tapKeyDisplay,
+                sidedModifierKeyCodes: PreferenceKey.tapSidedModifierKeyCodes
             )
         }
     }

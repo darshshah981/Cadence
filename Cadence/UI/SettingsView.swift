@@ -900,6 +900,7 @@ final class ShortcutRecorderContainerView: NSView {
     private let recorderButton = NSButton(title: "", target: nil, action: nil)
     private var pendingModifierOnlyShortcut = false
     private var bestModifierOnlyShortcut: HotkeyConfiguration?
+    private var activeModifierKeyCodes = Set<UInt16>()
     private var isRecording = false {
         didSet {
             recorderButton.contentTintColor = isRecording ? .systemOrange : .labelColor
@@ -908,6 +909,7 @@ final class ShortcutRecorderContainerView: NSView {
             if !isRecording {
                 pendingModifierOnlyShortcut = false
                 bestModifierOnlyShortcut = nil
+                activeModifierKeyCodes.removeAll()
             }
             needsLayout = true
         }
@@ -977,10 +979,15 @@ final class ShortcutRecorderContainerView: NSView {
         }
 
         let modifierFlags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let sidedModifierKeyCodes = HotkeyConfiguration.activeSidedModifierKeyCodes(
+            from: activeModifierKeyCodes,
+            modifiers: modifierFlags
+        )
         let newShortcut = HotkeyConfiguration.from(
             keyCode: event.keyCode,
             modifiers: modifierFlags,
-            characters: event.charactersIgnoringModifiers
+            characters: event.charactersIgnoringModifiers,
+            sidedModifierKeyCodes: sidedModifierKeyCodes
         )
         shortcut = newShortcut
         onShortcutChange?(newShortcut)
@@ -995,7 +1002,15 @@ final class ShortcutRecorderContainerView: NSView {
         }
 
         let modifierFlags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-        let preview = HotkeyConfiguration.symbolModifierDisplayName(for: HotkeyConfiguration.carbonModifiers(for: modifierFlags))
+        activeModifierKeyCodes = HotkeyConfiguration.updatedActiveModifierKeyCodes(activeModifierKeyCodes, with: event)
+        let sidedModifierKeyCodes = HotkeyConfiguration.activeSidedModifierKeyCodes(
+            from: activeModifierKeyCodes,
+            modifiers: modifierFlags
+        )
+        let preview = HotkeyConfiguration.symbolModifierDisplayName(
+            for: sidedModifierKeyCodes,
+            fallback: HotkeyConfiguration.carbonModifiers(for: modifierFlags)
+        )
         recorderButton.title = preview.isEmpty ? "Press your shortcut keys…" : "\(preview) …"
 
         if modifierFlags.isEmpty {
@@ -1010,7 +1025,10 @@ final class ShortcutRecorderContainerView: NSView {
         }
 
         if Self.isModifierOnlyKey(event.keyCode) {
-            let candidate = HotkeyConfiguration.modifierOnly(modifiers: modifierFlags)
+            let candidate = HotkeyConfiguration.modifierOnly(
+                modifiers: modifierFlags,
+                sidedModifierKeyCodes: sidedModifierKeyCodes
+            )
             if shouldPromoteModifierOnlyShortcut(candidate) {
                 bestModifierOnlyShortcut = candidate
                 shortcut = candidate

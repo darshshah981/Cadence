@@ -9,6 +9,10 @@ final actor MockTranscriptionEngine: TranscriptionEngine {
         self.configuration = configuration
     }
 
+    func isPrepared() async -> Bool {
+        true
+    }
+
     func prepare() async throws {}
 
     func startSession() async throws {

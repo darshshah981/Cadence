@@ -9,6 +9,8 @@ struct HUDView: View {
             switch model.state.visualState {
             case .recording(let triggerMode, let showsHint):
                 recordingPill(triggerMode: triggerMode, showsHint: showsHint)
+            case .preparingModel:
+                statusPill(icon: .spinner, text: "Setting up speech model…")
             case .transcribing:
                 statusPill(icon: .spinner, text: "Transcribing…")
             case .error(let message):
@@ -27,7 +29,7 @@ struct HUDView: View {
             }
 
             WaveformCanvasView(levels: model.displayBars)
-                .frame(width: 96, height: 20)
+                .frame(width: 112, height: 28)
 
             if triggerMode == .holdToTalk, showsHint {
                 Text("Release to stop")
@@ -97,9 +99,9 @@ struct HUDView: View {
     private func pillWidth(triggerMode: DictationTriggerMode, showsHint: Bool) -> CGFloat {
         switch triggerMode {
         case .tapToStartStop:
-            return 188
+            return 204
         case .holdToTalk:
-            return showsHint ? 228 : 140
+            return showsHint ? 244 : 156
         }
     }
 
@@ -161,19 +163,20 @@ private struct WaveformCanvasView: View {
 
             let barWidth: CGFloat = 3
             let barGap: CGFloat = 3
-            let maxHeight: CGFloat = 18
-            let minHeight: CGFloat = 2
+            let maxHeight = max(22, size.height - 2)
+            let minHeight: CGFloat = 4
             let totalWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barGap
             let startX = max(0, (size.width - totalWidth) / 2)
 
             for (index, level) in levels.enumerated() {
                 let clamped = max(0, min(1, level))
-                let barHeight = minHeight + CGFloat(clamped) * (maxHeight - minHeight)
+                let boosted = sqrt(clamped)
+                let barHeight = minHeight + CGFloat(boosted) * (maxHeight - minHeight)
                 let x = startX + CGFloat(index) * (barWidth + barGap)
                 let y = (size.height - barHeight) / 2
                 let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
                 let path = Path(roundedRect: rect, cornerRadius: 2)
-                context.fill(path, with: .color(FlowTheme.accent.opacity(0.82)))
+                context.fill(path, with: .color(FlowTheme.accent.opacity(0.96)))
             }
         }
     }

@@ -402,6 +402,7 @@ struct VocabularyPostProcessor {
 
 enum HUDVisualState: Equatable {
     case recording(triggerMode: DictationTriggerMode, showsHint: Bool)
+    case preparingModel
     case transcribing
     case error(message: String)
 }
@@ -489,9 +490,10 @@ struct HotkeyConfiguration: Equatable, Sendable {
     var keyCode: UInt32
     var carbonModifiers: UInt32
     var keyDisplay: String
+    var sidedModifierKeyCodes: Set<UInt16> = []
 
     var displayName: String {
-        let modifiers = Self.modifierDisplayName(for: carbonModifiers)
+        let modifiers = modifierDisplayName
         guard !isModifierOnly else {
             return modifiers.isEmpty ? "Shortcut" : modifiers
         }
@@ -504,12 +506,38 @@ struct HotkeyConfiguration: Equatable, Sendable {
     }
 
     var symbolParts: [String] {
+        var parts = modifierSymbolParts
+        if !isModifierOnly && !keyDisplay.isEmpty { parts.append(Self.symbolKeyName(for: keyDisplay)) }
+        return parts
+    }
+
+    var requiresSpecificModifierSides: Bool {
+        !sidedModifierKeyCodes.isEmpty
+    }
+
+    private var modifierDisplayName: String {
+        if !sidedModifierKeyCodes.isEmpty {
+            return sidedModifierKeyCodes
+                .sorted { Self.modifierSortOrder(for: $0) < Self.modifierSortOrder(for: $1) }
+                .map(Self.sidedModifierDisplayName)
+                .joined(separator: " + ")
+        }
+
+        return Self.modifierDisplayName(for: carbonModifiers)
+    }
+
+    private var modifierSymbolParts: [String] {
+        if !sidedModifierKeyCodes.isEmpty {
+            return sidedModifierKeyCodes
+                .sorted { Self.modifierSortOrder(for: $0) < Self.modifierSortOrder(for: $1) }
+                .map(Self.sidedModifierSymbolName)
+        }
+
         var parts: [String] = []
         if carbonModifiers & UInt32(controlKey) != 0 { parts.append("⌃") }
         if carbonModifiers & UInt32(optionKey) != 0 { parts.append("⌥") }
         if carbonModifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
         if carbonModifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
-        if !isModifierOnly && !keyDisplay.isEmpty { parts.append(Self.symbolKeyName(for: keyDisplay)) }
         return parts
     }
 
@@ -526,7 +554,27 @@ struct HotkeyConfiguration: Equatable, Sendable {
     }
 
     func conflicts(with other: HotkeyConfiguration) -> Bool {
-        keyCode == other.keyCode && carbonModifiers == other.carbonModifiers
+        keyCode == other.keyCode &&
+            carbonModifiers == other.carbonModifiers &&
+            sidedModifierKeyCodes == other.sidedModifierKeyCodes
+    }
+
+    func matches(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, activeModifierKeyCodes: Set<UInt16>) -> Bool {
+        guard !isModifierOnly, self.keyCode == UInt32(keyCode) else { return false }
+        guard Self.carbonModifiers(for: modifiers) == carbonModifiers else { return false }
+        guard !requiresSpecificModifierSides else {
+            return sidedModifierKeyCodes.isSubset(of: activeModifierKeyCodes)
+        }
+        return true
+    }
+
+    func matches(modifiers: NSEvent.ModifierFlags, activeModifierKeyCodes: Set<UInt16>) -> Bool {
+        let carbon = Self.carbonModifiers(for: modifiers)
+        guard isModifierOnly, carbon == carbonModifiers, carbon != 0 else { return false }
+        guard !requiresSpecificModifierSides else {
+            return sidedModifierKeyCodes.isSubset(of: activeModifierKeyCodes)
+        }
+        return true
     }
 
     static let defaultHoldToTalk = HotkeyConfiguration(
@@ -542,18 +590,41 @@ struct HotkeyConfiguration: Equatable, Sendable {
     )
 
     static func from(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String?) -> HotkeyConfiguration {
+        from(
+            keyCode: keyCode,
+            modifiers: modifiers,
+            characters: characters,
+            sidedModifierKeyCodes: []
+        )
+    }
+
+    static func from(
+        keyCode: UInt16,
+        modifiers: NSEvent.ModifierFlags,
+        characters: String?,
+        sidedModifierKeyCodes: Set<UInt16>
+    ) -> HotkeyConfiguration {
         HotkeyConfiguration(
             keyCode: UInt32(keyCode),
             carbonModifiers: carbonModifiers(for: modifiers),
-            keyDisplay: keyDisplay(for: keyCode, characters: characters)
+            keyDisplay: keyDisplay(for: keyCode, characters: characters),
+            sidedModifierKeyCodes: sanitizedSidedModifierKeyCodes(sidedModifierKeyCodes, modifiers: modifiers)
         )
     }
 
     static func modifierOnly(modifiers: NSEvent.ModifierFlags) -> HotkeyConfiguration {
+        modifierOnly(modifiers: modifiers, sidedModifierKeyCodes: [])
+    }
+
+    static func modifierOnly(
+        modifiers: NSEvent.ModifierFlags,
+        sidedModifierKeyCodes: Set<UInt16>
+    ) -> HotkeyConfiguration {
         HotkeyConfiguration(
             keyCode: modifierOnlyKeyCode,
             carbonModifiers: carbonModifiers(for: modifiers),
-            keyDisplay: ""
+            keyDisplay: "",
+            sidedModifierKeyCodes: sanitizedSidedModifierKeyCodes(sidedModifierKeyCodes, modifiers: modifiers)
         )
     }
 
@@ -582,6 +653,153 @@ struct HotkeyConfiguration: Equatable, Sendable {
         if carbonModifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
         if carbonModifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
         return parts.joined(separator: " ")
+    }
+
+    static func symbolModifierDisplayName(for sidedModifierKeyCodes: Set<UInt16>, fallback carbonModifiers: UInt32) -> String {
+        guard !sidedModifierKeyCodes.isEmpty else {
+            return symbolModifierDisplayName(for: carbonModifiers)
+        }
+
+        return sidedModifierKeyCodes
+            .sorted { modifierSortOrder(for: $0) < modifierSortOrder(for: $1) }
+            .map(sidedModifierSymbolName)
+            .joined(separator: " ")
+    }
+
+    static func updatedActiveModifierKeyCodes(
+        _ activeModifierKeyCodes: Set<UInt16>,
+        with event: NSEvent
+    ) -> Set<UInt16> {
+        guard isSidedModifierKey(event.keyCode) else { return activeModifierKeyCodes }
+
+        var updated = activeModifierKeyCodes
+        let flag = modifierFlag(forSidedKeyCode: event.keyCode)
+        if event.modifierFlags.intersection([.command, .option, .control, .shift]).contains(flag) {
+            updated.insert(event.keyCode)
+        } else {
+            updated.remove(event.keyCode)
+        }
+        return updated
+    }
+
+    static func activeSidedModifierKeyCodes(
+        from activeModifierKeyCodes: Set<UInt16>,
+        modifiers: NSEvent.ModifierFlags
+    ) -> Set<UInt16> {
+        sanitizedSidedModifierKeyCodes(activeModifierKeyCodes, modifiers: modifiers)
+    }
+
+    static func sidedModifierKeyCodes(from encoded: String?) -> Set<UInt16> {
+        guard let encoded, !encoded.isEmpty else { return [] }
+        return Set(encoded.split(separator: ",").compactMap { UInt16($0) })
+    }
+
+    static func encodedSidedModifierKeyCodes(_ keyCodes: Set<UInt16>) -> String {
+        keyCodes.sorted().map(String.init).joined(separator: ",")
+    }
+
+    private static func sanitizedSidedModifierKeyCodes(
+        _ keyCodes: Set<UInt16>,
+        modifiers: NSEvent.ModifierFlags
+    ) -> Set<UInt16> {
+        let flags = modifiers.intersection([.command, .option, .control, .shift])
+        return Set(keyCodes.filter { keyCode in
+            guard isSidedModifierKey(keyCode) else { return false }
+            return flags.contains(modifierFlag(forSidedKeyCode: keyCode))
+        })
+    }
+
+    private static func isSidedModifierKey(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case 54, 55, 56, 58, 59, 60, 61, 62:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func modifierFlag(forSidedKeyCode keyCode: UInt16) -> NSEvent.ModifierFlags {
+        switch keyCode {
+        case 54, 55:
+            return .command
+        case 56, 60:
+            return .shift
+        case 58, 61:
+            return .option
+        case 59, 62:
+            return .control
+        default:
+            return []
+        }
+    }
+
+    private static func sidedModifierDisplayName(for keyCode: UInt16) -> String {
+        switch keyCode {
+        case 54:
+            return "Right Command"
+        case 55:
+            return "Left Command"
+        case 56:
+            return "Left Shift"
+        case 58:
+            return "Left Option"
+        case 59:
+            return "Left Control"
+        case 60:
+            return "Right Shift"
+        case 61:
+            return "Right Option"
+        case 62:
+            return "Right Control"
+        default:
+            return "Modifier"
+        }
+    }
+
+    private static func sidedModifierSymbolName(for keyCode: UInt16) -> String {
+        switch keyCode {
+        case 54:
+            return "R⌘"
+        case 55:
+            return "L⌘"
+        case 56:
+            return "L⇧"
+        case 58:
+            return "L⌥"
+        case 59:
+            return "L⌃"
+        case 60:
+            return "R⇧"
+        case 61:
+            return "R⌥"
+        case 62:
+            return "R⌃"
+        default:
+            return "Mod"
+        }
+    }
+
+    private static func modifierSortOrder(for keyCode: UInt16) -> Int {
+        switch keyCode {
+        case 59:
+            return 10
+        case 62:
+            return 11
+        case 58:
+            return 20
+        case 61:
+            return 21
+        case 56:
+            return 30
+        case 60:
+            return 31
+        case 55:
+            return 40
+        case 54:
+            return 41
+        default:
+            return 100 + Int(keyCode)
+        }
     }
 
     private static func keyDisplay(for keyCode: UInt16, characters: String?) -> String {

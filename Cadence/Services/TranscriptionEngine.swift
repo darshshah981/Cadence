@@ -2,6 +2,7 @@ import Foundation
 
 protocol TranscriptionEngine: AnyObject {
     func updateConfiguration(_ configuration: TranscriptionConfiguration) async throws
+    func isPrepared() async -> Bool
     func prepare() async throws
     func startSession() async throws
     func appendAudio(_ chunk: AudioChunk) async

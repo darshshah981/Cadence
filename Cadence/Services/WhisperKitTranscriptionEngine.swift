@@ -34,6 +34,10 @@ final actor WhisperKitTranscriptionEngine: TranscriptionEngine {
         self.configuration = configuration
     }
 
+    func isPrepared() async -> Bool {
+        pipeline != nil && loadedModelName == Self.modelName(for: configuration.model)
+    }
+
     func prepare() async throws {
         let modelName = Self.modelName(for: configuration.model)
         if pipeline != nil, loadedModelName == modelName {

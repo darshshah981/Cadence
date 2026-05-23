@@ -322,13 +322,23 @@ final class DictationCoordinator {
                 correctedText = applyPostProcessing(to: previewText)
                 await transcriptionEngine.cancelSession()
             } else {
-                publishHUD(
-                    visualState: .transcribing,
-                    subtitle: "",
-                    level: 0.35,
-                    waveformLevels: latestWaveformLevels,
-                    showsSubtitle: false
-                )
+                if !(await transcriptionEngine.isPrepared()) {
+                    publishHUD(
+                        visualState: .preparingModel,
+                        subtitle: "The first setup can take a moment.",
+                        level: 0.35,
+                        waveformLevels: latestWaveformLevels,
+                        showsSubtitle: true
+                    )
+                } else {
+                    publishHUD(
+                        visualState: .transcribing,
+                        subtitle: "",
+                        level: 0.35,
+                        waveformLevels: latestWaveformLevels,
+                        showsSubtitle: false
+                    )
+                }
                 let engineStartedAt = Date()
                 let transcript = try await transcriptionEngine.finishSession(metrics: metrics)
                 dictationLogger.info(
@@ -734,8 +744,8 @@ final class DictationCoordinator {
             for sample in samples[start..<end] {
                 sum += abs(sample)
             }
-            let average = sum / Float(end - start)
-            return min(1, Double(average * 10))
+            let average = Double(sum / Float(end - start))
+            return min(1, sqrt(average) * 7)
         }
     }
 }
