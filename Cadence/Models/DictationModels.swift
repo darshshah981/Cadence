@@ -256,6 +256,7 @@ struct AudioCaptureSessionMetrics: Sendable {
     let sampleRate: Double
     let speechDetected: Bool
     let speechFrameCount: Int
+    let peakLevel: Double
 }
 
 struct FinalTranscript: Sendable, Equatable {

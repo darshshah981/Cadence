@@ -306,7 +306,7 @@ final class DictationCoordinator {
             ? Double(metrics.speechFrameCount) / metrics.sampleRate
             : metrics.duration
         dictationLogger.info(
-            "Cadence timing finalize capture duration=\(Self.formatSeconds(metrics.duration), privacy: .public)s speech=\(Self.formatSeconds(speechDuration), privacy: .public)s frames=\(metrics.frameCount, privacy: .public) speechFrames=\(metrics.speechFrameCount, privacy: .public) livePreview=\(self.transcriptionConfiguration.livePreviewEnabled, privacy: .public) cachedPreview=\(!releasePreview.composedText.isEmpty, privacy: .public)"
+            "Cadence timing finalize capture duration=\(Self.formatSeconds(metrics.duration), privacy: .public)s speech=\(Self.formatSeconds(speechDuration), privacy: .public)s frames=\(metrics.frameCount, privacy: .public) speechFrames=\(metrics.speechFrameCount, privacy: .public) peak=\(Self.formatLevel(metrics.peakLevel), privacy: .public) livePreview=\(self.transcriptionConfiguration.livePreviewEnabled, privacy: .public) cachedPreview=\(!releasePreview.composedText.isEmpty, privacy: .public)"
         )
         stopPreviewLoop()
 
@@ -582,6 +582,10 @@ final class DictationCoordinator {
 
     private static func formatSeconds(_ seconds: TimeInterval) -> String {
         String(format: "%.3f", seconds)
+    }
+
+    private static func formatLevel(_ level: Double) -> String {
+        String(format: "%.4f", level)
     }
 
     private static func durationBucket(_ seconds: TimeInterval) -> String {
