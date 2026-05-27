@@ -35,6 +35,7 @@ final class AppModel: ObservableObject {
         static let keepContext = "FlowState.keepContext"
         static let trimSilence = "FlowState.trimSilence"
         static let normalizeAudio = "FlowState.normalizeAudio"
+        static let waveformSensitivity = "Cadence.waveformSensitivity"
         static let livePreviewEnabled = "FlowState.livePreviewEnabled"
         static let tapStopsOnNextKeyPress = "FlowState.tapStopsOnNextKeyPress"
         static let vocabularyText = "FlowState.vocabularyText"
@@ -62,6 +63,11 @@ final class AppModel: ObservableObject {
         static let followUpWindow: TimeInterval = 10
     }
 
+    private enum WaveformSensitivityTuning {
+        static let defaultValue = 1.0
+        static let closedRange = 0.4...1.6
+    }
+
     @Published private(set) var permissions: PermissionsSnapshot
     @Published private(set) var state: DictationSessionState = .idle
     @Published private(set) var hudState = HUDState.idle
@@ -76,6 +82,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var transcriptionConfiguration: TranscriptionConfiguration
     @Published private(set) var analyticsEnabled: Bool
     @Published private(set) var showsShortcutDock: Bool
+    @Published private(set) var waveformSensitivity: Double
     @Published var menuScreen: MenuScreen = .home
 
     @Published private(set) var holdToTalkBinding: HotkeyBinding
@@ -101,8 +108,10 @@ final class AppModel: ObservableObject {
         self.transcriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
         let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
         let showsShortcutDock = (defaults.object(forKey: PreferenceKey.showsShortcutDock) as? Bool) ?? true
+        let waveformSensitivity = Self.loadWaveformSensitivity(defaults: defaults)
         self.analyticsEnabled = analyticsEnabled
         self.showsShortcutDock = showsShortcutDock
+        self.waveformSensitivity = waveformSensitivity
         self.analytics = AnalyticsService(isEnabled: analyticsEnabled)
         self.holdToTalkBinding = initialHoldBinding
         self.tapToStartStopBinding = initialTapBinding
@@ -126,7 +135,8 @@ final class AppModel: ObservableObject {
             transcriptionEngine: transcriptionEngine,
             textInsertionService: textInsertionService,
             hudController: hudController,
-            analytics: analytics
+            analytics: analytics,
+            waveformSensitivity: waveformSensitivity
         )
 
         bindCoordinator()
@@ -418,6 +428,21 @@ final class AppModel: ObservableObject {
     func setNormalizeAudio(_ normalizeAudio: Bool) {
         analytics.track("setting_changed", properties: ["setting": "normalizeAudio", "value": String(normalizeAudio)])
         updateTranscriptionConfiguration { $0.normalizeAudio = normalizeAudio }
+    }
+
+    func setWaveformSensitivity(_ sensitivity: Double) {
+        let sanitizedSensitivity = Self.sanitizedWaveformSensitivity(sensitivity)
+        guard waveformSensitivity != sanitizedSensitivity else { return }
+        waveformSensitivity = sanitizedSensitivity
+        defaults.set(sanitizedSensitivity, forKey: PreferenceKey.waveformSensitivity)
+        coordinator.updateWaveformSensitivity(sanitizedSensitivity)
+        analytics.track(
+            "setting_changed",
+            properties: [
+                "setting": "waveformSensitivity",
+                "value": String(format: "%.1f", sanitizedSensitivity)
+            ]
+        )
     }
 
     func setLivePreviewEnabled(_ livePreviewEnabled: Bool) {
@@ -940,6 +965,20 @@ final class AppModel: ObservableObject {
         }
 
         return configuration
+    }
+
+    private static func loadWaveformSensitivity(defaults: UserDefaults) -> Double {
+        guard defaults.object(forKey: PreferenceKey.waveformSensitivity) != nil else {
+            return WaveformSensitivityTuning.defaultValue
+        }
+        return sanitizedWaveformSensitivity(defaults.double(forKey: PreferenceKey.waveformSensitivity))
+    }
+
+    private static func sanitizedWaveformSensitivity(_ sensitivity: Double) -> Double {
+        min(
+            WaveformSensitivityTuning.closedRange.upperBound,
+            max(WaveformSensitivityTuning.closedRange.lowerBound, sensitivity)
+        )
     }
 
     private static func loadBinding(defaults: UserDefaults, action: HotkeyAction) -> HotkeyBinding {

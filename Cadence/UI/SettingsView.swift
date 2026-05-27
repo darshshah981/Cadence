@@ -168,6 +168,8 @@ struct SettingsView: View {
                     isOn: normalizeAudioBinding
                 )
                 insetDivider
+                WaveformSensitivityRow(value: waveformSensitivityBinding)
+                insetDivider
                 SettingsToggleRow(
                     title: "Keep context",
                     description: "Helps punctuation and continuity during longer dictation.",
@@ -196,6 +198,8 @@ struct SettingsView: View {
                 description: "Brings quiet recordings into a steadier range.",
                 isOn: normalizeAudioBinding
             )
+            insetDivider
+            WaveformSensitivityRow(value: waveformSensitivityBinding)
             insetDivider
             SettingsToggleRow(
                 title: "Keep context",
@@ -391,6 +395,13 @@ struct SettingsView: View {
         Binding(
             get: { appModel.transcriptionConfiguration.normalizeAudio },
             set: { appModel.setNormalizeAudio($0) }
+        )
+    }
+
+    private var waveformSensitivityBinding: Binding<Double> {
+        Binding(
+            get: { appModel.waveformSensitivity },
+            set: { appModel.setWaveformSensitivity($0) }
         )
     }
 
@@ -707,6 +718,41 @@ private struct SettingsToggleRow: View {
             Toggle("", isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(FlowToggleStyle())
+        }
+        .padding(12)
+    }
+}
+
+private struct WaveformSensitivityRow: View {
+    @Binding var value: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                SettingsLabelRow(
+                    title: "Waveform sensitivity",
+                    description: "Controls how strongly mic input animates the HUD bars."
+                )
+
+                Spacer()
+
+                Text("\(Int((value * 100).rounded()))%")
+                    .font(.system(size: 12, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(FlowTheme.textSecondary)
+            }
+
+            HStack(spacing: 10) {
+                Text("Calm")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textTertiary)
+
+                Slider(value: $value, in: 0.4...1.6, step: 0.1)
+
+                Text("Lively")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textTertiary)
+            }
         }
         .padding(12)
     }

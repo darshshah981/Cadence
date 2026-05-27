@@ -61,6 +61,7 @@ final class DictationCoordinator {
     private var latestPreview = PreviewTranscript(confirmedText: "", unconfirmedText: "")
     private var latestAudioLevel = 0.0
     private var latestWaveformLevels = Array(repeating: 0.0, count: 16)
+    private var waveformSensitivity: Double
     private var lastSpeechTimestamp = Date()
     private var lastPreviewTimestamp = Date.distantPast
     private var sessionStartedAt: Date?
@@ -79,7 +80,8 @@ final class DictationCoordinator {
         transcriptionEngine: TranscriptionEngine,
         textInsertionService: TextInsertionServing,
         hudController: HUDWindowController,
-        analytics: AnalyticsService
+        analytics: AnalyticsService,
+        waveformSensitivity: Double = 1.0
     ) {
         self.hotkeyService = hotkeyService
         self.permissionsService = permissionsService
@@ -88,6 +90,7 @@ final class DictationCoordinator {
         self.textInsertionService = textInsertionService
         self.hudController = hudController
         self.analytics = analytics
+        self.waveformSensitivity = Self.sanitizedWaveformSensitivity(waveformSensitivity)
 
         self.hudController.onStop = { [weak self] in
             Task { await self?.stopFromHUD() }
@@ -135,6 +138,10 @@ final class DictationCoordinator {
 
     func setHotkeysPaused(_ paused: Bool) {
         hotkeyService.setPaused(paused)
+    }
+
+    func updateWaveformSensitivity(_ sensitivity: Double) {
+        waveformSensitivity = Self.sanitizedWaveformSensitivity(sensitivity)
     }
 
     private func handleHotkeyPress(_ action: HotkeyAction) async {
@@ -220,7 +227,10 @@ final class DictationCoordinator {
                         guard let self else { return }
                         await transcriptionEngine.appendAudio(chunk)
                         latestAudioLevel = level
-                        latestWaveformLevels = Self.waveformLevels(from: chunk.samples)
+                        latestWaveformLevels = Self.waveformLevels(
+                            from: chunk.samples,
+                            sensitivity: waveformSensitivity
+                        )
                         if level >= PreviewTuning.activeSpeechThreshold {
                             lastSpeechTimestamp = Date()
                         }
@@ -732,12 +742,13 @@ final class DictationCoordinator {
         return raw
     }
 
-    private static func waveformLevels(from samples: [Float]) -> [Double] {
+    private static func waveformLevels(from samples: [Float], sensitivity: Double) -> [Double] {
         let barCount = 16
         guard !samples.isEmpty else {
             return Array(repeating: 0, count: barCount)
         }
 
+        let sanitizedSensitivity = sanitizedWaveformSensitivity(sensitivity)
         let bucketSize = max(1, samples.count / barCount)
         return (0..<barCount).map { index in
             let start = index * bucketSize
@@ -749,7 +760,11 @@ final class DictationCoordinator {
                 sum += abs(sample)
             }
             let average = Double(sum / Float(end - start))
-            return min(1, sqrt(average) * 7)
+            return min(1, sqrt(average) * 7 * sanitizedSensitivity)
         }
+    }
+
+    private static func sanitizedWaveformSensitivity(_ sensitivity: Double) -> Double {
+        min(1.6, max(0.4, sensitivity))
     }
 }
