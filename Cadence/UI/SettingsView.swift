@@ -747,7 +747,7 @@ private struct WaveformSensitivityRow: View {
                     .font(.system(size: 11))
                     .foregroundStyle(FlowTheme.textTertiary)
 
-                Slider(value: $value, in: 0.4...1.6, step: 0.1)
+                Slider(value: $value, in: 0.1...1.6, step: 0.1)
 
                 Text("Lively")
                     .font(.system(size: 11))

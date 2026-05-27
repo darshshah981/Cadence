@@ -65,7 +65,7 @@ final class AppModel: ObservableObject {
 
     private enum WaveformSensitivityTuning {
         static let defaultValue = 1.0
-        static let closedRange = 0.4...1.6
+        static let closedRange = 0.1...1.6
     }
 
     @Published private(set) var permissions: PermissionsSnapshot

@@ -765,6 +765,6 @@ final class DictationCoordinator {
     }
 
     private static func sanitizedWaveformSensitivity(_ sensitivity: Double) -> Double {
-        min(1.6, max(0.4, sensitivity))
+        min(1.6, max(0.1, sensitivity))
     }
 }
