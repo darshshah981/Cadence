@@ -111,10 +111,10 @@ struct MeetingFinalPassChallenge: Identifiable, Equatable, Sendable {
         case materialChange
     }
 
-    var recordingID: UUID
-    var kind: Kind
-    var draftPeek: String?
-    var allowsRevertToDraft: Bool
+    let recordingID: UUID
+    let kind: Kind
+    let draftPeek: String?
+    let allowsRevertToDraft: Bool
 
     var id: UUID { recordingID }
 }
@@ -173,6 +173,16 @@ struct OrphanedMeetingRecording: Identifiable, Equatable, Sendable {
     let fileName: String
 
     var id: UUID { recordingID }
+}
+
+enum OrphanRecordingAcknowledgements {
+    static func load(_ storedIDs: [String]?) -> Set<UUID> {
+        Set(storedIDs?.compactMap(UUID.init(uuidString:)) ?? [])
+    }
+
+    static func reconcile(_ acknowledgedIDs: Set<UUID>, detectedOrphans: [OrphanedMeetingRecording]) -> Set<UUID> {
+        acknowledgedIDs.intersection(detectedOrphans.map(\.id))
+    }
 }
 
 enum MeetingRecordingRecovery {
@@ -450,8 +460,18 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
     }
 
     var finalPassChallenges: [MeetingFinalPassChallenge] {
+        let challengedRecordings = effectiveAudioRecordings.filter { recording in
+            recording.effectiveState == .finalizationFailed ||
+                retainedLiveDraftByRecording?[recording.id.uuidString] != nil
+        }
+        guard !challengedRecordings.isEmpty else { return [] }
+
+        let challengedRecordingIDs = Set(challengedRecordings.map(\.id))
         let visibleDraftTextByRecording = Dictionary(
-            grouping: transcriptSegments.filter { $0.effectiveOrigin == .liveDraft },
+            grouping: transcriptSegments.filter {
+                $0.effectiveOrigin == .liveDraft &&
+                    $0.recordingID.map(challengedRecordingIDs.contains) == true
+            },
             by: \TranscriptSegment.recordingID
         )
         .compactMapValues { segments -> String? in
@@ -460,7 +480,8 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
             return text.isEmpty ? nil : text
         }
 
-        return effectiveAudioRecordings.compactMap { recording in
+        return challengedRecordings.compactMap { recording in
+            guard recording.effectiveState != .finalizing else { return nil }
             let retainedDraft = retainedLiveDraftText(for: recording.id)
             let draftPeek = retainedDraft ?? visibleDraftTextByRecording[recording.id]
 
@@ -489,7 +510,12 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
     }
 
     private static func normalizedTranscriptText(_ text: String) -> String {
-        String(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
+        let boundaryPreserving = String(text.lowercased().unicodeScalars.map { scalar in
+            CharacterSet.alphanumerics.contains(scalar) ? Character(scalar) : " "
+        })
+        return boundaryPreserving
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
     }
 
     /// Applies a successful final pass, retaining the prior live draft only when
@@ -610,7 +636,7 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
     /// state. Audio and live-draft transcript are never discarded here.
     func recoveredAfterInterruptedCapture(usableRecordingIDs: Set<UUID>? = nil) -> MeetingNote {
         var recovered = self
-        let interruptedStates: Set<MeetingRecordingState> = [.recording, .recorded, .finalizing]
+        let interruptedStates: Set<MeetingRecordingState> = [.recording, .recorded, .finalizing, .finalizationFailed]
         if let usableRecordingIDs {
             let unavailableInterruptedIDs = Set(
                 recovered.effectiveAudioRecordings.compactMap { recording in
@@ -625,10 +651,16 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
                     interruptedStates.contains($0.effectiveState) && usableRecordingIDs.contains($0.id)
                 }
                 if !hasUsableInterruptedRecording {
-                    recovered.transcriptState = recovered.transcriptSegments.isEmpty ? .empty : .liveDraft
+                    if recovered.transcriptSegments.isEmpty {
+                        recovered.transcriptState = .empty
+                    } else if recovered.transcriptSegments.allSatisfy({ $0.effectiveOrigin == .final }) {
+                        recovered.transcriptState = .final
+                    } else {
+                        recovered.transcriptState = .liveDraft
+                    }
                     recovered.transcriptStatusMessage = recovered.transcriptSegments.isEmpty
                         ? "Recording was interrupted before audio could be saved."
-                        : "Recording was interrupted before audio could be saved. Your draft transcript is still available."
+                        : "The saved recording is unavailable. Your existing transcript is still available."
                     return recovered
                 }
             }

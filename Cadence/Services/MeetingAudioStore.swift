@@ -15,6 +15,31 @@ enum MeetingAudioStoreError: LocalizedError {
     }
 }
 
+struct MeetingRecoveryScanResult: Equatable, Sendable {
+    var notes: [MeetingNote]
+    var recoverableOrphans: [OrphanedMeetingRecording]
+}
+
+final class MeetingCaptureChunkQueue: @unchecked Sendable {
+    private let lock = NSLock()
+    private var tail: Task<Void, Never>?
+
+    func enqueue(_ operation: @escaping @Sendable () async -> Void) {
+        lock.withLock {
+            let previous = tail
+            tail = Task {
+                await previous?.value
+                await operation()
+            }
+        }
+    }
+
+    func drain() async {
+        let pending = lock.withLock { tail }
+        await pending?.value
+    }
+}
+
 final class MeetingAudioStore {
     private static let sampleRate = 16_000.0
 
@@ -76,6 +101,39 @@ final class MeetingAudioStore {
             if referenced.contains(fileName) { return nil }
             return Self.parseRecordingFileName(fileName)
         }
+    }
+
+    func recover(notes: [MeetingNote]) -> MeetingRecoveryScanResult {
+        let recoveredNotes = notes.map { note in
+            let usableRecordingIDs = Set(
+                note.effectiveAudioRecordings
+                    .filter { hasUsableAudio(for: $0) }
+                    .map(\.id)
+            )
+            return note.recoveredAfterInterruptedCapture(usableRecordingIDs: usableRecordingIDs)
+        }
+
+        let orphans = orphanedRecordingDescriptors(referencedBy: recoveredNotes)
+        var usableOrphans = [OrphanedMeetingRecording]()
+        var unusableOrphans = [OrphanedMeetingRecording]()
+        for orphan in orphans {
+            if hasUsableAudio(for: orphan) {
+                usableOrphans.append(orphan)
+            } else {
+                unusableOrphans.append(orphan)
+            }
+        }
+
+        let relinked = MeetingRecordingRecovery.relink(recoveredNotes, orphans: usableOrphans)
+        let notesWithRelinkedRecordingsRecovered = relinked.notes.map { note in
+            note.effectiveAudioRecordings.contains(where: { $0.effectiveState == .recording })
+                ? note.recoveredAfterInterruptedCapture()
+                : note
+        }
+        return MeetingRecoveryScanResult(
+            notes: notesWithRelinkedRecordingsRecovered,
+            recoverableOrphans: relinked.unrecoverable + unusableOrphans
+        )
     }
 
     @discardableResult
@@ -150,19 +208,22 @@ actor MeetingAudioRecorder {
     private var speechDetected = false
     private var peakLevel = 0.0
     private var didFinish = false
+    private let removeFile: @Sendable (URL) throws -> Void
 
     init(
         fileURL: URL,
         fileName: String,
         recordingID: UUID,
         source: MeetingCaptureSource,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        removeFile: @escaping @Sendable (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
     ) throws {
         self.fileURL = fileURL
         self.fileName = fileName
         self.recordingID = recordingID
         self.source = source
         self.createdAt = createdAt
+        self.removeFile = removeFile
         self.format = MeetingAudioStore.makePCMFormat()
         self.audioFile = try AVAudioFile(forWriting: fileURL, settings: format.settings)
     }
@@ -204,11 +265,11 @@ actor MeetingAudioRecorder {
     /// remain durable and are returned as recoverable metadata. Only a zero-frame
     /// file is removed, allowing its ledger entry to be removed atomically by the
     /// caller without losing captured audio.
-    func finishAfterCaptureStartFailure() -> MeetingAudioRecordingMetadata? {
+    func finishAfterCaptureStartFailure() throws -> MeetingAudioRecordingMetadata? {
         didFinish = true
         audioFile = nil
         guard frameCount > 0 else {
-            try? FileManager.default.removeItem(at: fileURL)
+            try removeFile(fileURL)
             return nil
         }
         var metadata = makeMetadata(fallbackMetrics: nil)

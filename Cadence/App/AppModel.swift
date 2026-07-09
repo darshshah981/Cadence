@@ -65,6 +65,7 @@ final class AppModel: ObservableObject {
         static let transcriptHistory = "FlowState.transcriptHistory"
         static let showsShortcutDock = "Cadence.showsShortcutDock"
         static let meetingCaptureSource = "Cadence.meetingCaptureSource"
+        static let acknowledgedOrphanRecordingIDs = "Cadence.acknowledgedOrphanRecordingIDs"
         static let appearancePreference = "Cadence.appearancePreference"
         static let firstSuccessfulDictationTracked = "Cadence.firstSuccessfulDictationTracked"
         static let didMigrateToFastDefaults = "FlowState.didMigrateToFastDefaults"
@@ -152,6 +153,7 @@ final class AppModel: ObservableObject {
     private var activeMeetingCaptureNoteID: UUID?
     private var activeMeetingRecordingID: UUID?
     private var activeMeetingAudioRecorder: MeetingAudioRecorder?
+    private var activeMeetingCaptureChunkQueue: MeetingCaptureChunkQueue?
     @Published private var activeMeetingCaptureStartedAt: Date?
     private var meetingCaptureStopTask: Task<Void, Never>?
     private var calendarDetectionTimer: Timer?
@@ -200,25 +202,21 @@ final class AppModel: ObservableObject {
         self.meetingStore = meetingStore
         self.meetingAudioStore = meetingAudioStore
         let meetingLoadResult = (try? meetingStore.loadNotesWithDiagnostics()) ?? .empty
-        let recoveredNotes = AppModel.recoverInterruptedFinalizations(
-            meetingLoadResult.notes,
-            audioStore: meetingAudioStore
+        let recovery = meetingAudioStore.recover(notes: meetingLoadResult.notes)
+        let loadedMeetingNotes = recovery.notes
+        let acknowledgedOrphanIDs = OrphanRecordingAcknowledgements.load(
+            defaults.stringArray(forKey: PreferenceKey.acknowledgedOrphanRecordingIDs)
         )
-        let orphans = meetingAudioStore.orphanedRecordingDescriptors(referencedBy: recoveredNotes)
-        var usableOrphans = [OrphanedMeetingRecording]()
-        var unusableOrphans = [OrphanedMeetingRecording]()
-        for orphan in orphans {
-            if meetingAudioStore.hasUsableAudio(for: orphan) {
-                usableOrphans.append(orphan)
-            } else {
-                unusableOrphans.append(orphan)
-            }
-        }
-        let relinkResult = MeetingRecordingRecovery.relink(recoveredNotes, orphans: usableOrphans)
-        let loadedMeetingNotes = relinkResult.notes.map { $0.recoveredAfterInterruptedCapture() }
+        let activeAcknowledgements = OrphanRecordingAcknowledgements.reconcile(
+            acknowledgedOrphanIDs,
+            detectedOrphans: recovery.recoverableOrphans
+        )
+        defaults.set(activeAcknowledgements.map(\.uuidString), forKey: PreferenceKey.acknowledgedOrphanRecordingIDs)
         self.meetingNotes = loadedMeetingNotes
         self.selectedMeetingNoteID = loadedMeetingNotes.first?.id
-        self.recoverableOrphanedRecordings = relinkResult.unrecoverable + unusableOrphans
+        self.recoverableOrphanedRecordings = recovery.recoverableOrphans.filter {
+            !activeAcknowledgements.contains($0.id)
+        }
         self.systemAudioCaptureService = SystemAudioCaptureService()
         self.meetingMicrophoneCaptureService = AudioCaptureService()
         self.meetingTranscriptionService = Self.makeMeetingTranscriptionService()
@@ -591,12 +589,22 @@ final class AppModel: ObservableObject {
 
     /// Dismisses a recovery item while preserving its audio on disk.
     func keepOrphanedRecording(_ orphan: OrphanedMeetingRecording) {
+        var acknowledged = OrphanRecordingAcknowledgements.load(
+            defaults.stringArray(forKey: PreferenceKey.acknowledgedOrphanRecordingIDs)
+        )
+        acknowledged.insert(orphan.id)
+        defaults.set(acknowledged.map(\.uuidString), forKey: PreferenceKey.acknowledgedOrphanRecordingIDs)
         recoverableOrphanedRecordings.removeAll { $0.id == orphan.id }
     }
 
     /// User-triggered discard of an unrecoverable orphaned recording.
     func discardOrphanedRecording(_ orphan: OrphanedMeetingRecording) {
         if meetingAudioStore.discardOrphanedRecording(orphan) {
+            var acknowledged = OrphanRecordingAcknowledgements.load(
+                defaults.stringArray(forKey: PreferenceKey.acknowledgedOrphanRecordingIDs)
+            )
+            acknowledged.remove(orphan.id)
+            defaults.set(acknowledged.map(\.uuidString), forKey: PreferenceKey.acknowledgedOrphanRecordingIDs)
             recoverableOrphanedRecordings.removeAll { $0.id == orphan.id }
         } else {
             lastError = "Cadence could not discard that recovered recording."
@@ -989,6 +997,8 @@ final class AppModel: ObservableObject {
         activeMeetingCaptureNoteID = targetNoteID
         activeMeetingRecordingID = recordingID
         activeMeetingAudioRecorder = audioRecorder
+        let chunkQueue = MeetingCaptureChunkQueue()
+        activeMeetingCaptureChunkQueue = chunkQueue
         activeMeetingCaptureStartedAt = Date()
         let ledgerEntry = MeetingAudioRecordingMetadata(
             id: recordingID,
@@ -1012,7 +1022,8 @@ final class AppModel: ObservableObject {
             source: captureSource,
             service: transcriptionService,
             recorder: audioRecorder,
-            recordingID: recordingID
+            recordingID: recordingID,
+            queue: chunkQueue
         )
         analytics.track("meeting_capture_started", properties: ["source": .string(meetingCaptureSource.rawValue)])
 
@@ -1035,24 +1046,35 @@ final class AppModel: ObservableObject {
                 self.lastError = nil
             } catch {
                 _ = await self.stopActiveMeetingCaptureServices()
-                await self.meetingTranscriptionService.cancel()
-                let preservedRecording = await audioRecorder.finishAfterCaptureStartFailure()
-                if let preservedRecording {
-                    self.appendMeetingAudioRecording(preservedRecording, noteID: targetNoteID)
+                await chunkQueue.drain()
+                await transcriptionService.cancel()
+                do {
+                    let preservedRecording = try await audioRecorder.finishAfterCaptureStartFailure()
+                    if let preservedRecording {
+                        self.appendMeetingAudioRecording(preservedRecording, noteID: targetNoteID)
+                        self.updateMeetingTranscriptState(
+                            noteID: targetNoteID,
+                            state: .finalizationFailed,
+                            message: "Recording was interrupted while starting. Your audio and draft transcript are saved — run the final transcript when ready."
+                        )
+                    } else {
+                        self.removeEmptyMeetingRecordingLedger(
+                            recordingID: recordingID,
+                            noteID: targetNoteID
+                        )
+                    }
+                } catch {
+                    self.setMeetingRecordingState(.finalizationFailed, recordingID: recordingID, noteID: targetNoteID)
                     self.updateMeetingTranscriptState(
                         noteID: targetNoteID,
                         state: .finalizationFailed,
-                        message: "Recording was interrupted while starting. Your audio and draft transcript are saved — run the final transcript when ready."
-                    )
-                } else {
-                    self.removeEmptyMeetingRecordingLedger(
-                        recordingID: recordingID,
-                        noteID: targetNoteID
+                        message: "Recording could not start, and Cadence could not clean up its empty audio file."
                     )
                 }
                 self.activeMeetingCaptureNoteID = nil
                 self.activeMeetingRecordingID = nil
                 self.activeMeetingAudioRecorder = nil
+                self.activeMeetingCaptureChunkQueue = nil
                 self.activeMeetingCaptureStartedAt = nil
                 self.systemAudioCaptureState = .failed(error.localizedDescription)
                 self.lastError = error.localizedDescription
@@ -1086,10 +1108,12 @@ final class AppModel: ObservableObject {
             let noteID = self.activeMeetingCaptureNoteID
             let recordingID = self.activeMeetingRecordingID
             let recorder = self.activeMeetingAudioRecorder
+            let chunkQueue = self.activeMeetingCaptureChunkQueue
             let source = self.meetingCaptureSource
             let service = self.meetingTranscriptionService
             self.systemAudioCaptureLevel = 0
             let metrics = await self.stopActiveMeetingCaptureServicesWithTimeout()
+            await chunkQueue?.drain()
             self.systemAudioCapturedFrameCount = metrics.frameCount
             var recording = await recorder?.finish(fallbackMetrics: metrics)
             recording?.state = .recorded
@@ -1100,6 +1124,7 @@ final class AppModel: ObservableObject {
             self.activeMeetingCaptureNoteID = nil
             self.activeMeetingRecordingID = nil
             self.activeMeetingAudioRecorder = nil
+            self.activeMeetingCaptureChunkQueue = nil
             self.activeMeetingCaptureStartedAt = nil
             self.systemAudioCaptureState = .idle
 
@@ -1137,17 +1162,19 @@ final class AppModel: ObservableObject {
     /// its saved audio. Idempotent and unlimited — re-running replaces that
     /// recording's segments rather than duplicating them.
     func retryFinalTranscriptionPass(noteID: UUID, recordingID: UUID) {
+        guard let note = meetingNotes.first(where: { $0.id == noteID }),
+              let recording = note.effectiveAudioRecordings.first(where: { $0.id == recordingID }),
+              recording.effectiveState != .finalizing else {
+            return
+        }
+        setMeetingRecordingState(.finalizing, recordingID: recordingID, noteID: noteID)
+        updateMeetingTranscriptState(
+            noteID: noteID,
+            state: .finalizing,
+            message: "Retrying final transcript from saved audio"
+        )
         Task { @MainActor [weak self] in
-            guard let self,
-                  let recording = self.meetingNotes.first(where: { $0.id == noteID })?
-                    .effectiveAudioRecordings.first(where: { $0.id == recordingID }) else {
-                return
-            }
-            self.updateMeetingTranscriptState(
-                noteID: noteID,
-                state: .finalizing,
-                message: "Retrying final transcript from saved audio"
-            )
+            guard let self else { return }
             await self.runFinalTranscriptionPass(noteID: noteID, recording: recording)
         }
     }
@@ -1156,6 +1183,8 @@ final class AppModel: ObservableObject {
     /// final pass. The user's explicit "revert" action from the lineage affordance.
     func revertFinalPass(noteID: UUID, recordingID: UUID) {
         guard let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else { return }
+        guard meetingNotes[index].effectiveAudioRecordings
+            .first(where: { $0.id == recordingID })?.effectiveState != .finalizing else { return }
         meetingNotes[index].revertFinalPass(for: recordingID)
         if var recordings = meetingNotes[index].audioRecordings,
            let recordingIndex = recordings.firstIndex(where: { $0.id == recordingID }) {
@@ -1172,6 +1201,8 @@ final class AppModel: ObservableObject {
     /// lineage affordance dismisses.
     func acceptFinalPass(noteID: UUID, recordingID: UUID) {
         guard let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else { return }
+        guard meetingNotes[index].effectiveAudioRecordings
+            .first(where: { $0.id == recordingID })?.effectiveState != .finalizing else { return }
         meetingNotes[index].acceptFinalPass(for: recordingID)
         let updatedNote = meetingNotes[index]
         meetingNotes.remove(at: index)
@@ -1806,14 +1837,12 @@ final class AppModel: ObservableObject {
         source: MeetingCaptureSource,
         service: MeetingRollingTranscriptionService,
         recorder: MeetingAudioRecorder,
-        recordingID: UUID
+        recordingID: UUID,
+        queue: MeetingCaptureChunkQueue
     ) -> @Sendable (AudioChunk, Double) -> Void {
-        { [weak self, service, recorder] chunk, level in
-            Task { @MainActor [weak self] in
-                self?.recordMeetingCaptureProgress(chunk, level: level, noteID: noteID)
-            }
-
-            Task { [weak self, recorder] in
+        { [weak self, service, recorder, queue] chunk, level in
+            queue.enqueue { [weak self, recorder] in
+                await self?.recordMeetingCaptureProgress(chunk, level: level, noteID: noteID)
                 do {
                     try await recorder.append(chunk, level: level)
                 } catch {
@@ -2273,20 +2302,6 @@ final class AppModel: ObservableObject {
                 .appendingPathComponent("Cadence", isDirectory: true)
                 .appendingPathComponent("MeetingAudio", isDirectory: true)
             return try! MeetingAudioStore(directoryURL: fallbackURL)
-        }
-    }
-
-    private static func recoverInterruptedFinalizations(
-        _ notes: [MeetingNote],
-        audioStore: MeetingAudioStore
-    ) -> [MeetingNote] {
-        notes.map { note in
-            let usableRecordingIDs = Set(
-                note.effectiveAudioRecordings
-                    .filter { audioStore.hasUsableAudio(for: $0) }
-                    .map(\.id)
-            )
-            return note.recoveredAfterInterruptedCapture(usableRecordingIDs: usableRecordingIDs)
         }
     }
 
