@@ -51,6 +51,23 @@ final class MeetingAudioStore {
         directoryURL.appendingPathComponent(recording.fileName, isDirectory: false)
     }
 
+    func hasUsableAudio(for recording: MeetingAudioRecordingMetadata) -> Bool {
+        let url = fileURL(for: recording)
+        guard fileManager.fileExists(atPath: url.path),
+              let audioFile = try? AVAudioFile(forReading: url) else {
+            return false
+        }
+        return audioFile.length > 0
+    }
+
+    func hasUsableAudio(for orphan: OrphanedMeetingRecording) -> Bool {
+        hasUsableAudio(for: MeetingAudioRecordingMetadata(
+            id: orphan.recordingID,
+            fileName: orphan.fileName,
+            source: .systemAudio
+        ))
+    }
+
     /// Lists saved meeting-audio files that no note references — the launch-time
     /// orphan sweep. Never deletes; callers decide keep/discard.
     func orphanedRecordingDescriptors(referencedBy notes: [MeetingNote]) -> [OrphanedMeetingRecording] {
@@ -64,9 +81,16 @@ final class MeetingAudioStore {
         }
     }
 
-    func discardOrphanedRecording(_ orphan: OrphanedMeetingRecording) {
+    @discardableResult
+    func discardOrphanedRecording(_ orphan: OrphanedMeetingRecording) -> Bool {
         let url = directoryURL.appendingPathComponent(orphan.fileName, isDirectory: false)
-        try? fileManager.removeItem(at: url)
+        guard fileManager.fileExists(atPath: url.path) else { return true }
+        do {
+            try fileManager.removeItem(at: url)
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Parses a `<noteID>-<recordingID>.caf` filename into its identifiers.
@@ -175,6 +199,26 @@ actor MeetingAudioRecorder {
     func finish(fallbackMetrics: AudioCaptureSessionMetrics?) -> MeetingAudioRecordingMetadata {
         didFinish = true
         audioFile = nil
+        return makeMetadata(fallbackMetrics: fallbackMetrics)
+    }
+
+    /// Closes a recorder after capture startup failed. Any frames already written
+    /// remain durable and are returned as recoverable metadata. Only a zero-frame
+    /// file is removed, allowing its ledger entry to be removed atomically by the
+    /// caller without losing captured audio.
+    func finishAfterCaptureStartFailure() -> MeetingAudioRecordingMetadata? {
+        didFinish = true
+        audioFile = nil
+        guard frameCount > 0 else {
+            try? FileManager.default.removeItem(at: fileURL)
+            return nil
+        }
+        var metadata = makeMetadata(fallbackMetrics: nil)
+        metadata.state = .finalizationFailed
+        return metadata
+    }
+
+    private func makeMetadata(fallbackMetrics: AudioCaptureSessionMetrics?) -> MeetingAudioRecordingMetadata {
         let metrics = mergedMetrics(fallbackMetrics)
         return MeetingAudioRecordingMetadata(
             id: recordingID,
@@ -188,12 +232,6 @@ actor MeetingAudioRecorder {
             speechFrameCount: metrics.speechFrameCount,
             peakLevel: metrics.peakLevel
         )
-    }
-
-    func cancel() {
-        didFinish = true
-        audioFile = nil
-        try? FileManager.default.removeItem(at: fileURL)
     }
 
     private func mergedMetrics(_ fallbackMetrics: AudioCaptureSessionMetrics?) -> AudioCaptureSessionMetrics {

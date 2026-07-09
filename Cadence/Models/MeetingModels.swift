@@ -520,8 +520,32 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
     /// translating an interrupted capture (a recording still marked `recording`)
     /// or an interrupted final pass into a calm, actionable `finalizationFailed`
     /// state. Audio and live-draft transcript are never discarded here.
-    func recoveredAfterInterruptedCapture() -> MeetingNote {
+    func recoveredAfterInterruptedCapture(usableRecordingIDs: Set<UUID>? = nil) -> MeetingNote {
         var recovered = self
+        let interruptedStates: Set<MeetingRecordingState> = [.recording, .recorded, .finalizing]
+        if let usableRecordingIDs {
+            let unavailableInterruptedIDs = Set(
+                recovered.effectiveAudioRecordings.compactMap { recording in
+                    interruptedStates.contains(recording.effectiveState) && !usableRecordingIDs.contains(recording.id)
+                        ? recording.id
+                        : nil
+                }
+            )
+            if !unavailableInterruptedIDs.isEmpty {
+                recovered.audioRecordings?.removeAll { unavailableInterruptedIDs.contains($0.id) }
+                let hasUsableInterruptedRecording = recovered.effectiveAudioRecordings.contains {
+                    interruptedStates.contains($0.effectiveState) && usableRecordingIDs.contains($0.id)
+                }
+                if !hasUsableInterruptedRecording {
+                    recovered.transcriptState = recovered.transcriptSegments.isEmpty ? .empty : .liveDraft
+                    recovered.transcriptStatusMessage = recovered.transcriptSegments.isEmpty
+                        ? "Recording was interrupted before audio could be saved."
+                        : "Recording was interrupted before audio could be saved. Your draft transcript is still available."
+                    return recovered
+                }
+            }
+        }
+
         let recordings = recovered.effectiveAudioRecordings
         let hasRecordingInProgress = recordings.contains { $0.effectiveState == .recording }
         let interruptedMidCaptureMessage = "Recording was interrupted. Your audio and draft transcript are saved — run the final transcript when ready."
@@ -542,6 +566,12 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
             if hasRecordingInProgress {
                 recovered.transcriptState = .finalizationFailed
                 recovered.transcriptStatusMessage = interruptedMidCaptureMessage
+            }
+        }
+        if recovered.effectiveTranscriptState == .finalizationFailed {
+            for index in recovered.effectiveAudioRecordings.indices
+            where interruptedStates.contains(recovered.effectiveAudioRecordings[index].effectiveState) {
+                recovered.audioRecordings?[index].state = .finalizationFailed
             }
         }
         return recovered

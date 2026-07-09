@@ -478,7 +478,7 @@ struct CadenceTests {
 
         #expect(recovered.effectiveTranscriptState == .finalizationFailed)
         #expect(recovered.transcriptStatusMessage?.contains("Recording was interrupted") == true)
-        #expect(recovered.effectiveAudioRecordings.first?.effectiveState == .recording)
+        #expect(recovered.effectiveAudioRecordings.first?.effectiveState == .finalizationFailed)
         #expect(recovered.transcriptSegments.map(\.text) == ["Live draft before the crash"])
     }
 
@@ -503,6 +503,7 @@ struct CadenceTests {
 
         #expect(recovered.effectiveTranscriptState == .finalizationFailed)
         #expect(recovered.transcriptStatusMessage?.contains("Retry from the saved audio") == true)
+        #expect(recovered.effectiveAudioRecordings.first?.effectiveState == .finalizationFailed)
     }
 
     @Test
@@ -536,6 +537,28 @@ struct CadenceTests {
 
         let empty = MeetingNote(transcriptState: .liveDraft)
         #expect(empty.recoveredAfterInterruptedCapture().effectiveTranscriptState == .empty)
+    }
+
+    @Test
+    func meetingNoteDoesNotClaimMissingAudioSurvivedRecovery() {
+        let recordingID = UUID()
+        let note = MeetingNote(
+            transcriptSegments: [
+                TranscriptSegment(text: "Draft survived", startTime: 0, endTime: 1, origin: .liveDraft, recordingID: recordingID)
+            ],
+            transcriptState: .liveDraft,
+            audioRecordings: [
+                MeetingAudioRecordingMetadata(id: recordingID, fileName: "missing.caf", source: .systemAudio, state: .recording)
+            ]
+        )
+
+        let recovered = note.recoveredAfterInterruptedCapture(usableRecordingIDs: [])
+
+        #expect(recovered.effectiveTranscriptState == .liveDraft)
+        #expect(recovered.transcriptStatusMessage?.contains("before audio could be saved") == true)
+        #expect(recovered.transcriptStatusMessage?.contains("audio and draft transcript are saved") != true)
+        #expect(recovered.effectiveAudioRecordings.isEmpty)
+        #expect(recovered.transcriptSegments.map(\.text) == ["Draft survived"])
     }
 
     @Test
@@ -632,6 +655,150 @@ struct CadenceTests {
 
         let orphans = store.orphanedRecordingDescriptors(referencedBy: [note])
         #expect(orphans.map(\.recordingID) == [orphanedRecordingID])
+    }
+
+    @Test
+    func meetingAudioStoreRequiresSavedFramesBeforeReportingAudioUsable() async throws {
+        let store = try MeetingAudioStore(directoryURL: temporaryMeetingAudioStoreURL())
+        let noteID = UUID()
+
+        let emptyRecording = MeetingAudioRecordingMetadata(
+            id: UUID(),
+            fileName: MeetingAudioStore.recordingFileName(noteID: noteID, recordingID: UUID()),
+            source: .systemAudio,
+            state: .recording
+        )
+        try Data().write(to: store.fileURL(for: emptyRecording))
+        #expect(!store.hasUsableAudio(for: emptyRecording))
+
+        let recordingID = UUID()
+        let recorder = try store.makeRecorder(
+            noteID: noteID,
+            recordingID: recordingID,
+            source: .systemAudio
+        )
+        let chunk = AudioChunk(samples: Array(repeating: 0.1, count: 1_600), frameCount: 1_600, sampleRate: 16_000)
+        try await recorder.append(chunk, level: 0.1)
+        let savedRecording = await recorder.finish(fallbackMetrics: nil)
+
+        #expect(store.hasUsableAudio(for: savedRecording))
+    }
+
+    @Test
+    func meetingAudioRecorderPreservesFramesWhenCaptureStartupFails() async throws {
+        let store = try MeetingAudioStore(directoryURL: temporaryMeetingAudioStoreURL())
+        let noteID = UUID()
+        let recordingID = UUID()
+        let recorder = try store.makeRecorder(noteID: noteID, recordingID: recordingID, source: .microphone)
+        let chunk = AudioChunk(samples: Array(repeating: 0.1, count: 1_600), frameCount: 1_600, sampleRate: 16_000)
+        try await recorder.append(chunk, level: 0.1)
+
+        let preserved = try #require(await recorder.finishAfterCaptureStartFailure())
+
+        #expect(preserved.effectiveState == .finalizationFailed)
+        #expect(preserved.frameCount == 1_600)
+        #expect(store.hasUsableAudio(for: preserved))
+    }
+
+    @Test
+    func meetingAudioRecorderCleansUpZeroFrameStartupFailure() async throws {
+        let store = try MeetingAudioStore(directoryURL: temporaryMeetingAudioStoreURL())
+        let noteID = UUID()
+        let recordingID = UUID()
+        let fileName = MeetingAudioStore.recordingFileName(noteID: noteID, recordingID: recordingID)
+        let metadata = MeetingAudioRecordingMetadata(id: recordingID, fileName: fileName, source: .systemAudio, state: .recording)
+        let recorder = try store.makeRecorder(noteID: noteID, recordingID: recordingID, source: .systemAudio)
+
+        #expect(await recorder.finishAfterCaptureStartFailure() == nil)
+        #expect(!FileManager.default.fileExists(atPath: store.fileURL(for: metadata).path))
+    }
+
+    @Test
+    func meetingAudioOrphanSweepNeverDeletesDiscoveredAudio() async throws {
+        let store = try MeetingAudioStore(directoryURL: temporaryMeetingAudioStoreURL())
+        let noteID = UUID()
+        let recordingID = UUID()
+        let recorder = try store.makeRecorder(noteID: noteID, recordingID: recordingID, source: .systemAudio)
+        let chunk = AudioChunk(samples: Array(repeating: 0.1, count: 1_600), frameCount: 1_600, sampleRate: 16_000)
+        try await recorder.append(chunk, level: 0.1)
+        let recording = await recorder.finish(fallbackMetrics: nil)
+
+        let firstSweep = store.orphanedRecordingDescriptors(referencedBy: [])
+        let secondSweep = store.orphanedRecordingDescriptors(referencedBy: [])
+
+        #expect(firstSweep.map(\.recordingID) == [recordingID])
+        #expect(secondSweep.map(\.recordingID) == [recordingID])
+        #expect(store.hasUsableAudio(for: recording))
+    }
+
+    @Test
+    func meetingAudioOrphanIsDeletedOnlyAfterExplicitDiscard() async throws {
+        let store = try MeetingAudioStore(directoryURL: temporaryMeetingAudioStoreURL())
+        let noteID = UUID()
+        let recordingID = UUID()
+        let recorder = try store.makeRecorder(noteID: noteID, recordingID: recordingID, source: .systemAudio)
+        let chunk = AudioChunk(samples: Array(repeating: 0.1, count: 1_600), frameCount: 1_600, sampleRate: 16_000)
+        try await recorder.append(chunk, level: 0.1)
+        let recording = await recorder.finish(fallbackMetrics: nil)
+        let orphan = try #require(store.orphanedRecordingDescriptors(referencedBy: []).first)
+
+        #expect(store.hasUsableAudio(for: recording))
+        store.discardOrphanedRecording(orphan)
+
+        #expect(!FileManager.default.fileExists(atPath: store.fileURL(for: recording).path))
+        #expect(store.orphanedRecordingDescriptors(referencedBy: []).isEmpty)
+    }
+
+    @Test
+    func matchingNoteOrphanRelinkPersistsAcrossReload() async throws {
+        let meetingStore = try MeetingStore(directoryURL: temporaryMeetingStoreURL())
+        let audioStore = try MeetingAudioStore(directoryURL: temporaryMeetingAudioStoreURL())
+        let noteID = UUID()
+        let recordingID = UUID()
+        try meetingStore.save(MeetingNote(id: noteID, title: "Interrupted", transcriptState: .liveDraft))
+        let recorder = try audioStore.makeRecorder(noteID: noteID, recordingID: recordingID, source: .systemAudio)
+        let chunk = AudioChunk(samples: Array(repeating: 0.1, count: 1_600), frameCount: 1_600, sampleRate: 16_000)
+        try await recorder.append(chunk, level: 0.1)
+        _ = await recorder.finish(fallbackMetrics: nil)
+
+        let loadedNotes = try meetingStore.loadNotes()
+        let orphans = audioStore.orphanedRecordingDescriptors(referencedBy: loadedNotes)
+        let relinked = MeetingRecordingRecovery.relink(loadedNotes, orphans: orphans)
+        let usableIDs = Set(relinked.notes.flatMap(\.effectiveAudioRecordings).filter { audioStore.hasUsableAudio(for: $0) }.map(\.id))
+        let recovered = try #require(relinked.notes.first).recoveredAfterInterruptedCapture(usableRecordingIDs: usableIDs)
+        try meetingStore.save(recovered)
+
+        let reloaded = try #require(meetingStore.loadNotes().first)
+        #expect(reloaded.effectiveAudioRecordings.first?.id == recordingID)
+        #expect(reloaded.effectiveAudioRecordings.first?.effectiveState == .finalizationFailed)
+        #expect(reloaded.transcriptStatusMessage?.contains("Your audio and draft transcript are saved") == true)
+        #expect(audioStore.hasUsableAudio(for: try #require(reloaded.effectiveAudioRecordings.first)))
+    }
+
+    @Test
+    func unusableReferencedAudioIsSurfacedByTheSameRecoverySweep() throws {
+        let audioStore = try MeetingAudioStore(directoryURL: temporaryMeetingAudioStoreURL())
+        let noteID = UUID()
+        let recordingID = UUID()
+        let fileName = MeetingAudioStore.recordingFileName(noteID: noteID, recordingID: recordingID)
+        let recording = MeetingAudioRecordingMetadata(
+            id: recordingID,
+            fileName: fileName,
+            source: .systemAudio,
+            state: .recording
+        )
+        try Data([0x00]).write(to: audioStore.fileURL(for: recording))
+        let note = MeetingNote(
+            id: noteID,
+            transcriptState: .liveDraft,
+            audioRecordings: [recording]
+        )
+
+        let recovered = note.recoveredAfterInterruptedCapture(usableRecordingIDs: [])
+        let surfaced = audioStore.orphanedRecordingDescriptors(referencedBy: [recovered])
+
+        #expect(recovered.effectiveAudioRecordings.isEmpty)
+        #expect(surfaced.map(\.recordingID) == [recordingID])
     }
 
     @Test

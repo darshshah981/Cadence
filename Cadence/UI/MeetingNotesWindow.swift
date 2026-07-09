@@ -124,74 +124,84 @@ struct MeetingNotesView: View {
 
     @ViewBuilder
     private var detailView: some View {
-        if let selectedNote {
-            MeetingNoteEditor(
-                note: selectedNote,
-                permissions: appModel.permissions,
-                captureState: appModel.systemAudioCaptureState,
-                captureSource: appModel.meetingCaptureSource,
-                captureSession: appModel.meetingCaptureSession,
-                captureLevel: appModel.systemAudioCaptureLevel,
-                capturedFrameCount: appModel.systemAudioCapturedFrameCount,
-                onSelectCaptureSource: appModel.setMeetingCaptureSource,
-                title: Binding(
-                    get: { selectedNote.title },
-                    set: { appModel.updateMeetingNote(id: selectedNote.id, title: $0, userNotes: nil) }
-                ),
-                userNotes: Binding(
-                    get: { selectedNote.userNotes },
-                    set: { appModel.updateMeetingNote(id: selectedNote.id, title: nil, userNotes: $0) }
-                ),
-                onDelete: {
-                    appModel.deleteMeetingNote(id: selectedNote.id)
-                },
-                onToggleSystemAudioCapture: {
-                    appModel.toggleMeetingCaptureForSelectedMeeting()
-                },
-                onStopCapture: {
-                    appModel.stopMeetingCapture()
-                },
-                onSelectActiveCaptureNote: {
-                    appModel.selectActiveMeetingCaptureNote()
-                },
-                onRequestScreenRecording: {
-                    appModel.requestMeetingCaptureSourcePermissions()
-                },
-                onGenerateSummary: {
-                    appModel.generateSummaryForSelectedMeetingNote()
-                },
-                onRetryFinalTranscription: {
-                    appModel.retryFinalTranscriptionForSelectedMeetingNote()
-                },
-                onRevertFinalPass: { recordingID in
-                    appModel.revertFinalPass(noteID: selectedNote.id, recordingID: recordingID)
-                },
-                onAcceptFinalPass: { recordingID in
-                    appModel.acceptFinalPass(noteID: selectedNote.id, recordingID: recordingID)
-                },
-                onRenameSpeaker: { speakerID, displayName in
-                    appModel.renameSpeaker(noteID: selectedNote.id, speakerID: speakerID, displayName: displayName)
-                },
-                onMergeSpeakers: { sourceID, targetID in
-                    appModel.mergeSpeakers(noteID: selectedNote.id, sourceID: sourceID, targetID: targetID)
-                },
-                onSplitSpeaker: { sourceID, displayName, segmentIDs in
-                    appModel.splitSpeaker(noteID: selectedNote.id, sourceID: sourceID, displayName: displayName, segmentIDs: segmentIDs)
-                },
-                onAssignSpeaker: { displayName, segmentIDs in
-                    appModel.assignSpeaker(noteID: selectedNote.id, displayName: displayName, segmentIDs: segmentIDs)
-                },
-                onCopyMarkdown: {
-                    appModel.copySelectedMeetingNoteMarkdown()
-                },
-                onExportMarkdown: {
-                    appModel.exportSelectedMeetingNoteMarkdown()
-                },
-                onBack: onBack
-            )
-        } else {
-            EmptyMeetingSelectionView {
-                appModel.createMeetingNote(openWindow: false)
+        VStack(spacing: 0) {
+            if !appModel.recoverableOrphanedRecordings.isEmpty {
+                MeetingRecoverySection(
+                    recordings: appModel.recoverableOrphanedRecordings,
+                    onKeep: appModel.keepOrphanedRecording,
+                    onDiscard: appModel.discardOrphanedRecording
+                )
+            }
+
+            if let selectedNote {
+                MeetingNoteEditor(
+                    note: selectedNote,
+                    permissions: appModel.permissions,
+                    captureState: appModel.systemAudioCaptureState,
+                    captureSource: appModel.meetingCaptureSource,
+                    captureSession: appModel.meetingCaptureSession,
+                    captureLevel: appModel.systemAudioCaptureLevel,
+                    capturedFrameCount: appModel.systemAudioCapturedFrameCount,
+                    onSelectCaptureSource: appModel.setMeetingCaptureSource,
+                    title: Binding(
+                        get: { selectedNote.title },
+                        set: { appModel.updateMeetingNote(id: selectedNote.id, title: $0, userNotes: nil) }
+                    ),
+                    userNotes: Binding(
+                        get: { selectedNote.userNotes },
+                        set: { appModel.updateMeetingNote(id: selectedNote.id, title: nil, userNotes: $0) }
+                    ),
+                    onDelete: {
+                        appModel.deleteMeetingNote(id: selectedNote.id)
+                    },
+                    onToggleSystemAudioCapture: {
+                        appModel.toggleMeetingCaptureForSelectedMeeting()
+                    },
+                    onStopCapture: {
+                        appModel.stopMeetingCapture()
+                    },
+                    onSelectActiveCaptureNote: {
+                        appModel.selectActiveMeetingCaptureNote()
+                    },
+                    onRequestScreenRecording: {
+                        appModel.requestMeetingCaptureSourcePermissions()
+                    },
+                    onGenerateSummary: {
+                        appModel.generateSummaryForSelectedMeetingNote()
+                    },
+                    onRetryFinalTranscription: {
+                        appModel.retryFinalTranscriptionForSelectedMeetingNote()
+                    },
+                    onRevertFinalPass: { recordingID in
+                        appModel.revertFinalPass(noteID: selectedNote.id, recordingID: recordingID)
+                    },
+                    onAcceptFinalPass: { recordingID in
+                        appModel.acceptFinalPass(noteID: selectedNote.id, recordingID: recordingID)
+                    },
+                    onRenameSpeaker: { speakerID, displayName in
+                        appModel.renameSpeaker(noteID: selectedNote.id, speakerID: speakerID, displayName: displayName)
+                    },
+                    onMergeSpeakers: { sourceID, targetID in
+                        appModel.mergeSpeakers(noteID: selectedNote.id, sourceID: sourceID, targetID: targetID)
+                    },
+                    onSplitSpeaker: { sourceID, displayName, segmentIDs in
+                        appModel.splitSpeaker(noteID: selectedNote.id, sourceID: sourceID, displayName: displayName, segmentIDs: segmentIDs)
+                    },
+                    onAssignSpeaker: { displayName, segmentIDs in
+                        appModel.assignSpeaker(noteID: selectedNote.id, displayName: displayName, segmentIDs: segmentIDs)
+                    },
+                    onCopyMarkdown: {
+                        appModel.copySelectedMeetingNoteMarkdown()
+                    },
+                    onExportMarkdown: {
+                        appModel.exportSelectedMeetingNoteMarkdown()
+                    },
+                    onBack: onBack
+                )
+            } else {
+                EmptyMeetingSelectionView {
+                    appModel.createMeetingNote(openWindow: false)
+                }
             }
         }
     }
@@ -248,6 +258,61 @@ private struct EmptyMeetingSelectionView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(FlowTheme.background)
+    }
+}
+
+private struct MeetingRecoverySection: View {
+    let recordings: [OrphanedMeetingRecording]
+    let onKeep: (OrphanedMeetingRecording) -> Void
+    let onDiscard: (OrphanedMeetingRecording) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "waveform.badge.exclamationmark")
+                    .foregroundStyle(FlowTheme.accent)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Recording recovery")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Cadence found an interrupted recording file that is not attached to a meeting note. Keep it on this Mac or discard it.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                }
+            }
+
+            ForEach(Array(recordings.enumerated()), id: \.element.id) { index, recording in
+                HStack(spacing: 10) {
+                    Text(recordings.count == 1 ? "Interrupted recording" : "Interrupted recording \(index + 1)")
+                        .font(.system(size: 12, weight: .medium))
+
+                    Spacer()
+
+                    Button("Keep") {
+                        onKeep(recording)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("meeting-recovery-keep-\(recording.id.uuidString)")
+
+                    Button("Discard", role: .destructive) {
+                        onDiscard(recording)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("meeting-recovery-discard-\(recording.id.uuidString)")
+                }
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(FlowTheme.elevated)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("meeting-recovery-section")
     }
 }
 
