@@ -450,13 +450,19 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
     }
 
     var finalPassChallenges: [MeetingFinalPassChallenge] {
-        effectiveAudioRecordings.compactMap { recording in
+        let visibleDraftTextByRecording = Dictionary(
+            grouping: transcriptSegments.filter { $0.effectiveOrigin == .liveDraft },
+            by: \TranscriptSegment.recordingID
+        )
+        .compactMapValues { segments -> String? in
+            guard segments.first?.recordingID != nil else { return nil }
+            let text = segments.map(\.text).joined(separator: " ")
+            return text.isEmpty ? nil : text
+        }
+
+        return effectiveAudioRecordings.compactMap { recording in
             let retainedDraft = retainedLiveDraftText(for: recording.id)
-            let visibleDraft = transcriptSegments
-                .filter { $0.recordingID == recording.id && $0.effectiveOrigin == .liveDraft }
-                .map(\.text)
-                .joined(separator: " ")
-            let draftPeek = retainedDraft ?? (visibleDraft.isEmpty ? nil : visibleDraft)
+            let draftPeek = retainedDraft ?? visibleDraftTextByRecording[recording.id]
 
             if recording.effectiveState == .finalizationFailed {
                 return MeetingFinalPassChallenge(

@@ -52,20 +52,17 @@ final class MeetingAudioStore {
     }
 
     func hasUsableAudio(for recording: MeetingAudioRecordingMetadata) -> Bool {
-        let url = fileURL(for: recording)
-        guard fileManager.fileExists(atPath: url.path),
-              let audioFile = try? AVAudioFile(forReading: url) else {
-            return false
-        }
-        return audioFile.length > 0
+        hasUsableAudio(fileName: recording.fileName)
     }
 
     func hasUsableAudio(for orphan: OrphanedMeetingRecording) -> Bool {
-        hasUsableAudio(for: MeetingAudioRecordingMetadata(
-            id: orphan.recordingID,
-            fileName: orphan.fileName,
-            source: .systemAudio
-        ))
+        hasUsableAudio(fileName: orphan.fileName)
+    }
+
+    private func hasUsableAudio(fileName: String) -> Bool {
+        let url = directoryURL.appendingPathComponent(fileName, isDirectory: false)
+        guard let audioFile = try? AVAudioFile(forReading: url) else { return false }
+        return audioFile.length > 0
     }
 
     /// Lists saved meeting-audio files that no note references — the launch-time
@@ -84,9 +81,10 @@ final class MeetingAudioStore {
     @discardableResult
     func discardOrphanedRecording(_ orphan: OrphanedMeetingRecording) -> Bool {
         let url = directoryURL.appendingPathComponent(orphan.fileName, isDirectory: false)
-        guard fileManager.fileExists(atPath: url.path) else { return true }
         do {
             try fileManager.removeItem(at: url)
+            return true
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
             return true
         } catch {
             return false

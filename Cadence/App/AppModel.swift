@@ -205,13 +205,17 @@ final class AppModel: ObservableObject {
             audioStore: meetingAudioStore
         )
         let orphans = meetingAudioStore.orphanedRecordingDescriptors(referencedBy: recoveredNotes)
-        let usableOrphans = orphans.filter { meetingAudioStore.hasUsableAudio(for: $0) }
-        let unusableOrphans = orphans.filter { !meetingAudioStore.hasUsableAudio(for: $0) }
+        var usableOrphans = [OrphanedMeetingRecording]()
+        var unusableOrphans = [OrphanedMeetingRecording]()
+        for orphan in orphans {
+            if meetingAudioStore.hasUsableAudio(for: orphan) {
+                usableOrphans.append(orphan)
+            } else {
+                unusableOrphans.append(orphan)
+            }
+        }
         let relinkResult = MeetingRecordingRecovery.relink(recoveredNotes, orphans: usableOrphans)
-        let loadedMeetingNotes = AppModel.recoverInterruptedFinalizations(
-            relinkResult.notes,
-            audioStore: meetingAudioStore
-        )
+        let loadedMeetingNotes = relinkResult.notes.map { $0.recoveredAfterInterruptedCapture() }
         self.meetingNotes = loadedMeetingNotes
         self.selectedMeetingNoteID = loadedMeetingNotes.first?.id
         self.recoverableOrphanedRecordings = relinkResult.unrecoverable + unusableOrphans

@@ -1234,7 +1234,7 @@ struct CadenceTests {
             level: 0.2
         )
         let recording = await recorder.finish(fallbackMetrics: nil)
-        let engine = SequencedFinalTranscriptionEngine(outcomes: [
+        let engine = SequencedTranscriptionEngine(outcomes: [
             .failure,
             .transcript(""),
             .transcript("First recovered final"),
@@ -1527,7 +1527,10 @@ struct CadenceTests {
     @Test
     func rollingMeetingTranscriptionSkipsEmptyWindowsAndContinues() async throws {
         let service = MeetingRollingTranscriptionService(
-            engine: EmptyThenSuccessfulTranscriptionEngine(),
+            engine: SequencedTranscriptionEngine(outcomes: [
+                .failure,
+                .transcript("Recovered meeting transcript")
+            ]),
             windowDuration: 0.5
         )
         try await service.start(configuration: TranscriptionConfiguration())
@@ -2289,7 +2292,7 @@ private final class CalendarMockURLProtocol: URLProtocol, @unchecked Sendable {
     }
 }
 
-private final actor SequencedFinalTranscriptionEngine: TranscriptionEngine {
+private final actor SequencedTranscriptionEngine: TranscriptionEngine {
     enum Outcome: Sendable {
         case failure
         case transcript(String)
@@ -2325,45 +2328,7 @@ private final actor SequencedFinalTranscriptionEngine: TranscriptionEngine {
 
     func cancelSession() async {}
 
-    func statusSummary() async -> String { "Sequenced final transcription test engine" }
-}
-
-private final actor EmptyThenSuccessfulTranscriptionEngine: TranscriptionEngine {
-    private var finishCount = 0
-
-    func updateConfiguration(_ configuration: TranscriptionConfiguration) async throws {}
-
-    func isPrepared() async -> Bool {
-        true
-    }
-
-    func prepare() async throws {}
-
-    func startSession() async throws {}
-
-    func appendAudio(_ chunk: AudioChunk) async {}
-
-    func previewTranscript() async -> PreviewTranscript? {
-        nil
-    }
-
-    func finishSession(metrics: AudioCaptureSessionMetrics) async throws -> FinalTranscript {
-        finishCount += 1
-        if finishCount == 1 {
-            throw WhisperEngineError.noTranscript
-        }
-        return FinalTranscript(
-            rawText: "Recovered meeting transcript",
-            cleanedText: "Recovered meeting transcript",
-            duration: metrics.duration
-        )
-    }
-
-    func cancelSession() async {}
-
-    func statusSummary() async -> String {
-        "Empty then successful test engine"
-    }
+    func statusSummary() async -> String { "Sequenced transcription test engine" }
 }
 
 private final actor SpeechMetricsRequiredTranscriptionEngine: TranscriptionEngine {
