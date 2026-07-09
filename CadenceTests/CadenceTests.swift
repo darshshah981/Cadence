@@ -853,6 +853,37 @@ struct CadenceTests {
     }
 
     @Test
+    func repeatedFinalPassPreservesOriginalDraftAndTranscriptOrder() {
+        let earlierRecordingID = UUID()
+        let retriedRecordingID = UUID()
+        let laterRecordingID = UUID()
+        var note = MeetingNote(
+            transcriptSegments: [
+                TranscriptSegment(text: "Earlier final", startTime: 0, endTime: 2, origin: .final, recordingID: earlierRecordingID),
+                TranscriptSegment(text: "Original live draft", startTime: 0, endTime: 5, origin: .liveDraft, recordingID: retriedRecordingID),
+                TranscriptSegment(text: "Later final", startTime: 0, endTime: 2, origin: .final, recordingID: laterRecordingID)
+            ],
+            transcriptState: .finalizing
+        )
+
+        note.applyFinalSegments(
+            [TranscriptSegment(text: "First cleaned final", startTime: 0, endTime: 5, origin: .final, recordingID: retriedRecordingID)],
+            forRecording: retriedRecordingID
+        )
+        note.applyFinalSegments(
+            [TranscriptSegment(text: "Second cleaned final", startTime: 0, endTime: 5, origin: .final, recordingID: retriedRecordingID)],
+            forRecording: retriedRecordingID
+        )
+
+        #expect(note.transcriptSegments.map(\.text) == ["Earlier final", "Second cleaned final", "Later final"])
+        #expect(note.retainedLiveDraftText(for: retriedRecordingID) == "Original live draft")
+
+        note.revertFinalPass(for: retriedRecordingID)
+
+        #expect(note.transcriptSegments.map(\.text) == ["Earlier final", "Original live draft", "Later final"])
+    }
+
+    @Test
     func meetingNoteDoesNotRetainLiveDraftWhenFinalMatches() {
         let recordingID = UUID()
         var note = MeetingNote(
@@ -870,6 +901,136 @@ struct CadenceTests {
         #expect(note.retainedLiveDraftText(for: recordingID) == nil)
         #expect(note.transcriptSegments.map(\.text) == ["Same words"])
         #expect(note.effectiveTranscriptState == .final)
+    }
+
+    @Test
+    func finalPassMaterialChangeIgnoresWhitespaceCasingAndPunctuation() {
+        #expect(!MeetingNote.isMaterialFinalPassChange(
+            liveDraftText: "  Hello, WORLD!  This is Cadence.",
+            finalText: "hello world this is cadence"
+        ))
+        #expect(MeetingNote.isMaterialFinalPassChange(
+            liveDraftText: "We agreed to ship on Friday.",
+            finalText: "We agreed to revisit the plan next month."
+        ))
+    }
+
+    @Test
+    func trivialFinalPassChangesDoNotRetainLineage() {
+        let recordingID = UUID()
+        var note = MeetingNote(
+            transcriptSegments: [
+                TranscriptSegment(text: "Hello, WORLD!", startTime: 0, endTime: 2, origin: .liveDraft, recordingID: recordingID)
+            ],
+            transcriptState: .finalizing
+        )
+
+        note.applyFinalSegments(
+            [TranscriptSegment(text: "hello world", startTime: 0, endTime: 2, origin: .final, recordingID: recordingID)],
+            forRecording: recordingID
+        )
+
+        #expect(note.retainedLiveDraftText(for: recordingID) == nil)
+    }
+
+    @Test
+    func transcriptStateRollupKeepsUnfinishedRecordingsVisible() {
+        func recording(_ state: MeetingRecordingState) -> MeetingAudioRecordingMetadata {
+            MeetingAudioRecordingMetadata(
+                id: UUID(),
+                fileName: "\(UUID().uuidString).caf",
+                source: .systemAudio,
+                state: state
+            )
+        }
+
+        #expect(MeetingNote.rollupTranscriptState(
+            recordings: [recording(.final), recording(.finalizationFailed)],
+            hasTranscript: true
+        ) == .finalizationFailed)
+        #expect(MeetingNote.rollupTranscriptState(
+            recordings: [recording(.final), recording(.finalizing)],
+            hasTranscript: true
+        ) == .finalizing)
+        #expect(MeetingNote.rollupTranscriptState(
+            recordings: [recording(.final), recording(.recording)],
+            hasTranscript: true
+        ) == .liveDraft)
+        #expect(MeetingNote.rollupTranscriptState(
+            recordings: [recording(.final), recording(.recorded)],
+            hasTranscript: true
+        ) == .finalizing)
+        #expect(MeetingNote.rollupTranscriptState(
+            recordings: [recording(.final)],
+            hasTranscript: true
+        ) == .final)
+    }
+
+    @Test
+    func successfulRecordingDoesNotHideAnotherFailedRecording() {
+        let successfulRecordingID = UUID()
+        let failedRecordingID = UUID()
+        var note = MeetingNote(
+            transcriptSegments: [
+                TranscriptSegment(text: "Draft", startTime: 0, endTime: 2, origin: .liveDraft, recordingID: successfulRecordingID)
+            ],
+            transcriptState: .finalizationFailed,
+            audioRecordings: [
+                MeetingAudioRecordingMetadata(id: successfulRecordingID, fileName: "success.caf", source: .systemAudio, state: .finalizing),
+                MeetingAudioRecordingMetadata(id: failedRecordingID, fileName: "failed.caf", source: .microphone, state: .finalizationFailed)
+            ]
+        )
+
+        note.applyFinalSegments(
+            [TranscriptSegment(text: "Final", startTime: 0, endTime: 2, origin: .final, recordingID: successfulRecordingID)],
+            forRecording: successfulRecordingID
+        )
+        note.audioRecordings?[0].state = .final
+
+        #expect(note.effectiveTranscriptState == .finalizationFailed)
+    }
+
+    @Test
+    func finalPassChallengesArePerRecordingAndSkipNormalSuccess() {
+        let failedRecordingID = UUID()
+        let changedRecordingID = UUID()
+        let successfulRecordingID = UUID()
+        let retainedSegment = TranscriptSegment(
+            text: "Original changed-recording draft",
+            startTime: 0,
+            endTime: 2,
+            origin: .liveDraft,
+            recordingID: changedRecordingID
+        )
+        let note = MeetingNote(
+            transcriptSegments: [
+                TranscriptSegment(text: "Failed recording draft", startTime: 0, endTime: 2, origin: .liveDraft, recordingID: failedRecordingID),
+                TranscriptSegment(text: "Changed final", startTime: 0, endTime: 2, origin: .final, recordingID: changedRecordingID),
+                TranscriptSegment(text: "Normal final", startTime: 0, endTime: 2, origin: .final, recordingID: successfulRecordingID)
+            ],
+            transcriptState: .finalizationFailed,
+            audioRecordings: [
+                MeetingAudioRecordingMetadata(id: failedRecordingID, fileName: "failed.caf", source: .systemAudio, state: .finalizationFailed),
+                MeetingAudioRecordingMetadata(id: changedRecordingID, fileName: "changed.caf", source: .microphone, state: .final),
+                MeetingAudioRecordingMetadata(id: successfulRecordingID, fileName: "normal.caf", source: .systemAudio, state: .final)
+            ],
+            retainedLiveDraftByRecording: [changedRecordingID.uuidString: [retainedSegment]]
+        )
+
+        #expect(note.finalPassChallenges == [
+            MeetingFinalPassChallenge(
+                recordingID: failedRecordingID,
+                kind: .failure,
+                draftPeek: "Failed recording draft",
+                allowsRevertToDraft: false
+            ),
+            MeetingFinalPassChallenge(
+                recordingID: changedRecordingID,
+                kind: .materialChange,
+                draftPeek: "Original changed-recording draft",
+                allowsRevertToDraft: true
+            )
+        ])
     }
 
     @Test
@@ -891,6 +1052,33 @@ struct CadenceTests {
 
         #expect(note.retainedLiveDraftText(for: recordingID) == nil)
         #expect(note.transcriptSegments.map(\.text) == ["Different final"])
+    }
+
+    @Test
+    func retainedLiveDraftSnapshotsSurviveCodableRoundTrip() throws {
+        let recordingID = UUID()
+        let retainedSegment = TranscriptSegment(
+            text: "Durable original draft",
+            startTime: 0,
+            endTime: 4,
+            origin: .liveDraft,
+            recordingID: recordingID
+        )
+        let note = MeetingNote(
+            transcriptSegments: [
+                TranscriptSegment(text: "Final transcript", startTime: 0, endTime: 4, origin: .final, recordingID: recordingID)
+            ],
+            transcriptState: .final,
+            audioRecordings: [
+                MeetingAudioRecordingMetadata(id: recordingID, fileName: "recording.caf", source: .systemAudio, state: .final)
+            ],
+            retainedLiveDraftByRecording: [recordingID.uuidString: [retainedSegment]]
+        )
+
+        let decoded = try JSONDecoder().decode(MeetingNote.self, from: JSONEncoder().encode(note))
+
+        #expect(decoded.retainedLiveDraftText(for: recordingID) == "Durable original draft")
+        #expect(decoded.finalPassChallenges.first?.recordingID == recordingID)
     }
 
     @Test
@@ -1028,6 +1216,58 @@ struct CadenceTests {
         #expect(segments.first?.speaker == .systemAudio)
         #expect(segments.first?.captureSource == .systemAudio)
         #expect(segments.first?.text.contains("0.5 seconds") == true)
+    }
+
+    @Test
+    func finalTranscriptionServiceSupportsFailureEmptyAndRepeatedSavedAudioRetries() async throws {
+        let audioStore = try MeetingAudioStore(directoryURL: temporaryMeetingAudioStoreURL())
+        let noteID = UUID()
+        let recordingID = UUID()
+        let otherRecordingID = UUID()
+        let recorder = try audioStore.makeRecorder(
+            noteID: noteID,
+            recordingID: recordingID,
+            source: .systemAudio
+        )
+        try await recorder.append(
+            AudioChunk(samples: Array(repeating: 0.2, count: 4_000), frameCount: 4_000, sampleRate: 16_000),
+            level: 0.2
+        )
+        let recording = await recorder.finish(fallbackMetrics: nil)
+        let engine = SequencedFinalTranscriptionEngine(outcomes: [
+            .failure,
+            .transcript(""),
+            .transcript("First recovered final"),
+            .transcript("Second recovered final")
+        ])
+        let service = MeetingFinalTranscriptionService(
+            audioStore: audioStore,
+            makeEngine: { engine }
+        )
+
+        var threw = false
+        do {
+            _ = try await service.transcribe(recording: recording, configuration: TranscriptionConfiguration())
+        } catch {
+            threw = true
+        }
+        #expect(threw)
+
+        let emptySegments = try await service.transcribe(recording: recording, configuration: TranscriptionConfiguration())
+        #expect(emptySegments.isEmpty)
+
+        let firstSegments = try await service.transcribe(recording: recording, configuration: TranscriptionConfiguration())
+        let secondSegments = try await service.transcribe(recording: recording, configuration: TranscriptionConfiguration())
+        var note = MeetingNote(transcriptSegments: [
+            TranscriptSegment(text: "Other recording", startTime: 0, endTime: 1, origin: .final, recordingID: otherRecordingID),
+            TranscriptSegment(text: "Draft", startTime: 0, endTime: 1, origin: .liveDraft, recordingID: recordingID)
+        ])
+        note.applyFinalSegments(firstSegments, forRecording: recordingID)
+        note.applyFinalSegments(secondSegments, forRecording: recordingID)
+
+        #expect(note.transcriptSegments.map(\.text) == ["Other recording", "Second recovered final"])
+        #expect(note.transcriptSegments.last?.recordingID == recordingID)
+        #expect(note.retainedLiveDraftText(for: recordingID) == "Draft")
     }
 
     @Test
@@ -2047,6 +2287,45 @@ private final class CalendarMockURLProtocol: URLProtocol, @unchecked Sendable {
         )!
         return (response, Data(json.utf8))
     }
+}
+
+private final actor SequencedFinalTranscriptionEngine: TranscriptionEngine {
+    enum Outcome: Sendable {
+        case failure
+        case transcript(String)
+    }
+
+    private var outcomes: [Outcome]
+
+    init(outcomes: [Outcome]) {
+        self.outcomes = outcomes
+    }
+
+    func updateConfiguration(_ configuration: TranscriptionConfiguration) async throws {}
+
+    func isPrepared() async -> Bool { true }
+
+    func prepare() async throws {}
+
+    func startSession() async throws {}
+
+    func appendAudio(_ chunk: AudioChunk) async {}
+
+    func previewTranscript() async -> PreviewTranscript? { nil }
+
+    func finishSession(metrics: AudioCaptureSessionMetrics) async throws -> FinalTranscript {
+        guard !outcomes.isEmpty else { throw WhisperEngineError.noTranscript }
+        switch outcomes.removeFirst() {
+        case .failure:
+            throw WhisperEngineError.noTranscript
+        case .transcript(let text):
+            return FinalTranscript(rawText: text, cleanedText: text, duration: metrics.duration)
+        }
+    }
+
+    func cancelSession() async {}
+
+    func statusSummary() async -> String { "Sequenced final transcription test engine" }
 }
 
 private final actor EmptyThenSuccessfulTranscriptionEngine: TranscriptionEngine {

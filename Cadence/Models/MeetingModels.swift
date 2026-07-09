@@ -105,6 +105,20 @@ enum MeetingRecordingState: String, Codable, Equatable, Sendable {
     case finalizationFailed
 }
 
+struct MeetingFinalPassChallenge: Identifiable, Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
+        case failure
+        case materialChange
+    }
+
+    var recordingID: UUID
+    var kind: Kind
+    var draftPeek: String?
+    var allowsRevertToDraft: Bool
+
+    var id: UUID { recordingID }
+}
+
 struct MeetingAudioRecordingMetadata: Codable, Equatable, Identifiable, Sendable {
     var id: UUID
     var fileName: String
@@ -310,14 +324,40 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
     }
 
     var effectiveTranscriptState: MeetingTranscriptState {
-        if let transcriptState {
-            return transcriptState
+        let recordings = effectiveAudioRecordings
+        if !recordings.isEmpty {
+            return Self.rollupTranscriptState(
+                recordings: recordings,
+                hasTranscript: !transcriptSegments.isEmpty,
+                storedState: transcriptState
+            )
         }
-        return transcriptSegments.isEmpty ? .empty : .final
+        return transcriptState ?? (transcriptSegments.isEmpty ? .empty : .final)
     }
 
     var effectiveAudioRecordings: [MeetingAudioRecordingMetadata] {
         audioRecordings ?? []
+    }
+
+    static func rollupTranscriptState(
+        recordings: [MeetingAudioRecordingMetadata],
+        hasTranscript: Bool,
+        storedState: MeetingTranscriptState? = nil
+    ) -> MeetingTranscriptState {
+        let states = recordings.map(\.effectiveState)
+        if states.contains(.recording) {
+            return .liveDraft
+        }
+        if states.contains(.finalizing) {
+            return .finalizing
+        }
+        if states.contains(.finalizationFailed) {
+            return .finalizationFailed
+        }
+        if states.contains(.recorded) {
+            return storedState == .liveDraft ? .liveDraft : .finalizing
+        }
+        return hasTranscript ? .final : .empty
     }
 
     var usesDefaultTitle: Bool {
@@ -380,8 +420,9 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
         recordingID: UUID,
         with segments: [TranscriptSegment]
     ) {
+        let insertionIndex = transcriptSegments.firstIndex { $0.recordingID == recordingID }
         transcriptSegments.removeAll { $0.recordingID == recordingID }
-        transcriptSegments.append(contentsOf: segments)
+        transcriptSegments.insert(contentsOf: segments, at: min(insertionIndex ?? transcriptSegments.endIndex, transcriptSegments.endIndex))
         transcriptState = segments.isEmpty ? .empty : .final
         transcriptStatusMessage = nil
         updatedAt = Date()
@@ -408,20 +449,60 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
         return segments.map(\.text).joined(separator: " ")
     }
 
+    var finalPassChallenges: [MeetingFinalPassChallenge] {
+        effectiveAudioRecordings.compactMap { recording in
+            let retainedDraft = retainedLiveDraftText(for: recording.id)
+            let visibleDraft = transcriptSegments
+                .filter { $0.recordingID == recording.id && $0.effectiveOrigin == .liveDraft }
+                .map(\.text)
+                .joined(separator: " ")
+            let draftPeek = retainedDraft ?? (visibleDraft.isEmpty ? nil : visibleDraft)
+
+            if recording.effectiveState == .finalizationFailed {
+                return MeetingFinalPassChallenge(
+                    recordingID: recording.id,
+                    kind: .failure,
+                    draftPeek: draftPeek,
+                    allowsRevertToDraft: retainedDraft != nil
+                )
+            }
+            if retainedDraft != nil {
+                return MeetingFinalPassChallenge(
+                    recordingID: recording.id,
+                    kind: .materialChange,
+                    draftPeek: draftPeek,
+                    allowsRevertToDraft: true
+                )
+            }
+            return nil
+        }
+    }
+
+    static func isMaterialFinalPassChange(liveDraftText: String, finalText: String) -> Bool {
+        normalizedTranscriptText(liveDraftText) != normalizedTranscriptText(finalText)
+    }
+
+    private static func normalizedTranscriptText(_ text: String) -> String {
+        String(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
+    }
+
     /// Applies a successful final pass, retaining the prior live draft only when
     /// the final text differs from it — so an unchanged final pass shows no
     /// lineage chrome. Idempotent (delegates to `replaceSegmentsForRecording`).
     mutating func applyFinalSegments(_ segments: [TranscriptSegment], forRecording recordingID: UUID) {
-        let draftText = transcriptSegments
+        let key = recordingID.uuidString
+        let visibleDraftText = transcriptSegments
             .filter { $0.recordingID == recordingID && $0.effectiveOrigin == .liveDraft }
             .map(\.text)
             .joined(separator: " ")
-        retainLiveDraftSnapshot(for: recordingID)
+        if retainedLiveDraftByRecording?[key] == nil {
+            retainLiveDraftSnapshot(for: recordingID)
+        }
+        let draftText = retainedLiveDraftText(for: recordingID) ?? visibleDraftText
         replaceSegmentsForRecording(recordingID: recordingID, with: segments)
 
         let finalText = segments.map(\.text).joined(separator: " ")
-        let key = recordingID.uuidString
-        if draftText.isEmpty || draftText == finalText {
+        if draftText.isEmpty || !Self.isMaterialFinalPassChange(liveDraftText: draftText, finalText: finalText) {
             retainedLiveDraftByRecording?.removeValue(forKey: key)
             if retainedLiveDraftByRecording?.isEmpty ?? true { retainedLiveDraftByRecording = nil }
         }
@@ -432,10 +513,11 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
     mutating func revertFinalPass(for recordingID: UUID) {
         let key = recordingID.uuidString
         guard let draft = retainedLiveDraftByRecording?[key] else { return }
+        let insertionIndex = transcriptSegments.firstIndex { $0.recordingID == recordingID }
         transcriptSegments.removeAll {
             $0.recordingID == recordingID && $0.effectiveOrigin == .final
         }
-        transcriptSegments.append(contentsOf: draft)
+        transcriptSegments.insert(contentsOf: draft, at: min(insertionIndex ?? transcriptSegments.endIndex, transcriptSegments.endIndex))
         transcriptState = .liveDraft
         transcriptStatusMessage = nil
         retainedLiveDraftByRecording?.removeValue(forKey: key)
@@ -568,7 +650,7 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
                 recovered.transcriptStatusMessage = interruptedMidCaptureMessage
             }
         }
-        if recovered.effectiveTranscriptState == .finalizationFailed {
+        if recovered.transcriptState == .finalizationFailed {
             for index in recovered.effectiveAudioRecordings.indices
             where interruptedStates.contains(recovered.effectiveAudioRecordings[index].effectiveState) {
                 recovered.audioRecordings?[index].state = .finalizationFailed

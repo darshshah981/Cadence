@@ -667,19 +667,6 @@ final class AppModel: ObservableObject {
         generateSummary(for: noteID)
     }
 
-    func retryFinalTranscriptionForSelectedMeetingNote() {
-        guard let note = selectedMeetingNote,
-              let recording = note.effectiveAudioRecordings.last else { return }
-        updateMeetingTranscriptState(
-            noteID: note.id,
-            state: .finalizing,
-            message: "Retrying final transcript from saved audio"
-        )
-        Task { @MainActor [weak self] in
-            await self?.runFinalTranscriptionPass(noteID: note.id, recording: recording)
-        }
-    }
-
     func copySelectedMeetingNoteMarkdown() {
         guard let note = selectedMeetingNote else { return }
         let pasteboard = NSPasteboard.general
@@ -1152,6 +1139,11 @@ final class AppModel: ObservableObject {
                     .effectiveAudioRecordings.first(where: { $0.id == recordingID }) else {
                 return
             }
+            self.updateMeetingTranscriptState(
+                noteID: noteID,
+                state: .finalizing,
+                message: "Retrying final transcript from saved audio"
+            )
             await self.runFinalTranscriptionPass(noteID: noteID, recording: recording)
         }
     }

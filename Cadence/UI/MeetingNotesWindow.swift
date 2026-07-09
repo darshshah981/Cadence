@@ -169,8 +169,8 @@ struct MeetingNotesView: View {
                     onGenerateSummary: {
                         appModel.generateSummaryForSelectedMeetingNote()
                     },
-                    onRetryFinalTranscription: {
-                        appModel.retryFinalTranscriptionForSelectedMeetingNote()
+                    onRetryFinalTranscription: { recordingID in
+                        appModel.retryFinalTranscriptionPass(noteID: selectedNote.id, recordingID: recordingID)
                     },
                     onRevertFinalPass: { recordingID in
                         appModel.revertFinalPass(noteID: selectedNote.id, recordingID: recordingID)
@@ -577,7 +577,7 @@ private struct MeetingNoteEditor: View {
     let onSelectActiveCaptureNote: () -> Void
     let onRequestScreenRecording: () -> Void
     let onGenerateSummary: () -> Void
-    let onRetryFinalTranscription: () -> Void
+    let onRetryFinalTranscription: (UUID) -> Void
     let onRevertFinalPass: (UUID) -> Void
     let onAcceptFinalPass: (UUID) -> Void
     let onRenameSpeaker: (UUID, String) -> Void
@@ -801,12 +801,6 @@ private struct MeetingNoteEditor: View {
             }
 
             Spacer()
-
-            if note.effectiveTranscriptState == .finalizationFailed && !note.effectiveAudioRecordings.isEmpty {
-                MeetingInlineButton(title: "Retry final pass", systemImage: "arrow.clockwise") {
-                    onRetryFinalTranscription()
-                }
-            }
 
             MeetingInlineButton(
                 title: visibleSummary == nil ? "Generate" : "Regenerate",
@@ -1086,39 +1080,8 @@ private struct MeetingNoteEditor: View {
                     .background(transcriptStateTint.opacity(0.12), in: Capsule())
             }
 
-            if let lineageRecordingID = retainedLineageRecordingID {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Final transcript replaced your draft.")
-                            .font(.system(size: 12, weight: .semibold))
-                        if let peek = note.retainedLiveDraftText(for: lineageRecordingID) {
-                            Text(peek)
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(FlowTheme.textTertiary)
-                                .lineLimit(1)
-                        }
-                    }
-                    Spacer()
-                    Button("Revert") {
-                        onRevertFinalPass(lineageRecordingID)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    Button("Keep") {
-                        onAcceptFinalPass(lineageRecordingID)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(FlowTheme.border, lineWidth: 1)
-                )
+            ForEach(note.finalPassChallenges) { challenge in
+                finalPassChallengeRow(challenge)
             }
 
             HStack(spacing: 10) {
@@ -1186,6 +1149,63 @@ private struct MeetingNoteEditor: View {
                 }
             }
         }
+    }
+
+    private func finalPassChallengeRow(_ challenge: MeetingFinalPassChallenge) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: challenge.kind == .failure ? "exclamationmark.arrow.triangle.2.circlepath" : "arrow.triangle.2.circlepath")
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(challenge.kind == .failure
+                    ? "Final pass could not improve this recording."
+                    : "Final transcript replaced your draft.")
+                    .font(.system(size: 12, weight: .semibold))
+
+                if let peek = challenge.draftPeek {
+                    Text("Draft: \(peek)")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(FlowTheme.textTertiary)
+                        .lineLimit(1)
+                } else if challenge.kind == .failure {
+                    Text("Retry the final pass from the saved recording when ready.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(FlowTheme.textTertiary)
+                }
+            }
+
+            Spacer()
+
+            Button("Retry") {
+                onRetryFinalTranscription(challenge.recordingID)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityIdentifier("final-pass-retry-\(challenge.recordingID.uuidString)")
+
+            if challenge.allowsRevertToDraft {
+                Button("Revert") {
+                    onRevertFinalPass(challenge.recordingID)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityIdentifier("final-pass-revert-\(challenge.recordingID.uuidString)")
+
+                Button("Keep") {
+                    onAcceptFinalPass(challenge.recordingID)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .accessibilityIdentifier("final-pass-keep-\(challenge.recordingID.uuidString)")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(FlowTheme.border, lineWidth: 1)
+        )
     }
 
     private func requestRenameSpeaker(for run: TranscriptRun) {
@@ -1412,10 +1432,6 @@ private struct MeetingNoteEditor: View {
             return nil
         }
         return summary
-    }
-
-    private var retainedLineageRecordingID: UUID? {
-        note.effectiveAudioRecordings.first(where: { note.retainedLiveDraftText(for: $0.id) != nil })?.id
     }
 
     private var transcriptStatusDetail: String? {
