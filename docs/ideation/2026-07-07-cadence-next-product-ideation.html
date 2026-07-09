@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ideation: Cadence Next Product Direction</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f5ef;
+      --surface: #fffdf8;
+      --surface-strong: #ffffff;
+      --ink: #151719;
+      --muted: #5d646b;
+      --faint: #7a8188;
+      --line: #d9d5ca;
+      --accent: #0b6b5c;
+      --accent-soft: #e4f2ef;
+      --accent-ink: #06483f;
+      --blue: #285c9f;
+      --blue-soft: #e6eef8;
+      --gold: #805b00;
+      --gold-soft: #f5ead0;
+      --rose: #8b3240;
+      --rose-soft: #f7e2e6;
+      --shadow: 0 18px 50px rgba(29, 31, 34, 0.10);
+      --radius: 10px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    code {
+      font-family: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      background: rgba(21, 23, 25, 0.06);
+      padding: 0.12rem 0.32rem;
+      border-radius: 5px;
+    }
+
+    .page {
+      width: min(1120px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 40px 0 64px;
+    }
+
+    header.hero {
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 34px;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 8px 0 12px;
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+      max-width: 13ch;
+    }
+
+    .lede {
+      max-width: 73ch;
+      color: var(--muted);
+      font-size: 1.03rem;
+      margin: 0;
+    }
+
+    .metadata {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .metadata div,
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfaf6;
+      padding: 12px 14px;
+    }
+
+    .metadata dt,
+    .stat span {
+      display: block;
+      color: var(--faint);
+      font-size: 0.72rem;
+      font-weight: 750;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .metadata dd,
+    .stat strong {
+      margin: 3px 0 0;
+      display: block;
+      color: var(--ink);
+      font-size: 0.95rem;
+      font-weight: 720;
+    }
+
+    nav.toc {
+      margin: 22px 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    nav.toc a,
+    .jump-list a,
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink);
+      padding: 7px 11px;
+      font-size: 0.85rem;
+      font-weight: 680;
+      text-decoration: none;
+    }
+
+    section {
+      margin-top: 28px;
+    }
+
+    .section-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 28px;
+      box-shadow: 0 10px 30px rgba(29, 31, 34, 0.06);
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.45rem;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 1.12rem;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    p {
+      max-width: 75ch;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .axis-list {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .axis-list li {
+      min-height: 94px;
+      border-radius: var(--radius);
+      background: var(--blue-soft);
+      border: 1px solid #c7d8ef;
+      color: #173f70;
+      padding: 13px;
+      font-weight: 700;
+    }
+
+    .jump-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 20px;
+    }
+
+    .idea {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface-strong);
+      padding: 22px;
+      margin-top: 18px;
+    }
+
+    .idea-header {
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      align-items: start;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 14px;
+      margin-bottom: 16px;
+    }
+
+    .rank {
+      display: inline-flex;
+      width: 34px;
+      height: 34px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent-ink);
+      font-weight: 820;
+      flex: 0 0 auto;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chips {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .chip {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 0.76rem;
+      font-weight: 760;
+      background: var(--accent-soft);
+      color: var(--accent-ink);
+      border: 1px solid #b8dcd5;
+    }
+
+    .chip.blue {
+      background: var(--blue-soft);
+      color: #173f70;
+      border-color: #c7d8ef;
+    }
+
+    .chip.gold {
+      background: var(--gold-soft);
+      color: var(--gold);
+      border-color: #dec894;
+    }
+
+    .idea-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .field-list {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+    }
+
+    .field-list dt {
+      color: var(--faint);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .field-list dd {
+      margin: 3px 0 0;
+      color: var(--ink);
+    }
+
+    .callout {
+      border-radius: var(--radius);
+      border: 1px solid #c7d8ef;
+      background: var(--blue-soft);
+      color: #173f70;
+      padding: 14px;
+    }
+
+    .callout strong {
+      color: inherit;
+    }
+
+    .diagram {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfaf6;
+      padding: 10px;
+      overflow-x: auto;
+    }
+
+    .diagram svg {
+      display: block;
+      width: 100%;
+      min-width: 320px;
+      height: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: var(--radius);
+      font-size: 0.92rem;
+    }
+
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th {
+      color: var(--accent-ink);
+      background: var(--accent-soft);
+      font-size: 0.74rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .sources {
+      columns: 2;
+      column-gap: 28px;
+      padding-left: 18px;
+    }
+
+    .sources li {
+      break-inside: avoid;
+      margin: 0 0 8px;
+    }
+
+    footer {
+      margin-top: 32px;
+      color: var(--faint);
+      font-size: 0.82rem;
+      border-top: 1px solid var(--line);
+      padding-top: 18px;
+    }
+
+    @media (max-width: 860px) {
+      .page {
+        width: min(100% - 24px, 1120px);
+        padding-top: 18px;
+      }
+
+      header.hero,
+      .section-card,
+      .idea {
+        padding: 18px;
+      }
+
+      .metadata,
+      .stats,
+      .axis-list,
+      .idea-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .idea-header {
+        display: block;
+      }
+
+      .chips {
+        justify-content: flex-start;
+        margin-top: 12px;
+      }
+
+      .sources {
+        columns: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="eyebrow">Ideation Artifact</div>
+      <h1>Cadence Next Product Direction</h1>
+      <p class="lede">The best next move is not another isolated meeting-note feature. Cadence should become the private native capture layer for spoken work on the Mac, starting with a trust-first meeting recorder that users believe before they admire.</p>
+
+      <dl class="metadata" aria-label="Metadata">
+        <div><dt>Date</dt><dd><time datetime="2026-07-07">2026-07-07</time></dd></div>
+        <div><dt>Topic</dt><dd>cadence-next-product</dd></div>
+        <div><dt>Mode</dt><dd>repo-grounded</dd></div>
+        <div><dt>Focus</dt><dd>What Cadence should do next</dd></div>
+      </dl>
+
+      <div class="stats" aria-label="Run statistics">
+        <div class="stat"><span>Raw Ideas</span><strong>43</strong></div>
+        <div class="stat"><span>Deduped</span><strong>12</strong></div>
+        <div class="stat"><span>Ranked</span><strong>7</strong></div>
+        <div class="stat"><span>Axes</span><strong>5</strong></div>
+      </div>
+
+      <nav class="toc" aria-label="Document navigation">
+        <a href="#grounding-context">Grounding Context</a>
+        <a href="#topic-axes">Topic Axes</a>
+        <a href="#ranked-ideas">Ranked Ideas</a>
+        <a href="#rejection-summary">Rejection Summary</a>
+        <a href="#sources">Sources</a>
+      </nav>
+    </header>
+
+    <section id="grounding-context" class="section-card">
+      <div class="eyebrow">Codebase Context</div>
+      <h2>Grounding Context</h2>
+      <p>Cadence is a native macOS SwiftUI/AppKit app with two product surfaces inside one shell. The original surface is fast local dictation: capture microphone audio, transcribe locally with WhisperKit, and insert text into the focused app. The newer surface is durable meeting capture: system or microphone audio, live draft transcript, saved CAF audio, final-pass transcription, summaries, Ask/Reports, transcript history, and Markdown export.</p>
+      <p>The codebase already has serious pieces: ScreenCaptureKit system audio, Google OAuth and Calendar fetching, local JSON meeting stores, local CAF audio, Keychain token storage, contextual Screen Recording permission, transcript segment origin and recording IDs, note-local summaries, global Ask/search primitives, and privacy-safe analytics.</p>
+      <p>The most important product-risk finding is reliability. Cadence writes meeting audio during recording, but recording metadata is appended to the note only after stop. That means a force-quit during active recording can leave a CAF file that is not discoverable from the meeting note. For a meeting product, this is more damaging than a weak summary or a rough transcript.</p>
+      <p>External research changes the positioning. Bot-free capture is now table stakes across the category. Granola's defensible pattern is not just recording, but the AI notepad workflow around rough notes, calendar context, and after-meeting synthesis. MacWhisper is close local/private prior art. Cadence's sharper wedge is trust: local-first storage, visible recording state, recoverable audio, editable speaker truth, and no cloud sharing default.</p>
+    </section>
+
+    <section id="topic-axes" class="section-card">
+      <div class="eyebrow">Surface Map</div>
+      <h2>Topic Axes</h2>
+      <ul class="axis-list">
+        <li>Capture reliability and transcription quality</li>
+        <li>Meeting workflow and calendar-to-capture flow</li>
+        <li>Consumer UX, menu bar, main window, notes, settings, and trust</li>
+        <li>Knowledge layer after capture</li>
+        <li>Distribution, privacy, onboarding, permissions, packaging, and release readiness</li>
+      </ul>
+    </section>
+
+    <section id="ranked-ideas" class="section-card">
+      <div class="eyebrow">Survivors</div>
+      <h2>Ranked Ideas</h2>
+      <div class="jump-list" aria-label="Ranked idea links">
+        <a href="#idea-1">1. Crash-First Ledger</a>
+        <a href="#idea-2">2. Meeting Runway</a>
+        <a href="#idea-3">3. Private AI Notepad</a>
+        <a href="#idea-4">4. Editable Speaker Ledger</a>
+        <a href="#idea-5">5. Trust You Can Inspect</a>
+        <a href="#idea-6">6. Final Pass Challenge</a>
+        <a href="#idea-7">7. Capture Rehearsal</a>
+      </div>
+
+      <article id="idea-1" class="idea">
+        <div class="idea-header">
+          <div class="title-row">
+            <span class="rank">1</span>
+            <div>
+              <h3>Idea 1. Crash-First Meeting Ledger</h3>
+              <span class="pill">Top pick</span>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">Confidence 92%</span>
+            <span class="chip blue">Complexity Medium</span>
+            <span class="chip gold">Reliability</span>
+          </div>
+        </div>
+        <div class="idea-grid">
+          <dl class="field-list">
+            <div>
+              <dt>Description</dt>
+              <dd>Make a meeting recording a durable ledger from the first audio frame, not a note artifact that becomes real only after stop. If Cadence heard it, Cadence should be able to find it, reopen it, retry finalization, and explain what survived after a crash or interruption.</dd>
+            </div>
+            <div>
+              <dt>Axis</dt>
+              <dd>Capture reliability and transcription quality.</dd>
+            </div>
+            <div>
+              <dt>Basis</dt>
+              <dd><strong>direct:</strong> The repo evidence shows meeting audio is written incrementally, while recording metadata is appended only after stop; active-recording crash recovery therefore still needs incremental metadata or another discoverability mechanism. <strong>external:</strong> bot-free capture is now common, so trust and recovery are stronger differentiators than basic recording.</dd>
+            </div>
+            <div>
+              <dt>Rationale</dt>
+              <dd>Users forgive a mediocre transcript faster than they forgive a lost meeting. This is the foundation every other meeting feature depends on.</dd>
+            </div>
+            <div>
+              <dt>Downsides</dt>
+              <dd>It is less flashy than speaker diarization or AI summaries, and it touches storage, recovery, capture state, and UI. It also forces careful migration thinking around partial or corrupted recordings.</dd>
+            </div>
+          </dl>
+          <div class="diagram" aria-label="Crash-first meeting ledger diagram">
+            <svg viewBox="0 0 560 230" role="img" aria-labelledby="ledger-title ledger-desc">
+              <title id="ledger-title">Crash-first capture ledger flow</title>
+              <desc id="ledger-desc">Audio frames immediately create a durable ledger entry, which supports recovery, final pass, and the working note.</desc>
+              <defs>
+                <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                  <path d="M0,0 L8,3 L0,6 Z" fill="#285c9f"></path>
+                </marker>
+              </defs>
+              <rect x="22" y="38" width="120" height="58" rx="10" fill="#e6eef8" stroke="#8fb0d8"></rect>
+              <text x="82" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="#173f70">Audio frame</text>
+              <text x="82" y="80" text-anchor="middle" font-size="12" fill="#173f70">first second</text>
+              <line x1="142" y1="67" x2="206" y2="67" stroke="#285c9f" stroke-width="2" marker-end="url(#arrow)"></line>
+              <rect x="210" y="28" width="150" height="78" rx="10" fill="#e4f2ef" stroke="#79b9ad"></rect>
+              <text x="285" y="57" text-anchor="middle" font-size="13" font-weight="700" fill="#06483f">Ledger entry</text>
+              <text x="285" y="76" text-anchor="middle" font-size="12" fill="#06483f">note, CAF, source, state</text>
+              <line x1="360" y1="67" x2="424" y2="67" stroke="#285c9f" stroke-width="2" marker-end="url(#arrow)"></line>
+              <rect x="428" y="38" width="110" height="58" rx="10" fill="#f5ead0" stroke="#d1ad61"></rect>
+              <text x="483" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="#805b00">Recovery</text>
+              <text x="483" y="80" text-anchor="middle" font-size="12" fill="#805b00">on relaunch</text>
+              <path d="M285 106 C285 132 228 133 228 158" fill="none" stroke="#285c9f" stroke-width="2" marker-end="url(#arrow)"></path>
+              <path d="M285 106 C285 132 342 133 342 158" fill="none" stroke="#285c9f" stroke-width="2" marker-end="url(#arrow)"></path>
+              <rect x="154" y="162" width="148" height="48" rx="10" fill="#fbfaf6" stroke="#d9d5ca"></rect>
+              <text x="228" y="190" text-anchor="middle" font-size="13" font-weight="700" fill="#151719">Final pass retry</text>
+              <rect x="318" y="162" width="148" height="48" rx="10" fill="#fbfaf6" stroke="#d9d5ca"></rect>
+              <text x="392" y="190" text-anchor="middle" font-size="13" font-weight="700" fill="#151719">Working note</text>
+            </svg>
+          </div>
+        </div>
+      </article>
+
+      <article id="idea-2" class="idea">
+        <div class="idea-header">
+          <div class="title-row">
+            <span class="rank">2</span>
+            <h3>Idea 2. Meeting Runway</h3>
+          </div>
+          <div class="chips">
+            <span class="chip">Confidence 76%</span>
+            <span class="chip blue">Complexity Medium</span>
+            <span class="chip gold">Workflow</span>
+          </div>
+        </div>
+        <div class="idea-grid">
+          <dl class="field-list">
+            <div>
+              <dt>Description</dt>
+              <dd>Narrow the calendar idea to a menu-bar pre-meeting cockpit: next meeting, readiness, join link, and one action to join plus record. Avoid overclaiming a full "capture OS" for now; the product move is to make the 30 seconds before a meeting calmer and more reliable.</dd>
+            </div>
+            <div>
+              <dt>Axis</dt>
+              <dd>Meeting workflow and calendar-to-capture flow.</dd>
+            </div>
+            <div>
+              <dt>Basis</dt>
+              <dd><strong>direct:</strong> Cadence already has Google Calendar events, meeting candidate detection, note preparation, join/open behavior, and capture start coordination. <strong>external:</strong> MeetingBar and Raycast show that next-meeting menu-bar state is a natural macOS pattern.</dd>
+            </div>
+            <div>
+              <dt>Rationale</dt>
+              <dd>The user is most motivated right before a meeting. If Cadence becomes the quickest path from "meeting starts now" to "capture is rolling," it becomes a habit instead of a utility buried in the main window.</dd>
+            </div>
+            <div>
+              <dt>Downsides</dt>
+              <dd>The verifier was right that "Calendar as Capture OS" overreaches. This should stay tight: next meeting, readiness, join, record. Recurring rules and post-meeting automation can wait.</dd>
+            </div>
+          </dl>
+          <div class="diagram" aria-label="Meeting runway diagram">
+            <svg viewBox="0 0 560 200" role="img" aria-labelledby="runway-title runway-desc">
+              <title id="runway-title">Meeting runway flow</title>
+              <desc id="runway-desc">Calendar context flows into a menu-bar cockpit, then a single join and record action creates a note.</desc>
+              <defs>
+                <marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                  <path d="M0,0 L8,3 L0,6 Z" fill="#0b6b5c"></path>
+                </marker>
+              </defs>
+              <rect x="24" y="62" width="108" height="58" rx="10" fill="#e6eef8" stroke="#8fb0d8"></rect>
+              <text x="78" y="87" text-anchor="middle" font-size="13" font-weight="700" fill="#173f70">Calendar</text>
+              <text x="78" y="105" text-anchor="middle" font-size="12" fill="#173f70">next event</text>
+              <line x1="132" y1="91" x2="190" y2="91" stroke="#0b6b5c" stroke-width="2" marker-end="url(#arrow2)"></line>
+              <rect x="194" y="40" width="172" height="102" rx="12" fill="#e4f2ef" stroke="#79b9ad"></rect>
+              <text x="280" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="#06483f">Menu bar runway</text>
+              <text x="280" y="88" text-anchor="middle" font-size="12" fill="#06483f">ready?</text>
+              <text x="280" y="106" text-anchor="middle" font-size="12" fill="#06483f">joinable?</text>
+              <text x="280" y="124" text-anchor="middle" font-size="12" fill="#06483f">recording source?</text>
+              <line x1="366" y1="91" x2="424" y2="91" stroke="#0b6b5c" stroke-width="2" marker-end="url(#arrow2)"></line>
+              <rect x="428" y="62" width="108" height="58" rx="10" fill="#f5ead0" stroke="#d1ad61"></rect>
+              <text x="482" y="87" text-anchor="middle" font-size="13" font-weight="700" fill="#805b00">Join +</text>
+              <text x="482" y="105" text-anchor="middle" font-size="13" font-weight="700" fill="#805b00">Record</text>
+            </svg>
+          </div>
+        </div>
+      </article>
+
+      <article id="idea-3" class="idea">
+        <div class="idea-header">
+          <div class="title-row">
+            <span class="rank">3</span>
+            <h3>Idea 3. Private AI Notepad</h3>
+          </div>
+          <div class="chips">
+            <span class="chip">Confidence 86%</span>
+            <span class="chip blue">Complexity High</span>
+            <span class="chip gold">Knowledge</span>
+          </div>
+        </div>
+        <dl class="field-list">
+          <div>
+            <dt>Description</dt>
+            <dd>Make the meeting note the primary object, not the transcript. Rough notes, calendar context, live draft, final transcript, summary, Ask, and reports should cooperate around one editable working note that starts useful during the meeting and sharpens afterward.</dd>
+          </div>
+          <div>
+            <dt>Axis</dt>
+            <dd>Knowledge layer after capture.</dd>
+          </div>
+          <div>
+            <dt>Basis</dt>
+            <dd><strong>direct:</strong> Cadence already has note bodies, summaries, Ask, Reports, transcript search/collapse, and calendar-seeded note templates. <strong>external:</strong> Granola's strongest workflow is rough human notes plus AI enhancement, not the recorder itself.</dd>
+          </div>
+          <div>
+            <dt>Rationale</dt>
+            <dd>This moves Cadence out of "private Otter alternative" territory and into "private meeting thinking surface." It also makes imperfect transcripts less fatal, because the user gets value from the working note before the final pass is perfect.</dd>
+          </div>
+          <div>
+            <dt>Downsides</dt>
+            <dd>It is a product-design commitment, not a small UI tweak. It will expose weaknesses in summary quality and note layout if the underlying capture state is not reliable.</dd>
+          </div>
+        </dl>
+      </article>
+
+      <article id="idea-4" class="idea">
+        <div class="idea-header">
+          <div class="title-row">
+            <span class="rank">4</span>
+            <h3>Idea 4. Editable Speaker Ledger</h3>
+          </div>
+          <div class="chips">
+            <span class="chip">Confidence 84%</span>
+            <span class="chip blue">Complexity High</span>
+            <span class="chip gold">Speakers</span>
+          </div>
+        </div>
+        <dl class="field-list">
+          <div>
+            <dt>Description</dt>
+            <dd>Design speaker identity as editable meeting metadata. Start with source-aware turns, quick rename, merge/split, durable corrected names, and visible confidence rather than promising perfect automatic identity.</dd>
+          </div>
+          <div>
+            <dt>Axis</dt>
+            <dd>Knowledge layer after capture.</dd>
+          </div>
+          <div>
+            <dt>Basis</dt>
+            <dd><strong>direct:</strong> Transcript segments already carry speaker, capture source, origin, and recording ID, but current speaker labels are capture-source proxies rather than true diarization. <strong>external:</strong> MacWhisper validates local speaker workflows, while pyannote/WhisperX make editable speaker turns more credible than perfect names.</dd>
+          </div>
+          <div>
+            <dt>Rationale</dt>
+            <dd>"Who said what" is often more useful than exact transcript wording. A humble correction-first speaker layer improves transcript reading, summaries, Ask, and export without damaging trust.</dd>
+          </div>
+          <div>
+            <dt>Downsides</dt>
+            <dd>True diarization adds model, packaging, performance, and privacy complexity. The product should stage this carefully: editable turns first, local diarization only after the correction workflow is strong.</dd>
+          </div>
+        </dl>
+      </article>
+
+      <article id="idea-5" class="idea">
+        <div class="idea-header">
+          <div class="title-row">
+            <span class="rank">5</span>
+            <h3>Idea 5. Trust You Can Inspect</h3>
+          </div>
+          <div class="chips">
+            <span class="chip">Confidence 83%</span>
+            <span class="chip blue">Complexity Medium</span>
+            <span class="chip gold">Trust</span>
+          </div>
+        </div>
+        <dl class="field-list">
+          <div>
+            <dt>Description</dt>
+            <dd>Turn privacy and readiness into product UX: what stays local, what analytics excludes, which permissions are active, what each permission unlocks, and what leaves the Mac when the user copies or exports.</dd>
+          </div>
+          <div>
+            <dt>Axis</dt>
+            <dd>Consumer UX, menu bar, main window, note UI, settings, and trust.</dd>
+          </div>
+          <div>
+            <dt>Basis</dt>
+            <dd><strong>direct:</strong> Cadence already has local audio/transcript storage, optional sanitized analytics, minimal trust copy, and repeated permission surfaces. <strong>external:</strong> recent Granola privacy-default criticism makes inspectable trust commercially relevant, not just morally nice.</dd>
+          </div>
+          <div>
+            <dt>Rationale</dt>
+            <dd>Local-first is only a differentiator if users can feel it in tense moments: first launch, Screen Recording prompts, active recording, export, and error recovery.</dd>
+          </div>
+          <div>
+            <dt>Downsides</dt>
+            <dd>There is a risk of building a verbose settings page. The UX has to be calm and situational: readiness and privacy at the point of concern, deeper detail only when asked.</dd>
+          </div>
+        </dl>
+      </article>
+
+      <article id="idea-6" class="idea">
+        <div class="idea-header">
+          <div class="title-row">
+            <span class="rank">6</span>
+            <h3>Idea 6. Final Pass as Challenge, Not Replacement</h3>
+          </div>
+          <div class="chips">
+            <span class="chip">Confidence 81%</span>
+            <span class="chip blue">Complexity Medium</span>
+            <span class="chip gold">Transcript</span>
+          </div>
+        </div>
+        <dl class="field-list">
+          <div>
+            <dt>Description</dt>
+            <dd>Make live draft and final pass lineage visible. Instead of a mysterious overwrite, show retained live text, final-pass outcome, replacement boundaries, failure states, and user-visible conflict or confidence cues when the saved-audio pass disagrees.</dd>
+          </div>
+          <div>
+            <dt>Axis</dt>
+            <dd>Capture reliability and transcription quality.</dd>
+          </div>
+          <div>
+            <dt>Basis</dt>
+            <dd><strong>direct:</strong> The model already distinguishes live draft, finalizing, final, origin, recording ID, empty final failures, retained text, and replacement only for matching recordings.</dd>
+          </div>
+          <div>
+            <dt>Rationale</dt>
+            <dd>Cadence has the correctness model. Surfacing it would turn a subtle invariant into user trust, especially after the user's earlier live-transcript duplication and stuck-finalization problems.</dd>
+          </div>
+          <div>
+            <dt>Downsides</dt>
+            <dd>Too much lineage UI can feel technical. The design should show a simple state by default and reveal details only when the final pass fails, changes materially, or needs a retry.</dd>
+          </div>
+        </dl>
+      </article>
+
+      <article id="idea-7" class="idea">
+        <div class="idea-header">
+          <div class="title-row">
+            <span class="rank">7</span>
+            <h3>Idea 7. Capture Rehearsal</h3>
+          </div>
+          <div class="chips">
+            <span class="chip">Confidence 70%</span>
+            <span class="chip blue">Complexity Medium</span>
+            <span class="chip gold">Onboarding</span>
+          </div>
+        </div>
+        <dl class="field-list">
+          <div>
+            <dt>Description</dt>
+            <dd>Before the first real meeting, let users run a short private rehearsal: capture a few seconds of mic or system audio, show what was heard, show what stayed local, and identify the exact missing permission or capture problem.</dd>
+          </div>
+          <div>
+            <dt>Axis</dt>
+            <dd>Distribution, privacy, onboarding, permissions, packaging, release readiness.</dd>
+          </div>
+          <div>
+            <dt>Basis</dt>
+            <dd><strong>direct:</strong> The repo has permission panes, source-specific troubleshooting, contextual Screen Recording permission, and audio smoke verification in scripts. <strong>reasoned:</strong> permissions become less frightening when the app proves the capture path privately before a real call.</dd>
+          </div>
+          <div>
+            <dt>Rationale</dt>
+            <dd>This is the most practical way to make first-run trust tangible. It also gives Cadence a user-facing version of its own audio smoke test.</dd>
+          </div>
+          <div>
+            <dt>Downsides</dt>
+            <dd>The verifier flagged the initial version as two ideas stapled together. Keep this focused on rehearsal; release signing/notarization is still important, but belongs to shipping hygiene rather than this product idea.</dd>
+          </div>
+        </dl>
+      </article>
+    </section>
+
+    <section id="rejection-summary" class="section-card">
+      <div class="eyebrow">Cut List</div>
+      <h2>Rejection Summary</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Idea</th>
+            <th>Reason Rejected</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>Cadence Memory / Private Conversation Library</td>
+            <td>Cross-note search and global Ask already exist, so the new premise is thinner than the framing suggests. Keep it as a later extension of Private AI Notepad.</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Quality Budget Instead of Model Picker</td>
+            <td>Directionally useful, but Cadence already has user-facing quality presets and advanced controls underneath. The novelty delta is too small for the top set.</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>DVR Season Pass for Meetings</td>
+            <td>Recurring capture is an interesting calendar variant, but recurring-rule machinery is not directly supported by the current repo evidence.</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Ad Hoc Call Capture</td>
+            <td>Manual ad hoc capture fits the product, but detecting likely non-calendar calls has weak evidence and a harder macOS inference surface than the idea admitted.</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>Chain-of-Custody Export / No Share Links by Design</td>
+            <td>The local export and no-cloud stance are strong, but provenance receipts overclaim the current evidence. Fold the trust angle into Trust You Can Inspect.</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>Native Personal Capture Suite</td>
+            <td>Useful as an umbrella thesis, but too broad as a next product idea. The ranked set decomposes it into buildable directions.</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td>Ambient Dictation Autopilot</td>
+            <td>Good future direction for dictation, but this run's strongest evidence points to meeting trust and capture recovery first.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sources" class="section-card">
+      <div class="eyebrow">References</div>
+      <h2>Sources</h2>
+      <ul class="sources">
+        <li><a href="https://github.com/darshshah981/Cadence/blob/main/README.md">README.md</a></li>
+        <li><a href="https://github.com/darshshah981/Cadence/blob/main/docs/codebase-guide.md">docs/codebase-guide.md</a></li>
+        <li><a href="https://github.com/darshshah981/Cadence/blob/main/docs/audit-2026-07.md">docs/audit-2026-07.md</a></li>
+        <li><a href="https://github.com/darshshah981/Cadence/blob/main/docs/privacy.md">docs/privacy.md</a></li>
+        <li><a href="https://github.com/darshshah981/Cadence/blob/main/Cadence/App/AppModel.swift">Cadence/App/AppModel.swift</a></li>
+        <li><a href="https://github.com/darshshah981/Cadence/blob/main/Cadence/Models/MeetingModels.swift">Cadence/Models/MeetingModels.swift</a></li>
+        <li><a href="https://github.com/darshshah981/Cadence/blob/main/Cadence/Services/MeetingAudioStore.swift">Cadence/Services/MeetingAudioStore.swift</a></li>
+        <li><a href="https://github.com/darshshah981/Cadence/blob/main/Cadence/Services/SystemAudioCaptureService.swift">Cadence/Services/SystemAudioCaptureService.swift</a></li>
+        <li><code>/tmp/compound-engineering/ce-ideate/e98feef9/evidence-capture-reliability-transcription.md</code></li>
+        <li><code>/tmp/compound-engineering/ce-ideate/e98feef9/evidence-meeting-workflow-calendar.md</code></li>
+        <li><code>/tmp/compound-engineering/ce-ideate/e98feef9/evidence-consumer-ux-trust.md</code></li>
+        <li><code>/tmp/compound-engineering/ce-ideate/e98feef9/evidence-knowledge-layer.md</code></li>
+        <li><code>/tmp/compound-engineering/ce-ideate/e98feef9/evidence-distribution-privacy.md</code></li>
+        <li><a href="https://www.granola.ai/">Granola product</a></li>
+        <li><a href="https://www.granola.ai/blog/how-to-use-ai-to-take-meeting-notes-a-step-by-step-guide-for-2026">Granola meeting-notes workflow</a></li>
+        <li><a href="https://www.theverge.com/ai-artificial-intelligence/906253/granola-note-links-ai-training-psa">The Verge on Granola privacy defaults</a></li>
+        <li><a href="https://www.macwhisper.com/">MacWhisper</a></li>
+        <li><a href="https://macwhisper.helpscoutdocs.com/article/32-automatic-speaker-recognition-in-macwhisper">MacWhisper speaker recognition</a></li>
+        <li><a href="https://github.com/leits/MeetingBar">MeetingBar</a></li>
+        <li><a href="https://manual.raycast.com/calendar">Raycast Calendar</a></li>
+        <li><a href="https://huggingface.co/pyannote-community/speaker-diarization-community-1">pyannote speaker diarization Community-1</a></li>
+        <li><a href="https://github.com/m-bain/whisperX">WhisperX</a></li>
+      </ul>
+    </section>
+
+    <footer class="composition-signal">
+      Composed 2026-07-07T01:21Z by ce-ideate from user prompt context.
+    </footer>
+  </main>
+</body>
+</html>

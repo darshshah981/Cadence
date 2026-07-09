@@ -1,25 +1,25 @@
 import SwiftUI
 
 enum FlowTheme {
-    static let background = Color(dynamicLight: 0xFAF8F5, dark: 0x171615)
-    static let elevated = Color(dynamicLight: 0xFFFDFB, dark: 0x22201E)
-    static let subtle = Color(dynamicLight: 0xF3EEE9, dark: 0x2B2825)
-    static let border = Color(dynamicLight: 0xE4DBD4, dark: 0x3C3732)
-    static let borderStrong = Color(dynamicLight: 0xCABBB0, dark: 0x575049)
-    static let textPrimary = Color(dynamicLight: 0x1E1B18, dark: 0xF4EFEA)
-    static let textSecondary = Color(dynamicLight: 0x69615A, dark: 0xBDB4AA)
-    static let textTertiary = Color(dynamicLight: 0x91887F, dark: 0x8D8378)
-    static let placeholder = Color(dynamicLight: 0xC7BDB4, dark: 0x70675E)
-    static let accent = Color(dynamicLight: 0xFF5C48, dark: 0xFF7A66)
-    static let accentPressed = Color(dynamicLight: 0xE64B3B, dark: 0xFF8A78)
-    static let accentSubtle = Color(dynamicLight: 0xFFF1EC, dark: 0x3A211D)
-    static let accentBorder = Color(dynamicLight: 0xFFC8BB, dark: 0x7D3A31)
-    static let success = Color(dynamicLight: 0x29A36A, dark: 0x58D594)
-    static let successSubtle = Color(dynamicLight: 0xEAF8F0, dark: 0x173226)
-    static let teal = Color(dynamicLight: 0x169B8F, dark: 0x4DD4C6)
-    static let tealSubtle = Color(dynamicLight: 0xE8F8F6, dark: 0x12312E)
-    static let error = Color(dynamicLight: 0xDC3C32, dark: 0xFF7F72)
-    static let errorSubtle = Color(dynamicLight: 0xFFF0ED, dark: 0x391B18)
+    static let background = Color(dynamicLight: 0xFAF9F5, dark: 0x1A1A18)
+    static let elevated = Color(dynamicLight: 0xFFFFFF, dark: 0x24241F)
+    static let subtle = Color(dynamicLight: 0xF5F3EC, dark: 0x14140F)
+    static let border = Color(dynamicLight: 0xECE8DD, dark: 0x2E2E28)
+    static let borderStrong = Color(dynamicLight: 0xC4C0B6, dark: 0x545048)
+    static let textPrimary = Color(dynamicLight: 0x1B1B19, dark: 0xEDEAE0)
+    static let textSecondary = Color(dynamicLight: 0x6B6B66, dark: 0x9A968A)
+    static let textTertiary = Color(dynamicLight: 0xA8A8A0, dark: 0x5D5A52)
+    static let placeholder = Color(dynamicLight: 0xA8A8A0, dark: 0x5D5A52)
+    static let accent = Color(dynamicLight: 0x1B1B19, dark: 0xEDEAE0)
+    static let accentPressed = Color(dynamicLight: 0x3D3D39, dark: 0xFFFFFF)
+    static let accentSubtle = Color(dynamicLight: 0xEFEBE1, dark: 0x2E2E28)
+    static let accentBorder = Color(dynamicLight: 0xD6D4CB, dark: 0x5D5A52)
+    static let success = Color(dynamicLight: 0x4F7A5B, dark: 0x7DA088)
+    static let successSubtle = Color(dynamicLight: 0xE0EAE0, dark: 0x243328)
+    static let teal = Color(dynamicLight: 0x4F7A5B, dark: 0x7DA088)
+    static let tealSubtle = Color(dynamicLight: 0xE0EAE0, dark: 0x243328)
+    static let error = Color(dynamicLight: 0xB84A3A, dark: 0xD17563)
+    static let errorSubtle = Color(dynamicLight: 0xF5E3DE, dark: 0x33201C)
 }
 
 enum FlowMotion {
@@ -61,12 +61,13 @@ struct FlowSectionCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             content
         }
-        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(FlowTheme.border, lineWidth: 1)
         )
     }
@@ -237,6 +238,17 @@ struct MenuContentView: View {
             return MenuHeaderStatus(text: "Needs attention", color: FlowTheme.error)
         }
 
+        if let session = appModel.meetingCaptureSession {
+            switch session.phase {
+            case .starting:
+                return MenuHeaderStatus(text: "Starting meeting", color: FlowTheme.teal)
+            case .recording:
+                return MenuHeaderStatus(text: "Meeting recording", color: FlowTheme.accent)
+            case .finalizing:
+                return MenuHeaderStatus(text: "Transcribing", color: FlowTheme.teal)
+            }
+        }
+
         if !appModel.permissions.allRequiredGranted {
             return MenuHeaderStatus(text: "Setup needed", color: FlowTheme.accent)
         }
@@ -259,6 +271,17 @@ struct MenuContentView: View {
                 kind: .error,
                 text: message
             )
+        }
+
+        if let session = appModel.meetingCaptureSession {
+            switch session.phase {
+            case .starting:
+                return StatusPillModel(kind: .transcribing, text: "Starting meeting capture")
+            case .recording:
+                return StatusPillModel(kind: .recording, text: "Recording to \(session.noteTitle)")
+            case .finalizing:
+                return StatusPillModel(kind: .transcribing, text: "Transcribing \(session.noteTitle)")
+            }
         }
 
         switch appModel.state {
@@ -386,6 +409,8 @@ private struct StatusPillView: View {
             Text(model.text)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(model.kind == .error ? FlowTheme.error : FlowTheme.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
@@ -485,6 +510,7 @@ private struct HomeDashboardView: View {
             if !appModel.permissions.allRequiredGranted {
                 attentionCard
             }
+            meetingSection
             transcriptSection
         }
     }
@@ -520,6 +546,84 @@ private struct HomeDashboardView: View {
         }
     }
 
+    private var meetingSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Meeting notes")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+
+                Spacer()
+
+                Button {
+                    appModel.showMeetingNotesWindow()
+                } label: {
+                    Image(systemName: "rectangle.stack")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .frame(width: 26, height: 26)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Open meeting history")
+            }
+
+            HomeCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Button {
+                        appModel.createMeetingNote()
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "square.and.pencil")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.white)
+                                .frame(width: 28, height: 28)
+                                .background(FlowTheme.accent, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("New Meeting Note")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(FlowTheme.textPrimary)
+
+                                Text("Open a clean notes window and start typing.")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(FlowTheme.textSecondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "arrow.up.forward")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(FlowTheme.textTertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    if !appModel.meetingNotes.isEmpty {
+                        Divider()
+                            .overlay(FlowTheme.border)
+
+                        VStack(spacing: 0) {
+                            ForEach(Array(appModel.meetingNotes.prefix(3))) { note in
+                                Button {
+                                    appModel.openMeetingNote(id: note.id)
+                                } label: {
+                                    MeetingPreviewRow(note: note)
+                                }
+                                .buttonStyle(.plain)
+
+                                if note.id != appModel.meetingNotes.prefix(3).last?.id {
+                                    Divider()
+                                        .overlay(FlowTheme.border.opacity(0.7))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var transcriptSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
@@ -548,6 +652,40 @@ private struct HomeDashboardView: View {
         }
     }
 
+}
+
+private struct MeetingPreviewRow: View {
+    let note: MeetingNote
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(FlowTheme.textSecondary)
+                .frame(width: 24, height: 24)
+                .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(note.displayTitle)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                    .lineLimit(1)
+
+                Text(note.previewText)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            Text(note.updatedAt.formatted(.dateTime.hour().minute()))
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(FlowTheme.textTertiary)
+        }
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
 }
 
 private struct HomeShortcutDockView: View {

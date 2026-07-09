@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  macos:
+    name: macOS build and tests
+    runs-on: macos-15
+    env:
+      DERIVED_DATA_PATH: ${{ runner.temp }}/CadenceDerivedData
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DERIVED_DATA_PATH }}/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('Cadence.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project Cadence.xcodeproj \
+            -scheme Cadence \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project Cadence.xcodeproj \
+            -scheme Cadence \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            CODE_SIGNING_ALLOWED=NO

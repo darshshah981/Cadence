@@ -10,26 +10,39 @@
 		04CDBB1AEFDB09993E1867FF /* PermissionGuideWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5252E71CDD37942299004F /* PermissionGuideWindow.swift */; };
 		097667E2CBD98ED27B666656 /* MockTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21CC2B73F205DDEA13DE704 /* MockTranscriptionEngine.swift */; };
 		0A71E31A51D2EC604CDAF28F /* DictationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57F88FDABE976A050039E642 /* DictationModels.swift */; };
+		1A1A0414379C0E271BA31433 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6DC8041CF3DCC911E00F24 /* AppAppearance.swift */; };
+		1BDB85799A6EF2B230C44C95 /* MeetingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E82B6E6F4A16C4CBB239C15 /* MeetingStore.swift */; };
 		28E458EF554469DF6A804BC5 /* CadenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9880DDA2B852F0ED7E7ECC0F /* CadenceTests.swift */; };
 		314837379E746B0738FE0D05 /* TranscriptionAudioPreprocessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8371975360FC8D8C76AB8C /* TranscriptionAudioPreprocessor.swift */; };
 		374F72155EFC90A04DFF1321 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84BAA74864E494C5E664E268 /* AppModel.swift */; };
+		3902A86EA028BD31FCEA7A76 /* MeetingFinalTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0738EECF8CC35F6E2FAC3C7B /* MeetingFinalTranscriptionService.swift */; };
 		43A6653D967FC59ABC91624E /* CadenceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD2468FAE7A89F2B18DEDAF /* CadenceApp.swift */; };
 		541432DC77D74A0DAB846DAB /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD8226A6E492745025CF418 /* AnalyticsService.swift */; };
+		57F06125EB560A0004973BDA /* MeetingDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAE902E9A7F2F2906C91892 /* MeetingDetectionService.swift */; };
+		5E268FC2CD9E558B8CEAFCE0 /* CalendarEventCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A485E597733F3F0F173BF23 /* CalendarEventCacheStore.swift */; };
 		6CB478AD12E64CFE521C6215 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E7124C5AF7EC6EBAB0DE7E /* SettingsView.swift */; };
 		6EEA0FEF55A747191E62FC60 /* MenuContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */; };
+		760EAABAB0ED99780F4DAFDB /* MeetingNotesWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */; };
 		8006F55E629A70E7ED335961 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 40FEC6F1B63663537E6E73B3 /* Assets.xcassets */; };
 		878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37031AF8A914D482FABFFD6B /* PermissionsService.swift */; };
+		944F0BE2AB36F33A1A8F3801 /* GoogleCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BA8806A19E0089A3DBB906 /* GoogleCalendarService.swift */; };
 		9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC22C16A79401A6870742A6E /* HUDWindowController.swift */; };
 		A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */; };
+		A5F36020AF84151664929781 /* MeetingAudioStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB40F5DFBCB574CACFAFA572 /* MeetingAudioStore.swift */; };
 		ABAAF7AD1FA70D69BA85152C /* TextInsertionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF53A70456557098B43E818E /* TextInsertionService.swift */; };
+		ABAD465AB72369B95269DDFA /* SystemAudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DB6392F9F82CF975E2419B0 /* SystemAudioCaptureService.swift */; };
 		B61EFD617B4E75AC083EF588 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07592451F56FA01E1134A310 /* AppDelegate.swift */; };
 		C7F338241FF54CDBB0035A78 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF63FA1E7E53378DC4B66F6A /* AudioCaptureService.swift */; };
 		CA7DEBC92273F86FC09DB926 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = C989632B526AB096BA7C8AAB /* WhisperKit */; };
 		D0ACFD368BDD7CB8693AB2D7 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58943A986FD1C46B9F453ED0 /* HUDView.swift */; };
 		D3E5CC707DAEC25A40DF8435 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36DCCAD2BECF88FDCBA8B4D3 /* HotkeyService.swift */; };
+		DEECE242F028AE4B9DBA60FF /* MeetingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E578BEB1EADBEB5800402E25 /* MeetingModels.swift */; };
+		E997B3B075C3D2835177D4F3 /* MeetingSummaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62263A742DE5DC2596EF2445 /* MeetingSummaryService.swift */; };
 		EE054AE21BAF7F07BF62DD2A /* WhisperKitTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A8C73B4837E38B0677B8E5 /* WhisperKitTranscriptionEngine.swift */; };
 		EF826D5DA46782A058A62AE8 /* TranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */; };
+		FB42AB240E3A107E5126D3C0 /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE629DF637FE0D79187F0CAF /* MainWindowView.swift */; };
 		FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */; };
+		FF67B1A27DA18B3BCFB2A756 /* MeetingRollingTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76231658305ADA779483A7F8 /* MeetingRollingTranscriptionService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -43,6 +56,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0738EECF8CC35F6E2FAC3C7B /* MeetingFinalTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingFinalTranscriptionService.swift; sourceTree = "<group>"; };
 		07592451F56FA01E1134A310 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		2747B5C0BD75EFECA1D2569B /* Cadence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cadence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B5252E71CDD37942299004F /* PermissionGuideWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGuideWindow.swift; sourceTree = "<group>"; };
@@ -55,16 +69,29 @@
 		53DC5566E2688823A894040D /* CadenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CadenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		57F88FDABE976A050039E642 /* DictationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModels.swift; sourceTree = "<group>"; };
 		58943A986FD1C46B9F453ED0 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
+		5DB6392F9F82CF975E2419B0 /* SystemAudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudioCaptureService.swift; sourceTree = "<group>"; };
+		62263A742DE5DC2596EF2445 /* MeetingSummaryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingSummaryService.swift; sourceTree = "<group>"; };
+		6A485E597733F3F0F173BF23 /* CalendarEventCacheStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventCacheStore.swift; sourceTree = "<group>"; };
 		74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuContentView.swift; sourceTree = "<group>"; };
+		76231658305ADA779483A7F8 /* MeetingRollingTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingRollingTranscriptionService.swift; sourceTree = "<group>"; };
 		84BAA74864E494C5E664E268 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		9880DDA2B852F0ED7E7ECC0F /* CadenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceTests.swift; sourceTree = "<group>"; };
 		9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCoordinator.swift; sourceTree = "<group>"; };
 		9D8371975360FC8D8C76AB8C /* TranscriptionAudioPreprocessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionAudioPreprocessor.swift; sourceTree = "<group>"; };
+		9E82B6E6F4A16C4CBB239C15 /* MeetingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingStore.swift; sourceTree = "<group>"; };
+		9E85A25830748F1DB17D21DB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A21CC2B73F205DDEA13DE704 /* MockTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTranscriptionEngine.swift; sourceTree = "<group>"; };
 		B5A8C73B4837E38B0677B8E5 /* WhisperKitTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitTranscriptionEngine.swift; sourceTree = "<group>"; };
+		BAAE902E9A7F2F2906C91892 /* MeetingDetectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetectionService.swift; sourceTree = "<group>"; };
+		C1BA8806A19E0089A3DBB906 /* GoogleCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarService.swift; sourceTree = "<group>"; };
 		C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsView.swift; sourceTree = "<group>"; };
+		CB40F5DFBCB574CACFAFA572 /* MeetingAudioStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingAudioStore.swift; sourceTree = "<group>"; };
 		CCD2468FAE7A89F2B18DEDAF /* CadenceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceApp.swift; sourceTree = "<group>"; };
 		CF63FA1E7E53378DC4B66F6A /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
+		DC6DC8041CF3DCC911E00F24 /* AppAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAppearance.swift; sourceTree = "<group>"; };
+		DE629DF637FE0D79187F0CAF /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowView.swift; sourceTree = "<group>"; };
+		E578BEB1EADBEB5800402E25 /* MeetingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingModels.swift; sourceTree = "<group>"; };
+		E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingNotesWindow.swift; sourceTree = "<group>"; };
 		F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionEngine.swift; sourceTree = "<group>"; };
 		FC22C16A79401A6870742A6E /* HUDWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDWindowController.swift; sourceTree = "<group>"; };
 		FF53A70456557098B43E818E /* TextInsertionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionService.swift; sourceTree = "<group>"; };
@@ -93,7 +120,9 @@
 		5875D9DE20878243E04EB85B /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				DC6DC8041CF3DCC911E00F24 /* AppAppearance.swift */,
 				57F88FDABE976A050039E642 /* DictationModels.swift */,
+				E578BEB1EADBEB5800402E25 /* MeetingModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -102,6 +131,8 @@
 			isa = PBXGroup;
 			children = (
 				58943A986FD1C46B9F453ED0 /* HUDView.swift */,
+				DE629DF637FE0D79187F0CAF /* MainWindowView.swift */,
+				E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */,
 				74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */,
 				2B5252E71CDD37942299004F /* PermissionGuideWindow.swift */,
 				C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */,
@@ -143,17 +174,34 @@
 			children = (
 				3BD8226A6E492745025CF418 /* AnalyticsService.swift */,
 				CF63FA1E7E53378DC4B66F6A /* AudioCaptureService.swift */,
+				6A485E597733F3F0F173BF23 /* CalendarEventCacheStore.swift */,
 				9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */,
+				C1BA8806A19E0089A3DBB906 /* GoogleCalendarService.swift */,
 				36DCCAD2BECF88FDCBA8B4D3 /* HotkeyService.swift */,
 				FC22C16A79401A6870742A6E /* HUDWindowController.swift */,
+				CB40F5DFBCB574CACFAFA572 /* MeetingAudioStore.swift */,
+				BAAE902E9A7F2F2906C91892 /* MeetingDetectionService.swift */,
+				0738EECF8CC35F6E2FAC3C7B /* MeetingFinalTranscriptionService.swift */,
+				76231658305ADA779483A7F8 /* MeetingRollingTranscriptionService.swift */,
+				9E82B6E6F4A16C4CBB239C15 /* MeetingStore.swift */,
+				62263A742DE5DC2596EF2445 /* MeetingSummaryService.swift */,
 				A21CC2B73F205DDEA13DE704 /* MockTranscriptionEngine.swift */,
 				37031AF8A914D482FABFFD6B /* PermissionsService.swift */,
+				5DB6392F9F82CF975E2419B0 /* SystemAudioCaptureService.swift */,
 				FF53A70456557098B43E818E /* TextInsertionService.swift */,
 				9D8371975360FC8D8C76AB8C /* TranscriptionAudioPreprocessor.swift */,
 				F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */,
 				B5A8C73B4837E38B0677B8E5 /* WhisperKitTranscriptionEngine.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		D87C65B2CE58FF128729C435 /* Supporting */ = {
+			isa = PBXGroup;
+			children = (
+				9E85A25830748F1DB17D21DB /* Info.plist */,
+			);
+			path = Supporting;
 			sourceTree = "<group>";
 		};
 		FD48710B608BE6A57DA448D7 /* Cadence */ = {
@@ -164,6 +212,7 @@
 				78D2D1E4520BA69AC30BB1CB /* App */,
 				5875D9DE20878243E04EB85B /* Models */,
 				C44473C867EA22AD5CDA9820 /* Services */,
+				D87C65B2CE58FF128729C435 /* Supporting */,
 				61BD71A810CD4ACDBE6E4E92 /* UI */,
 			);
 			path = Cadence;
@@ -265,21 +314,34 @@
 			buildActionMask = 2147483647;
 			files = (
 				541432DC77D74A0DAB846DAB /* AnalyticsService.swift in Sources */,
+				1A1A0414379C0E271BA31433 /* AppAppearance.swift in Sources */,
 				B61EFD617B4E75AC083EF588 /* AppDelegate.swift in Sources */,
 				374F72155EFC90A04DFF1321 /* AppModel.swift in Sources */,
 				C7F338241FF54CDBB0035A78 /* AudioCaptureService.swift in Sources */,
 				43A6653D967FC59ABC91624E /* CadenceApp.swift in Sources */,
+				5E268FC2CD9E558B8CEAFCE0 /* CalendarEventCacheStore.swift in Sources */,
 				A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */,
 				0A71E31A51D2EC604CDAF28F /* DictationModels.swift in Sources */,
+				944F0BE2AB36F33A1A8F3801 /* GoogleCalendarService.swift in Sources */,
 				D0ACFD368BDD7CB8693AB2D7 /* HUDView.swift in Sources */,
 				9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */,
 				D3E5CC707DAEC25A40DF8435 /* HotkeyService.swift in Sources */,
+				FB42AB240E3A107E5126D3C0 /* MainWindowView.swift in Sources */,
+				A5F36020AF84151664929781 /* MeetingAudioStore.swift in Sources */,
+				57F06125EB560A0004973BDA /* MeetingDetectionService.swift in Sources */,
+				3902A86EA028BD31FCEA7A76 /* MeetingFinalTranscriptionService.swift in Sources */,
+				DEECE242F028AE4B9DBA60FF /* MeetingModels.swift in Sources */,
+				760EAABAB0ED99780F4DAFDB /* MeetingNotesWindow.swift in Sources */,
+				FF67B1A27DA18B3BCFB2A756 /* MeetingRollingTranscriptionService.swift in Sources */,
+				1BDB85799A6EF2B230C44C95 /* MeetingStore.swift in Sources */,
+				E997B3B075C3D2835177D4F3 /* MeetingSummaryService.swift in Sources */,
 				6EEA0FEF55A747191E62FC60 /* MenuContentView.swift in Sources */,
 				097667E2CBD98ED27B666656 /* MockTranscriptionEngine.swift in Sources */,
 				04CDBB1AEFDB09993E1867FF /* PermissionGuideWindow.swift in Sources */,
 				878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */,
 				FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */,
 				6CB478AD12E64CFE521C6215 /* SettingsView.swift in Sources */,
+				ABAD465AB72369B95269DDFA /* SystemAudioCaptureService.swift in Sources */,
 				ABAAF7AD1FA70D69BA85152C /* TextInsertionService.swift in Sources */,
 				314837379E746B0738FE0D05 /* TranscriptionAudioPreprocessor.swift in Sources */,
 				EF826D5DA46782A058A62AE8 /* TranscriptionEngine.swift in Sources */,
@@ -315,6 +377,8 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = P3MT7UXJ5N;
+				GOOGLE_OAUTH_REDIRECT_SCHEME = com.darshshah.Cadence.debug;
+				INFOPLIST_FILE = Cadence/Supporting/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Cadence Debug";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -338,6 +402,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = P3MT7UXJ5N;
 				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Cadence/Supporting/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cadence;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -383,6 +448,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -394,12 +460,13 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GOOGLE_OAUTH_CLIENT_ID = "";
+				GOOGLE_OAUTH_CLIENT_SECRET = "";
+				GOOGLE_OAUTH_REDIRECT_SCHEME = com.darshshah.Cadence;
+				INFOPLIST_FILE = Cadence/Supporting/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cadence;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Cadence needs microphone access for push-to-talk dictation.";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.darshshah.Cadence;
@@ -461,6 +528,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -478,12 +546,13 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GOOGLE_OAUTH_CLIENT_ID = "";
+				GOOGLE_OAUTH_CLIENT_SECRET = "";
+				GOOGLE_OAUTH_REDIRECT_SCHEME = com.darshshah.Cadence;
+				INFOPLIST_FILE = Cadence/Supporting/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cadence;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Cadence needs microphone access for push-to-talk dictation.";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

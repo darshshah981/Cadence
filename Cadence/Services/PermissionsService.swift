@@ -10,13 +10,15 @@ final class PermissionsService {
         static let microphone = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
         static let accessibility = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         static let inputMonitoring = "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+        static let screenRecording = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
     }
 
     func snapshot() -> PermissionsSnapshot {
         PermissionsSnapshot(
             microphoneGranted: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
             accessibilityGranted: AXIsProcessTrusted(),
-            inputMonitoringGranted: inputMonitoringGranted()
+            inputMonitoringGranted: inputMonitoringGranted(),
+            screenRecordingGranted: CGPreflightScreenCaptureAccess()
         )
     }
 
@@ -49,6 +51,18 @@ final class PermissionsService {
         _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
         _ = CGRequestListenEventAccess()
         openPrivacyPane(PrivacyPane.inputMonitoring)
+    }
+
+    func requestScreenRecordingAccess() -> Bool {
+        if CGPreflightScreenCaptureAccess() {
+            return true
+        }
+
+        let granted = CGRequestScreenCaptureAccess()
+        if !granted {
+            openPrivacyPane(PrivacyPane.screenRecording)
+        }
+        return granted
     }
 
     func appLocationSummary() -> String {

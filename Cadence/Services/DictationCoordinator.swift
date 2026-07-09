@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import OSLog
 
@@ -66,6 +67,7 @@ final class DictationCoordinator {
     private var lastPreviewTimestamp = Date.distantPast
     private var sessionStartedAt: Date?
     private var activeSessionID: String?
+    private var activeTargetApplication: DictationTargetApplication?
     private var firstPreviewTracked = false
     private var lastSuccessfulCompletionAt: Date?
 
@@ -218,6 +220,7 @@ final class DictationCoordinator {
                 )
             }
             analytics.track("shortcut_used", properties: ["sessionID": .string(sessionID), "mode": .string(triggerMode.rawValue)])
+            activeTargetApplication = Self.currentTargetApplication()
             analytics.track("dictation_started", properties: sessionAnalyticsProperties(triggerMode: triggerMode))
 
             try await transcriptionEngine.startSession()
@@ -278,6 +281,7 @@ final class DictationCoordinator {
             warmBackendForCurrentSession()
         } catch {
             activeTriggerMode = nil
+            activeTargetApplication = nil
             publishError(error.localizedDescription)
         }
     }
@@ -356,10 +360,16 @@ final class DictationCoordinator {
                 )
                 correctedText = applyPostProcessing(to: transcript.cleanedText)
             }
+            let polishResult = AppAwareTextPolisher.apply(
+                to: correctedText,
+                configuration: transcriptionConfiguration,
+                targetApplication: activeTargetApplication
+            )
+            let finalText = polishResult.text
             let finalTranscriptLatency = Date().timeIntervalSince(transcriptReadyStartedAt)
-            let wordCount = Self.wordCount(in: correctedText)
+            let wordCount = Self.wordCount(in: finalText)
 
-            onTranscript?(correctedText, activeSessionID)
+            onTranscript?(finalText, activeSessionID)
             incrementSuccessfulRecordingCount()
 
             state = .inserting
@@ -373,7 +383,7 @@ final class DictationCoordinator {
 
             let insertionStartedAt = Date()
             do {
-                try await textInsertionService.insert(correctedText + " ")
+                try await textInsertionService.insert(polishResult.insertionText)
             } catch {
                 analytics.track(
                     "text_insertion_failed",
@@ -389,7 +399,7 @@ final class DictationCoordinator {
             let totalElapsed = Date().timeIntervalSince(finalizeStartedAt)
             let sessionElapsed = sessionStartedAt.map { Date().timeIntervalSince($0) } ?? metrics.duration
             dictationLogger.info(
-                "Cadence timing finalize complete total=\(Self.formatSeconds(totalElapsed), privacy: .public)s insert=\(Self.formatSeconds(insertionElapsed), privacy: .public)s chars=\(correctedText.count, privacy: .public)"
+                "Cadence timing finalize complete total=\(Self.formatSeconds(totalElapsed), privacy: .public)s insert=\(Self.formatSeconds(insertionElapsed), privacy: .public)s chars=\(finalText.count, privacy: .public)"
             )
             analytics.track(
                 "dictation_completed",
@@ -402,8 +412,8 @@ final class DictationCoordinator {
                     "finalTranscriptLatencyMs": .int(Self.analyticsMilliseconds(finalTranscriptLatency)),
                     "insertionLatencyMs": .int(Self.analyticsMilliseconds(insertionElapsed)),
                     "totalSessionLatencyMs": .int(Self.analyticsMilliseconds(sessionElapsed)),
-                    "charactersBucket": .string(Self.countBucket(correctedText.count)),
-                    "characterCount": .int(correctedText.count),
+                    "charactersBucket": .string(Self.countBucket(finalText.count)),
+                    "characterCount": .int(finalText.count),
                     "wordsBucket": .string(Self.countBucket(wordCount)),
                     "wordCount": .int(wordCount),
                     "wordsPerMinute": .double(Self.wordsPerMinute(wordCount: wordCount, speechSeconds: speechDuration)),
@@ -412,13 +422,16 @@ final class DictationCoordinator {
                     "decoding": .string(transcriptionConfiguration.decodingMode.rawValue),
                     "preset": .string(DictationQualityPreset.matching(transcriptionConfiguration).rawValue),
                     "previewUsedAsFinal": .bool(usedPreviewAsFinal),
-                    "livePreviewEnabled": .bool(transcriptionConfiguration.livePreviewEnabled)
+                    "livePreviewEnabled": .bool(transcriptionConfiguration.livePreviewEnabled),
+                    "appAwarePolishingEnabled": .bool(transcriptionConfiguration.appAwarePolishingEnabled),
+                    "appAwarePolishProfile": .string(polishResult.profile.rawValue)
                 ]
             )
             lastSuccessfulCompletionAt = Date()
 
             state = .idle
             activeTriggerMode = nil
+            activeTargetApplication = nil
             sessionStartedAt = nil
             activeSessionID = nil
             hideHUD()
@@ -451,6 +464,7 @@ final class DictationCoordinator {
                 )
             }
             activeTriggerMode = nil
+            activeTargetApplication = nil
             sessionStartedAt = nil
             activeSessionID = nil
             publishError(error.localizedDescription)
@@ -681,6 +695,7 @@ final class DictationCoordinator {
             ]
         )
         activeTriggerMode = nil
+        activeTargetApplication = nil
         sessionStartedAt = nil
         activeSessionID = nil
         state = .idle
@@ -695,8 +710,19 @@ final class DictationCoordinator {
             "decoding": .string(transcriptionConfiguration.decodingMode.rawValue),
             "preset": .string(DictationQualityPreset.matching(transcriptionConfiguration).rawValue),
             "livePreviewEnabled": .bool(transcriptionConfiguration.livePreviewEnabled),
-            "tapStopsOnNextKeyPress": .bool(transcriptionConfiguration.tapStopsOnNextKeyPress)
+            "tapStopsOnNextKeyPress": .bool(transcriptionConfiguration.tapStopsOnNextKeyPress),
+            "appAwarePolishingEnabled": .bool(transcriptionConfiguration.appAwarePolishingEnabled),
+            "appAwarePolishProfile": .string(AppAwareTextPolisher.profile(for: activeTargetApplication).rawValue)
         ]
+    }
+
+    private static func currentTargetApplication() -> DictationTargetApplication? {
+        let frontmostApplication = NSWorkspace.shared.frontmostApplication
+        guard frontmostApplication?.bundleIdentifier != Bundle.main.bundleIdentifier else {
+            return nil
+        }
+
+        return DictationTargetApplication(runningApplication: frontmostApplication)
     }
 
     private static func shouldTrackAbandonment(for error: Error) -> Bool {

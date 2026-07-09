@@ -11,3 +11,9 @@ xcuserdata/
 .build/
 DerivedData/
 **/.swiftpm/
+
+# Local developer configuration
+local/
+
+# Agent-local working state (Codex CLI environments/screenshots, etc.)
+.codex/

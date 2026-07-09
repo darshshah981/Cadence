@@ -239,6 +239,7 @@ struct TranscriptionConfiguration: Equatable, Sendable {
     var normalizeAudio: Bool = true
     var livePreviewEnabled: Bool = false
     var tapStopsOnNextKeyPress: Bool = false
+    var appAwarePolishingEnabled: Bool = true
     var vocabularyText: String = ""
 
     var summary: String {
@@ -247,6 +248,203 @@ struct TranscriptionConfiguration: Equatable, Sendable {
         (keepContext ? "context" : "isolated") + " • " +
         (trimSilence ? "trim" : "raw") + " • " +
         (normalizeAudio ? "normalize" : "natural")
+    }
+}
+
+struct DictationTargetApplication: Equatable, Sendable {
+    let bundleIdentifier: String
+    let displayName: String
+
+    init(bundleIdentifier: String, displayName: String) {
+        self.bundleIdentifier = bundleIdentifier
+        self.displayName = displayName
+    }
+
+    init?(runningApplication application: NSRunningApplication?) {
+        guard let application,
+              let bundleIdentifier = application.bundleIdentifier,
+              !bundleIdentifier.isEmpty else {
+            return nil
+        }
+
+        self.bundleIdentifier = bundleIdentifier
+        self.displayName = application.localizedName ?? bundleIdentifier
+    }
+}
+
+enum AppAwarePolishProfile: String, Sendable {
+    case general
+    case messaging
+    case writing
+    case code
+}
+
+struct AppAwarePolishResult: Equatable, Sendable {
+    let text: String
+    let insertionSuffix: String
+    let profile: AppAwarePolishProfile
+
+    var insertionText: String {
+        text.isEmpty ? "" : text + insertionSuffix
+    }
+}
+
+struct AppAwareTextPolisher {
+    static func apply(
+        to text: String,
+        configuration: TranscriptionConfiguration,
+        targetApplication: DictationTargetApplication?
+    ) -> AppAwarePolishResult {
+        let profile = Self.profile(for: targetApplication)
+        let baseText = cleanInlineWhitespace(in: text)
+
+        guard configuration.appAwarePolishingEnabled else {
+            return AppAwarePolishResult(
+                text: baseText,
+                insertionSuffix: baseText.isEmpty ? "" : " ",
+                profile: .general
+            )
+        }
+
+        switch profile {
+        case .messaging, .code:
+            return AppAwarePolishResult(text: baseText, insertionSuffix: "", profile: profile)
+        case .writing:
+            let polishedText = addSentencePunctuationIfNeeded(to: baseText)
+            return AppAwarePolishResult(text: polishedText, insertionSuffix: polishedText.isEmpty ? "" : " ", profile: profile)
+        case .general:
+            return AppAwarePolishResult(text: baseText, insertionSuffix: baseText.isEmpty ? "" : " ", profile: profile)
+        }
+    }
+
+    static func profile(for targetApplication: DictationTargetApplication?) -> AppAwarePolishProfile {
+        guard let targetApplication else { return .general }
+        let bundleIdentifier = targetApplication.bundleIdentifier.lowercased()
+
+        if matches(bundleIdentifier, exact: codeBundleIdentifiers, fragments: codeBundleFragments) {
+            return .code
+        }
+
+        if matches(bundleIdentifier, exact: messagingBundleIdentifiers, fragments: messagingBundleFragments) {
+            return .messaging
+        }
+
+        if matches(bundleIdentifier, exact: writingBundleIdentifiers, fragments: writingBundleFragments) {
+            return .writing
+        }
+
+        return .general
+    }
+
+    private static let messagingBundleIdentifiers: Set<String> = [
+        "com.apple.mobilesms",
+        "com.tinyspeck.slackmacgap",
+        "com.hnc.discord",
+        "com.microsoft.teams",
+        "com.microsoft.teams2",
+        "net.whatsapp.whatsapp",
+        "org.whispersystems.signal-desktop",
+        "ru.keepcoder.telegram",
+        "com.facebook.archon"
+    ]
+
+    private static let messagingBundleFragments = [
+        "slack",
+        "discord",
+        "teams",
+        "whatsapp",
+        "telegram",
+        "signal",
+        "messenger"
+    ]
+
+    private static let writingBundleIdentifiers: Set<String> = [
+        "com.apple.mail",
+        "com.microsoft.outlook",
+        "com.microsoft.word",
+        "com.apple.notes",
+        "com.apple.textedit",
+        "com.apple.iwork.pages",
+        "com.ulyssesapp.mac",
+        "net.shinyfrog.bear"
+    ]
+
+    private static let writingBundleFragments = [
+        "mail",
+        "outlook",
+        "word",
+        "pages",
+        "notes",
+        "textedit",
+        "ulysses",
+        "bear",
+        "obsidian",
+        "notion"
+    ]
+
+    private static let codeBundleIdentifiers: Set<String> = [
+        "com.apple.dt.xcode",
+        "com.microsoft.vscode",
+        "com.todesktop.230313mzl4w4u92",
+        "com.apple.terminal",
+        "com.googlecode.iterm2",
+        "dev.warp.warp-stable",
+        "com.github.wez.wezterm",
+        "com.mitchellh.ghostty",
+        "com.sublimetext.4",
+        "com.panic.nova"
+    ]
+
+    private static let codeBundleFragments = [
+        "xcode",
+        "vscode",
+        "cursor",
+        "terminal",
+        "iterm",
+        "warp",
+        "wezterm",
+        "ghostty",
+        "sublime",
+        "jetbrains",
+        "intellij",
+        "pycharm",
+        "webstorm",
+        "zed",
+        "nova",
+        "bbedit"
+    ]
+
+    private static func matches(_ bundleIdentifier: String, exact: Set<String>, fragments: [String]) -> Bool {
+        exact.contains(bundleIdentifier) || fragments.contains { bundleIdentifier.contains($0) }
+    }
+
+    private static func cleanInlineWhitespace(in text: String) -> String {
+        text
+            .components(separatedBy: .newlines)
+            .map { line in
+                line
+                    .replacingOccurrences(of: "[ \\t]+", with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespaces)
+            }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func addSentencePunctuationIfNeeded(to text: String) -> String {
+        guard !text.contains("\n") else { return text }
+        guard text.split(whereSeparator: \.isWhitespace).count >= 4 else { return text }
+        guard let lastScalar = text.unicodeScalars.last else { return text }
+
+        let terminalPunctuation = CharacterSet(charactersIn: ".!?;:)]}\"'")
+        if terminalPunctuation.contains(lastScalar) {
+            return text
+        }
+
+        if CharacterSet.letters.union(.decimalDigits).contains(lastScalar) {
+            return text + "."
+        }
+
+        return text
     }
 }
 
@@ -908,6 +1106,7 @@ struct PermissionsSnapshot: Equatable {
     let microphoneGranted: Bool
     let accessibilityGranted: Bool
     let inputMonitoringGranted: Bool
+    var screenRecordingGranted: Bool = false
 
     var allRequiredGranted: Bool {
         microphoneGranted && accessibilityGranted && inputMonitoringGranted
