@@ -1513,6 +1513,16 @@ struct CadenceTests {
     }
 
     @Test
+    func meetingNoteDoesNotUseEmptySummaryFallbackAsGeneratedTitle() {
+        let note = MeetingNote(
+            summary: MeetingSummary(overview: "Untitled Meeting has no meeting content yet.")
+        )
+
+        #expect(note.displayTitle == "Untitled Meeting")
+        #expect(note.suggestedTitle == nil)
+    }
+
+    @Test
     func meetingCaptureSourcesDeclareSourceSpecificPermissions() {
         #expect(!MeetingCaptureSource.systemAudio.requiresMicrophone)
         #expect(MeetingCaptureSource.systemAudio.requiresScreenRecording)

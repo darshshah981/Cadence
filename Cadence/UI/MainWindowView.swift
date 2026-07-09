@@ -59,7 +59,7 @@ final class MainWindowController: NSWindowController {
 private enum MainWindowDestination: Hashable {
     case dashboard
     case meetings
-    case chat
+    case ask
     case speechToText
     case meetingNote(UUID)
     case settings
@@ -68,7 +68,7 @@ private enum MainWindowDestination: Hashable {
 private enum MainSidebarItem: Hashable {
     case home
     case allNotes
-    case chat
+    case ask
     case speechToText
     case settings
 }
@@ -140,7 +140,7 @@ struct MainWindowView: View {
         switch selection {
         case .meetingNote, .settings:
             return false
-        case .dashboard, .meetings, .chat, .speechToText:
+        case .dashboard, .meetings, .ask, .speechToText:
             return true
         }
     }
@@ -171,7 +171,7 @@ struct MainWindowView: View {
                 selection = .meetingNote(note.id)
                 activeSidebarItem = .allNotes
             }
-        case .chat:
+        case .ask:
             StenoGlobalAskContent(appModel: appModel) { note in
                 appModel.selectMeetingNote(id: note.id)
                 selection = .meetingNote(note.id)
@@ -245,7 +245,7 @@ private struct StenoSidebar: View {
 
             VStack(spacing: 1) {
                 StenoSidebarRow(
-                    title: "Home",
+                    title: "Today",
                     count: nil,
                     systemImage: "house",
                     isSelected: activeItem == .home,
@@ -267,14 +267,14 @@ private struct StenoSidebar: View {
                 }
 
                 StenoSidebarRow(
-                    title: "Chat",
+                    title: "Ask",
                     count: nil,
-                    systemImage: "message",
-                    isSelected: activeItem == .chat,
-                    accessibilityIdentifier: "sidebar-chat"
+                    systemImage: "sparkle.magnifyingglass",
+                    isSelected: activeItem == .ask,
+                    accessibilityIdentifier: "sidebar-ask"
                 ) {
-                    selection = .chat
-                    activeItem = .chat
+                    selection = .ask
+                    activeItem = .ask
                 }
 
                 StenoSidebarRow(
@@ -507,8 +507,8 @@ private struct StenoHomeContent: View {
                 upcomingContent
                     .padding(.bottom, 46)
 
-                StenoSectionHeader(title: "Previous", count: appModel.meetingNotes.count)
-                    .padding(.bottom, 26)
+                StenoSectionHeader(title: "Recent notes", count: appModel.meetingNotes.count)
+                    .padding(.bottom, 8)
 
                 previousRows
             }
@@ -590,11 +590,6 @@ private struct StenoHomeContent: View {
             if appModel.meetingNotes.isEmpty {
                 StenoEmptyLine(text: "No notes yet")
             } else {
-                Text("Recent")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(FlowTheme.textSecondary)
-                    .padding(.bottom, 8)
-
                 ForEach(Array(appModel.meetingNotes.prefix(8).enumerated()), id: \.element.id) { index, note in
                     StenoPreviousNoteRow(note: note, showsTopSeparator: index > 0) {
                         onOpenNote(note)
@@ -615,18 +610,28 @@ private struct StenoAllNotesContent: View {
                 Text("All notes")
                     .font(.system(size: 26, weight: .regular, design: .serif))
                     .foregroundStyle(FlowTheme.textPrimary)
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 6)
 
-                StenoSectionHeader(title: "Previous", count: appModel.meetingNotes.count)
-                    .padding(.bottom, 18)
+                Text("Recordings, notes, and transcripts in one place.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .padding(.bottom, 28)
 
                 if appModel.meetingNotes.isEmpty {
                     StenoEmptyLine(text: "No notes yet")
                 } else {
-                    ForEach(Array(appModel.meetingNotes.enumerated()), id: \.element.id) { index, note in
-                        StenoPreviousNoteRow(note: note, showsTopSeparator: index > 0) {
-                            onOpenNote(note)
+                    ForEach(noteGroups) { group in
+                        VStack(alignment: .leading, spacing: 0) {
+                            StenoSectionHeader(title: group.title, count: group.notes.count)
+                                .padding(.bottom, 4)
+
+                            ForEach(Array(group.notes.enumerated()), id: \.element.id) { index, note in
+                                StenoPreviousNoteRow(note: note, showsTopSeparator: index > 0) {
+                                    onOpenNote(note)
+                                }
+                            }
                         }
+                        .padding(.bottom, 24)
                     }
                 }
             }
@@ -638,6 +643,39 @@ private struct StenoAllNotesContent: View {
         }
         .background(FlowTheme.background)
     }
+
+    private var noteGroups: [StenoNoteGroup] {
+        let calendar = Calendar.current
+        let groups = Dictionary(grouping: appModel.meetingNotes) { note in
+            calendar.startOfDay(for: note.updatedAt)
+        }
+
+        return groups.keys.sorted(by: >).map { date in
+            StenoNoteGroup(
+                date: date,
+                title: groupTitle(for: date, calendar: calendar),
+                notes: groups[date, default: []].sorted { $0.updatedAt > $1.updatedAt }
+            )
+        }
+    }
+
+    private func groupTitle(for date: Date, calendar: Calendar) -> String {
+        if calendar.isDateInToday(date) {
+            return "Today"
+        }
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+        return date.formatted(.dateTime.month(.wide).day().year())
+    }
+}
+
+private struct StenoNoteGroup: Identifiable {
+    let date: Date
+    let title: String
+    let notes: [MeetingNote]
+
+    var id: Date { date }
 }
 
 private struct StenoGlobalAskContent: View {
@@ -813,13 +851,13 @@ private struct StenoSpeechHistoryContent: View {
                     .padding(.bottom, 28)
                 }
 
-                StenoSectionHeader(title: "History", count: appModel.transcriptHistory.count)
-                    .padding(.bottom, 18)
-
                 if appModel.transcriptHistory.isEmpty {
                     StenoEmptyLine(text: "No speech-to-text history yet")
-                } else {
-                    ForEach(Array(appModel.transcriptHistory.enumerated()), id: \.element.id) { index, item in
+                } else if !earlierTranscripts.isEmpty {
+                    StenoSectionHeader(title: "Earlier", count: earlierTranscripts.count)
+                        .padding(.bottom, 4)
+
+                    ForEach(Array(earlierTranscripts.enumerated()), id: \.element.id) { index, item in
                         StenoTranscriptHistoryRow(item: item, showsTopSeparator: index > 0) {
                             appModel.copyTranscript(item)
                         }
@@ -833,6 +871,10 @@ private struct StenoSpeechHistoryContent: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(FlowTheme.background)
+    }
+
+    private var earlierTranscripts: [TranscriptHistoryItem] {
+        Array(appModel.transcriptHistory.dropFirst())
     }
 }
 

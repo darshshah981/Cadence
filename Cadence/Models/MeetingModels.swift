@@ -406,7 +406,8 @@ struct MeetingNote: Codable, Equatable, Identifiable, Sendable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return normalized.contains("whisper did not return any transcript text") ||
             normalized.contains("meeting transcription took too long") ||
-            normalized.contains("no speech audio was captured")
+            normalized.contains("no speech audio was captured") ||
+            normalized.hasSuffix("has no meeting content yet.")
     }
 
     mutating func replaceLiveDraftSegments(

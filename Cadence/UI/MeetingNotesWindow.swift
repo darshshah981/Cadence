@@ -594,6 +594,7 @@ private struct MeetingNoteEditor: View {
     @State private var askAnswer: MeetingAskAnswer?
     @State private var isTranscriptSourceExpanded = false
     @State private var speakerEditRequest: SpeakerEditRequest?
+    @State private var isDeleteConfirmationPresented = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -657,6 +658,16 @@ private struct MeetingNoteEditor: View {
                 }
             )
         }
+        .confirmationDialog(
+            "Delete this note?",
+            isPresented: $isDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Note", role: .destructive, action: onDelete)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the note and its saved recordings from Cadence.")
+        }
     }
 
     private var isAskDockVisible: Bool {
@@ -694,27 +705,47 @@ private struct MeetingNoteEditor: View {
 
                 Spacer()
 
-                HStack(spacing: 4) {
-                    MeetingIconButton(
-                        systemImage: "trash",
-                        help: isCaptureTarget && captureState.isCaptureBusy ? "Stop recording before deleting this note" : "Delete meeting note",
-                        tint: FlowTheme.textTertiary,
-                        isDisabled: isCaptureTarget && captureState.isCaptureBusy,
-                        accessibilityIdentifier: "meeting-note-delete-button",
-                        action: onDelete
-                    )
-                    MeetingIconButton(
+                HStack(spacing: 6) {
+                    MeetingInlineButton(
+                        title: "Copy",
                         systemImage: "doc.on.doc",
-                        help: "Copy Markdown",
                         accessibilityIdentifier: "meeting-note-copy-markdown-button",
                         action: onCopyMarkdown
                     )
-                    MeetingIconButton(
-                        systemImage: "square.and.arrow.down",
-                        help: "Export Markdown",
-                        accessibilityIdentifier: "meeting-note-export-markdown-button",
-                        action: onExportMarkdown
-                    )
+
+                    Menu {
+                        Button {
+                            onExportMarkdown()
+                        } label: {
+                            Label("Export Markdown", systemImage: "square.and.arrow.down")
+                        }
+                        .accessibilityIdentifier("meeting-note-export-markdown-button")
+
+                        Divider()
+
+                        Button(role: .destructive) {
+                            isDeleteConfirmationPresented = true
+                        } label: {
+                            Label("Delete Note…", systemImage: "trash")
+                        }
+                        .disabled(isCaptureTarget && captureState.isCaptureBusy)
+                        .accessibilityIdentifier("meeting-note-delete-button")
+                    } label: {
+                        Label("More", systemImage: "ellipsis")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundStyle(FlowTheme.textPrimary)
+                            .padding(.horizontal, 10)
+                            .frame(height: 28)
+                            .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(FlowTheme.border.opacity(0.8), lineWidth: 1)
+                            )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .accessibilityLabel("More note actions")
+                    .accessibilityIdentifier("meeting-note-actions-menu")
                 }
             }
 
@@ -759,7 +790,7 @@ private struct MeetingNoteEditor: View {
 
     private var metadataWordChip: some View {
         MeetingMetaChip(
-            text: "\(note.userNotes.split(whereSeparator: \.isWhitespace).count) words",
+            text: "\(meetingWordCount) words",
             systemImage: "text.word.spacing"
         )
     }
@@ -803,9 +834,11 @@ private struct MeetingNoteEditor: View {
             Spacer()
 
             MeetingInlineButton(
-                title: visibleSummary == nil ? "Generate" : "Regenerate",
+                title: visibleSummary == nil ? "Generate summary" : "Regenerate summary",
                 systemImage: "sparkles",
-                isPrimary: visibleSummary == nil
+                isPrimary: visibleSummary == nil,
+                isDisabled: !hasSummarySourceContent,
+                accessibilityIdentifier: "meeting-summary-generate-button"
             ) {
                 onGenerateSummary()
                 selectedMode = .summary
@@ -1067,18 +1100,7 @@ private struct MeetingNoteEditor: View {
 
     private var transcriptSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 10) {
-                MeetingSectionTitle(title: "Transcript", detail: transcriptStatusDetail)
-
-                Spacer()
-
-                Text(note.effectiveTranscriptState.displayName)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(transcriptStateTint)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(transcriptStateTint.opacity(0.12), in: Capsule())
-            }
+            MeetingSectionTitle(title: "Transcript", detail: transcriptStatusDetail)
 
             ForEach(note.finalPassChallenges) { challenge in
                 finalPassChallengeRow(challenge)
@@ -1267,7 +1289,8 @@ private struct MeetingNoteEditor: View {
                 EmptyWorkspaceState(
                     systemImage: "sparkle.magnifyingglass",
                     title: "Ask this meeting",
-                    detail: "Try decisions, action items, open questions, or a keyword from the call."
+                    detail: "Try decisions, action items, open questions, or a keyword from the call.",
+                    minHeight: 88
                 )
             }
 
@@ -1277,10 +1300,18 @@ private struct MeetingNoteEditor: View {
                     .foregroundStyle(FlowTheme.textTertiary)
                     .textCase(.uppercase)
 
-                HStack(spacing: 8) {
-                    askSuggestion("What decisions were made?")
-                    askSuggestion("What are the action items?")
-                    askSuggestion("What questions are still open?")
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        askSuggestion("What decisions were made?")
+                        askSuggestion("What are the action items?")
+                        askSuggestion("What questions are still open?")
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        askSuggestion("What decisions were made?")
+                        askSuggestion("What are the action items?")
+                        askSuggestion("What questions are still open?")
+                    }
                 }
             }
         }
@@ -1410,6 +1441,14 @@ private struct MeetingNoteEditor: View {
         TranscriptRun.makeRuns(from: note)
     }
 
+    private var meetingWordCount: Int {
+        let noteWords = userNotes.split(whereSeparator: \.isWhitespace).count
+        let transcriptWords = note.transcriptSegments.reduce(0) { count, segment in
+            count + segment.text.split(whereSeparator: \.isWhitespace).count
+        }
+        return noteWords + transcriptWords
+    }
+
     private var filteredTranscriptRuns: [TranscriptRun] {
         let query = transcriptSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return transcriptRuns }
@@ -1434,6 +1473,15 @@ private struct MeetingNoteEditor: View {
         return summary
     }
 
+    private var hasSummarySourceContent: Bool {
+        if !userNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        return note.transcriptSegments.contains { segment in
+            !segment.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
     private var transcriptStatusDetail: String? {
         if let message = note.transcriptStatusMessage,
            !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1448,7 +1496,7 @@ private struct MeetingNoteEditor: View {
         case .finalizationFailed:
             return "Live draft retained"
         case .final:
-            return "Final pass complete"
+            return nil
         case .empty:
             return nil
         }
@@ -1460,7 +1508,8 @@ private struct MeetingNoteEditor: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return normalized.contains("whisper did not return any transcript text") ||
             normalized.contains("meeting transcription took too long") ||
-            normalized.contains("no speech audio was captured")
+            normalized.contains("no speech audio was captured") ||
+            normalized.hasSuffix("has no meeting content yet.")
     }
 
     private var captureTitle: String {
@@ -1905,6 +1954,7 @@ private struct EmptyWorkspaceState: View {
     let systemImage: String
     let title: String
     let detail: String
+    var minHeight: CGFloat = 190
 
     var body: some View {
         VStack(spacing: 10) {
@@ -1924,7 +1974,7 @@ private struct EmptyWorkspaceState: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 190)
+        .frame(maxWidth: .infinity, minHeight: minHeight)
         .padding(18)
         .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(

@@ -119,7 +119,7 @@ struct SettingsView: View {
 
             Spacer()
 
-            Button("Review") {
+            Button("Screen Recording") {
                 appModel.openPermissionsWizard()
             }
             .buttonStyle(.bordered)
@@ -464,7 +464,7 @@ struct SettingsView: View {
 
             Spacer()
 
-            Button("Review") {
+            Button("Permissions") {
                 appModel.openPermissionsWizard()
             }
             .buttonStyle(.bordered)
