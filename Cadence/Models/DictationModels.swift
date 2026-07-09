@@ -239,6 +239,7 @@ struct TranscriptionConfiguration: Equatable, Sendable {
     var normalizeAudio: Bool = true
     var livePreviewEnabled: Bool = false
     var tapStopsOnNextKeyPress: Bool = false
+    var appAwarePolishingEnabled: Bool = true
     var vocabularyText: String = ""
 
     var summary: String {
@@ -250,12 +251,210 @@ struct TranscriptionConfiguration: Equatable, Sendable {
     }
 }
 
+struct DictationTargetApplication: Equatable, Sendable {
+    let bundleIdentifier: String
+    let displayName: String
+
+    init(bundleIdentifier: String, displayName: String) {
+        self.bundleIdentifier = bundleIdentifier
+        self.displayName = displayName
+    }
+
+    init?(runningApplication application: NSRunningApplication?) {
+        guard let application,
+              let bundleIdentifier = application.bundleIdentifier,
+              !bundleIdentifier.isEmpty else {
+            return nil
+        }
+
+        self.bundleIdentifier = bundleIdentifier
+        self.displayName = application.localizedName ?? bundleIdentifier
+    }
+}
+
+enum AppAwarePolishProfile: String, Sendable {
+    case general
+    case messaging
+    case writing
+    case code
+}
+
+struct AppAwarePolishResult: Equatable, Sendable {
+    let text: String
+    let insertionSuffix: String
+    let profile: AppAwarePolishProfile
+
+    var insertionText: String {
+        text.isEmpty ? "" : text + insertionSuffix
+    }
+}
+
+struct AppAwareTextPolisher {
+    static func apply(
+        to text: String,
+        configuration: TranscriptionConfiguration,
+        targetApplication: DictationTargetApplication?
+    ) -> AppAwarePolishResult {
+        let profile = Self.profile(for: targetApplication)
+        let baseText = cleanInlineWhitespace(in: text)
+
+        guard configuration.appAwarePolishingEnabled else {
+            return AppAwarePolishResult(
+                text: baseText,
+                insertionSuffix: baseText.isEmpty ? "" : " ",
+                profile: .general
+            )
+        }
+
+        switch profile {
+        case .messaging, .code:
+            return AppAwarePolishResult(text: baseText, insertionSuffix: "", profile: profile)
+        case .writing:
+            let polishedText = addSentencePunctuationIfNeeded(to: baseText)
+            return AppAwarePolishResult(text: polishedText, insertionSuffix: polishedText.isEmpty ? "" : " ", profile: profile)
+        case .general:
+            return AppAwarePolishResult(text: baseText, insertionSuffix: baseText.isEmpty ? "" : " ", profile: profile)
+        }
+    }
+
+    static func profile(for targetApplication: DictationTargetApplication?) -> AppAwarePolishProfile {
+        guard let targetApplication else { return .general }
+        let bundleIdentifier = targetApplication.bundleIdentifier.lowercased()
+
+        if matches(bundleIdentifier, exact: codeBundleIdentifiers, fragments: codeBundleFragments) {
+            return .code
+        }
+
+        if matches(bundleIdentifier, exact: messagingBundleIdentifiers, fragments: messagingBundleFragments) {
+            return .messaging
+        }
+
+        if matches(bundleIdentifier, exact: writingBundleIdentifiers, fragments: writingBundleFragments) {
+            return .writing
+        }
+
+        return .general
+    }
+
+    private static let messagingBundleIdentifiers: Set<String> = [
+        "com.apple.mobilesms",
+        "com.tinyspeck.slackmacgap",
+        "com.hnc.discord",
+        "com.microsoft.teams",
+        "com.microsoft.teams2",
+        "net.whatsapp.whatsapp",
+        "org.whispersystems.signal-desktop",
+        "ru.keepcoder.telegram",
+        "com.facebook.archon"
+    ]
+
+    private static let messagingBundleFragments = [
+        "slack",
+        "discord",
+        "teams",
+        "whatsapp",
+        "telegram",
+        "signal",
+        "messenger"
+    ]
+
+    private static let writingBundleIdentifiers: Set<String> = [
+        "com.apple.mail",
+        "com.microsoft.outlook",
+        "com.microsoft.word",
+        "com.apple.notes",
+        "com.apple.textedit",
+        "com.apple.iwork.pages",
+        "com.ulyssesapp.mac",
+        "net.shinyfrog.bear"
+    ]
+
+    private static let writingBundleFragments = [
+        "mail",
+        "outlook",
+        "word",
+        "pages",
+        "notes",
+        "textedit",
+        "ulysses",
+        "bear",
+        "obsidian",
+        "notion"
+    ]
+
+    private static let codeBundleIdentifiers: Set<String> = [
+        "com.apple.dt.xcode",
+        "com.microsoft.vscode",
+        "com.todesktop.230313mzl4w4u92",
+        "com.apple.terminal",
+        "com.googlecode.iterm2",
+        "dev.warp.warp-stable",
+        "com.github.wez.wezterm",
+        "com.mitchellh.ghostty",
+        "com.sublimetext.4",
+        "com.panic.nova"
+    ]
+
+    private static let codeBundleFragments = [
+        "xcode",
+        "vscode",
+        "cursor",
+        "terminal",
+        "iterm",
+        "warp",
+        "wezterm",
+        "ghostty",
+        "sublime",
+        "jetbrains",
+        "intellij",
+        "pycharm",
+        "webstorm",
+        "zed",
+        "nova",
+        "bbedit"
+    ]
+
+    private static func matches(_ bundleIdentifier: String, exact: Set<String>, fragments: [String]) -> Bool {
+        exact.contains(bundleIdentifier) || fragments.contains { bundleIdentifier.contains($0) }
+    }
+
+    private static func cleanInlineWhitespace(in text: String) -> String {
+        text
+            .components(separatedBy: .newlines)
+            .map { line in
+                line
+                    .replacingOccurrences(of: "[ \\t]+", with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespaces)
+            }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func addSentencePunctuationIfNeeded(to text: String) -> String {
+        guard !text.contains("\n") else { return text }
+        guard text.split(whereSeparator: \.isWhitespace).count >= 4 else { return text }
+        guard let lastScalar = text.unicodeScalars.last else { return text }
+
+        let terminalPunctuation = CharacterSet(charactersIn: ".!?;:)]}\"'")
+        if terminalPunctuation.contains(lastScalar) {
+            return text
+        }
+
+        if CharacterSet.letters.union(.decimalDigits).contains(lastScalar) {
+            return text + "."
+        }
+
+        return text
+    }
+}
+
 struct AudioCaptureSessionMetrics: Sendable {
     let duration: TimeInterval
     let frameCount: Int
     let sampleRate: Double
     let speechDetected: Bool
     let speechFrameCount: Int
+    let peakLevel: Double
 }
 
 struct FinalTranscript: Sendable, Equatable {
@@ -402,6 +601,7 @@ struct VocabularyPostProcessor {
 
 enum HUDVisualState: Equatable {
     case recording(triggerMode: DictationTriggerMode, showsHint: Bool)
+    case preparingModel
     case transcribing
     case error(message: String)
 }
@@ -489,9 +689,10 @@ struct HotkeyConfiguration: Equatable, Sendable {
     var keyCode: UInt32
     var carbonModifiers: UInt32
     var keyDisplay: String
+    var sidedModifierKeyCodes: Set<UInt16> = []
 
     var displayName: String {
-        let modifiers = Self.modifierDisplayName(for: carbonModifiers)
+        let modifiers = modifierDisplayName
         guard !isModifierOnly else {
             return modifiers.isEmpty ? "Shortcut" : modifiers
         }
@@ -504,12 +705,38 @@ struct HotkeyConfiguration: Equatable, Sendable {
     }
 
     var symbolParts: [String] {
+        var parts = modifierSymbolParts
+        if !isModifierOnly && !keyDisplay.isEmpty { parts.append(Self.symbolKeyName(for: keyDisplay)) }
+        return parts
+    }
+
+    var requiresSpecificModifierSides: Bool {
+        !sidedModifierKeyCodes.isEmpty
+    }
+
+    private var modifierDisplayName: String {
+        if !sidedModifierKeyCodes.isEmpty {
+            return sidedModifierKeyCodes
+                .sorted { Self.modifierSortOrder(for: $0) < Self.modifierSortOrder(for: $1) }
+                .map(Self.sidedModifierDisplayName)
+                .joined(separator: " + ")
+        }
+
+        return Self.modifierDisplayName(for: carbonModifiers)
+    }
+
+    private var modifierSymbolParts: [String] {
+        if !sidedModifierKeyCodes.isEmpty {
+            return sidedModifierKeyCodes
+                .sorted { Self.modifierSortOrder(for: $0) < Self.modifierSortOrder(for: $1) }
+                .map(Self.sidedModifierSymbolName)
+        }
+
         var parts: [String] = []
         if carbonModifiers & UInt32(controlKey) != 0 { parts.append("⌃") }
         if carbonModifiers & UInt32(optionKey) != 0 { parts.append("⌥") }
         if carbonModifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
         if carbonModifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
-        if !isModifierOnly && !keyDisplay.isEmpty { parts.append(Self.symbolKeyName(for: keyDisplay)) }
         return parts
     }
 
@@ -526,7 +753,27 @@ struct HotkeyConfiguration: Equatable, Sendable {
     }
 
     func conflicts(with other: HotkeyConfiguration) -> Bool {
-        keyCode == other.keyCode && carbonModifiers == other.carbonModifiers
+        keyCode == other.keyCode &&
+            carbonModifiers == other.carbonModifiers &&
+            sidedModifierKeyCodes == other.sidedModifierKeyCodes
+    }
+
+    func matches(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, activeModifierKeyCodes: Set<UInt16>) -> Bool {
+        guard !isModifierOnly, self.keyCode == UInt32(keyCode) else { return false }
+        guard Self.carbonModifiers(for: modifiers) == carbonModifiers else { return false }
+        guard !requiresSpecificModifierSides else {
+            return sidedModifierKeyCodes.isSubset(of: activeModifierKeyCodes)
+        }
+        return true
+    }
+
+    func matches(modifiers: NSEvent.ModifierFlags, activeModifierKeyCodes: Set<UInt16>) -> Bool {
+        let carbon = Self.carbonModifiers(for: modifiers)
+        guard isModifierOnly, carbon == carbonModifiers, carbon != 0 else { return false }
+        guard !requiresSpecificModifierSides else {
+            return sidedModifierKeyCodes.isSubset(of: activeModifierKeyCodes)
+        }
+        return true
     }
 
     static let defaultHoldToTalk = HotkeyConfiguration(
@@ -542,18 +789,41 @@ struct HotkeyConfiguration: Equatable, Sendable {
     )
 
     static func from(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String?) -> HotkeyConfiguration {
+        from(
+            keyCode: keyCode,
+            modifiers: modifiers,
+            characters: characters,
+            sidedModifierKeyCodes: []
+        )
+    }
+
+    static func from(
+        keyCode: UInt16,
+        modifiers: NSEvent.ModifierFlags,
+        characters: String?,
+        sidedModifierKeyCodes: Set<UInt16>
+    ) -> HotkeyConfiguration {
         HotkeyConfiguration(
             keyCode: UInt32(keyCode),
             carbonModifiers: carbonModifiers(for: modifiers),
-            keyDisplay: keyDisplay(for: keyCode, characters: characters)
+            keyDisplay: keyDisplay(for: keyCode, characters: characters),
+            sidedModifierKeyCodes: sanitizedSidedModifierKeyCodes(sidedModifierKeyCodes, modifiers: modifiers)
         )
     }
 
     static func modifierOnly(modifiers: NSEvent.ModifierFlags) -> HotkeyConfiguration {
+        modifierOnly(modifiers: modifiers, sidedModifierKeyCodes: [])
+    }
+
+    static func modifierOnly(
+        modifiers: NSEvent.ModifierFlags,
+        sidedModifierKeyCodes: Set<UInt16>
+    ) -> HotkeyConfiguration {
         HotkeyConfiguration(
             keyCode: modifierOnlyKeyCode,
             carbonModifiers: carbonModifiers(for: modifiers),
-            keyDisplay: ""
+            keyDisplay: "",
+            sidedModifierKeyCodes: sanitizedSidedModifierKeyCodes(sidedModifierKeyCodes, modifiers: modifiers)
         )
     }
 
@@ -582,6 +852,153 @@ struct HotkeyConfiguration: Equatable, Sendable {
         if carbonModifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
         if carbonModifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
         return parts.joined(separator: " ")
+    }
+
+    static func symbolModifierDisplayName(for sidedModifierKeyCodes: Set<UInt16>, fallback carbonModifiers: UInt32) -> String {
+        guard !sidedModifierKeyCodes.isEmpty else {
+            return symbolModifierDisplayName(for: carbonModifiers)
+        }
+
+        return sidedModifierKeyCodes
+            .sorted { modifierSortOrder(for: $0) < modifierSortOrder(for: $1) }
+            .map(sidedModifierSymbolName)
+            .joined(separator: " ")
+    }
+
+    static func updatedActiveModifierKeyCodes(
+        _ activeModifierKeyCodes: Set<UInt16>,
+        with event: NSEvent
+    ) -> Set<UInt16> {
+        guard isSidedModifierKey(event.keyCode) else { return activeModifierKeyCodes }
+
+        var updated = activeModifierKeyCodes
+        let flag = modifierFlag(forSidedKeyCode: event.keyCode)
+        if event.modifierFlags.intersection([.command, .option, .control, .shift]).contains(flag) {
+            updated.insert(event.keyCode)
+        } else {
+            updated.remove(event.keyCode)
+        }
+        return updated
+    }
+
+    static func activeSidedModifierKeyCodes(
+        from activeModifierKeyCodes: Set<UInt16>,
+        modifiers: NSEvent.ModifierFlags
+    ) -> Set<UInt16> {
+        sanitizedSidedModifierKeyCodes(activeModifierKeyCodes, modifiers: modifiers)
+    }
+
+    static func sidedModifierKeyCodes(from encoded: String?) -> Set<UInt16> {
+        guard let encoded, !encoded.isEmpty else { return [] }
+        return Set(encoded.split(separator: ",").compactMap { UInt16($0) })
+    }
+
+    static func encodedSidedModifierKeyCodes(_ keyCodes: Set<UInt16>) -> String {
+        keyCodes.sorted().map(String.init).joined(separator: ",")
+    }
+
+    private static func sanitizedSidedModifierKeyCodes(
+        _ keyCodes: Set<UInt16>,
+        modifiers: NSEvent.ModifierFlags
+    ) -> Set<UInt16> {
+        let flags = modifiers.intersection([.command, .option, .control, .shift])
+        return Set(keyCodes.filter { keyCode in
+            guard isSidedModifierKey(keyCode) else { return false }
+            return flags.contains(modifierFlag(forSidedKeyCode: keyCode))
+        })
+    }
+
+    private static func isSidedModifierKey(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case 54, 55, 56, 58, 59, 60, 61, 62:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func modifierFlag(forSidedKeyCode keyCode: UInt16) -> NSEvent.ModifierFlags {
+        switch keyCode {
+        case 54, 55:
+            return .command
+        case 56, 60:
+            return .shift
+        case 58, 61:
+            return .option
+        case 59, 62:
+            return .control
+        default:
+            return []
+        }
+    }
+
+    private static func sidedModifierDisplayName(for keyCode: UInt16) -> String {
+        switch keyCode {
+        case 54:
+            return "Right Command"
+        case 55:
+            return "Left Command"
+        case 56:
+            return "Left Shift"
+        case 58:
+            return "Left Option"
+        case 59:
+            return "Left Control"
+        case 60:
+            return "Right Shift"
+        case 61:
+            return "Right Option"
+        case 62:
+            return "Right Control"
+        default:
+            return "Modifier"
+        }
+    }
+
+    private static func sidedModifierSymbolName(for keyCode: UInt16) -> String {
+        switch keyCode {
+        case 54:
+            return "R⌘"
+        case 55:
+            return "L⌘"
+        case 56:
+            return "L⇧"
+        case 58:
+            return "L⌥"
+        case 59:
+            return "L⌃"
+        case 60:
+            return "R⇧"
+        case 61:
+            return "R⌥"
+        case 62:
+            return "R⌃"
+        default:
+            return "Mod"
+        }
+    }
+
+    private static func modifierSortOrder(for keyCode: UInt16) -> Int {
+        switch keyCode {
+        case 59:
+            return 10
+        case 62:
+            return 11
+        case 58:
+            return 20
+        case 61:
+            return 21
+        case 56:
+            return 30
+        case 60:
+            return 31
+        case 55:
+            return 40
+        case 54:
+            return 41
+        default:
+            return 100 + Int(keyCode)
+        }
     }
 
     private static func keyDisplay(for keyCode: UInt16, characters: String?) -> String {
@@ -689,6 +1106,7 @@ struct PermissionsSnapshot: Equatable {
     let microphoneGranted: Bool
     let accessibilityGranted: Bool
     let inputMonitoringGranted: Bool
+    var screenRecordingGranted: Bool = false
 
     var allRequiredGranted: Bool {
         microphoneGranted && accessibilityGranted && inputMonitoringGranted

@@ -43,9 +43,13 @@ final class HotkeyService: HotkeyServing {
     private var eventHandler: EventHandlerRef?
     private var globalKeyMonitor: Any?
     private var localKeyMonitor: Any?
+    private var globalKeyUpMonitor: Any?
+    private var localKeyUpMonitor: Any?
     private var globalFlagsMonitor: Any?
     private var localFlagsMonitor: Any?
     private var activeModifierOnlyActions = Set<HotkeyAction>()
+    private var activeSideSpecificActions = Set<HotkeyAction>()
+    private var activeModifierKeyCodes = Set<UInt16>()
     private var pendingModifierOnlyWorkItems: [HotkeyAction: DispatchWorkItem] = [:]
     private var suppressNextAnyKeyPress = false
     private var isPaused = false
@@ -77,6 +81,7 @@ final class HotkeyService: HotkeyServing {
         isPaused = paused
         if paused {
             activeModifierOnlyActions.removeAll()
+            activeSideSpecificActions.removeAll()
             cancelPendingModifierOnlyActions()
             suppressNextAnyKeyPress = false
         }
@@ -160,7 +165,11 @@ final class HotkeyService: HotkeyServing {
     }
 
     private func registerHotKeys() {
-        for binding in bindings where binding.isEnabled && !binding.shortcut.isEmpty && !binding.shortcut.isModifierOnly {
+        for binding in bindings
+            where binding.isEnabled &&
+            !binding.shortcut.isEmpty &&
+            !binding.shortcut.isModifierOnly &&
+            !binding.shortcut.requiresSpecificModifierSides {
             var hotKeyRef: EventHotKeyRef?
             let hotKeyID = EventHotKeyID(
                 signature: OSType(0x46535441),
@@ -215,6 +224,13 @@ final class HotkeyService: HotkeyServing {
             self?.handleAnyKeyPress(event)
             return event
         }
+        globalKeyUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyUp) { [weak self] event in
+            self?.handleKeyRelease(event)
+        }
+        localKeyUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyUp) { [weak self] event in
+            self?.handleKeyRelease(event)
+            return event
+        }
         if globalKeyMonitor == nil || localKeyMonitor == nil {
             onDiagnosticsEvent?("hotkey_registration_failed", ["stage": "keyMonitor"])
         }
@@ -229,16 +245,20 @@ final class HotkeyService: HotkeyServing {
     }
 
     private func removeMonitors() {
-        [globalKeyMonitor, localKeyMonitor, globalFlagsMonitor, localFlagsMonitor].forEach { monitor in
+        [globalKeyMonitor, localKeyMonitor, globalKeyUpMonitor, localKeyUpMonitor, globalFlagsMonitor, localFlagsMonitor].forEach { monitor in
             if let monitor {
                 NSEvent.removeMonitor(monitor)
             }
         }
         globalKeyMonitor = nil
         localKeyMonitor = nil
+        globalKeyUpMonitor = nil
+        localKeyUpMonitor = nil
         globalFlagsMonitor = nil
         localFlagsMonitor = nil
         activeModifierOnlyActions.removeAll()
+        activeSideSpecificActions.removeAll()
+        activeModifierKeyCodes.removeAll()
         cancelPendingModifierOnlyActions()
     }
 
@@ -247,6 +267,7 @@ final class HotkeyService: HotkeyServing {
         cancelPendingModifierOnlyActions()
         if let event {
             onObservedKeyEvent?(ObservedKeyEvent(keyCode: event.keyCode, modifiers: event.modifierFlags))
+            handleSideSpecificKeyPress(event)
         }
         if suppressNextAnyKeyPress {
             suppressNextAnyKeyPress = false
@@ -255,14 +276,51 @@ final class HotkeyService: HotkeyServing {
         onAnyKeyPress?()
     }
 
+    private func handleSideSpecificKeyPress(_ event: NSEvent) {
+        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        for binding in bindings
+            where binding.isEnabled &&
+            binding.shortcut.requiresSpecificModifierSides &&
+            !binding.shortcut.isModifierOnly &&
+            binding.shortcut.matches(
+                keyCode: event.keyCode,
+                modifiers: flags,
+                activeModifierKeyCodes: activeModifierKeyCodes
+            ) {
+            let action = binding.action
+            guard !activeSideSpecificActions.contains(action) else { continue }
+            activeSideSpecificActions.insert(action)
+            suppressNextAnyKeyPress = action == .tapToStartStop
+            hotkeyLogger.info("Side-specific hotkey pressed action=\(action.displayName, privacy: .public)")
+            onPress?(action)
+        }
+    }
+
+    private func handleKeyRelease(_ event: NSEvent) {
+        guard !isPaused else { return }
+
+        for action in Array(activeSideSpecificActions) {
+            guard let binding = bindings.first(where: { $0.action == action }),
+                  binding.shortcut.keyCode == UInt32(event.keyCode) else {
+                continue
+            }
+            activeSideSpecificActions.remove(action)
+            hotkeyLogger.info("Side-specific hotkey released action=\(action.displayName, privacy: .public)")
+            onRelease?(action)
+        }
+    }
+
     private func handleModifierFlagsChanged(_ event: NSEvent) {
         guard !isPaused else { return }
         let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-        let carbonModifiers = HotkeyConfiguration.carbonModifiers(for: flags)
+        activeModifierKeyCodes = HotkeyConfiguration.updatedActiveModifierKeyCodes(activeModifierKeyCodes, with: event)
 
         for binding in bindings where binding.isEnabled && binding.shortcut.isModifierOnly {
             let action = binding.action
-            let matches = carbonModifiers == binding.shortcut.carbonModifiers && carbonModifiers != 0
+            let matches = binding.shortcut.matches(
+                modifiers: flags,
+                activeModifierKeyCodes: activeModifierKeyCodes
+            )
             let isActive = activeModifierOnlyActions.contains(action)
             let isPending = pendingModifierOnlyWorkItems[action] != nil
 

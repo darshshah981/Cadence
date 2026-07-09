@@ -18,7 +18,7 @@ final class PermissionGuideWindowController: NSWindowController {
 
     convenience init() {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 620),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -31,8 +31,8 @@ final class PermissionGuideWindowController: NSWindowController {
         panel.isReleasedWhenClosed = false
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
-        panel.minSize = NSSize(width: 460, height: 560)
-        panel.maxSize = NSSize(width: 460, height: 560)
+        panel.minSize = NSSize(width: 460, height: 620)
+        panel.maxSize = NSSize(width: 460, height: 620)
 
         self.init(window: panel)
     }
@@ -43,6 +43,7 @@ final class PermissionGuideWindowController: NSWindowController {
         onRequestMicrophone: @escaping () -> Void,
         onRequestAccessibility: @escaping () -> Void,
         onRequestInputMonitoring: @escaping () -> Void,
+        onRequestScreenRecording: @escaping () -> Void,
         onRefresh: @escaping () -> Void
     ) {
         let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
@@ -57,6 +58,7 @@ final class PermissionGuideWindowController: NSWindowController {
             onRequestMicrophone: onRequestMicrophone,
             onRequestAccessibility: onRequestAccessibility,
             onRequestInputMonitoring: onRequestInputMonitoring,
+            onRequestScreenRecording: onRequestScreenRecording,
             onRefresh: onRefresh,
             onRevealApp: {
                 NSWorkspace.shared.activateFileViewerSelecting([appURL])
@@ -73,7 +75,7 @@ final class PermissionGuideWindowController: NSWindowController {
         self.hostingController = hostingController
         window?.title = "Set Up \(appName)"
         window?.contentViewController = hostingController
-        window?.setContentSize(NSSize(width: 460, height: 560))
+        window?.setContentSize(NSSize(width: 460, height: 620))
         window?.center()
         showWindow(nil)
         window?.orderFrontRegardless()
@@ -108,6 +110,7 @@ private struct PermissionWizardView: View {
     let onRequestMicrophone: () -> Void
     let onRequestAccessibility: () -> Void
     let onRequestInputMonitoring: () -> Void
+    let onRequestScreenRecording: () -> Void
     let onRefresh: () -> Void
     let onRevealApp: () -> Void
     let onRestartApp: () -> Void
@@ -123,7 +126,7 @@ private struct PermissionWizardView: View {
             actions
         }
         .padding(18)
-        .frame(width: 460, height: 560, alignment: .topLeading)
+        .frame(width: 460, height: 620, alignment: .topLeading)
         .background(FlowTheme.background)
     }
 
@@ -196,6 +199,14 @@ private struct PermissionWizardView: View {
                 isGranted: state.permissions.inputMonitoringGranted,
                 actionTitle: "Open Settings",
                 action: onRequestInputMonitoring
+            )
+            divider
+            PermissionWizardRow(
+                title: "Screen Recording",
+                description: "Allow system audio capture for meeting notes.",
+                isGranted: state.permissions.screenRecordingGranted,
+                actionTitle: "Open Settings",
+                action: onRequestScreenRecording
             )
         }
         .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -272,6 +283,10 @@ private struct PermissionWizardView: View {
 
         if !state.permissions.inputMonitoringGranted {
             return "Open Input Monitoring, turn on Cadence, or drag this Cadence icon into the list if it is missing."
+        }
+
+        if !state.permissions.screenRecordingGranted {
+            return "Core dictation is ready. Open Screen Recording if you want Cadence to capture system audio for meeting notes."
         }
 
         return "All permissions are enabled. Restart Cadence if macOS asked you to relaunch."

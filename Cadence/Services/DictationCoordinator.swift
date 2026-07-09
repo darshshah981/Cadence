@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import OSLog
 
@@ -61,10 +62,12 @@ final class DictationCoordinator {
     private var latestPreview = PreviewTranscript(confirmedText: "", unconfirmedText: "")
     private var latestAudioLevel = 0.0
     private var latestWaveformLevels = Array(repeating: 0.0, count: 16)
+    private var waveformSensitivity: Double
     private var lastSpeechTimestamp = Date()
     private var lastPreviewTimestamp = Date.distantPast
     private var sessionStartedAt: Date?
     private var activeSessionID: String?
+    private var activeTargetApplication: DictationTargetApplication?
     private var firstPreviewTracked = false
     private var lastSuccessfulCompletionAt: Date?
 
@@ -79,7 +82,8 @@ final class DictationCoordinator {
         transcriptionEngine: TranscriptionEngine,
         textInsertionService: TextInsertionServing,
         hudController: HUDWindowController,
-        analytics: AnalyticsService
+        analytics: AnalyticsService,
+        waveformSensitivity: Double = 1.0
     ) {
         self.hotkeyService = hotkeyService
         self.permissionsService = permissionsService
@@ -88,6 +92,7 @@ final class DictationCoordinator {
         self.textInsertionService = textInsertionService
         self.hudController = hudController
         self.analytics = analytics
+        self.waveformSensitivity = Self.sanitizedWaveformSensitivity(waveformSensitivity)
 
         self.hudController.onStop = { [weak self] in
             Task { await self?.stopFromHUD() }
@@ -135,6 +140,10 @@ final class DictationCoordinator {
 
     func setHotkeysPaused(_ paused: Bool) {
         hotkeyService.setPaused(paused)
+    }
+
+    func updateWaveformSensitivity(_ sensitivity: Double) {
+        waveformSensitivity = Self.sanitizedWaveformSensitivity(sensitivity)
     }
 
     private func handleHotkeyPress(_ action: HotkeyAction) async {
@@ -211,6 +220,7 @@ final class DictationCoordinator {
                 )
             }
             analytics.track("shortcut_used", properties: ["sessionID": .string(sessionID), "mode": .string(triggerMode.rawValue)])
+            activeTargetApplication = Self.currentTargetApplication()
             analytics.track("dictation_started", properties: sessionAnalyticsProperties(triggerMode: triggerMode))
 
             try await transcriptionEngine.startSession()
@@ -220,7 +230,10 @@ final class DictationCoordinator {
                         guard let self else { return }
                         await transcriptionEngine.appendAudio(chunk)
                         latestAudioLevel = level
-                        latestWaveformLevels = Self.waveformLevels(from: chunk.samples)
+                        latestWaveformLevels = Self.waveformLevels(
+                            from: chunk.samples,
+                            sensitivity: waveformSensitivity
+                        )
                         if level >= PreviewTuning.activeSpeechThreshold {
                             lastSpeechTimestamp = Date()
                         }
@@ -268,6 +281,7 @@ final class DictationCoordinator {
             warmBackendForCurrentSession()
         } catch {
             activeTriggerMode = nil
+            activeTargetApplication = nil
             publishError(error.localizedDescription)
         }
     }
@@ -306,7 +320,7 @@ final class DictationCoordinator {
             ? Double(metrics.speechFrameCount) / metrics.sampleRate
             : metrics.duration
         dictationLogger.info(
-            "Cadence timing finalize capture duration=\(Self.formatSeconds(metrics.duration), privacy: .public)s speech=\(Self.formatSeconds(speechDuration), privacy: .public)s frames=\(metrics.frameCount, privacy: .public) speechFrames=\(metrics.speechFrameCount, privacy: .public) livePreview=\(self.transcriptionConfiguration.livePreviewEnabled, privacy: .public) cachedPreview=\(!releasePreview.composedText.isEmpty, privacy: .public)"
+            "Cadence timing finalize capture duration=\(Self.formatSeconds(metrics.duration), privacy: .public)s speech=\(Self.formatSeconds(speechDuration), privacy: .public)s frames=\(metrics.frameCount, privacy: .public) speechFrames=\(metrics.speechFrameCount, privacy: .public) peak=\(Self.formatLevel(metrics.peakLevel), privacy: .public) livePreview=\(self.transcriptionConfiguration.livePreviewEnabled, privacy: .public) cachedPreview=\(!releasePreview.composedText.isEmpty, privacy: .public)"
         )
         stopPreviewLoop()
 
@@ -322,13 +336,23 @@ final class DictationCoordinator {
                 correctedText = applyPostProcessing(to: previewText)
                 await transcriptionEngine.cancelSession()
             } else {
-                publishHUD(
-                    visualState: .transcribing,
-                    subtitle: "",
-                    level: 0.35,
-                    waveformLevels: latestWaveformLevels,
-                    showsSubtitle: false
-                )
+                if !(await transcriptionEngine.isPrepared()) {
+                    publishHUD(
+                        visualState: .preparingModel,
+                        subtitle: "The first setup can take a moment.",
+                        level: 0.35,
+                        waveformLevels: latestWaveformLevels,
+                        showsSubtitle: true
+                    )
+                } else {
+                    publishHUD(
+                        visualState: .transcribing,
+                        subtitle: "",
+                        level: 0.35,
+                        waveformLevels: latestWaveformLevels,
+                        showsSubtitle: false
+                    )
+                }
                 let engineStartedAt = Date()
                 let transcript = try await transcriptionEngine.finishSession(metrics: metrics)
                 dictationLogger.info(
@@ -336,10 +360,16 @@ final class DictationCoordinator {
                 )
                 correctedText = applyPostProcessing(to: transcript.cleanedText)
             }
+            let polishResult = AppAwareTextPolisher.apply(
+                to: correctedText,
+                configuration: transcriptionConfiguration,
+                targetApplication: activeTargetApplication
+            )
+            let finalText = polishResult.text
             let finalTranscriptLatency = Date().timeIntervalSince(transcriptReadyStartedAt)
-            let wordCount = Self.wordCount(in: correctedText)
+            let wordCount = Self.wordCount(in: finalText)
 
-            onTranscript?(correctedText, activeSessionID)
+            onTranscript?(finalText, activeSessionID)
             incrementSuccessfulRecordingCount()
 
             state = .inserting
@@ -353,7 +383,7 @@ final class DictationCoordinator {
 
             let insertionStartedAt = Date()
             do {
-                try await textInsertionService.insert(correctedText + " ")
+                try await textInsertionService.insert(polishResult.insertionText)
             } catch {
                 analytics.track(
                     "text_insertion_failed",
@@ -369,7 +399,7 @@ final class DictationCoordinator {
             let totalElapsed = Date().timeIntervalSince(finalizeStartedAt)
             let sessionElapsed = sessionStartedAt.map { Date().timeIntervalSince($0) } ?? metrics.duration
             dictationLogger.info(
-                "Cadence timing finalize complete total=\(Self.formatSeconds(totalElapsed), privacy: .public)s insert=\(Self.formatSeconds(insertionElapsed), privacy: .public)s chars=\(correctedText.count, privacy: .public)"
+                "Cadence timing finalize complete total=\(Self.formatSeconds(totalElapsed), privacy: .public)s insert=\(Self.formatSeconds(insertionElapsed), privacy: .public)s chars=\(finalText.count, privacy: .public)"
             )
             analytics.track(
                 "dictation_completed",
@@ -382,8 +412,8 @@ final class DictationCoordinator {
                     "finalTranscriptLatencyMs": .int(Self.analyticsMilliseconds(finalTranscriptLatency)),
                     "insertionLatencyMs": .int(Self.analyticsMilliseconds(insertionElapsed)),
                     "totalSessionLatencyMs": .int(Self.analyticsMilliseconds(sessionElapsed)),
-                    "charactersBucket": .string(Self.countBucket(correctedText.count)),
-                    "characterCount": .int(correctedText.count),
+                    "charactersBucket": .string(Self.countBucket(finalText.count)),
+                    "characterCount": .int(finalText.count),
                     "wordsBucket": .string(Self.countBucket(wordCount)),
                     "wordCount": .int(wordCount),
                     "wordsPerMinute": .double(Self.wordsPerMinute(wordCount: wordCount, speechSeconds: speechDuration)),
@@ -392,13 +422,16 @@ final class DictationCoordinator {
                     "decoding": .string(transcriptionConfiguration.decodingMode.rawValue),
                     "preset": .string(DictationQualityPreset.matching(transcriptionConfiguration).rawValue),
                     "previewUsedAsFinal": .bool(usedPreviewAsFinal),
-                    "livePreviewEnabled": .bool(transcriptionConfiguration.livePreviewEnabled)
+                    "livePreviewEnabled": .bool(transcriptionConfiguration.livePreviewEnabled),
+                    "appAwarePolishingEnabled": .bool(transcriptionConfiguration.appAwarePolishingEnabled),
+                    "appAwarePolishProfile": .string(polishResult.profile.rawValue)
                 ]
             )
             lastSuccessfulCompletionAt = Date()
 
             state = .idle
             activeTriggerMode = nil
+            activeTargetApplication = nil
             sessionStartedAt = nil
             activeSessionID = nil
             hideHUD()
@@ -431,6 +464,7 @@ final class DictationCoordinator {
                 )
             }
             activeTriggerMode = nil
+            activeTargetApplication = nil
             sessionStartedAt = nil
             activeSessionID = nil
             publishError(error.localizedDescription)
@@ -574,6 +608,10 @@ final class DictationCoordinator {
         String(format: "%.3f", seconds)
     }
 
+    private static func formatLevel(_ level: Double) -> String {
+        String(format: "%.4f", level)
+    }
+
     private static func durationBucket(_ seconds: TimeInterval) -> String {
         switch seconds {
         case ..<2:
@@ -657,6 +695,7 @@ final class DictationCoordinator {
             ]
         )
         activeTriggerMode = nil
+        activeTargetApplication = nil
         sessionStartedAt = nil
         activeSessionID = nil
         state = .idle
@@ -671,8 +710,19 @@ final class DictationCoordinator {
             "decoding": .string(transcriptionConfiguration.decodingMode.rawValue),
             "preset": .string(DictationQualityPreset.matching(transcriptionConfiguration).rawValue),
             "livePreviewEnabled": .bool(transcriptionConfiguration.livePreviewEnabled),
-            "tapStopsOnNextKeyPress": .bool(transcriptionConfiguration.tapStopsOnNextKeyPress)
+            "tapStopsOnNextKeyPress": .bool(transcriptionConfiguration.tapStopsOnNextKeyPress),
+            "appAwarePolishingEnabled": .bool(transcriptionConfiguration.appAwarePolishingEnabled),
+            "appAwarePolishProfile": .string(AppAwareTextPolisher.profile(for: activeTargetApplication).rawValue)
         ]
+    }
+
+    private static func currentTargetApplication() -> DictationTargetApplication? {
+        let frontmostApplication = NSWorkspace.shared.frontmostApplication
+        guard frontmostApplication?.bundleIdentifier != Bundle.main.bundleIdentifier else {
+            return nil
+        }
+
+        return DictationTargetApplication(runningApplication: frontmostApplication)
     }
 
     private static func shouldTrackAbandonment(for error: Error) -> Bool {
@@ -718,12 +768,13 @@ final class DictationCoordinator {
         return raw
     }
 
-    private static func waveformLevels(from samples: [Float]) -> [Double] {
+    private static func waveformLevels(from samples: [Float], sensitivity: Double) -> [Double] {
         let barCount = 16
         guard !samples.isEmpty else {
             return Array(repeating: 0, count: barCount)
         }
 
+        let sanitizedSensitivity = sanitizedWaveformSensitivity(sensitivity)
         let bucketSize = max(1, samples.count / barCount)
         return (0..<barCount).map { index in
             let start = index * bucketSize
@@ -734,8 +785,12 @@ final class DictationCoordinator {
             for sample in samples[start..<end] {
                 sum += abs(sample)
             }
-            let average = sum / Float(end - start)
-            return min(1, Double(average * 10))
+            let average = Double(sum / Float(end - start))
+            return min(1, sqrt(average) * 7 * sanitizedSensitivity)
         }
+    }
+
+    private static func sanitizedWaveformSensitivity(_ sensitivity: Double) -> Double {
+        min(1.6, max(0.1, sensitivity))
     }
 }

@@ -17,7 +17,7 @@ Cadence is designed as a quiet menu bar utility: recent transcripts stay front a
 - Hold-to-talk and press-to-start dictation modes, enabled separately or together with different shortcuts.
 - Local WhisperKit transcription.
 - Direct text insertion into the focused Mac app.
-- Guided setup for Microphone, Accessibility, and Input Monitoring permissions.
+- Guided setup for Microphone, Accessibility, Input Monitoring, and Screen Recording permissions.
 - Simple quality presets with advanced model/audio controls when needed.
 - Optional privacy-safe analytics. Audio and transcript text are not sent to analytics.
 
@@ -63,6 +63,7 @@ On first launch, Cadence asks for the permissions macOS requires for dictation:
 - **Microphone** to record while you dictate.
 - **Accessibility** to insert text into the focused app.
 - **Input Monitoring** so global shortcuts work outside Cadence.
+- **Screen Recording** to capture system audio for meeting notes.
 
 Cadence may ask you to restart the app after granting permissions because macOS sometimes requires a relaunch before new trust settings take effect.
 
@@ -73,6 +74,44 @@ Cadence processes dictation locally. Optional analytics are disabled by default 
 Read the privacy note: [docs/privacy.md](docs/privacy.md)
 
 ## Development
+
+Build and launch the debug app:
+
+```zsh
+./script/build_and_run.sh
+```
+
+### Google sign-in
+
+Google Calendar sign-in uses a Google OAuth desktop client owned by the app.
+Users only see `Continue with Google`; they should never enter OAuth developer
+credentials or their Gmail password into Cadence.
+
+For local development, create this ignored file:
+
+```zsh
+mkdir -p local
+$EDITOR local/google-oauth.env
+```
+
+Add:
+
+```sh
+GOOGLE_OAUTH_CLIENT_ID=your-desktop-oauth-client-id.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=your-desktop-oauth-client-secret
+```
+
+Cadence uses Google's desktop-app loopback flow. The app starts a temporary
+`127.0.0.1` callback listener only while sign-in is active, so no custom
+redirect URI needs to be registered in Google Cloud.
+The desktop OAuth client secret is app-owned local build configuration; users
+never enter it, and they should never enter their Gmail password into Cadence.
+
+Check the local Google config:
+
+```zsh
+./script/build_and_run.sh --google-config
+```
 
 Install the debug app locally:
 

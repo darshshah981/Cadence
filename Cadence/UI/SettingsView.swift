@@ -3,22 +3,43 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var appModel: AppModel
+    var maxContentWidth: CGFloat?
+    var contentPadding = EdgeInsets()
     @State private var isAdvancedExpanded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            generalSection
-            advancedSection
-            versionFooter
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                setupSection
+                startStopSection
+                captureSection
+                writingStyleSection
+                privacySection
+                advancedSection
+                versionFooter
+            }
+            .frame(maxWidth: maxContentWidth, alignment: .topLeading)
+            .padding(contentPadding)
+            .padding(.bottom, 2)
         }
         .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: isAdvancedExpanded)
         .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: appModel.dictationQualityPreset)
     }
 
-    private var generalSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "General")
+    private func settingsSection<Content: View>(
+        title: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SettingsSectionHeader(title: title, systemImage: systemImage)
+            content()
+        }
+    }
+
+    private var setupSection: some View {
+        settingsSection(title: "Setup", systemImage: "checkmark.seal") {
             FlowSectionCard {
                 if appModel.permissions.allRequiredGranted {
                     setupCompleteRow
@@ -28,53 +49,141 @@ struct SettingsView: View {
                         action: appModel.openPermissionsWizard
                     )
                 }
-                insetDivider
-
-                shortcutsSection
-
-                insetDivider
-
-                VStack(alignment: .leading, spacing: 12) {
-                    SettingsLabelRow(
-                        title: "Quality",
-                        description: appModel.dictationQualityPreset.description
-                    )
-
-                    QualityPresetSegmentedControl(
-                        selection: Binding(
-                            get: { appModel.dictationQualityPreset },
-                            set: { appModel.setDictationQualityPreset($0) }
-                        )
-                    )
-
-                    ModelReadinessInlineView(summary: appModel.modelReadinessSummary)
-                }
-                .padding(12)
-
-                insetDivider
-
-                HStack {
-                    SettingsLabelRow(
-                        title: "Check setup",
-                        description: "Refresh permissions and make sure the current model is ready."
-                    )
-
-                    Spacer()
-
-                    Button("Run") {
-                        appModel.runSetupCheck()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-                .padding(12)
             }
         }
     }
 
+    private var startStopSection: some View {
+        settingsSection(title: "Start & Stop", systemImage: "keyboard") {
+            FlowSectionCard {
+                shortcutsSection
+            }
+        }
+    }
+
+    private var captureSection: some View {
+        settingsSection(title: "Capture", systemImage: "waveform") {
+            FlowSectionCard {
+                captureReadinessRow
+                insetDivider
+                calendarControls
+                insetDivider
+                meetingNotesRow
+                insetDivider
+                setupCheckRow
+            }
+        }
+    }
+
+    private var writingStyleSection: some View {
+        settingsSection(title: "Writing Style", systemImage: "textformat") {
+            FlowSectionCard {
+                qualityControls
+                insetDivider
+                SettingsToggleRow(
+                    title: "Clean up text for each app",
+                    description: "Cadence adapts punctuation and spacing for chat, writing, code, and terminal apps.",
+                    isOn: appAwarePolishingBinding
+                )
+                insetDivider
+                vocabularyControls
+                insetDivider
+                fillerWordControls
+            }
+        }
+    }
+
+    private var privacySection: some View {
+        settingsSection(title: "Privacy", systemImage: "lock") {
+            FlowSectionCard {
+                privacyPromiseRow
+                insetDivider
+                privacyControls
+            }
+        }
+    }
+
+    private var captureReadinessRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: appModel.permissions.screenRecordingGranted ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(appModel.permissions.screenRecordingGranted ? FlowTheme.success : FlowTheme.textTertiary)
+                .frame(width: 20)
+
+            SettingsLabelRow(
+                title: "System audio",
+                description: appModel.permissions.screenRecordingGranted
+                    ? "Cadence can capture computer audio for calls and videos."
+                    : "Allow Screen Recording to capture computer audio."
+            )
+
+            Spacer()
+
+            Button("Review") {
+                appModel.openPermissionsWizard()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(12)
+    }
+
+    private var meetingNotesRow: some View {
+        SettingsActionRow(
+            title: "Meeting notes",
+            description: "Record calls, keep transcripts, and generate summaries.",
+            buttonTitle: "Open"
+        ) {
+            appModel.showMeetingNotesWindow()
+        }
+    }
+
+    private var setupCheckRow: some View {
+        SettingsActionRow(
+            title: "Health check",
+            description: "Refresh permissions and confirm the speech model is ready.",
+            buttonTitle: "Run"
+        ) {
+            appModel.runSetupCheck()
+        }
+    }
+
+    private var qualityControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsLabelRow(
+                title: "Transcription speed and accuracy",
+                description: appModel.dictationQualityPreset.description
+            )
+
+            QualityPresetSegmentedControl(
+                selection: Binding(
+                    get: { appModel.dictationQualityPreset },
+                    set: { appModel.setDictationQualityPreset($0) }
+                )
+            )
+
+            ModelReadinessInlineView(summary: appModel.modelReadinessSummary)
+        }
+        .padding(12)
+    }
+
+    private var privacyPromiseRow: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "lock.shield.fill")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(FlowTheme.success)
+                .frame(width: 20)
+
+            SettingsLabelRow(
+                title: "Private by default",
+                description: "Audio, transcripts, custom words, and calendar metadata stay on this Mac unless you choose to export or copy them."
+            )
+        }
+        .padding(12)
+    }
+
     private var advancedSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "Advanced")
+        settingsSection(title: "Advanced", systemImage: "slider.horizontal.3") {
             FlowSectionCard {
                 DisclosureGroup(isExpanded: advancedExpandedBinding) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -82,12 +191,6 @@ struct SettingsView: View {
                         advancedModelControls
                         insetDivider
                         advancedAudioControls
-                        insetDivider
-                        fillerWordControls
-                        insetDivider
-                        vocabularyControls
-                        insetDivider
-                        privacyControls
                     }
                     .padding(.top, 10)
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -97,7 +200,7 @@ struct SettingsView: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(FlowTheme.textPrimary)
 
-                        Text("Model selection, cleanup rules, custom words, and privacy.")
+                        Text("Model, audio cleanup, and tuning controls.")
                             .font(.system(size: 12))
                             .foregroundStyle(FlowTheme.textSecondary)
                     }
@@ -110,8 +213,8 @@ struct SettingsView: View {
     private var advancedModelControls: some View {
         VStack(alignment: .leading, spacing: 12) {
             SettingsLabelRow(
-                title: "Model",
-                description: "Manual model selection for testing speed and accuracy."
+                title: "Recognition model",
+                description: "Change this only when testing speed, size, or accuracy."
             )
 
             VStack(spacing: 8) {
@@ -126,8 +229,8 @@ struct SettingsView: View {
             }
 
             SettingsLabelRow(
-                title: "Decoding",
-                description: "Fast is lower latency; Accurate searches harder."
+                title: "Search depth",
+                description: "Fast responds sooner; Accurate works harder on difficult audio."
             )
 
             DecodingSegmentedControl(
@@ -152,60 +255,31 @@ struct SettingsView: View {
         .padding(12)
     }
 
-    private var audioSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            FlowSectionHeader(title: "Audio")
-            FlowSectionCard {
-                SettingsToggleRow(
-                    title: "Trim silence",
-                    description: "Removes dead air before and after speech.",
-                    isOn: trimSilenceBinding
-                )
-                insetDivider
-                SettingsToggleRow(
-                    title: "Normalize audio",
-                    description: "Brings quiet recordings into a steadier range.",
-                    isOn: normalizeAudioBinding
-                )
-                insetDivider
-                SettingsToggleRow(
-                    title: "Keep context",
-                    description: "Helps punctuation and continuity during longer dictation.",
-                    isOn: keepContextBinding
-                )
-                insetDivider
-                SettingsToggleRow(
-                    title: "Stop on next key press",
-                    description: "For press-to-start mode, stop dictation as soon as you begin typing.",
-                    isOn: tapStopsOnNextKeyPressBinding
-                )
-            }
-        }
-    }
-
     private var advancedAudioControls: some View {
         VStack(spacing: 0) {
             SettingsToggleRow(
                 title: "Trim silence",
-                description: "Removes dead air before and after speech.",
+                description: "Remove quiet gaps before and after speech.",
                 isOn: trimSilenceBinding
             )
             insetDivider
             SettingsToggleRow(
                 title: "Normalize audio",
-                description: "Brings quiet recordings into a steadier range.",
+                description: "Keep quiet and loud recordings in a steadier range.",
                 isOn: normalizeAudioBinding
             )
             insetDivider
+            WaveformSensitivityRow(value: waveformSensitivityBinding)
+            insetDivider
             SettingsToggleRow(
                 title: "Keep context",
-                description: "Helps punctuation and continuity during longer dictation.",
+                description: "Use recent words to improve punctuation in longer dictation.",
                 isOn: keepContextBinding
             )
             insetDivider
             SettingsToggleRow(
                 title: "Stop on next key press",
-                description: "For press-to-start mode, stop dictation as soon as you begin typing.",
+                description: "Stop recording when you start typing.",
                 isOn: tapStopsOnNextKeyPressBinding
             )
         }
@@ -213,11 +287,11 @@ struct SettingsView: View {
 
     private var vocabularyControls: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Names & custom words")
+            Text("Words Cadence should remember")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(FlowTheme.textPrimary)
 
-            Text("One preferred term per line. Example: `Epic Games: Epic`")
+            Text("Add names, companies, and phrases that should be spelled correctly.")
                 .font(.system(size: 12))
                 .foregroundStyle(FlowTheme.textSecondary)
 
@@ -236,11 +310,50 @@ struct SettingsView: View {
         .padding(12)
     }
 
+    private var calendarControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsLabelRow(
+                title: "Calendar",
+                description: calendarDescription
+            )
+
+            HStack(spacing: 8) {
+                Image(systemName: appModel.googleCalendarConnectionState.isConnected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(appModel.googleCalendarConnectionState.isConnected ? FlowTheme.success : FlowTheme.textTertiary)
+
+                Text(calendarStatus)
+                    .font(.system(size: 12))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .lineLimit(2)
+            }
+
+            if appModel.googleCalendarConnectionState.isConnected {
+                Button {
+                    appModel.disconnectGoogleCalendar()
+                } label: {
+                    Label("Sign out of Google", systemImage: "person.crop.circle.badge.minus")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            } else {
+                Button {
+                    appModel.connectGoogleCalendar()
+                } label: {
+                    Label(appModel.isConnectingGoogleCalendar ? "Opening Google" : "Continue with Google", systemImage: "person.crop.circle.badge.plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(!appModel.isGoogleCalendarSignInAvailable || appModel.isConnectingGoogleCalendar)
+            }
+        }
+        .padding(12)
+    }
+
     private var privacyControls: some View {
         VStack(spacing: 0) {
             SettingsToggleRow(
                 title: "Share analytics",
-                description: "Sends privacy-safe product events. Never includes audio, transcripts, vocabulary, or shortcut keys.",
+                description: "Share product health signals. Audio, transcripts, custom words, and shortcuts are never included.",
                 isOn: analyticsEnabledBinding
             )
 
@@ -248,8 +361,8 @@ struct SettingsView: View {
 
             HStack {
                 SettingsLabelRow(
-                    title: "Privacy",
-                    description: "Read what Cadence collects and what stays on your Mac."
+                    title: "Privacy details",
+                    description: "Read the full local-data and analytics policy."
                 )
 
                 Spacer()
@@ -283,11 +396,11 @@ struct SettingsView: View {
     private var shortcutsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Shortcuts")
+                Text("Ways to start")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(FlowTheme.textPrimary)
 
-                Text("Enable either mode, or keep both on with different shortcuts.")
+                Text("Choose the gesture that feels natural while you work.")
                     .font(.system(size: 12))
                     .foregroundStyle(FlowTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -303,9 +416,9 @@ struct SettingsView: View {
             insetDivider
 
             ShortcutSettingRow(
-                title: "Hold to speak",
+                title: "Hold to dictate",
                 description: "Hold the shortcut, speak, then release to insert.",
-                hint: "Best for quick bursts. Modifier-only shortcuts are easiest here.",
+                hint: "Best for quick thoughts.",
                 isEnabled: holdEnabledBinding,
                 shortcut: holdShortcutBinding,
                 onRecordingChange: appModel.setShortcutRecordingActive
@@ -314,8 +427,8 @@ struct SettingsView: View {
             insetDivider
 
             ShortcutSettingRow(
-                title: "Press to start/stop",
-                description: "Press once to start, then press again or use the pill to stop.",
+                title: "Toggle recording",
+                description: "Press once to start, then press again to stop.",
                 hint: pressToStartHint,
                 isEnabled: tapEnabledBinding,
                 shortcut: tapShortcutBinding,
@@ -325,8 +438,8 @@ struct SettingsView: View {
             insetDivider
 
             SettingsToggleRow(
-                title: "Show shortcut dock",
-                description: "Keep the floating shortcut reminder above the bottom bar on the home screen.",
+                title: "Shortcut reminder",
+                description: "Show a small reminder while Cadence is waiting for your voice.",
                 isOn: showsShortcutDockBinding
             )
         }
@@ -339,11 +452,11 @@ struct SettingsView: View {
                 .foregroundStyle(FlowTheme.success)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Mac setup complete")
+                Text("Cadence is ready")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(FlowTheme.textPrimary)
 
-                Text("Microphone, Accessibility, and Input Monitoring are all ready.")
+                Text(appModel.permissions.screenRecordingGranted ? "Dictation and call recording are ready." : "Dictation is ready. Turn on Screen Recording to capture computer audio.")
                     .font(.system(size: 12))
                     .foregroundStyle(FlowTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -364,7 +477,7 @@ struct SettingsView: View {
         let current = appModel.tapToStartStopBinding.shortcut.symbolDisplayName
         let examples = ["⌃ ⌥ SPACE", "⌃ ⇧ D"]
         let fallback = examples.first(where: { $0 != current }) ?? examples[0]
-        return "Needs 3+ keys. Try \(fallback)"
+        return "Good for longer thoughts. Try \(fallback)"
     }
 
     private var insetDivider: some View {
@@ -391,6 +504,13 @@ struct SettingsView: View {
         Binding(
             get: { appModel.transcriptionConfiguration.normalizeAudio },
             set: { appModel.setNormalizeAudio($0) }
+        )
+    }
+
+    private var waveformSensitivityBinding: Binding<Double> {
+        Binding(
+            get: { appModel.waveformSensitivity },
+            set: { appModel.setWaveformSensitivity($0) }
         )
     }
 
@@ -429,6 +549,13 @@ struct SettingsView: View {
         )
     }
 
+    private var appAwarePolishingBinding: Binding<Bool> {
+        Binding(
+            get: { appModel.transcriptionConfiguration.appAwarePolishingEnabled },
+            set: { appModel.setAppAwarePolishingEnabled($0) }
+        )
+    }
+
     private var analyticsEnabledBinding: Binding<Bool> {
         Binding(
             get: { appModel.analyticsEnabled },
@@ -441,6 +568,29 @@ struct SettingsView: View {
             get: { appModel.showsShortcutDock },
             set: { appModel.setShowsShortcutDock($0) }
         )
+    }
+
+    private var calendarDescription: String {
+        if appModel.googleCalendarConnectionState.isConnected {
+            return appModel.googleCalendarConnectionState.accountEmail ?? "Calendar is connected."
+        }
+        if !appModel.isGoogleCalendarSignInAvailable {
+            return "Calendar sign-in is not configured in this build."
+        }
+        return "Show today and tomorrow's meetings on Home."
+    }
+
+    private var calendarStatus: String {
+        if let error = appModel.googleCalendarConnectionState.errorMessage, !error.isEmpty {
+            return error
+        }
+        if appModel.googleCalendarConnectionState.isConnected {
+            return "Connected"
+        }
+        if appModel.googleCalendarConnectionState.isConfigured {
+            return "Ready"
+        }
+        return "Unavailable in this build"
     }
 
     private var holdEnabledBinding: Binding<Bool> {
@@ -552,6 +702,26 @@ private struct FlowInfoRow: View {
     }
 }
 
+private struct SettingsSectionHeader: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: systemImage)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(FlowTheme.textSecondary)
+                .frame(width: 14)
+
+            Text(title.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .kerning(0.7)
+                .foregroundStyle(FlowTheme.textSecondary)
+        }
+        .padding(.leading, 2)
+    }
+}
+
 private struct SettingsLabelRow: View {
     let title: String
     let description: String
@@ -567,6 +737,26 @@ private struct SettingsLabelRow: View {
                 .foregroundStyle(FlowTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+private struct SettingsActionRow: View {
+    let title: String
+    let description: String
+    let buttonTitle: String
+    let action: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            SettingsLabelRow(title: title, description: description)
+
+            Spacer()
+
+            Button(buttonTitle, action: action)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .padding(12)
     }
 }
 
@@ -712,6 +902,41 @@ private struct SettingsToggleRow: View {
     }
 }
 
+private struct WaveformSensitivityRow: View {
+    @Binding var value: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                SettingsLabelRow(
+                    title: "Waveform sensitivity",
+                    description: "Controls how strongly mic input animates the HUD bars."
+                )
+
+                Spacer()
+
+                Text("\(Int((value * 100).rounded()))%")
+                    .font(.system(size: 12, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(FlowTheme.textSecondary)
+            }
+
+            HStack(spacing: 10) {
+                Text("Calm")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textTertiary)
+
+                Slider(value: $value, in: 0.1...1.6, step: 0.1)
+
+                Text("Lively")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textTertiary)
+            }
+        }
+        .padding(12)
+    }
+}
+
 private struct PermissionWizardRow: View {
     let permissions: PermissionsSnapshot
     let action: () -> Void
@@ -743,7 +968,10 @@ private struct PermissionWizardRow: View {
 
     private var summary: String {
         if permissions.allRequiredGranted {
-            return "Microphone, Accessibility, and Input Monitoring are enabled."
+            if permissions.screenRecordingGranted {
+                return "Microphone, Accessibility, Input Monitoring, and Screen Recording are enabled."
+            }
+            return "Microphone, Accessibility, and Input Monitoring are enabled. Screen Recording is optional for system audio meeting capture."
         }
 
         let missing = [
@@ -832,32 +1060,32 @@ private struct ShortcutSettingRow: View {
     let onRecordingChange: (Bool) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(FlowTheme.textPrimary)
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(FlowTheme.textPrimary)
 
-                    Text(description)
-                        .font(.system(size: 12))
-                        .foregroundStyle(FlowTheme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                Spacer()
+                Text(hint)
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textTertiary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 10) {
+                ShortcutRecorderField(shortcut: $shortcut, onRecordingChange: onRecordingChange)
+                    .frame(width: 154, height: 32)
 
                 Toggle("", isOn: $isEnabled)
                     .labelsHidden()
                     .toggleStyle(FlowToggleStyle())
             }
-
-            ShortcutRecorderField(shortcut: $shortcut, onRecordingChange: onRecordingChange)
-                .frame(maxWidth: .infinity, minHeight: 42)
-
-            Text(hint)
-                .font(.system(size: 11))
-                .foregroundStyle(FlowTheme.textTertiary)
+            .frame(width: 214, alignment: .trailing)
         }
         .padding(12)
     }
@@ -900,14 +1128,16 @@ final class ShortcutRecorderContainerView: NSView {
     private let recorderButton = NSButton(title: "", target: nil, action: nil)
     private var pendingModifierOnlyShortcut = false
     private var bestModifierOnlyShortcut: HotkeyConfiguration?
+    private var activeModifierKeyCodes = Set<UInt16>()
     private var isRecording = false {
         didSet {
-            recorderButton.contentTintColor = isRecording ? .systemOrange : .labelColor
+            recorderButton.contentTintColor = isRecording ? .systemOrange : normalTextColor
             updateButtonTitle()
             onRecordingChange?(isRecording)
             if !isRecording {
                 pendingModifierOnlyShortcut = false
                 bestModifierOnlyShortcut = nil
+                activeModifierKeyCodes.removeAll()
             }
             needsLayout = true
         }
@@ -922,9 +1152,7 @@ final class ShortcutRecorderContainerView: NSView {
 
         wantsLayer = true
         layer?.cornerRadius = 8
-        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         layer?.borderWidth = 1
-        layer?.borderColor = NSColor.separatorColor.cgColor
 
         recorderButton.isBordered = false
         recorderButton.font = .monospacedSystemFont(ofSize: 11.5, weight: .medium)
@@ -932,6 +1160,7 @@ final class ShortcutRecorderContainerView: NSView {
         recorderButton.target = self
         recorderButton.action = #selector(beginRecording)
         addSubview(recorderButton)
+        updateLayerColors()
         updateButtonTitle()
     }
 
@@ -945,8 +1174,32 @@ final class ShortcutRecorderContainerView: NSView {
         recorderButton.frame = bounds.insetBy(dx: 10, dy: 8)
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateLayerColors()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateLayerColors()
+    }
+
     override var intrinsicContentSize: NSSize {
-        NSSize(width: 220, height: 42)
+        NSSize(width: 154, height: 32)
+    }
+
+    private var isDarkAppearance: Bool {
+        effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+
+    private var normalTextColor: NSColor {
+        NSColor(hex: isDarkAppearance ? 0xEDEAE0 : 0x1B1B19)
+    }
+
+    private func updateLayerColors() {
+        layer?.backgroundColor = NSColor(hex: isDarkAppearance ? 0x24241F : 0xF5F3EC).cgColor
+        layer?.borderColor = NSColor(hex: isDarkAppearance ? 0x545048 : 0xD6D4CB).cgColor
+        recorderButton.contentTintColor = isRecording ? .systemOrange : normalTextColor
     }
 
     @objc
@@ -977,10 +1230,15 @@ final class ShortcutRecorderContainerView: NSView {
         }
 
         let modifierFlags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let sidedModifierKeyCodes = HotkeyConfiguration.activeSidedModifierKeyCodes(
+            from: activeModifierKeyCodes,
+            modifiers: modifierFlags
+        )
         let newShortcut = HotkeyConfiguration.from(
             keyCode: event.keyCode,
             modifiers: modifierFlags,
-            characters: event.charactersIgnoringModifiers
+            characters: event.charactersIgnoringModifiers,
+            sidedModifierKeyCodes: sidedModifierKeyCodes
         )
         shortcut = newShortcut
         onShortcutChange?(newShortcut)
@@ -995,7 +1253,15 @@ final class ShortcutRecorderContainerView: NSView {
         }
 
         let modifierFlags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-        let preview = HotkeyConfiguration.symbolModifierDisplayName(for: HotkeyConfiguration.carbonModifiers(for: modifierFlags))
+        activeModifierKeyCodes = HotkeyConfiguration.updatedActiveModifierKeyCodes(activeModifierKeyCodes, with: event)
+        let sidedModifierKeyCodes = HotkeyConfiguration.activeSidedModifierKeyCodes(
+            from: activeModifierKeyCodes,
+            modifiers: modifierFlags
+        )
+        let preview = HotkeyConfiguration.symbolModifierDisplayName(
+            for: sidedModifierKeyCodes,
+            fallback: HotkeyConfiguration.carbonModifiers(for: modifierFlags)
+        )
         recorderButton.title = preview.isEmpty ? "Press your shortcut keys…" : "\(preview) …"
 
         if modifierFlags.isEmpty {
@@ -1010,7 +1276,10 @@ final class ShortcutRecorderContainerView: NSView {
         }
 
         if Self.isModifierOnlyKey(event.keyCode) {
-            let candidate = HotkeyConfiguration.modifierOnly(modifiers: modifierFlags)
+            let candidate = HotkeyConfiguration.modifierOnly(
+                modifiers: modifierFlags,
+                sidedModifierKeyCodes: sidedModifierKeyCodes
+            )
             if shouldPromoteModifierOnlyShortcut(candidate) {
                 bestModifierOnlyShortcut = candidate
                 shortcut = candidate

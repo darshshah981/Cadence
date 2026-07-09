@@ -8,7 +8,7 @@ final class HUDWindowController {
         static let holdSize = NSSize(width: 140, height: pillHeight)
         static let holdHintSize = NSSize(width: 228, height: pillHeight)
         static let controlsSize = NSSize(width: 188, height: pillHeight)
-        static let statusSize = NSSize(width: 196, height: pillHeight)
+        static let statusSize = NSSize(width: 236, height: pillHeight)
         static let subtitleSize = NSSize(width: 320, height: 36)
         static let bottomInset: CGFloat = 32
         static let subtitleGap: CGFloat = 8
@@ -148,7 +148,7 @@ final class HUDWindowController {
             case .holdToTalk:
                 return showsHint ? Metrics.holdHintSize : Metrics.holdSize
             }
-        case .transcribing, .error:
+        case .preparingModel, .transcribing, .error:
             return Metrics.statusSize
         }
     }

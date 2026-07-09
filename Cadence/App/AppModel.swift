@@ -3,6 +3,8 @@ import Combine
 import Foundation
 import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
+@preconcurrency import UserNotifications
 
 private let preferencesLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Cadence",
@@ -12,6 +14,12 @@ private let preferencesLogger = Logger(
 enum MenuScreen: Equatable {
     case home
     case settings
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
 }
 
 struct ModelReadinessSummary {
@@ -35,20 +43,29 @@ final class AppModel: ObservableObject {
         static let keepContext = "FlowState.keepContext"
         static let trimSilence = "FlowState.trimSilence"
         static let normalizeAudio = "FlowState.normalizeAudio"
+        static let waveformSensitivity = "Cadence.waveformSensitivity"
         static let livePreviewEnabled = "FlowState.livePreviewEnabled"
         static let tapStopsOnNextKeyPress = "FlowState.tapStopsOnNextKeyPress"
+        static let appAwarePolishingEnabled = "Cadence.appAwarePolishingEnabled"
         static let vocabularyText = "FlowState.vocabularyText"
         static let analyticsEnabled = "Cadence.analyticsEnabled"
+        static let googleOAuthClientID = "Cadence.googleOAuthClientID"
+        static let googleOAuthClientSecret = "Cadence.googleOAuthClientSecret"
+        static let googleOAuthRedirectScheme = "Cadence.googleOAuthRedirectScheme"
         static let holdEnabled = "FlowState.holdEnabled"
         static let holdKeyCode = "FlowState.holdKeyCode"
         static let holdModifiers = "FlowState.holdModifiers"
         static let holdKeyDisplay = "FlowState.holdKeyDisplay"
+        static let holdSidedModifierKeyCodes = "Cadence.holdSidedModifierKeyCodes"
         static let tapEnabled = "FlowState.tapEnabled"
         static let tapKeyCode = "FlowState.tapKeyCode"
         static let tapModifiers = "FlowState.tapModifiers"
         static let tapKeyDisplay = "FlowState.tapKeyDisplay"
+        static let tapSidedModifierKeyCodes = "Cadence.tapSidedModifierKeyCodes"
         static let transcriptHistory = "FlowState.transcriptHistory"
         static let showsShortcutDock = "Cadence.showsShortcutDock"
+        static let meetingCaptureSource = "Cadence.meetingCaptureSource"
+        static let appearancePreference = "Cadence.appearancePreference"
         static let firstSuccessfulDictationTracked = "Cadence.firstSuccessfulDictationTracked"
         static let didMigrateToFastDefaults = "FlowState.didMigrateToFastDefaults"
         static let didMigrateToLivePreviewDefault = "FlowState.didMigrateToLivePreviewDefault"
@@ -60,11 +77,37 @@ final class AppModel: ObservableObject {
         static let followUpWindow: TimeInterval = 10
     }
 
+    private enum WaveformSensitivityTuning {
+        static let defaultValue = 1.0
+        static let closedRange = 0.1...1.6
+    }
+
+    private enum MeetingTranscriptionTuning {
+        static let rollingWindowDuration: TimeInterval = 5
+        static let audioStopTimeout: Duration = .seconds(8)
+        static let finalizationTimeout: Duration = .seconds(45)
+    }
+
     @Published private(set) var permissions: PermissionsSnapshot
     @Published private(set) var state: DictationSessionState = .idle
     @Published private(set) var hudState = HUDState.idle
     @Published private(set) var lastTranscript = ""
     @Published private(set) var transcriptHistory: [TranscriptHistoryItem]
+    @Published private(set) var meetingNotes: [MeetingNote]
+    @Published private(set) var selectedMeetingNoteID: UUID?
+    @Published private(set) var recoverableOrphanedRecordings: [OrphanedMeetingRecording] = []
+    @Published private(set) var systemAudioCaptureState: SystemAudioCaptureState = .idle
+    @Published private(set) var systemAudioCaptureLevel = 0.0
+    @Published private(set) var systemAudioCapturedFrameCount = 0
+    @Published private(set) var meetingCaptureSource: MeetingCaptureSource
+    @Published private(set) var googleCalendarConnectionState: GoogleCalendarConnectionState
+    @Published private(set) var upcomingCalendarMeetings: [GoogleCalendarEvent]
+    @Published private(set) var detectedCalendarMeeting: GoogleCalendarEvent?
+    @Published private(set) var isRefreshingCalendar = false
+    @Published private(set) var isConnectingGoogleCalendar = false
+    @Published private(set) var googleOAuthClientID: String
+    @Published private(set) var googleOAuthClientSecret: String
+    @Published private(set) var googleOAuthRedirectScheme: String
     @Published private(set) var livePreviewConfirmedText = ""
     @Published private(set) var livePreviewUnconfirmedText = ""
     @Published private(set) var lastError: String?
@@ -74,6 +117,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var transcriptionConfiguration: TranscriptionConfiguration
     @Published private(set) var analyticsEnabled: Bool
     @Published private(set) var showsShortcutDock: Bool
+    @Published private(set) var waveformSensitivity: Double
+    @Published private(set) var appearancePreference: AppearancePreference
     @Published var menuScreen: MenuScreen = .home
 
     @Published private(set) var holdToTalkBinding: HotkeyBinding
@@ -84,12 +129,33 @@ final class AppModel: ObservableObject {
     private let hotkeyService: HotkeyService
     private let coordinator: DictationCoordinator
     private let analytics: AnalyticsService
+    private let mainWindowController = MainWindowController()
+    private let meetingStore: MeetingStore
+    private let meetingAudioStore: MeetingAudioStore
+    private let systemAudioCaptureService: SystemAudioCaptureServing
+    private let meetingMicrophoneCaptureService: AudioCaptureServing
+    private var meetingTranscriptionService: MeetingRollingTranscriptionService
+    private let meetingFinalTranscriptionService: MeetingFinalTranscriptionService
+    private let meetingSummaryService: MeetingSummaryService
+    private let googleCalendarService: GoogleCalendarService
+    private let calendarEventCacheStore: CalendarEventCacheStore
+    private let meetingDetectionService = MeetingDetectionService()
+    private var googleCalendarConfiguration: GoogleCalendarOAuthConfiguration?
     private let defaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
     private var lastExternalApplication: NSRunningApplication?
     private var transcriptionConfigurationTask: Task<Void, Never>?
     private var lastTrackedCorrectionTranscriptID: UUID?
     private var lastTrackedCorrectionSessionID: String?
+    private var meetingMicrophoneCaptureActive = false
+    private var meetingSystemAudioCaptureActive = false
+    private var activeMeetingCaptureNoteID: UUID?
+    private var activeMeetingRecordingID: UUID?
+    private var activeMeetingAudioRecorder: MeetingAudioRecorder?
+    @Published private var activeMeetingCaptureStartedAt: Date?
+    private var meetingCaptureStopTask: Task<Void, Never>?
+    private var calendarDetectionTimer: Timer?
+    private var promptedCalendarEventIDs = Set<String>()
 
     init() {
         let defaults = UserDefaults.standard
@@ -99,12 +165,54 @@ final class AppModel: ObservableObject {
         self.transcriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
         let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
         let showsShortcutDock = (defaults.object(forKey: PreferenceKey.showsShortcutDock) as? Bool) ?? true
+        let waveformSensitivity = Self.loadWaveformSensitivity(defaults: defaults)
+        let appearancePreference = Self.loadAppearancePreference(defaults: defaults)
         self.analyticsEnabled = analyticsEnabled
         self.showsShortcutDock = showsShortcutDock
+        self.waveformSensitivity = waveformSensitivity
+        self.appearancePreference = appearancePreference
+        self.meetingCaptureSource = AppModel.loadMeetingCaptureSource(defaults: defaults)
+        let googleOAuthClientID = AppModel.loadGoogleOAuthClientID(defaults: defaults)
+        let googleOAuthClientSecret = AppModel.loadGoogleOAuthClientSecret(defaults: defaults)
+        let googleOAuthRedirectScheme = AppModel.loadGoogleOAuthRedirectScheme(defaults: defaults)
+        let googleCalendarConfiguration = AppModel.makeGoogleCalendarConfiguration(
+            clientID: googleOAuthClientID,
+            clientSecret: googleOAuthClientSecret,
+            redirectScheme: googleOAuthRedirectScheme
+        )
+        let googleCalendarService = GoogleCalendarService()
+        let calendarEventCacheStore = CalendarEventCacheStore()
+        self.googleOAuthClientID = googleOAuthClientID
+        self.googleOAuthClientSecret = googleOAuthClientSecret
+        self.googleOAuthRedirectScheme = googleOAuthRedirectScheme
+        self.googleCalendarConfiguration = googleCalendarConfiguration
+        self.googleCalendarService = googleCalendarService
+        self.calendarEventCacheStore = calendarEventCacheStore
+        self.googleCalendarConnectionState = googleCalendarService.connectionState(configuration: googleCalendarConfiguration)
+        self.upcomingCalendarMeetings = (try? calendarEventCacheStore.load()?.events) ?? []
+        self.detectedCalendarMeeting = nil
         self.analytics = AnalyticsService(isEnabled: analyticsEnabled)
         self.holdToTalkBinding = initialHoldBinding
         self.tapToStartStopBinding = initialTapBinding
         self.transcriptHistory = AppModel.loadTranscriptHistory(defaults: defaults)
+        let meetingStore = AppModel.makeMeetingStore()
+        self.meetingStore = meetingStore
+        self.meetingAudioStore = AppModel.makeMeetingAudioStore()
+        let meetingLoadResult = (try? meetingStore.loadNotesWithDiagnostics()) ?? .empty
+        let orphans = self.meetingAudioStore.orphanedRecordingDescriptors(referencedBy: meetingLoadResult.notes)
+        let relinkResult = MeetingRecordingRecovery.relink(meetingLoadResult.notes, orphans: orphans)
+        let loadedMeetingNotes = AppModel.recoverInterruptedFinalizations(relinkResult.notes)
+        self.meetingNotes = loadedMeetingNotes
+        self.selectedMeetingNoteID = loadedMeetingNotes.first?.id
+        self.recoverableOrphanedRecordings = relinkResult.unrecoverable
+        self.systemAudioCaptureService = SystemAudioCaptureService()
+        self.meetingMicrophoneCaptureService = AudioCaptureService()
+        self.meetingTranscriptionService = Self.makeMeetingTranscriptionService()
+        self.meetingFinalTranscriptionService = MeetingFinalTranscriptionService(audioStore: meetingAudioStore)
+        self.meetingSummaryService = MeetingSummaryService()
+        for note in loadedMeetingNotes {
+            try? meetingStore.save(note)
+        }
 
         let permissionsService = PermissionsService()
         self.permissionsService = permissionsService
@@ -124,17 +232,38 @@ final class AppModel: ObservableObject {
             transcriptionEngine: transcriptionEngine,
             textInsertionService: textInsertionService,
             hudController: hudController,
-            analytics: analytics
+            analytics: analytics,
+            waveformSensitivity: waveformSensitivity
         )
 
+        applyAppearancePreference()
         bindCoordinator()
         bindHotkeyDiagnostics()
         bindPermissionRefresh()
+        AppDelegate.openMainWindow = { [weak self] in
+            self?.showMainWindow()
+        }
+        showMainWindow()
         Task {
             await refreshPermissions()
             await applyTranscriptionConfiguration(prewarm: false)
             await warmBackend()
+            await refreshTodayTomorrowCalendarEvents()
         }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard self?.mainWindowController.hasVisibleWindow != true else { return }
+            self?.showMainWindow()
+        }
+        if let resultPath = Self.systemAudioSmokeResultPath() {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                self?.showMainWindow()
+                try? await Task.sleep(for: .milliseconds(500))
+                await self?.runSystemAudioSmoke(resultPath: resultPath)
+            }
+        }
+        startCalendarDetectionLoop()
         analytics.track(
             "app_launched",
             properties: [
@@ -142,6 +271,9 @@ final class AppModel: ObservableObject {
                 "decoding": transcriptionConfiguration.decodingMode.rawValue
             ]
         )
+        if !meetingLoadResult.quarantinedFiles.isEmpty {
+            lastError = Self.meetingQuarantineMessage(count: meetingLoadResult.quarantinedFiles.count)
+        }
     }
 
     var menuBarSymbolName: String {
@@ -257,6 +389,41 @@ final class AppModel: ObservableObject {
         return Self.humanizedErrorMessage(lastError)
     }
 
+    var selectedMeetingNote: MeetingNote? {
+        guard let selectedMeetingNoteID else { return nil }
+        return meetingNotes.first { $0.id == selectedMeetingNoteID }
+    }
+
+    var googleOAuthRedirectURI: String {
+        GoogleCalendarOAuthConfiguration(
+            clientID: googleOAuthClientID.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                ?? "cadence-placeholder.apps.googleusercontent.com",
+            redirectScheme: googleOAuthRedirectScheme.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                ?? Self.defaultGoogleOAuthRedirectScheme()
+        ).redirectURI
+    }
+
+    var isGoogleCalendarSignInAvailable: Bool {
+        googleCalendarConfiguration != nil
+    }
+
+    var meetingCaptureSession: MeetingCaptureSessionSummary? {
+        guard let activeMeetingCaptureNoteID,
+              let phase = meetingCapturePhase(for: systemAudioCaptureState) else {
+            return nil
+        }
+
+        return MeetingCaptureSessionSummary(
+            noteID: activeMeetingCaptureNoteID,
+            noteTitle: meetingNotes.first { $0.id == activeMeetingCaptureNoteID }?.displayTitle ?? "Meeting note",
+            source: meetingCaptureSource,
+            phase: phase,
+            startedAt: activeMeetingCaptureStartedAt,
+            capturedFrameCount: systemAudioCapturedFrameCount,
+            level: systemAudioCaptureLevel
+        )
+    }
+
     func refreshPermissions() async {
         let previousPermissions = permissions
         permissions = permissionsService.snapshot()
@@ -307,7 +474,7 @@ final class AppModel: ObservableObject {
 
     func openPermissionsWizard() {
         analytics.track("permissions_wizard_opened")
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         permissionGuideWindowController.show(
             permissions: permissions,
             appURL: Bundle.main.bundleURL,
@@ -319,6 +486,9 @@ final class AppModel: ObservableObject {
             },
             onRequestInputMonitoring: { [weak self] in
                 self?.requestInputMonitoringAccess()
+            },
+            onRequestScreenRecording: { [weak self] in
+                self?.requestScreenRecordingAccess()
             },
             onRefresh: { [weak self] in
                 Task { await self?.refreshPermissions() }
@@ -332,9 +502,698 @@ final class AppModel: ObservableObject {
         menuScreen = .settings
     }
 
+    func showSettingsWindow() {
+        NSApp.activate()
+        if !NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        }
+    }
+
+    func showMainWindow() {
+        preferencesLogger.info("Cadence main window requested")
+        analytics.track("main_window_opened")
+        mainWindowController.show(appModel: self)
+    }
+
     func showHomeScreen() {
         analytics.track("screen_opened", properties: ["screen": "home"])
         menuScreen = .home
+    }
+
+    func showMeetingNotesWindow() {
+        refreshDerivedMeetingTitles()
+        pruneBlankMeetingDrafts(keepingMostRecentIfOnlyDrafts: true)
+        if selectedMeetingNoteID == nil {
+            selectedMeetingNoteID = meetingNotes.first?.id
+        }
+        analytics.track("meeting_notes_window_opened")
+        mainWindowController.show(appModel: self)
+    }
+
+    @discardableResult
+    func createMeetingNote(openWindow: Bool = true) -> MeetingNote {
+        pruneBlankMeetingDrafts(keepingMostRecentIfOnlyDrafts: false)
+        var note = MeetingNote()
+        note.updatedAt = note.createdAt
+        meetingNotes.insert(note, at: 0)
+        selectedMeetingNoteID = note.id
+        persistMeetingNote(note)
+        analytics.track("meeting_note_created")
+        if openWindow {
+            showMeetingNotesWindow()
+        }
+        return note
+    }
+
+    private func pruneBlankMeetingDrafts(keepingMostRecentIfOnlyDrafts: Bool) {
+        let blankDrafts = meetingNotes
+            .filter(\.isBlankDraft)
+            .sorted { $0.updatedAt > $1.updatedAt }
+        let hasRealNotes = meetingNotes.contains { !$0.isBlankDraft }
+        let shouldKeepOneDraft = keepingMostRecentIfOnlyDrafts && !hasRealNotes
+        let draftIDsToKeep = Set(shouldKeepOneDraft ? blankDrafts.prefix(1).map(\.id) : [])
+        let blankDraftIDs = blankDrafts
+            .map(\.id)
+            .filter { !draftIDsToKeep.contains($0) }
+        guard !blankDraftIDs.isEmpty else { return }
+
+        meetingNotes.removeAll { blankDraftIDs.contains($0.id) }
+        if let selectedMeetingNoteID, blankDraftIDs.contains(selectedMeetingNoteID) {
+            self.selectedMeetingNoteID = meetingNotes.first?.id
+        }
+        for id in blankDraftIDs {
+            try? meetingStore.delete(id: id)
+        }
+    }
+
+    func selectMeetingNote(id: UUID?) {
+        selectedMeetingNoteID = id
+    }
+
+    func openMeetingNote(id: UUID) {
+        selectedMeetingNoteID = id
+        showMeetingNotesWindow()
+    }
+
+    /// User-triggered discard of an unrecoverable orphaned recording. Cadence
+    /// never auto-deletes captured audio; this is the only path that removes one.
+    func discardOrphanedRecording(_ orphan: OrphanedMeetingRecording) {
+        meetingAudioStore.discardOrphanedRecording(orphan)
+        recoverableOrphanedRecordings.removeAll { $0.id == orphan.id }
+    }
+
+    func updateMeetingNote(id: UUID, title: String?, userNotes: String?) {
+        guard let index = meetingNotes.firstIndex(where: { $0.id == id }) else { return }
+
+        if let title {
+            meetingNotes[index].title = title
+        }
+        if let userNotes {
+            meetingNotes[index].userNotes = userNotes
+        }
+        if meetingNotes[index].usesDefaultTitle, let suggestedTitle = meetingNotes[index].suggestedTitle {
+            meetingNotes[index].title = suggestedTitle
+        }
+        meetingNotes[index].updatedAt = Date()
+
+        let updatedNote = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        meetingNotes.insert(updatedNote, at: 0)
+        selectedMeetingNoteID = updatedNote.id
+        persistMeetingNote(updatedNote)
+    }
+
+    func deleteMeetingNote(id: UUID) {
+        if activeMeetingCaptureNoteID == id, systemAudioCaptureState.isCaptureBusy {
+            lastError = "Stop recording before deleting this meeting note."
+            return
+        }
+
+        guard let index = meetingNotes.firstIndex(where: { $0.id == id }) else { return }
+        let note = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        do {
+            meetingAudioStore.deleteRecordings(for: note)
+            try meetingStore.delete(id: id)
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+
+        if selectedMeetingNoteID == id {
+            selectedMeetingNoteID = meetingNotes.first?.id
+        }
+        analytics.track("meeting_note_deleted")
+    }
+
+    private func refreshDerivedMeetingTitles() {
+        var changedNotes = [MeetingNote]()
+        for index in meetingNotes.indices {
+            guard meetingNotes[index].usesDefaultTitle,
+                  let suggestedTitle = meetingNotes[index].suggestedTitle else {
+                continue
+            }
+            meetingNotes[index].title = suggestedTitle
+            changedNotes.append(meetingNotes[index])
+        }
+        for note in changedNotes {
+            persistMeetingNote(note)
+        }
+    }
+
+    func filteredMeetingNotes(query: String) -> [MeetingNote] {
+        meetingStore.search(meetingNotes, query: query)
+    }
+
+    func generateSummaryForSelectedMeetingNote() {
+        guard let noteID = selectedMeetingNoteID else { return }
+        generateSummary(for: noteID)
+    }
+
+    func retryFinalTranscriptionForSelectedMeetingNote() {
+        guard let note = selectedMeetingNote,
+              let recording = note.effectiveAudioRecordings.last else { return }
+        updateMeetingTranscriptState(
+            noteID: note.id,
+            state: .finalizing,
+            message: "Retrying final transcript from saved audio"
+        )
+        Task { @MainActor [weak self] in
+            await self?.runFinalTranscriptionPass(noteID: note.id, recording: recording)
+        }
+    }
+
+    func copySelectedMeetingNoteMarkdown() {
+        guard let note = selectedMeetingNote else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(MeetingMarkdownFormatter.markdown(for: note), forType: .string)
+        analytics.track("meeting_note_markdown_copied")
+    }
+
+    func exportSelectedMeetingNoteMarkdown() {
+        guard let note = selectedMeetingNote else { return }
+
+        let panel = NSSavePanel()
+        if let markdownType = UTType(filenameExtension: "md") {
+            panel.allowedContentTypes = [markdownType]
+        }
+        panel.nameFieldStringValue = "\(Self.sanitizedFilename(note.displayTitle)).md"
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try MeetingMarkdownFormatter.markdown(for: note).write(to: url, atomically: true, encoding: .utf8)
+            lastError = nil
+            analytics.track("meeting_note_markdown_exported")
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func connectGoogleCalendar() {
+        guard let googleCalendarConfiguration else {
+            googleCalendarConnectionState = GoogleCalendarConnectionState(
+                isConfigured: false,
+                isConnected: false,
+                accountEmail: nil,
+                errorMessage: GoogleCalendarError.missingClientID.localizedDescription
+            )
+            lastError = GoogleCalendarError.missingClientID.localizedDescription
+            return
+        }
+
+        guard !isConnectingGoogleCalendar else { return }
+        isConnectingGoogleCalendar = true
+        googleCalendarConnectionState.errorMessage = nil
+        analytics.track("google_calendar_connect_clicked")
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isConnectingGoogleCalendar = false }
+            do {
+                try await self.googleCalendarService.signIn(configuration: googleCalendarConfiguration)
+                self.googleCalendarConnectionState = self.googleCalendarService.connectionState(configuration: googleCalendarConfiguration)
+                await self.refreshTodayTomorrowCalendarEvents()
+                self.lastError = nil
+                self.showMainWindow()
+                NSApp.activate()
+                self.analytics.track("google_calendar_connected")
+            } catch {
+                self.googleCalendarConnectionState = GoogleCalendarConnectionState(
+                    isConfigured: true,
+                    isConnected: false,
+                    accountEmail: nil,
+                    errorMessage: error.localizedDescription
+                )
+                self.lastError = error.localizedDescription
+                self.analytics.track("google_calendar_connect_failed")
+            }
+        }
+    }
+
+    func disconnectGoogleCalendar() {
+        do {
+            try googleCalendarService.signOut()
+            try? calendarEventCacheStore.delete()
+            upcomingCalendarMeetings = []
+            isConnectingGoogleCalendar = false
+            googleCalendarConnectionState = googleCalendarService.connectionState(configuration: googleCalendarConfiguration)
+            lastError = nil
+            analytics.track("google_calendar_disconnected")
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func setGoogleOAuthClientID(_ clientID: String) {
+        googleOAuthClientID = clientID
+        defaults.set(clientID, forKey: PreferenceKey.googleOAuthClientID)
+        reloadGoogleCalendarConfiguration()
+    }
+
+    func setGoogleOAuthRedirectScheme(_ redirectScheme: String) {
+        googleOAuthRedirectScheme = redirectScheme
+        defaults.set(redirectScheme, forKey: PreferenceKey.googleOAuthRedirectScheme)
+        reloadGoogleCalendarConfiguration()
+    }
+
+    func copyGoogleOAuthRedirectURI() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(googleOAuthRedirectURI, forType: .string)
+        analytics.track("google_oauth_redirect_uri_copied")
+    }
+
+    func openGoogleOAuthCredentialsSetup() {
+        if let url = URL(string: "https://console.cloud.google.com/apis/credentials") {
+            NSWorkspace.shared.open(url)
+            analytics.track("google_oauth_credentials_setup_opened")
+        }
+    }
+
+    func refreshUpcomingCalendarMeetings() async {
+        await refreshTodayTomorrowCalendarEvents()
+    }
+
+    func refreshTodayTomorrowCalendarEvents() async {
+        googleCalendarConnectionState = googleCalendarService.connectionState(configuration: googleCalendarConfiguration)
+        guard googleCalendarConnectionState.isConnected else {
+            isRefreshingCalendar = false
+            return
+        }
+
+        isRefreshingCalendar = true
+        do {
+            let now = Date()
+            let windowEnd = CalendarEventDashboard.endOfTomorrow(now: now)
+            let events = try await googleCalendarService.upcomingEvents(
+                limit: 30,
+                now: now,
+                timeMax: windowEnd,
+                configuration: googleCalendarConfiguration
+            )
+            upcomingCalendarMeetings = events
+            try? calendarEventCacheStore.save(
+                CalendarEventCache(
+                    generatedAt: Date(),
+                    windowStart: now,
+                    windowEnd: windowEnd,
+                    events: events
+                )
+            )
+            lastError = nil
+            analytics.track("google_calendar_events_refreshed", properties: ["count": .int(upcomingCalendarMeetings.count)])
+            evaluateCalendarMeetingDetection()
+        } catch {
+            if let cachedEvents = try? calendarEventCacheStore.load()?.events {
+                upcomingCalendarMeetings = cachedEvents
+            }
+            googleCalendarConnectionState.errorMessage = error.localizedDescription
+            lastError = error.localizedDescription
+            analytics.track("google_calendar_events_refresh_failed")
+        }
+        isRefreshingCalendar = false
+    }
+
+    func refreshUpcomingCalendarMeetingsFromUI() {
+        Task { @MainActor [weak self] in
+            await self?.refreshUpcomingCalendarMeetings()
+        }
+    }
+
+    func calendarMeetingCandidates(startingWithin interval: TimeInterval = 5 * 60, from date: Date = Date()) -> [GoogleCalendarEvent] {
+        upcomingCalendarMeetings.filter { $0.isMeetingCandidate && $0.startsWithin(interval, from: date) }
+    }
+
+    func startDetectedCalendarMeetingCapture() {
+        guard let event = detectedCalendarMeeting else { return }
+        _ = startCalendarEventCapture(event)
+        detectedCalendarMeeting = nil
+        analytics.track("calendar_meeting_capture_started")
+    }
+
+    @discardableResult
+    func startCalendarEventCapture(_ event: GoogleCalendarEvent) -> MeetingNote {
+        let note = prepareMeetingNote(for: event)
+        selectedMeetingNoteID = note.id
+
+        if let meetingURL = event.meetingURL {
+            NSWorkspace.shared.open(meetingURL)
+        } else if let calendarURL = event.calendarURL {
+            NSWorkspace.shared.open(calendarURL)
+        }
+
+        showMainWindow()
+        startMeetingCaptureForSelectedMeeting()
+        analytics.track("calendar_event_join_record_clicked")
+        return note
+    }
+
+    func openCalendarEvent(_ event: GoogleCalendarEvent) {
+        if let url = event.calendarURL ?? event.meetingURL {
+            NSWorkspace.shared.open(url)
+            analytics.track("calendar_event_opened")
+        }
+    }
+
+    private func prepareMeetingNote(for event: GoogleCalendarEvent) -> MeetingNote {
+        var note: MeetingNote
+        if let existingIndex = meetingNotes.firstIndex(where: { $0.calendarEventID == event.id }) {
+            note = meetingNotes[existingIndex]
+            selectedMeetingNoteID = note.id
+        } else {
+            note = createMeetingNote(openWindow: false)
+        }
+
+        if note.usesDefaultTitle || note.title == "Untitled Meeting" {
+            note.title = CalendarEventDashboard.calendarMeetingNoteTitle(for: event)
+        }
+        if note.userNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            note.userNotes = Self.calendarMeetingNoteTemplate(for: event)
+        }
+        note.calendarEventID = event.id
+        note.updatedAt = Date()
+
+        if let index = meetingNotes.firstIndex(where: { $0.id == note.id }) {
+            meetingNotes[index] = note
+            meetingNotes.remove(at: index)
+            meetingNotes.insert(note, at: 0)
+            selectedMeetingNoteID = note.id
+            persistMeetingNote(note)
+        }
+
+        return note
+    }
+
+    func requestScreenRecordingAccess() {
+        analytics.track("permission_request_clicked", properties: ["permission": "screenRecording"])
+        _ = permissionsService.requestScreenRecordingAccess()
+        schedulePermissionRefreshBurst()
+    }
+
+    func requestMeetingCaptureSourcePermissions() {
+        if meetingCaptureSource.requiresMicrophone, !permissions.microphoneGranted {
+            requestMicrophoneAccess()
+        }
+        if meetingCaptureSource.requiresScreenRecording, !permissions.screenRecordingGranted {
+            requestScreenRecordingAccess()
+        }
+    }
+
+    func setMeetingCaptureSource(_ source: MeetingCaptureSource) {
+        guard meetingCaptureSource != source else { return }
+        guard !systemAudioCaptureState.isCaptureBusy else { return }
+        meetingCaptureSource = source
+        defaults.set(source.rawValue, forKey: PreferenceKey.meetingCaptureSource)
+        analytics.track("setting_changed", properties: ["setting": "meetingCaptureSource", "value": source.rawValue])
+    }
+
+    func cycleAppearancePreference() {
+        setAppearancePreference(appearancePreference.next)
+    }
+
+    func setAppearancePreference(_ preference: AppearancePreference) {
+        guard appearancePreference != preference else { return }
+        appearancePreference = preference
+        defaults.set(preference.rawValue, forKey: PreferenceKey.appearancePreference)
+        applyAppearancePreference()
+        analytics.track("setting_changed", properties: ["setting": "appearancePreference", "value": preference.rawValue])
+    }
+
+    func toggleMeetingCaptureForSelectedMeeting() {
+        if systemAudioCaptureState.isCapturing || systemAudioCaptureState == .stopping {
+            stopMeetingCapture()
+        } else if systemAudioCaptureState == .starting {
+            return
+        } else {
+            startMeetingCaptureForSelectedMeeting()
+        }
+    }
+
+    func toggleSystemAudioCaptureForSelectedMeeting() {
+        toggleMeetingCaptureForSelectedMeeting()
+    }
+
+    func selectActiveMeetingCaptureNote() {
+        guard let activeMeetingCaptureNoteID else { return }
+        selectedMeetingNoteID = activeMeetingCaptureNoteID
+    }
+
+    func startMeetingCaptureForSelectedMeeting() {
+        guard meetingCaptureStopTask == nil else { return }
+        guard !systemAudioCaptureState.isCaptureBusy else { return }
+        if selectedMeetingNoteID == nil {
+            _ = createMeetingNote(openWindow: false)
+        }
+        guard let targetNoteID = selectedMeetingNoteID else { return }
+
+        if meetingCaptureSource.requiresMicrophone, !permissions.microphoneGranted {
+            systemAudioCaptureState = .failed("Microphone permission is required for \(meetingCaptureSource.displayName).")
+            activeMeetingCaptureNoteID = nil
+            activeMeetingCaptureStartedAt = nil
+            requestMicrophoneAccess()
+            return
+        }
+
+        if meetingCaptureSource.requiresScreenRecording, !permissions.screenRecordingGranted {
+            systemAudioCaptureState = .failed(SystemAudioCaptureError.screenRecordingPermissionRequired.localizedDescription)
+            activeMeetingCaptureNoteID = nil
+            activeMeetingCaptureStartedAt = nil
+            requestScreenRecordingAccess()
+            return
+        }
+
+        let captureSource = meetingCaptureSource
+        let recordingID = UUID()
+        let audioRecorder: MeetingAudioRecorder
+        do {
+            audioRecorder = try meetingAudioStore.makeRecorder(
+                noteID: targetNoteID,
+                recordingID: recordingID,
+                source: captureSource
+            )
+        } catch {
+            systemAudioCaptureState = .failed(error.localizedDescription)
+            lastError = error.localizedDescription
+            return
+        }
+
+        activeMeetingCaptureNoteID = targetNoteID
+        activeMeetingRecordingID = recordingID
+        activeMeetingAudioRecorder = audioRecorder
+        activeMeetingCaptureStartedAt = Date()
+        let ledgerEntry = MeetingAudioRecordingMetadata(
+            id: recordingID,
+            fileName: MeetingAudioStore.recordingFileName(noteID: targetNoteID, recordingID: recordingID),
+            source: captureSource,
+            createdAt: activeMeetingCaptureStartedAt ?? Date(),
+            state: .recording
+        )
+        appendMeetingAudioRecording(ledgerEntry, noteID: targetNoteID)
+        systemAudioCaptureState = .starting
+        systemAudioCaptureLevel = 0
+        systemAudioCapturedFrameCount = 0
+        let transcriptionService = meetingTranscriptionService
+        updateMeetingTranscriptState(
+            noteID: targetNoteID,
+            state: .liveDraft,
+            message: "Recording live draft"
+        )
+        let chunkHandler = makeMeetingCaptureChunkHandler(
+            noteID: targetNoteID,
+            source: captureSource,
+            service: transcriptionService,
+            recorder: audioRecorder,
+            recordingID: recordingID
+        )
+        analytics.track("meeting_capture_started", properties: ["source": .string(meetingCaptureSource.rawValue)])
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.meetingTranscriptionService.start(
+                    configuration: Self.meetingCaptureTranscriptionConfiguration(from: self.transcriptionConfiguration)
+                )
+                if self.meetingCaptureSource.requiresMicrophone {
+                    try self.meetingMicrophoneCaptureService.startCapture(chunkHandler: chunkHandler)
+                    self.meetingMicrophoneCaptureActive = true
+                }
+
+                if self.meetingCaptureSource.requiresScreenRecording {
+                    try await self.systemAudioCaptureService.startCapture(chunkHandler: chunkHandler)
+                    self.meetingSystemAudioCaptureActive = true
+                }
+                self.systemAudioCaptureState = .capturing
+                self.lastError = nil
+            } catch {
+                _ = await self.stopActiveMeetingCaptureServices()
+                await self.meetingTranscriptionService.cancel()
+                await audioRecorder.cancel()
+                self.activeMeetingCaptureNoteID = nil
+                self.activeMeetingRecordingID = nil
+                self.activeMeetingAudioRecorder = nil
+                self.activeMeetingCaptureStartedAt = nil
+                self.systemAudioCaptureState = .failed(error.localizedDescription)
+                self.lastError = error.localizedDescription
+                self.analytics.track(
+                    "meeting_capture_failed",
+                    properties: [
+                        "source": .string(self.meetingCaptureSource.rawValue),
+                        "reason": .string(Self.analyticsErrorReason(for: error))
+                    ]
+                )
+            }
+        }
+    }
+
+    func startSystemAudioCaptureForSelectedMeeting() {
+        startMeetingCaptureForSelectedMeeting()
+    }
+
+    func stopMeetingCapture() {
+        guard meetingCaptureStopTask == nil else { return }
+        guard systemAudioCaptureState.isCaptureBusy ||
+            activeMeetingCaptureNoteID != nil ||
+            meetingMicrophoneCaptureActive ||
+            meetingSystemAudioCaptureActive else { return }
+        systemAudioCaptureState = .stopping
+        systemAudioCaptureLevel = 0
+        analytics.track("meeting_capture_stopped", properties: ["source": .string(meetingCaptureSource.rawValue)])
+        meetingCaptureStopTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.meetingCaptureStopTask = nil }
+            let noteID = self.activeMeetingCaptureNoteID
+            let recordingID = self.activeMeetingRecordingID
+            let recorder = self.activeMeetingAudioRecorder
+            let source = self.meetingCaptureSource
+            let service = self.meetingTranscriptionService
+            self.systemAudioCaptureLevel = 0
+            let metrics = await self.stopActiveMeetingCaptureServicesWithTimeout()
+            self.systemAudioCapturedFrameCount = metrics.frameCount
+            var recording = await recorder?.finish(fallbackMetrics: metrics)
+            recording?.state = .recorded
+
+            if self.meetingTranscriptionService === service {
+                self.meetingTranscriptionService = Self.makeMeetingTranscriptionService()
+            }
+            self.activeMeetingCaptureNoteID = nil
+            self.activeMeetingRecordingID = nil
+            self.activeMeetingAudioRecorder = nil
+            self.activeMeetingCaptureStartedAt = nil
+            self.systemAudioCaptureState = .idle
+
+            if let noteID, let recording {
+                self.appendMeetingAudioRecording(recording, noteID: noteID)
+                self.updateMeetingTranscriptState(
+                    noteID: noteID,
+                    state: .finalizing,
+                    message: "Creating final transcript from saved audio"
+                )
+            }
+
+            _ = await self.finalizeMeetingTranscription(
+                for: noteID,
+                source: source,
+                service: service,
+                recordingID: recordingID,
+                origin: .liveDraft
+            )
+
+            if let noteID, let recording {
+                await self.runFinalTranscriptionPass(
+                    noteID: noteID,
+                    recording: recording
+                )
+            }
+        }
+    }
+
+    func stopSystemAudioCapture() {
+        stopMeetingCapture()
+    }
+
+    /// Re-runs the final pass for a previously failed recording, straight from
+    /// its saved audio. Idempotent and unlimited — re-running replaces that
+    /// recording's segments rather than duplicating them.
+    func retryFinalTranscriptionPass(noteID: UUID, recordingID: UUID) {
+        Task { @MainActor [weak self] in
+            guard let self,
+                  let recording = self.meetingNotes.first(where: { $0.id == noteID })?
+                    .effectiveAudioRecordings.first(where: { $0.id == recordingID }) else {
+                return
+            }
+            await self.runFinalTranscriptionPass(noteID: noteID, recording: recording)
+        }
+    }
+
+    /// Restores the retained live-draft segments for a recording, discarding its
+    /// final pass. The user's explicit "revert" action from the lineage affordance.
+    func revertFinalPass(noteID: UUID, recordingID: UUID) {
+        guard let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else { return }
+        meetingNotes[index].revertFinalPass(for: recordingID)
+        if var recordings = meetingNotes[index].audioRecordings,
+           let recordingIndex = recordings.firstIndex(where: { $0.id == recordingID }) {
+            recordings[recordingIndex].state = .recorded
+            meetingNotes[index].audioRecordings = recordings
+        }
+        let updatedNote = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        meetingNotes.insert(updatedNote, at: 0)
+        persistMeetingNote(updatedNote)
+    }
+
+    /// Accepts the final pass for a recording, clearing the retained draft so the
+    /// lineage affordance dismisses.
+    func acceptFinalPass(noteID: UUID, recordingID: UUID) {
+        guard let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else { return }
+        meetingNotes[index].acceptFinalPass(for: recordingID)
+        let updatedNote = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        meetingNotes.insert(updatedNote, at: 0)
+        persistMeetingNote(updatedNote)
+    }
+
+    func renameSpeaker(noteID: UUID, speakerID: UUID, displayName: String) {
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        commitSpeakerEdit(noteID: noteID) { note in
+            note.renameSpeaker(id: speakerID, to: trimmedName)
+        }
+    }
+
+    func mergeSpeakers(noteID: UUID, sourceID: UUID, targetID: UUID) {
+        guard sourceID != targetID else { return }
+        commitSpeakerEdit(noteID: noteID) { note in
+            note.mergeSpeakers(from: sourceID, into: targetID)
+        }
+    }
+
+    func splitSpeaker(noteID: UUID, sourceID: UUID, displayName: String, segmentIDs: [UUID]) {
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, !segmentIDs.isEmpty else { return }
+        commitSpeakerEdit(noteID: noteID) { note in
+            note.splitSpeaker(from: sourceID, named: trimmedName, turnSegmentIDs: segmentIDs)
+        }
+    }
+
+    func assignSpeaker(noteID: UUID, displayName: String, segmentIDs: [UUID]) {
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, !segmentIDs.isEmpty else { return }
+        commitSpeakerEdit(noteID: noteID) { note in
+            note.assignSpeaker(named: trimmedName, turnSegmentIDs: segmentIDs)
+        }
+    }
+
+    private func commitSpeakerEdit(noteID: UUID, mutate: (inout MeetingNote) -> Void) {
+        guard let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else { return }
+        let originalNote = meetingNotes[index]
+        mutate(&meetingNotes[index])
+        guard meetingNotes[index] != originalNote else { return }
+        let updatedNote = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        meetingNotes.insert(updatedNote, at: 0)
+        selectedMeetingNoteID = updatedNote.id
+        persistMeetingNote(updatedNote)
     }
 
     func startStopDemoInsert() {
@@ -418,6 +1277,21 @@ final class AppModel: ObservableObject {
         updateTranscriptionConfiguration { $0.normalizeAudio = normalizeAudio }
     }
 
+    func setWaveformSensitivity(_ sensitivity: Double) {
+        let sanitizedSensitivity = Self.sanitizedWaveformSensitivity(sensitivity)
+        guard waveformSensitivity != sanitizedSensitivity else { return }
+        waveformSensitivity = sanitizedSensitivity
+        defaults.set(sanitizedSensitivity, forKey: PreferenceKey.waveformSensitivity)
+        coordinator.updateWaveformSensitivity(sanitizedSensitivity)
+        analytics.track(
+            "setting_changed",
+            properties: [
+                "setting": "waveformSensitivity",
+                "value": String(format: "%.1f", sanitizedSensitivity)
+            ]
+        )
+    }
+
     func setLivePreviewEnabled(_ livePreviewEnabled: Bool) {
         analytics.track("setting_changed", properties: ["setting": "livePreviewEnabled", "value": String(livePreviewEnabled)])
         updateTranscriptionConfiguration { $0.livePreviewEnabled = livePreviewEnabled }
@@ -426,6 +1300,11 @@ final class AppModel: ObservableObject {
     func setTapStopsOnNextKeyPress(_ enabled: Bool) {
         analytics.track("setting_changed", properties: ["setting": "tapStopsOnNextKeyPress", "value": String(enabled)])
         updateTranscriptionConfiguration { $0.tapStopsOnNextKeyPress = enabled }
+    }
+
+    func setAppAwarePolishingEnabled(_ enabled: Bool) {
+        analytics.track("setting_changed", properties: ["setting": "appAwarePolishingEnabled", "value": String(enabled)])
+        updateTranscriptionConfiguration { $0.appAwarePolishingEnabled = enabled }
     }
 
     func setVocabularyText(_ vocabularyText: String) {
@@ -691,6 +1570,52 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func startCalendarDetectionLoop() {
+        calendarDetectionTimer?.invalidate()
+        calendarDetectionTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.refreshUpcomingCalendarMeetings()
+                self.evaluateCalendarMeetingDetection()
+            }
+        }
+    }
+
+    private func evaluateCalendarMeetingDetection(now: Date = Date()) {
+        guard detectedCalendarMeeting == nil,
+              let event = meetingDetectionService.nextPrompt(
+                from: upcomingCalendarMeetings,
+                now: now,
+                promptedEventIDs: promptedCalendarEventIDs
+              )
+        else {
+            return
+        }
+
+        promptedCalendarEventIDs.insert(event.id)
+        detectedCalendarMeeting = event
+        deliverMeetingDetectionNotification(for: event)
+        analytics.track("calendar_meeting_detected")
+    }
+
+    private func deliverMeetingDetectionNotification(for event: GoogleCalendarEvent) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "Meeting starting"
+            content.body = event.title
+            content.sound = .default
+
+            let request = UNNotificationRequest(
+                identifier: "calendar-meeting-\(event.id)",
+                content: content,
+                trigger: nil
+            )
+            center.add(request)
+        }
+    }
+
     private func refreshRegisteredHotkeys() {
         coordinator.updateHotkeyBindings(sanitizedHotkeyBindings())
     }
@@ -718,6 +1643,442 @@ final class AppModel: ObservableObject {
             transcriptHistory = Array(transcriptHistory.prefix(20))
         }
         persistTranscriptHistory()
+    }
+
+    private func persistMeetingNote(_ note: MeetingNote) {
+        do {
+            try meetingStore.save(note)
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    private func updateMeetingTranscriptState(
+        noteID: UUID,
+        state: MeetingTranscriptState,
+        message: String?
+    ) {
+        guard let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else { return }
+        meetingNotes[index].transcriptState = state
+        meetingNotes[index].transcriptStatusMessage = message
+        meetingNotes[index].updatedAt = Date()
+        let updatedNote = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        meetingNotes.insert(updatedNote, at: 0)
+        persistMeetingNote(updatedNote)
+    }
+
+    private func appendMeetingAudioRecording(_ recording: MeetingAudioRecordingMetadata, noteID: UUID) {
+        guard let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else { return }
+        var recordings = meetingNotes[index].effectiveAudioRecordings
+        if let existingIndex = recordings.firstIndex(where: { $0.id == recording.id }) {
+            recordings[existingIndex] = recording
+        } else {
+            recordings.append(recording)
+        }
+        meetingNotes[index].audioRecordings = recordings
+        meetingNotes[index].updatedAt = Date()
+        let updatedNote = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        meetingNotes.insert(updatedNote, at: 0)
+        persistMeetingNote(updatedNote)
+    }
+
+    private func setMeetingRecordingState(
+        _ state: MeetingRecordingState,
+        recordingID: UUID,
+        noteID: UUID
+    ) {
+        guard let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else { return }
+        var recordings = meetingNotes[index].effectiveAudioRecordings
+        guard let recordingIndex = recordings.firstIndex(where: { $0.id == recordingID }) else { return }
+        guard recordings[recordingIndex].state != state else { return }
+        recordings[recordingIndex].state = state
+        meetingNotes[index].audioRecordings = recordings
+        meetingNotes[index].updatedAt = Date()
+        let updatedNote = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        meetingNotes.insert(updatedNote, at: 0)
+        persistMeetingNote(updatedNote)
+    }
+
+    private func runFinalTranscriptionPass(
+        noteID: UUID,
+        recording: MeetingAudioRecordingMetadata
+    ) async {
+        setMeetingRecordingState(.finalizing, recordingID: recording.id, noteID: noteID)
+        do {
+            let finalSegments = try await meetingFinalTranscriptionService.transcribe(
+                recording: recording,
+                configuration: Self.meetingCaptureTranscriptionConfiguration(from: transcriptionConfiguration)
+            )
+            guard !finalSegments.isEmpty else {
+                throw WhisperEngineError.noTranscript
+            }
+            applyFinalTranscriptSegments(finalSegments, noteID: noteID, recordingID: recording.id)
+            generateSummary(for: noteID, preserveSelection: true)
+            analytics.track("meeting_final_transcription_completed")
+        } catch {
+            setMeetingRecordingState(.finalizationFailed, recordingID: recording.id, noteID: noteID)
+            updateMeetingTranscriptState(
+                noteID: noteID,
+                state: .finalizationFailed,
+                message: error.localizedDescription
+            )
+            lastError = error.localizedDescription
+            analytics.track("meeting_final_transcription_failed")
+        }
+    }
+
+    private func applyFinalTranscriptSegments(
+        _ segments: [TranscriptSegment],
+        noteID: UUID,
+        recordingID: UUID
+    ) {
+        guard let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else { return }
+        meetingNotes[index].applyFinalSegments(segments, forRecording: recordingID)
+        if var recordings = meetingNotes[index].audioRecordings,
+           let recordingIndex = recordings.firstIndex(where: { $0.id == recordingID }) {
+            recordings[recordingIndex].state = .final
+            meetingNotes[index].audioRecordings = recordings
+        }
+        if meetingNotes[index].usesDefaultTitle, let suggestedTitle = meetingNotes[index].suggestedTitle {
+            meetingNotes[index].title = suggestedTitle
+        }
+        let updatedNote = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        meetingNotes.insert(updatedNote, at: 0)
+        persistMeetingNote(updatedNote)
+    }
+
+    private func makeMeetingCaptureChunkHandler(
+        noteID: UUID,
+        source: MeetingCaptureSource,
+        service: MeetingRollingTranscriptionService,
+        recorder: MeetingAudioRecorder,
+        recordingID: UUID
+    ) -> @Sendable (AudioChunk, Double) -> Void {
+        { [weak self, service, recorder] chunk, level in
+            Task { @MainActor [weak self] in
+                self?.recordMeetingCaptureProgress(chunk, level: level, noteID: noteID)
+            }
+
+            Task { [weak self, recorder] in
+                do {
+                    try await recorder.append(chunk, level: level)
+                } catch {
+                    await self?.handleMeetingAudioRecordingError(error, noteID: noteID)
+                }
+            }
+
+            Task { [weak self, service] in
+                do {
+                    let segments = try await service.append(chunk, level: level)
+                    await self?.appendMeetingTranscriptSegments(
+                        segments,
+                        noteID: noteID,
+                        source: source,
+                        origin: .liveDraft,
+                        recordingID: recordingID
+                    )
+                } catch {
+                    await self?.handleMeetingTranscriptionError(error)
+                }
+            }
+        }
+    }
+
+    private func recordMeetingCaptureProgress(_ chunk: AudioChunk, level: Double, noteID: UUID) {
+        guard activeMeetingCaptureNoteID == noteID || systemAudioCaptureState == .stopping else { return }
+        systemAudioCaptureLevel = max(systemAudioCaptureLevel * 0.72, level)
+        systemAudioCapturedFrameCount += chunk.frameCount
+    }
+
+    private func appendMeetingTranscriptSegments(
+        _ segments: [TranscriptSegment],
+        noteID: UUID,
+        source: MeetingCaptureSource,
+        origin: TranscriptSegmentOrigin,
+        recordingID: UUID?
+    ) {
+        guard !segments.isEmpty else { return }
+        for segment in segments {
+            appendTranscriptSegment(
+                labeledMeetingSegment(segment, source: source)
+                    .attributed(origin: origin, recordingID: recordingID),
+                noteID: noteID
+            )
+        }
+    }
+
+    private func handleMeetingAudioRecordingError(_ error: Error, noteID: UUID) {
+        updateMeetingTranscriptState(
+            noteID: noteID,
+            state: .finalizationFailed,
+            message: "Saved audio failed: \(error.localizedDescription)"
+        )
+        lastError = error.localizedDescription
+    }
+
+    private func handleMeetingTranscriptionError(_ error: Error) {
+        guard !Self.isBenignMeetingTranscriptionError(error) else { return }
+        if systemAudioCaptureState.isCaptureBusy {
+            systemAudioCaptureState = .failed(error.localizedDescription)
+        }
+        lastError = error.localizedDescription
+    }
+
+    private func finalizeMeetingTranscription(
+        for noteID: UUID?,
+        source: MeetingCaptureSource,
+        service: MeetingRollingTranscriptionService,
+        recordingID: UUID?,
+        origin: TranscriptSegmentOrigin
+    ) async -> Bool {
+        switch await MeetingTranscriptionFinalizer.finish(
+            service: service,
+            timeout: MeetingTranscriptionTuning.finalizationTimeout
+        ) {
+        case .completed(let segments):
+            for segment in segments {
+                appendTranscriptSegment(
+                    labeledMeetingSegment(segment, source: source)
+                        .attributed(origin: origin, recordingID: recordingID),
+                    noteID: noteID
+                )
+            }
+            return true
+        case .failed(let message):
+            lastError = message
+            appendTranscriptionProblemSegment(message, noteID: noteID, source: source, recordingID: recordingID)
+            return false
+        case .timedOut:
+            let message = "Meeting transcription took too long, so Cadence reset recording. Any completed transcript segments were kept."
+            lastError = message
+            appendTranscriptionProblemSegment(message, noteID: noteID, source: source, recordingID: recordingID)
+            if meetingTranscriptionService === service {
+                meetingTranscriptionService = Self.makeMeetingTranscriptionService()
+            }
+            Task {
+                await service.cancel()
+            }
+            analytics.track("meeting_transcription_timed_out")
+            return false
+        }
+    }
+
+    private func appendTranscriptionProblemSegment(
+        _ message: String,
+        noteID: UUID?,
+        source: MeetingCaptureSource,
+        recordingID: UUID?
+    ) {
+        guard let noteID else { return }
+        let segment = TranscriptSegment(
+            text: message,
+            startTime: 0,
+            endTime: 0,
+            speaker: .unknown,
+            captureSource: source,
+            origin: .liveDraft,
+            recordingID: recordingID
+        )
+        appendTranscriptSegment(segment, noteID: noteID)
+        selectedMeetingNoteID = noteID
+    }
+
+    private func labeledMeetingSegment(_ segment: TranscriptSegment) -> TranscriptSegment {
+        labeledMeetingSegment(segment, source: meetingCaptureSource)
+    }
+
+    private func labeledMeetingSegment(_ segment: TranscriptSegment, source: MeetingCaptureSource) -> TranscriptSegment {
+        segment.labeled(speaker: transcriptSpeaker(for: source), captureSource: source)
+    }
+
+    private func transcriptSpeaker(for source: MeetingCaptureSource) -> TranscriptSpeaker {
+        switch source {
+        case .systemAudio:
+            return .systemAudio
+        case .microphone:
+            return .user
+        case .microphoneAndSystemAudio:
+            return .mixedAudio
+        }
+    }
+
+    private func meetingCapturePhase(for state: SystemAudioCaptureState) -> MeetingCapturePhase? {
+        switch state {
+        case .starting:
+            return .starting
+        case .capturing:
+            return .recording
+        case .stopping:
+            return .finalizing
+        case .idle, .failed:
+            return nil
+        }
+    }
+
+    private func appendTranscriptSegment(_ segment: TranscriptSegment, noteID explicitNoteID: UUID? = nil) {
+        guard let noteID = explicitNoteID ?? activeMeetingCaptureNoteID ?? selectedMeetingNoteID,
+              let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else {
+            return
+        }
+
+        if let lastSegmentIndex = meetingNotes[index].transcriptSegments.indices.last,
+           Self.shouldMergeAdjacentTranscript(
+            meetingNotes[index].transcriptSegments[lastSegmentIndex],
+            with: segment
+           ) {
+            meetingNotes[index].transcriptSegments[lastSegmentIndex].endTime = max(
+                meetingNotes[index].transcriptSegments[lastSegmentIndex].endTime,
+                segment.endTime
+            )
+        } else {
+            meetingNotes[index].transcriptSegments.append(segment)
+        }
+        if meetingNotes[index].usesDefaultTitle, let suggestedTitle = meetingNotes[index].suggestedTitle {
+            meetingNotes[index].title = suggestedTitle
+        }
+        meetingNotes[index].updatedAt = Date()
+        let updatedNote = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        meetingNotes.insert(updatedNote, at: 0)
+        if explicitNoteID == nil {
+            selectedMeetingNoteID = updatedNote.id
+        }
+        persistMeetingNote(updatedNote)
+    }
+
+    private static func shouldMergeAdjacentTranscript(_ previous: TranscriptSegment, with next: TranscriptSegment) -> Bool {
+        normalizedTranscriptText(previous.text) == normalizedTranscriptText(next.text) &&
+            !normalizedTranscriptText(previous.text).isEmpty &&
+            previous.speaker == next.speaker &&
+            previous.captureSource == next.captureSource &&
+            previous.effectiveOrigin == next.effectiveOrigin &&
+            previous.recordingID == next.recordingID
+    }
+
+    private static func normalizedTranscriptText(_ text: String) -> String {
+        text
+            .lowercased()
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func generateSummary(for noteID: UUID, preserveSelection: Bool = false) {
+        guard let index = meetingNotes.firstIndex(where: { $0.id == noteID }) else { return }
+        meetingNotes[index].summary = meetingSummaryService.generateSummary(for: meetingNotes[index])
+        meetingNotes[index].updatedAt = Date()
+        let updatedNote = meetingNotes[index]
+        meetingNotes.remove(at: index)
+        meetingNotes.insert(updatedNote, at: 0)
+        if !preserveSelection {
+            selectedMeetingNoteID = updatedNote.id
+        }
+        persistMeetingNote(updatedNote)
+        analytics.track("meeting_summary_generated")
+    }
+
+    private func stopActiveMeetingCaptureServices() async -> AudioCaptureSessionMetrics {
+        var metrics = [AudioCaptureSessionMetrics]()
+
+        if meetingMicrophoneCaptureActive {
+            metrics.append(meetingMicrophoneCaptureService.stopCapture())
+            meetingMicrophoneCaptureActive = false
+        }
+
+        if meetingSystemAudioCaptureActive {
+            metrics.append(await systemAudioCaptureService.stopCapture())
+            meetingSystemAudioCaptureActive = false
+        }
+
+        guard !metrics.isEmpty else {
+            return AudioCaptureSessionMetrics(
+                duration: 0,
+                frameCount: systemAudioCapturedFrameCount,
+                sampleRate: 16_000,
+                speechDetected: systemAudioCapturedFrameCount > 0,
+                speechFrameCount: systemAudioCapturedFrameCount,
+                peakLevel: systemAudioCaptureLevel
+            )
+        }
+
+        return AudioCaptureSessionMetrics(
+            duration: metrics.map(\.duration).max() ?? 0,
+            frameCount: metrics.map(\.frameCount).reduce(0, +),
+            sampleRate: 16_000,
+            speechDetected: metrics.contains { $0.speechDetected },
+            speechFrameCount: metrics.map(\.speechFrameCount).reduce(0, +),
+            peakLevel: metrics.map(\.peakLevel).max() ?? 0
+        )
+    }
+
+    private func stopActiveMeetingCaptureServicesWithTimeout() async -> AudioCaptureSessionMetrics {
+        let result = await withCheckedContinuation { continuation in
+            let gate = MeetingAudioStopGate()
+
+            Task { @MainActor [weak self] in
+                guard let self else {
+                    gate.resume(continuation, with: .timedOut)
+                    return
+                }
+                let metrics = await self.stopActiveMeetingCaptureServices()
+                gate.resume(continuation, with: .completed(metrics))
+            }
+
+            Task {
+                try? await Task.sleep(for: MeetingTranscriptionTuning.audioStopTimeout)
+                gate.resume(continuation, with: .timedOut)
+            }
+        }
+
+        switch result {
+        case .completed(let metrics):
+            return metrics
+        case .timedOut:
+            meetingMicrophoneCaptureActive = false
+            meetingSystemAudioCaptureActive = false
+            analytics.track("meeting_capture_stop_timed_out")
+            return fallbackMeetingCaptureMetrics()
+        }
+    }
+
+    private func fallbackMeetingCaptureMetrics() -> AudioCaptureSessionMetrics {
+        AudioCaptureSessionMetrics(
+            duration: activeMeetingCaptureStartedAt.map { Date().timeIntervalSince($0) } ?? 0,
+            frameCount: systemAudioCapturedFrameCount,
+            sampleRate: 16_000,
+            speechDetected: systemAudioCapturedFrameCount > 0,
+            speechFrameCount: systemAudioCapturedFrameCount,
+            peakLevel: systemAudioCaptureLevel
+        )
+    }
+
+    private func runSystemAudioSmoke(resultPath: String) async {
+        do {
+            try await systemAudioCaptureService.startCapture { _, _ in }
+
+            let player = Process()
+            player.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            player.arguments = [
+                "-lc",
+                "for _ in 1 2 3 4; do /usr/bin/afplay /System/Library/Sounds/Glass.aiff; done"
+            ]
+            try player.run()
+            player.waitUntilExit()
+            try await Task.sleep(for: .milliseconds(700))
+
+            let metrics = await systemAudioCaptureService.stopCapture()
+            try "frames=\(metrics.frameCount) speechDetected=\(metrics.speechDetected)\n"
+                .write(toFile: resultPath, atomically: true, encoding: .utf8)
+        } catch {
+            try? "error=\(error.localizedDescription)\n"
+                .write(toFile: resultPath, atomically: true, encoding: .utf8)
+        }
+
+        NSApp.terminate(nil)
     }
 
     private func clearTransientCaptureErrorIfNeeded() {
@@ -842,6 +2203,157 @@ final class AppModel: ObservableObject {
             message.contains("cancel")
     }
 
+    private static func makeMeetingStore() -> MeetingStore {
+        do {
+            return try MeetingStore()
+        } catch {
+            preferencesLogger.error("Failed to create default meeting store: \(error.localizedDescription, privacy: .public)")
+            let fallbackURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("Cadence", isDirectory: true)
+                .appendingPathComponent("MeetingNotes", isDirectory: true)
+            return try! MeetingStore(directoryURL: fallbackURL)
+        }
+    }
+
+    private static func makeMeetingAudioStore() -> MeetingAudioStore {
+        do {
+            return try MeetingAudioStore()
+        } catch {
+            preferencesLogger.error("Failed to create default meeting audio store: \(error.localizedDescription, privacy: .public)")
+            let fallbackURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("Cadence", isDirectory: true)
+                .appendingPathComponent("MeetingAudio", isDirectory: true)
+            return try! MeetingAudioStore(directoryURL: fallbackURL)
+        }
+    }
+
+    private static func recoverInterruptedFinalizations(_ notes: [MeetingNote]) -> [MeetingNote] {
+        notes.map { $0.recoveredAfterInterruptedCapture() }
+    }
+
+    private static func meetingQuarantineMessage(count: Int) -> String {
+        if count == 1 {
+            return "Cadence found one unreadable meeting note and moved it to Quarantine."
+        }
+        return "Cadence found \(count) unreadable meeting notes and moved them to Quarantine."
+    }
+
+    private static func loadMeetingCaptureSource(defaults: UserDefaults) -> MeetingCaptureSource {
+        if let rawValue = defaults.string(forKey: PreferenceKey.meetingCaptureSource),
+           let source = MeetingCaptureSource(rawValue: rawValue) {
+            return source
+        }
+        return .systemAudio
+    }
+
+    private static func loadAppearancePreference(defaults: UserDefaults) -> AppearancePreference {
+        if let rawValue = defaults.string(forKey: PreferenceKey.appearancePreference),
+           let preference = AppearancePreference(rawValue: rawValue) {
+            return preference
+        }
+        return .system
+    }
+
+    private func applyAppearancePreference() {
+        NSApp.appearance = appearancePreference.nsAppearance
+    }
+
+    private func reloadGoogleCalendarConfiguration() {
+        googleCalendarConfiguration = Self.makeGoogleCalendarConfiguration(
+            clientID: googleOAuthClientID,
+            clientSecret: googleOAuthClientSecret,
+            redirectScheme: googleOAuthRedirectScheme
+        )
+        googleCalendarConnectionState = googleCalendarService.connectionState(configuration: googleCalendarConfiguration)
+        if !googleCalendarConnectionState.isConnected {
+            try? calendarEventCacheStore.delete()
+            upcomingCalendarMeetings = []
+            detectedCalendarMeeting = nil
+        }
+    }
+
+    private static func loadGoogleOAuthClientID(defaults: UserDefaults) -> String {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["GOOGLE_OAUTH_CLIENT_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? bundledInfoString("CadenceGoogleOAuthClientID")
+            ?? defaults.string(forKey: PreferenceKey.googleOAuthClientID)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? ""
+    }
+
+    private static func loadGoogleOAuthClientSecret(defaults: UserDefaults) -> String {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["GOOGLE_OAUTH_CLIENT_SECRET"]?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? bundledInfoString("CadenceGoogleOAuthClientSecret")
+            ?? defaults.string(forKey: PreferenceKey.googleOAuthClientSecret)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? ""
+    }
+
+    private static func loadGoogleOAuthRedirectScheme(defaults: UserDefaults) -> String {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["GOOGLE_OAUTH_REDIRECT_SCHEME"]?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? bundledInfoString("CadenceGoogleOAuthRedirectScheme")
+            ?? defaults.string(forKey: PreferenceKey.googleOAuthRedirectScheme)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? defaultGoogleOAuthRedirectScheme()
+    }
+
+    private static func makeGoogleCalendarConfiguration(clientID: String, clientSecret: String, redirectScheme: String) -> GoogleCalendarOAuthConfiguration? {
+        let trimmedClientID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedClientID.isEmpty else {
+            return nil
+        }
+        return GoogleCalendarOAuthConfiguration(
+            clientID: trimmedClientID,
+            clientSecret: clientSecret.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+            redirectScheme: redirectScheme.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? defaultGoogleOAuthRedirectScheme()
+        )
+    }
+
+    private static func defaultGoogleOAuthRedirectScheme() -> String {
+        bundledInfoString("CadenceGoogleOAuthRedirectScheme")
+            ?? Bundle.main.bundleIdentifier
+            ?? "com.darshshah.Cadence"
+    }
+
+    private static func bundledInfoString(_ key: String) -> String? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
+            return nil
+        }
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty, !trimmedValue.hasPrefix("$(") else {
+            return nil
+        }
+        return trimmedValue
+    }
+
+    private static func makeMeetingTranscriptionService() -> MeetingRollingTranscriptionService {
+        MeetingRollingTranscriptionService(
+            engine: WhisperKitTranscriptionEngine(),
+            windowDuration: MeetingTranscriptionTuning.rollingWindowDuration
+        )
+    }
+
+    static func meetingCaptureTranscriptionConfiguration(from configuration: TranscriptionConfiguration) -> TranscriptionConfiguration {
+        var meetingConfiguration = configuration
+        meetingConfiguration.model = .baseEnglish
+        meetingConfiguration.decodingMode = .greedy
+        meetingConfiguration.keepContext = false
+        meetingConfiguration.trimSilence = true
+        meetingConfiguration.normalizeAudio = true
+        return meetingConfiguration
+    }
+
+    private static func systemAudioSmokeResultPath() -> String? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "--cadence-system-audio-smoke") else {
+            return nil
+        }
+        let resultIndex = arguments.index(after: index)
+        guard arguments.indices.contains(resultIndex) else {
+            return nil
+        }
+        return arguments[resultIndex]
+    }
+
     private func persist(configuration: TranscriptionConfiguration) {
         defaults.set(configuration.model.rawValue, forKey: PreferenceKey.whisperModel)
         defaults.set(configuration.decodingMode.rawValue, forKey: PreferenceKey.decodingMode)
@@ -851,6 +2363,7 @@ final class AppModel: ObservableObject {
         defaults.set(configuration.normalizeAudio, forKey: PreferenceKey.normalizeAudio)
         defaults.set(configuration.livePreviewEnabled, forKey: PreferenceKey.livePreviewEnabled)
         defaults.set(configuration.tapStopsOnNextKeyPress, forKey: PreferenceKey.tapStopsOnNextKeyPress)
+        defaults.set(configuration.appAwarePolishingEnabled, forKey: PreferenceKey.appAwarePolishingEnabled)
         defaults.set(configuration.vocabularyText, forKey: PreferenceKey.vocabularyText)
     }
 
@@ -860,6 +2373,10 @@ final class AppModel: ObservableObject {
         defaults.set(binding.shortcut.keyCode, forKey: keys.keyCode)
         defaults.set(binding.shortcut.carbonModifiers, forKey: keys.modifiers)
         defaults.set(binding.shortcut.keyDisplay, forKey: keys.keyDisplay)
+        defaults.set(
+            HotkeyConfiguration.encodedSidedModifierKeyCodes(binding.shortcut.sidedModifierKeyCodes),
+            forKey: keys.sidedModifierKeyCodes
+        )
     }
 
     private func persistTranscriptHistory() {
@@ -905,6 +2422,10 @@ final class AppModel: ObservableObject {
             configuration.tapStopsOnNextKeyPress = defaults.bool(forKey: PreferenceKey.tapStopsOnNextKeyPress)
         }
 
+        if defaults.object(forKey: PreferenceKey.appAwarePolishingEnabled) != nil {
+            configuration.appAwarePolishingEnabled = defaults.bool(forKey: PreferenceKey.appAwarePolishingEnabled)
+        }
+
         if let vocabularyText = defaults.string(forKey: PreferenceKey.vocabularyText) {
             configuration.vocabularyText = vocabularyText
         }
@@ -936,6 +2457,20 @@ final class AppModel: ObservableObject {
         return configuration
     }
 
+    private static func loadWaveformSensitivity(defaults: UserDefaults) -> Double {
+        guard defaults.object(forKey: PreferenceKey.waveformSensitivity) != nil else {
+            return WaveformSensitivityTuning.defaultValue
+        }
+        return sanitizedWaveformSensitivity(defaults.double(forKey: PreferenceKey.waveformSensitivity))
+    }
+
+    private static func sanitizedWaveformSensitivity(_ sensitivity: Double) -> Double {
+        min(
+            WaveformSensitivityTuning.closedRange.upperBound,
+            max(WaveformSensitivityTuning.closedRange.lowerBound, sensitivity)
+        )
+    }
+
     private static func loadBinding(defaults: UserDefaults, action: HotkeyAction) -> HotkeyBinding {
         var binding: HotkeyBinding
         switch action {
@@ -961,6 +2496,10 @@ final class AppModel: ObservableObject {
         if let keyDisplay = defaults.string(forKey: keys.keyDisplay), !keyDisplay.isEmpty {
             binding.shortcut.keyDisplay = keyDisplay
         }
+
+        binding.shortcut.sidedModifierKeyCodes = HotkeyConfiguration.sidedModifierKeyCodes(
+            from: defaults.string(forKey: keys.sidedModifierKeyCodes)
+        )
 
         return binding
     }
@@ -994,6 +2533,28 @@ final class AppModel: ObservableObject {
         text.split { $0.isWhitespace || $0.isNewline }.count
     }
 
+    private static func sanitizedFilename(_ raw: String) -> String {
+        let invalidCharacters = CharacterSet(charactersIn: "/\\?%*|\"<>:")
+        let sanitized = raw.components(separatedBy: invalidCharacters)
+            .joined(separator: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return sanitized.isEmpty ? "Meeting Note" : sanitized
+    }
+
+    private static func calendarMeetingNoteTemplate(for event: GoogleCalendarEvent) -> String {
+        var lines = [
+            "Calendar event: \(event.title)",
+            "Starts: \(event.startDate.formatted(date: .abbreviated, time: .shortened))"
+        ]
+        if let meetingURL = event.meetingURL {
+            lines.append("Meeting URL: \(meetingURL.absoluteString)")
+        }
+        if !event.attendeeEmails.isEmpty {
+            lines.append("Attendees: \(event.attendeeEmails.joined(separator: ", "))")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     private static func analyticsMilliseconds(_ seconds: TimeInterval) -> Int {
         Int((max(seconds, 0) * 1000).rounded())
     }
@@ -1010,6 +2571,12 @@ final class AppModel: ObservableObject {
             return "emptyAudio"
         case WhisperEngineError.noTranscript:
             return "noTranscript"
+        case SystemAudioCaptureError.screenRecordingPermissionRequired:
+            return "screenRecordingPermissionRequired"
+        case SystemAudioCaptureError.noDisplayAvailable:
+            return "noDisplayAvailable"
+        case SystemAudioCaptureError.audioOutputUnavailable:
+            return "audioOutputUnavailable"
         default:
             return "other"
         }
@@ -1033,6 +2600,15 @@ final class AppModel: ObservableObject {
         let lowercased = raw.lowercased()
         return lowercased.contains("no speech audio was captured") ||
             lowercased.contains("whisper did not return any transcript text")
+    }
+
+    private static func isBenignMeetingTranscriptionError(_ error: Error) -> Bool {
+        switch error {
+        case WhisperEngineError.emptyAudio, WhisperEngineError.noTranscript:
+            return true
+        default:
+            return isTransientCaptureError(error.localizedDescription)
+        }
     }
 
     static func humanizedErrorMessage(_ raw: String) -> String {
@@ -1063,22 +2639,47 @@ final class AppModel: ObservableObject {
         return raw
     }
 
-    private static func preferenceKeys(for action: HotkeyAction) -> (enabled: String, keyCode: String, modifiers: String, keyDisplay: String) {
+    private static func preferenceKeys(
+        for action: HotkeyAction
+    ) -> (enabled: String, keyCode: String, modifiers: String, keyDisplay: String, sidedModifierKeyCodes: String) {
         switch action {
         case .holdToTalk:
             return (
                 enabled: PreferenceKey.holdEnabled,
                 keyCode: PreferenceKey.holdKeyCode,
                 modifiers: PreferenceKey.holdModifiers,
-                keyDisplay: PreferenceKey.holdKeyDisplay
+                keyDisplay: PreferenceKey.holdKeyDisplay,
+                sidedModifierKeyCodes: PreferenceKey.holdSidedModifierKeyCodes
             )
         case .tapToStartStop:
             return (
                 enabled: PreferenceKey.tapEnabled,
                 keyCode: PreferenceKey.tapKeyCode,
                 modifiers: PreferenceKey.tapModifiers,
-                keyDisplay: PreferenceKey.tapKeyDisplay
+                keyDisplay: PreferenceKey.tapKeyDisplay,
+                sidedModifierKeyCodes: PreferenceKey.tapSidedModifierKeyCodes
             )
         }
+    }
+}
+
+private enum MeetingAudioStopResult: Sendable {
+    case completed(AudioCaptureSessionMetrics)
+    case timedOut
+}
+
+private final class MeetingAudioStopGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didResume = false
+
+    func resume(
+        _ continuation: CheckedContinuation<MeetingAudioStopResult, Never>,
+        with result: MeetingAudioStopResult
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !didResume else { return }
+        didResume = true
+        continuation.resume(returning: result)
     }
 }

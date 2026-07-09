@@ -54,7 +54,8 @@ Fast local dictation for macOS.
 ### Requirements
 
 - macOS 14 or later
-- Microphone, Accessibility, and Input Monitoring permissions
+- Microphone, Accessibility, and Input Monitoring permissions for dictation
+- Screen Recording permission for system audio meeting capture
 
 ### Install
 
@@ -62,6 +63,7 @@ Fast local dictation for macOS.
 2. Open the DMG.
 3. Drag `Cadence.app` to Applications.
 4. Open Cadence and complete the permissions wizard.
+5. For system audio meeting capture, grant Screen Recording when prompted.
 
 ### Known Notes
 

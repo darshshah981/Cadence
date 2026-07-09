@@ -7,7 +7,7 @@ protocol AudioCaptureServing: AnyObject {
 }
 
 final class AudioCaptureService: AudioCaptureServing {
-    private static let speechLevelThreshold = 0.03
+    private static let speechLevelThreshold = 0.008
     private static let prerollChunkLimit = 6
 
     private let engine = AVAudioEngine()
@@ -23,6 +23,7 @@ final class AudioCaptureService: AudioCaptureServing {
     private var speechFrames = 0
     private var currentSampleRate = 16_000.0
     private var speechDetected = false
+    private var peakLevel = 0.0
     private var prerollChunks = [AudioChunk]()
 
     func startCapture(chunkHandler: @escaping @Sendable (AudioChunk, Double) -> Void) throws {
@@ -32,6 +33,7 @@ final class AudioCaptureService: AudioCaptureServing {
         totalFrames = 0
         speechFrames = 0
         speechDetected = false
+        peakLevel = 0
         prerollChunks.removeAll(keepingCapacity: true)
         startDate = Date()
 
@@ -46,6 +48,7 @@ final class AudioCaptureService: AudioCaptureServing {
                 return
             }
             let level = Self.calculateLevel(for: chunk.samples)
+            self.peakLevel = max(self.peakLevel, level)
             self.totalFrames += chunk.frameCount
 
             if level >= Self.speechLevelThreshold {
@@ -83,7 +86,8 @@ final class AudioCaptureService: AudioCaptureServing {
             frameCount: totalFrames,
             sampleRate: currentSampleRate,
             speechDetected: speechDetected,
-            speechFrameCount: speechFrames
+            speechFrameCount: speechFrames,
+            peakLevel: peakLevel
         )
     }
 

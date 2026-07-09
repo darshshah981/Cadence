@@ -1,0 +1,9 @@
+# Capture ledger persists recording state on the meeting note, not a separate store
+
+The domain model (`CONTEXT.md`) names the **capture session** as the root identity and the **ledger** as its persisted on-disk state, which suggests a dedicated session store. We decided instead to persist the recording-ledger entry — recording metadata plus an explicit per-recording `state` — onto the existing **meeting note** JSON at capture start, and to recover orphaned recordings via a relaunch **audio-directory sweep** keyed on the CAF filename (`<noteID>-<recordingID>.caf`). We rejected a separate ledger store for v1.
+
+**Considered options.** (a) Separate ledger store / index, written at capture start — most faithful to "session as root," but adds a new store and a sync surface between it and the note (the very class of bug that stranded audio in the first place). (b) Fold the ledger into the note — chosen; reuses the note's existing atomic per-window writes, zero new store. (c) CAF-filename-as-key + audio sweep only — simplest, but the ledger is implicit, not an explicit durable record. We chose **(b) + (c)**: the note carries the explicit recording state from the first frame, and the sweep is the backstop when even the note write failed.
+
+**Consequences.** Ledger lifetime is coupled to the note's, so recovery must also handle missing/corrupt notes (the sweep + recovery queue cover this). Per-recording `state` is added so multi-recording sessions (resume, future per-source splitting) can each track their own finalization, and the note's `transcriptState` becomes a derived rollup. A separate store can still graduate later if a ticket proves the note can't carry it — but it is a deliberate v1 simplification, not an oversight, and recording state on the note should not be "fixed" by moving it without that evidence.
+
+See [ticket 06](../.scratch/cadence-seven-feature-plan/issues/06-define-the-capture-ledger-contract.md) for the full contract.
