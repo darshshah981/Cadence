@@ -56,6 +56,7 @@ final class DictationCoordinator {
     private let textInsertionService: TextInsertionServing
     private let hudController: HUDWindowController
     private let analytics: AnalyticsService
+    private let feedbackService: FeedbackServing
     private let sessionArbiter: VoiceSessionArbiter
     private let personalizationStore: PersonalizationStore
     private var transcriptionConfiguration = TranscriptionConfiguration()
@@ -90,6 +91,7 @@ final class DictationCoordinator {
         textInsertionService: TextInsertionServing,
         hudController: HUDWindowController,
         analytics: AnalyticsService,
+        feedbackService: FeedbackServing,
         sessionArbiter: VoiceSessionArbiter,
         personalizationStore: PersonalizationStore = PersonalizationStore(),
         waveformSensitivity: Double = 1.0
@@ -101,6 +103,7 @@ final class DictationCoordinator {
         self.textInsertionService = textInsertionService
         self.hudController = hudController
         self.analytics = analytics
+        self.feedbackService = feedbackService
         self.sessionArbiter = sessionArbiter
         self.personalizationStore = personalizationStore
         self.waveformSensitivity = Self.sanitizedWaveformSensitivity(waveformSensitivity)
@@ -310,6 +313,7 @@ final class DictationCoordinator {
                 waveformLevels: latestWaveformLevels,
                 showsSubtitle: false
             )
+            feedbackService.playActivationSound()
             warmBackendForCurrentSession()
         } catch {
             releaseVoiceSessionLease()
