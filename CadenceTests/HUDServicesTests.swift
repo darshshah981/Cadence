@@ -334,6 +334,135 @@ struct HUDVisualGeometryTests {
             visibleFrame: negativeVisible
         ) == CGRect(x: 1409, y: 24, width: 31, height: 31))
     }
+
+    @Test
+    func idleToHoldMorphPreservesAnchorsAtEveryPosition() {
+        assertMorphAnchors(
+            from: HUDPresentation(visualState: .idle, isExpanded: false),
+            to: HUDPresentation(visualState: .recording(triggerMode: .holdToTalk, showsHint: true), isExpanded: false)
+        )
+    }
+
+    @Test
+    func idleToLockedMorphPreservesAnchorsAtEveryPosition() {
+        assertMorphAnchors(
+            from: HUDPresentation(visualState: .idle, isExpanded: false),
+            to: HUDPresentation(visualState: .recording(triggerMode: .tapToStartStop, showsHint: false), isExpanded: false)
+        )
+    }
+
+    @Test
+    func idleToStatusMorphPreservesAnchorsAtEveryPosition() {
+        assertMorphAnchors(
+            from: HUDPresentation(visualState: .idle, isExpanded: false),
+            to: HUDPresentation(visualState: .transcribing, isExpanded: false)
+        )
+    }
+
+    @Test
+    func statusToIdleMorphPreservesAnchorsAtEveryPosition() {
+        assertMorphAnchors(
+            from: HUDPresentation(visualState: .success, isExpanded: false),
+            to: HUDPresentation(visualState: .idle, isExpanded: false)
+        )
+    }
+
+    @Test
+    func teachingTooltipUsesInsideFacingSideAndClampsToVisibleScreen() {
+        let tooltipSize = NSSize(width: 200, height: 40)
+        for position in HUDPosition.allCases {
+            let pill = HUDPanelLayout.targetFrame(
+                position: position,
+                screenFrame: screen,
+                visibleFrame: visible,
+                size: HUDMetrics.idleHitSize
+            )
+            let origin = HUDTooltipGeometry.origin(
+                position: position,
+                pillFrame: pill,
+                tooltipSize: tooltipSize,
+                visibleFrame: visible
+            )
+            #expect(origin.x >= visible.minX)
+            #expect(origin.x + tooltipSize.width <= visible.maxX)
+            switch position {
+            case .topLeft, .topRight:
+                #expect(origin.y + tooltipSize.height < pill.minY)
+            case .bottomCenter, .bottomLeft, .bottomRight:
+                #expect(origin.y > pill.maxY)
+            }
+        }
+
+        let leftPill = HUDPanelLayout.targetFrame(
+            position: .topLeft,
+            screenFrame: screen,
+            visibleFrame: visible,
+            size: HUDMetrics.idleHitSize
+        )
+        let rightPill = HUDPanelLayout.targetFrame(
+            position: .topRight,
+            screenFrame: screen,
+            visibleFrame: visible,
+            size: HUDMetrics.idleHitSize
+        )
+        #expect(HUDTooltipGeometry.origin(
+            position: .topLeft,
+            pillFrame: leftPill,
+            tooltipSize: tooltipSize,
+            visibleFrame: visible
+        ).x == visible.minX)
+        #expect(HUDTooltipGeometry.origin(
+            position: .topRight,
+            pillFrame: rightPill,
+            tooltipSize: tooltipSize,
+            visibleFrame: visible
+        ).x == visible.maxX - tooltipSize.width)
+    }
+
+    @Test
+    func screenChangesRepositionOnlyVisibleFrameDependentAnchors() {
+        #expect(HUDScreenChangePolicy.shouldReposition(.bottomCenter))
+        #expect(HUDScreenChangePolicy.shouldReposition(.topLeft))
+        #expect(HUDScreenChangePolicy.shouldReposition(.topRight))
+        #expect(!HUDScreenChangePolicy.shouldReposition(.bottomLeft))
+        #expect(!HUDScreenChangePolicy.shouldReposition(.bottomRight))
+    }
+
+    private func assertMorphAnchors(from: HUDPresentation, to: HUDPresentation) {
+        for position in HUDPosition.allCases {
+            let start = HUDPanelLayout.targetFrame(
+                position: position,
+                screenFrame: screen,
+                visibleFrame: visible,
+                size: HUDPanelLayout.size(for: from)
+            )
+            let end = HUDPanelLayout.targetFrame(
+                position: position,
+                screenFrame: screen,
+                visibleFrame: visible,
+                size: HUDPanelLayout.size(for: to)
+            )
+            let middle = HUDPanelLayout.interpolate(from: start, to: end, progress: 0.5)
+            switch position {
+            case .bottomCenter:
+                #expect(start.midX == end.midX)
+                #expect(middle.midX == end.midX)
+                #expect(start.minY == end.minY && middle.minY == end.minY)
+            case .topLeft:
+                #expect(start.minX == end.minX && middle.minX == end.minX)
+                #expect(start.maxY == end.maxY && middle.maxY == end.maxY)
+            case .topRight:
+                #expect(start.maxX == end.maxX && middle.maxX == end.maxX)
+                #expect(start.maxY == end.maxY && middle.maxY == end.maxY)
+            case .bottomLeft:
+                #expect(start.minX == end.minX && middle.minX == end.minX)
+                #expect(start.minY == end.minY && middle.minY == end.minY)
+            case .bottomRight:
+                #expect(start.maxX == end.maxX && middle.maxX == end.maxX)
+                #expect(start.minY == end.minY && middle.minY == end.minY)
+            }
+        }
+    }
 }
 
 struct HUDAnimationClockTests {
@@ -406,6 +535,32 @@ struct HUDAnimationClockTests {
 
         #expect(model.displayBars == Array(repeating: 0.7, count: 16))
         #expect(!model.hasPendingWaveformAnimation)
+    }
+
+    @Test
+    @MainActor
+    func reducedMotionFinishesActiveContentMorphImmediately() {
+        let model = HUDViewModel()
+        let idle = HUDPresentation(visualState: .idle, isExpanded: false)
+        model.beginMorph(from: idle)
+        model.onReducedMotionChanged = { reduced in
+            if reduced { model.finishMorph() }
+        }
+
+        model.setReducedMotion(true)
+
+        #expect(model.previousPresentation == nil)
+        #expect(model.morphProgress == 1)
+    }
+
+    @Test
+    @MainActor
+    func expandedPresentationExposesButtonAccessibilityInsteadOfRootSummary() {
+        let model = HUDViewModel()
+        model.apply(.logoIdle)
+        #expect(!model.presentation.exposesInteractiveChildren)
+        model.setExpanded(true)
+        #expect(model.presentation.exposesInteractiveChildren)
     }
 
     private func advanceWaveform(

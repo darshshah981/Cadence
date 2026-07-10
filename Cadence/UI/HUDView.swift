@@ -20,42 +20,56 @@ struct HUDView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Group {
-            switch model.state.visualState {
-            case .idle:
-                if model.isExpanded {
-                    IdleExpandedTray(model: model)
-                        .opacity(model.morphProgress)
-                        .scaleEffect(
-                            x: 0.92 + 0.08 * model.morphProgress,
-                            y: 1,
-                            anchor: morphAnchor
-                        )
-                } else {
-                    logoBadge
-                        .opacity(1 - model.morphProgress)
-                }
-            case .recording(let triggerMode, let showsHint):
-                recordingPill(triggerMode: triggerMode, showsHint: showsHint)
-            case .preparingModel:
-                statusPill(icon: .spinner, text: "Setting up speech model…")
-            case .transcribing:
-                statusPill(icon: .spinner, text: "Transcribing…")
-            case .inserting:
-                statusPill(icon: .spinner, text: "Inserting…")
-            case .success:
-                statusPill(icon: .success, text: "Inserted")
-            case .cancelled:
-                statusPill(icon: .cancelled, text: "Cancelled")
-            case .error(let message):
-                statusPill(icon: .error, text: message)
+        ZStack {
+            if let previous = model.previousPresentation {
+                content(for: previous)
+                    .opacity(1 - model.morphProgress)
+                    .scaleEffect(
+                        x: 1 - 0.04 * model.morphProgress,
+                        y: 1,
+                        anchor: morphAnchor
+                    )
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
+
+            content(for: model.presentation)
+                .opacity(model.previousPresentation == nil ? 1 : model.morphProgress)
+                .scaleEffect(
+                    x: model.previousPresentation == nil ? 1 : 0.96 + 0.04 * model.morphProgress,
+                    y: 1,
+                    anchor: morphAnchor
+                )
         }
-        .animation(reduceMotion ? nil : .timingCurve(0.25, 0, 0, 1, duration: 0.18), value: model.state.visualState)
-        .accessibilityLabel(model.state.visualState.accessibilityLabel)
-        .accessibilityHint(model.state.visualState.accessibilityHint ?? "")
+        .modifier(HUDRootAccessibilityModifier(presentation: model.presentation))
         .onAppear { model.setReducedMotion(reduceMotion) }
         .onChange(of: reduceMotion) { _, reduced in model.setReducedMotion(reduced) }
+    }
+
+    @ViewBuilder
+    private func content(for presentation: HUDPresentation) -> some View {
+        switch presentation.visualState {
+        case .idle:
+            if presentation.isExpanded {
+                IdleExpandedTray(model: model)
+            } else {
+                logoBadge
+            }
+        case .recording(let triggerMode, let showsHint):
+            recordingPill(triggerMode: triggerMode, showsHint: showsHint)
+        case .preparingModel:
+            statusPill(icon: .spinner, text: "Setting up speech model…")
+        case .transcribing:
+            statusPill(icon: .spinner, text: "Transcribing…")
+        case .inserting:
+            statusPill(icon: .spinner, text: "Inserting…")
+        case .success:
+            statusPill(icon: .success, text: "Inserted")
+        case .cancelled:
+            statusPill(icon: .cancelled, text: "Cancelled")
+        case .error(let message):
+            statusPill(icon: .error, text: message)
+        }
     }
 
     private var logoBadge: some View {
@@ -179,6 +193,22 @@ struct HUDView: View {
         case cancelled
     }
 
+}
+
+private struct HUDRootAccessibilityModifier: ViewModifier {
+    let presentation: HUDPresentation
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if presentation.exposesInteractiveChildren {
+            content.accessibilityElement(children: .contain)
+        } else {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(presentation.visualState.accessibilityLabel)
+                .accessibilityHint(presentation.visualState.accessibilityHint ?? "")
+        }
+    }
 }
 
 /// AppKit owns the logo pointer sequence so coordinates remain stable while its
