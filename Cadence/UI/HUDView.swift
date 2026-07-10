@@ -49,7 +49,6 @@ struct HUDView: View {
                     style: .continuous
                 )
             )
-            .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 2)
     }
 
     private func recordingPill(triggerMode: DictationTriggerMode, showsHint: Bool) -> some View {

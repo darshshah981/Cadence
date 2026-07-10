@@ -26,15 +26,15 @@ struct HUDDropZoneOverlay: View {
         let size: CGFloat = 80
         switch position {
         case .bottomCenter:
-            return CGRect(x: (screenSize.width - size) / 2, y: inset, width: size, height: size)
+            return CGRect(x: (screenSize.width - size) / 2, y: screenSize.height - inset - size, width: size, height: size)
         case .topLeft:
-            return CGRect(x: inset, y: screenSize.height - inset - size, width: size, height: size)
-        case .topRight:
-            return CGRect(x: screenSize.width - inset - size, y: screenSize.height - inset - size, width: size, height: size)
-        case .bottomLeft:
             return CGRect(x: inset, y: inset, width: size, height: size)
-        case .bottomRight:
+        case .topRight:
             return CGRect(x: screenSize.width - inset - size, y: inset, width: size, height: size)
+        case .bottomLeft:
+            return CGRect(x: inset, y: screenSize.height - inset - size, width: size, height: size)
+        case .bottomRight:
+            return CGRect(x: screenSize.width - inset - size, y: screenSize.height - inset - size, width: size, height: size)
         }
     }
 }
