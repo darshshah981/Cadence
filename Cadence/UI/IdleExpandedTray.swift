@@ -20,10 +20,18 @@ struct IdleExpandedTray: View {
 
     private var copyButton: some View {
         Button(action: { model.onCopyLast?() }) {
-            Image(systemName: "doc.on.doc")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(FlowTheme.textSecondary)
-                .frame(width: 28, height: 28)
+            Group {
+                if model.showCopyConfirmation {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(FlowTheme.success)
+                } else {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                }
+            }
+            .frame(width: 28, height: 28)
         }
         .buttonStyle(HUDControlButtonStyle())
         .disabled(!model.canCopyLast)

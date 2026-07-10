@@ -130,6 +130,7 @@ final class AppModel: ObservableObject {
     private let permissionGuideWindowController = PermissionGuideWindowController()
     private let hotkeyService: HotkeyService
     private let coordinator: DictationCoordinator
+    private let hudController: HUDWindowController
     private let analytics: AnalyticsService
     private let mainWindowController = MainWindowController()
     private let meetingStore: MeetingStore
@@ -221,6 +222,7 @@ final class AppModel: ObservableObject {
         self.permissions = permissionsService.snapshot()
 
         let hudController = HUDWindowController()
+        self.hudController = hudController
         let transcriptionEngine = WhisperKitTranscriptionEngine()
         let audioCaptureService = AudioCaptureService()
         let textInsertionService = TextInsertionService()
@@ -1492,6 +1494,75 @@ final class AppModel: ObservableObject {
         analytics.track("shortcut_dock_visibility_changed", properties: ["visible": String(isVisible)])
     }
 
+    private func refreshHUDCanCopyLast() {
+        hudController.viewModel.canCopyLast = !transcriptHistory.isEmpty
+    }
+
+    private func captureSelectedTextForDictionary() {
+        let selected = AXUIElement.systemWide.selectedText
+        guard let text = selected, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            hudController.viewModel.dictionaryFeedback = .nothingSelected
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1.5))
+                self?.hudController.viewModel.dictionaryFeedback = .idle
+            }
+            return
+        }
+        hudController.viewModel.dictionaryFeedback = .capturing
+        let currentVocabulary = transcriptionConfiguration.vocabularyText
+        let updatedVocabulary: String
+        if currentVocabulary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            updatedVocabulary = text
+        } else {
+            updatedVocabulary = currentVocabulary + "\n" + text
+        }
+        setVocabularyText(updatedVocabulary)
+        hudController.viewModel.dictionaryFeedback = .added
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            self?.hudController.viewModel.dictionaryFeedback = .idle
+        }
+        analytics.track("word_added_to_dictionary", properties: ["length": .int(text.count)])
+    }
+
+    private var hudHiddenUntil: Date?
+    private var hudHideTask: Task<Void, Never>?
+
+    private func hideHUD(for duration: HUDHideDuration) {
+        hudHiddenUntil = duration.seconds.map { Date().addingTimeInterval($0) }
+        hudController.setSuppressed(true)
+        hudController.update(with: .init(
+            visualState: .idle,
+            subtitle: "",
+            level: 0,
+            waveformLevels: [],
+            isVisible: false,
+            showsSubtitle: false
+        ))
+        cancelHUDSessionResumeTimer()
+        if duration == .untilNextSession {
+            return
+        }
+        hudHideTask = Task { @MainActor [weak self] in
+            guard let self, let seconds = duration.seconds else { return }
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled else { return }
+            self.resumeHUD()
+            self.coordinator.presentLogoIdle()
+        }
+    }
+
+    private func cancelHUDSessionResumeTimer() {
+        hudHideTask?.cancel()
+        hudHideTask = nil
+    }
+
+    private func resumeHUD() {
+        hudHiddenUntil = nil
+        cancelHUDSessionResumeTimer()
+        hudController.setSuppressed(false)
+    }
+
     private var currentHotkeyBindings: [HotkeyBinding] {
         Self.currentHotkeyBindings(hold: holdToTalkBinding, tap: tapToStartStopBinding)
     }
@@ -1501,6 +1572,7 @@ final class AppModel: ObservableObject {
             self?.state = state
             if case .listening = state {
                 self?.clearTransientCaptureErrorIfNeeded()
+                self?.resumeHUD()
             }
         }
 
@@ -1532,6 +1604,24 @@ final class AppModel: ObservableObject {
         coordinator.onBackendStatus = { [weak self] summary in
             self?.backendDescription = summary
         }
+
+        hudController.onCopyLast = { [weak self] in
+            guard let self, let latest = self.transcriptHistory.first else { return }
+            self.copyTranscript(latest)
+            self.hudController.showCopyConfirmation()
+        }
+
+        hudController.onAddToDictionary = { [weak self] in
+            guard let self else { return }
+            self.captureSelectedTextForDictionary()
+        }
+
+        hudController.onHide = { [weak self] duration in
+            guard let self else { return }
+            self.hideHUD(for: duration)
+        }
+
+        hudController.viewModel.canCopyLast = !transcriptHistory.isEmpty
     }
 
     private func bindHotkeyDiagnostics() {
@@ -1649,6 +1739,7 @@ final class AppModel: ObservableObject {
             transcriptHistory = Array(transcriptHistory.prefix(20))
         }
         persistTranscriptHistory()
+        refreshHUDCanCopyLast()
     }
 
     private func persistMeetingNote(_ note: MeetingNote) {
@@ -2687,5 +2778,30 @@ private final class MeetingAudioStopGate: @unchecked Sendable {
         guard !didResume else { return }
         didResume = true
         continuation.resume(returning: result)
+    }
+}
+
+private extension AXUIElement {
+    static let systemWide = AXUIElementCreateSystemWide()
+
+    var selectedText: String? {
+        var selectedRange: CFTypeRef?
+        let err = AXUIElementCopyAttributeValue(
+            AXUIElement.systemWide,
+            "AXFocusedApplication" as CFString,
+            &selectedRange
+        )
+        guard err == .success, let focusedApp = selectedRange else { return nil }
+        let appElement: AXUIElement = focusedApp as! AXUIElement
+
+        var focusedUIElement: CFTypeRef?
+        let uiErr = AXUIElementCopyAttributeValue(appElement, "AXFocusedUIElement" as CFString, &focusedUIElement)
+        guard uiErr == .success, let focused = focusedUIElement else { return nil }
+        let element: AXUIElement = focused as! AXUIElement
+
+        var selectedTextValue: CFTypeRef?
+        let textErr = AXUIElementCopyAttributeValue(element, "AXSelectedText" as CFString, &selectedTextValue)
+        guard textErr == .success, let text = selectedTextValue as? String else { return nil }
+        return text
     }
 }

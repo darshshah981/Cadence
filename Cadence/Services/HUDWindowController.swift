@@ -25,12 +25,13 @@ final class HUDWindowController {
     private var subtitlePanel: NSPanel?
     private var pillHostingView: NSHostingView<HUDView>?
     private var subtitleHostingView: NSHostingView<HUDSubtitleView>?
-    private let viewModel = HUDViewModel()
+    let viewModel = HUDViewModel()
     private let defaults = UserDefaults.standard
     private var dragStartOrigin: NSPoint?
     private var clickAwayMonitor: Any?
     private var idleCollapseTask: Task<Void, Never>?
     private static let idleCollapseSeconds: UInt64 = 8
+    private var isSuppressed = false
 
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
@@ -55,10 +56,17 @@ final class HUDWindowController {
         viewModel.onHide = { [weak self] duration in self?.onHide?(duration) }
     }
 
+    func setSuppressed(_ suppressed: Bool) {
+        isSuppressed = suppressed
+        if !suppressed {
+            update(with: viewModel.state)
+        }
+    }
+
     func update(with state: HUDState) {
         viewModel.apply(state)
 
-        guard state.isVisible else {
+        guard state.isVisible, !isSuppressed else {
             pillPanel?.orderOut(nil)
             subtitlePanel?.orderOut(nil)
             return
@@ -256,6 +264,14 @@ final class HUDWindowController {
         }
     }
 
+    func showCopyConfirmation() {
+        viewModel.showCopyConfirmation = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1.2))
+            self?.viewModel.showCopyConfirmation = false
+        }
+    }
+
     private func installClickAwayMonitor() {
         removeClickAwayMonitor()
         clickAwayMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
@@ -310,6 +326,7 @@ final class HUDViewModel: ObservableObject {
     @Published var position: HUDPosition = .bottomCenter
     @Published var isExpanded = false
     @Published var canCopyLast = false
+    @Published var showCopyConfirmation = false
     @Published var dictionaryFeedback: DictionaryFeedback = .idle
 
     var onStop: (() -> Void)?
