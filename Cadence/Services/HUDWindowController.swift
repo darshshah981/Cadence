@@ -8,6 +8,99 @@ enum HUDMetrics {
     static let statusWidth: CGFloat = 236
 }
 
+enum HUDLogoInteractionEvent: Equatable {
+    case began(NSPoint)
+    case moved(NSPoint)
+    case ended(NSPoint)
+    case clicked
+}
+
+struct HUDLogoPointerTracker {
+    enum Completion: Equatable {
+        case click
+        case drag
+    }
+
+    static let dragThreshold: CGFloat = 4
+    private(set) var startPoint: NSPoint?
+    private(set) var isDragging = false
+
+    mutating func begin(at point: NSPoint) {
+        startPoint = point
+        isDragging = false
+    }
+
+    mutating func update(to point: NSPoint) -> Bool {
+        guard let startPoint else { return false }
+        if !isDragging {
+            let distance = hypot(point.x - startPoint.x, point.y - startPoint.y)
+            guard distance >= Self.dragThreshold else { return false }
+            isDragging = true
+        }
+        return true
+    }
+
+    mutating func end(at point: NSPoint) -> Completion? {
+        guard startPoint != nil else { return nil }
+        _ = update(to: point)
+        let result: Completion = isDragging ? .drag : .click
+        startPoint = nil
+        isDragging = false
+        return result
+    }
+}
+
+enum HUDPanelLayout {
+    static func targetFrame(
+        position: HUDPosition,
+        screenFrame: NSRect,
+        visibleFrame: NSRect,
+        size: NSSize
+    ) -> NSRect {
+        NSRect(
+            origin: position.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: size),
+            size: size
+        )
+    }
+}
+
+enum HUDDragGeometry {
+    static func origin(
+        startOrigin: NSPoint,
+        startPointer: NSPoint,
+        currentPointer: NSPoint
+    ) -> NSPoint {
+        NSPoint(
+            x: startOrigin.x + currentPointer.x - startPointer.x,
+            y: startOrigin.y + currentPointer.y - startPointer.y
+        )
+    }
+}
+
+enum HUDPanelTransition {
+    static func shouldAnimate(reduceMotion: Bool) -> Bool {
+        !reduceMotion
+    }
+}
+
+final class HUDPositionStore {
+    private static let key = "Cadence.hudPosition"
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    func load() -> HUDPosition {
+        guard let raw = defaults.string(forKey: Self.key) else { return .bottomCenter }
+        return HUDPosition(rawValue: raw) ?? .bottomCenter
+    }
+
+    func save(_ position: HUDPosition) {
+        defaults.set(position.rawValue, forKey: Self.key)
+    }
+}
+
 @MainActor
 final class HUDWindowController {
     private enum Metrics {
@@ -22,10 +115,6 @@ final class HUDWindowController {
         static let subtitleGap: CGFloat = 8
     }
 
-    private enum PreferenceKey {
-        static let hudPosition = "Cadence.hudPosition"
-    }
-
     private var pillPanel: NSPanel?
     private var subtitlePanel: NSPanel?
     private var overlayPanel: NSPanel?
@@ -34,8 +123,10 @@ final class HUDWindowController {
     private var subtitleHostingView: NSHostingView<HUDSubtitleView>?
     let viewModel = HUDViewModel()
     private let dropZoneViewModel = HUDDropZoneViewModel()
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
+    private let positionStore: HUDPositionStore
     private var dragStartOrigin: NSPoint?
+    private var dragStartPointer: NSPoint?
     private var screenChangeObserver: NSObjectProtocol?
     private var tooltipDismissTask: Task<Void, Never>?
     private var clickAwayMonitor: Any?
@@ -49,12 +140,11 @@ final class HUDWindowController {
     var onAddToDictionary: (() -> Void)?
     var onHide: ((HUDHideDuration) -> Void)?
 
-    init() {
-        viewModel.onDrag = { [weak self] translation in
-            self?.handleDragChanged(translation)
-        }
-        viewModel.onDragEnded = { [weak self] in
-            self?.handleDragEnded()
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        self.positionStore = HUDPositionStore(defaults: defaults)
+        viewModel.onLogoInteraction = { [weak self] event in
+            self?.handleLogoInteraction(event)
         }
         viewModel.onExpandToggle = { [weak self] expanded in
             self?.handleExpandedChanged(expanded)
@@ -68,7 +158,9 @@ final class HUDWindowController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleScreenParametersChanged()
+            Task { @MainActor in
+                self?.handleScreenParametersChanged()
+            }
         }
     }
 
@@ -102,7 +194,7 @@ final class HUDWindowController {
         }
 
         let pillPanel = makePillPanelIfNeeded()
-        pillPanel.setContentSize(pillSize(for: state))
+        let targetSize = pillSize(for: state)
 
         if pillHostingView == nil {
             let hostingView = NSHostingView(rootView: HUDView(model: viewModel))
@@ -121,7 +213,7 @@ final class HUDWindowController {
             pillHostingView?.rootView = HUDView(model: viewModel)
         }
 
-        position(pillPanel: pillPanel)
+        setPanelFrame(pillPanel, size: targetSize, animated: false)
         pillPanel.orderFrontRegardless()
 
         if state.showsSubtitle, !state.subtitle.isEmpty {
@@ -208,7 +300,7 @@ final class HUDWindowController {
 
     private func position(pillPanel: NSPanel) {
         let hudPosition = persistedPosition()
-        let screen = targetScreen()
+        let screen = screen(for: pillPanel)
         let screenFrame = screen?.frame ?? .zero
         let visibleFrame = screen?.visibleFrame ?? .zero
         let origin = hudPosition.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: pillPanel.frame.size)
@@ -228,24 +320,48 @@ final class HUDWindowController {
         WindowPlacement.screen()
     }
 
-    private func persistedPosition() -> HUDPosition {
-        let raw = defaults.string(forKey: PreferenceKey.hudPosition) ?? HUDPosition.bottomCenter.rawValue
-        return HUDPosition(rawValue: raw) ?? .bottomCenter
+    private func screen(for panel: NSPanel) -> NSScreen? {
+        guard panel.isVisible else { return targetScreen() }
+        let center = NSPoint(x: panel.frame.midX, y: panel.frame.midY)
+        return WindowPlacement.screen(containing: center) ?? targetScreen()
     }
 
-    private func handleDragChanged(_ translation: CGSize) {
-        guard let pillPanel else { return }
+    private func persistedPosition() -> HUDPosition {
+        positionStore.load()
+    }
 
-        if dragStartOrigin == nil {
-            dragStartOrigin = pillPanel.frame.origin
-            showDropZoneOverlay()
-            hideDragTooltip()
+    private func handleLogoInteraction(_ event: HUDLogoInteractionEvent) {
+        switch event {
+        case .began(let point):
+            beginDragSequence(at: point)
+        case .moved(let point):
+            handleDragChanged(pointer: point)
+        case .ended:
+            handleDragEnded()
+        case .clicked:
+            dragStartOrigin = nil
+            dragStartPointer = nil
+            viewModel.toggleExpanded()
         }
+    }
 
-        guard let dragStartOrigin else { return }
-        let newOrigin = NSPoint(
-            x: dragStartOrigin.x + translation.width,
-            y: dragStartOrigin.y + translation.height
+    private func beginDragSequence(at pointer: NSPoint) {
+        guard let pillPanel, !viewModel.isExpanded, viewModel.state.visualState == .idle else { return }
+        dragStartOrigin = pillPanel.frame.origin
+        dragStartPointer = pointer
+    }
+
+    private func handleDragChanged(pointer: NSPoint) {
+        guard let pillPanel else { return }
+        guard let dragStartOrigin, let dragStartPointer else { return }
+        if overlayPanel?.isVisible != true {
+            dismissDragTooltipForDrag()
+            showDropZoneOverlay()
+        }
+        let newOrigin = HUDDragGeometry.origin(
+            startOrigin: dragStartOrigin,
+            startPointer: dragStartPointer,
+            currentPointer: pointer
         )
         pillPanel.setFrameOrigin(newOrigin)
         updateDropZoneNearest(to: NSPoint(x: pillPanel.frame.midX, y: pillPanel.frame.midY))
@@ -257,10 +373,10 @@ final class HUDWindowController {
 
     private func handleDragEnded() {
         guard let pillPanel else { return }
-        let screen = targetScreen()
+        let hudCenter = NSPoint(x: pillPanel.frame.midX, y: pillPanel.frame.midY)
+        let screen = WindowPlacement.screen(containing: hudCenter) ?? targetScreen()
         let screenFrame = screen?.frame ?? .zero
         let visibleFrame = screen?.visibleFrame ?? .zero
-        let hudCenter = NSPoint(x: pillPanel.frame.midX, y: pillPanel.frame.midY)
         let snapPosition = HUDPosition.nearest(
             to: hudCenter,
             screenFrame: screenFrame,
@@ -274,10 +390,11 @@ final class HUDWindowController {
         )
         pillPanel.setFrameOrigin(origin)
         viewModel.position = snapPosition
-        defaults.set(snapPosition.rawValue, forKey: PreferenceKey.hudPosition)
+        positionStore.save(snapPosition)
         hideDropZoneOverlay()
         markDragTooltipShown()
         dragStartOrigin = nil
+        dragStartPointer = nil
     }
 
     private func showDropZoneOverlay() {
@@ -378,6 +495,13 @@ final class HUDWindowController {
         tooltipDismissTask = nil
     }
 
+    private func dismissDragTooltipForDrag() {
+        tooltipPanel?.orderOut(nil)
+        markDragTooltipShown()
+        tooltipDismissTask?.cancel()
+        tooltipDismissTask = nil
+    }
+
     private func markDragTooltipShown() {
         defaults.set(true, forKey: "Cadence.dragTooltipShown")
     }
@@ -387,18 +511,38 @@ final class HUDWindowController {
     private func handleExpandedChanged(_ expanded: Bool) {
         guard let pillPanel, viewModel.state.visualState == .idle else { return }
         let size = expanded ? Metrics.expandedTraySize : Metrics.logoIdleSize
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.18
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0, 0, 1)
-            pillPanel.animator().setFrame(.init(origin: pillPanel.frame.origin, size: size), display: true)
-        }
-        position(pillPanel: pillPanel)
+        setPanelFrame(
+            pillPanel,
+            size: size,
+            animated: HUDPanelTransition.shouldAnimate(reduceMotion: viewModel.isReducedMotionEnabled)
+        )
         if expanded {
             installClickAwayMonitor()
             startIdleCollapseTimer()
         } else {
             removeClickAwayMonitor()
             cancelIdleCollapseTimer()
+        }
+    }
+
+    private func setPanelFrame(_ panel: NSPanel, size: NSSize, animated: Bool) {
+        let position = persistedPosition()
+        let screen = screen(for: panel)
+        let target = HUDPanelLayout.targetFrame(
+            position: position,
+            screenFrame: screen?.frame ?? .zero,
+            visibleFrame: screen?.visibleFrame ?? .zero,
+            size: size
+        )
+        viewModel.position = position
+        guard animated else {
+            panel.setFrame(target, display: true)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0, 0, 1)
+            panel.animator().setFrame(target, display: true)
         }
     }
 
@@ -431,7 +575,7 @@ final class HUDWindowController {
 
     private static func isMenuWindow(_ window: NSWindow?) -> Bool {
         guard let window else { return false }
-        return window.className.contains("NSMenu") || window is NSMenu
+        return window.className.contains("NSMenu")
     }
 
     private func startIdleCollapseTimer() {
@@ -488,8 +632,7 @@ final class HUDViewModel: ObservableObject {
     @Published var showCopyConfirmation = false
     @Published var dictionaryFeedback: DictionaryFeedback = .idle
 
-    var onDrag: ((CGSize) -> Void)?
-    var onDragEnded: (() -> Void)?
+    var onLogoInteraction: ((HUDLogoInteractionEvent) -> Void)?
     var onExpandToggle: ((Bool) -> Void)?
     var onCopyLast: (() -> Void)?
     var onAddToDictionary: (() -> Void)?
@@ -520,6 +663,15 @@ final class HUDViewModel: ObservableObject {
         }
     }
 
+    var isReducedMotionEnabled: Bool {
+        reducedMotion || reduceMotionProvider()
+    }
+
+    func handleLogoInteraction(_ event: HUDLogoInteractionEvent) {
+        guard state.visualState == .idle, !isExpanded else { return }
+        onLogoInteraction?(event)
+    }
+
     func toggleExpanded() {
         isExpanded.toggle()
         onExpandToggle?(isExpanded)
@@ -531,15 +683,8 @@ final class HUDViewModel: ObservableObject {
         onExpandToggle?(isExpanded)
     }
 
-    static let dragThreshold: CGFloat = 4
-
-    nonisolated static func recognizeTap(translation: CGSize) -> Bool {
-        abs(translation.width) + abs(translation.height) < dragThreshold
-    }
-
     func apply(_ state: HUDState) {
         let wasIdle = self.state.visualState == .idle
-        let wasVisible = self.state.isVisible
         self.state = state
         if state.visualState != .idle, wasIdle, isExpanded {
             setExpanded(false)
@@ -561,7 +706,11 @@ final class HUDViewModel: ObservableObject {
             return
         }
 
-        if !wasVisible, !hasPulsedThisSession, isRecordingState, !reduceMotionProvider() {
+        if !wasIdle, state.visualState == .idle {
+            hasPulsedThisSession = false
+        }
+
+        if wasIdle, !hasPulsedThisSession, isRecordingState, !isReducedMotionEnabled {
             displayBars = Self.activationPulseBars
             hasPulsedThisSession = true
         }

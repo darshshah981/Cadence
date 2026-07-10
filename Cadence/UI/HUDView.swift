@@ -3,9 +3,6 @@ import SwiftUI
 struct HUDView: View {
     @ObservedObject var model: HUDViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var hasDragged = false
-
-    private static let dragThreshold: CGFloat = 4
 
     var body: some View {
         Group {
@@ -34,8 +31,6 @@ struct HUDView: View {
         }
         .animation(reduceMotion ? nil : .timingCurve(0.25, 0, 0, 1, duration: 0.18), value: model.state.visualState)
         .animation(reduceMotion ? nil : FlowMotion.control, value: model.isExpanded)
-        .contentShape(Rectangle())
-        .gesture(dragGesture)
         .accessibilityLabel(model.state.visualState.accessibilityLabel)
         .accessibilityHint(model.state.visualState.accessibilityHint ?? "")
         .onAppear { model.setReducedMotion(reduceMotion) }
@@ -57,6 +52,9 @@ struct HUDView: View {
                     style: .continuous
                 )
             )
+            .overlay {
+                HUDLogoInteractionSurface(model: model)
+            }
     }
 
     private func recordingPill(triggerMode: DictationTriggerMode, showsHint: Bool) -> some View {
@@ -152,24 +150,61 @@ struct HUDView: View {
         case cancelled
     }
 
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 1)
-            .onChanged { value in
-                if !hasDragged {
-                    let distance = abs(value.translation.width) + abs(value.translation.height)
-                    if distance < Self.dragThreshold { return }
-                    hasDragged = true
-                }
-                model.onDrag?(value.translation)
-            }
-            .onEnded { _ in
-                if hasDragged {
-                    model.onDragEnded?()
-                } else if model.state.visualState == .idle {
-                    model.toggleExpanded()
-                }
-                hasDragged = false
-            }
+}
+
+/// AppKit owns the logo pointer sequence so coordinates remain stable while its
+/// panel moves. This surface exists only for the collapsed idle logo; expanded
+/// tray buttons therefore never compete with drag recognition.
+private struct HUDLogoInteractionSurface: NSViewRepresentable {
+    @ObservedObject var model: HUDViewModel
+
+    func makeNSView(context: Context) -> HUDLogoInteractionView {
+        let view = HUDLogoInteractionView()
+        view.setAccessibilityElement(false)
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: HUDLogoInteractionView, context: Context) {
+        configure(view)
+    }
+
+    private func configure(_ view: HUDLogoInteractionView) {
+        view.onEvent = { [weak model] event in
+            model?.handleLogoInteraction(event)
+        }
+    }
+}
+
+final class HUDLogoInteractionView: NSView {
+    var onEvent: ((HUDLogoInteractionEvent) -> Void)?
+    private var tracker = HUDLogoPointerTracker()
+
+    override var acceptsFirstResponder: Bool { false }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = NSEvent.mouseLocation
+        tracker.begin(at: point)
+        onEvent?(.began(point))
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        let point = NSEvent.mouseLocation
+        guard tracker.update(to: point) else { return }
+        onEvent?(.moved(point))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let point = NSEvent.mouseLocation
+        switch tracker.end(at: point) {
+        case .click:
+            onEvent?(.clicked)
+        case .drag:
+            onEvent?(.moved(point))
+            onEvent?(.ended(point))
+        case .none:
+            break
+        }
     }
 }
 

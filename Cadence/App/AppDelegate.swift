@@ -6,6 +6,23 @@ private let appDelegateLogger = Logger(
     category: "AppDelegate"
 )
 
+enum AppActivationEvent {
+    case launch
+    case dockReopen
+    case becameActive
+}
+
+enum AppActivationPolicy {
+    static func shouldOpenMainWindow(for event: AppActivationEvent) -> Bool {
+        switch event {
+        case .launch, .dockReopen:
+            true
+        case .becameActive:
+            false
+        }
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static var openMainWindow: (() -> Void)? {
@@ -23,18 +40,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
-        Self.requestMainWindowOpen(reason: "launch")
+        if AppActivationPolicy.shouldOpenMainWindow(for: .launch) {
+            Self.requestMainWindowOpen(reason: "launch")
+        }
         Self.retryMainWindowOpenAfterLaunch()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         NSApp.activate()
-        Self.requestMainWindowOpen(reason: "reopen")
+        if AppActivationPolicy.shouldOpenMainWindow(for: .dockReopen) {
+            Self.requestMainWindowOpen(reason: "reopen")
+        }
         return true
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        guard !Self.hasVisibleMainWindow else { return }
+        // Becoming active is not an explicit request to open the main window.
+        // In particular, interacting with a floating HUD must not reveal it.
+        guard AppActivationPolicy.shouldOpenMainWindow(for: .becameActive) else { return }
         Self.requestMainWindowOpen(reason: "became-active")
     }
 
