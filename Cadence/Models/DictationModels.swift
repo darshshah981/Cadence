@@ -603,7 +603,40 @@ enum HUDVisualState: Equatable {
     case recording(triggerMode: DictationTriggerMode, showsHint: Bool)
     case preparingModel
     case transcribing
+    case inserting
+    case success
+    case cancelled
     case error(message: String)
+
+    var accessibilityLabel: String {
+        switch self {
+        case .recording(let triggerMode, _):
+            return triggerMode == .tapToStartStop ? "Continuous dictation is listening" : "Dictation is listening"
+        case .preparingModel:
+            return "Preparing the speech model"
+        case .transcribing:
+            return "Transcribing dictation"
+        case .inserting:
+            return "Inserting dictation"
+        case .success:
+            return "Dictation inserted"
+        case .cancelled:
+            return "Dictation cancelled"
+        case .error(let message):
+            return message
+        }
+    }
+
+    var accessibilityHint: String? {
+        switch self {
+        case .recording(.tapToStartStop, _):
+            return "Use Stop to finish dictating, or Cancel to discard this session."
+        case .recording(.holdToTalk, _):
+            return "Release the shortcut to finish dictating."
+        default:
+            return nil
+        }
+    }
 }
 
 struct HUDState: Equatable {
