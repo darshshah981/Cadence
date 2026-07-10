@@ -47,6 +47,7 @@ final class DictationCoordinator {
     var onPreviewTranscript: ((PreviewTranscript) -> Void)?
     var onError: ((String) -> Void)?
     var onBackendStatus: ((String) -> Void)?
+    var onScribeRequested: (() -> Void)?
 
     private let hotkeyService: HotkeyService
     private let permissionsService: PermissionsService
@@ -55,6 +56,8 @@ final class DictationCoordinator {
     private let textInsertionService: TextInsertionServing
     private let hudController: HUDWindowController
     private let analytics: AnalyticsService
+    private let sessionArbiter: VoiceSessionArbiter
+    private let personalizationStore: PersonalizationStore
     private var transcriptionConfiguration = TranscriptionConfiguration()
     private var activeTriggerMode: DictationTriggerMode?
     private var stopTapDictationOnNextKeyPress = false
@@ -72,6 +75,8 @@ final class DictationCoordinator {
     private var lastSuccessfulCompletionAt: Date?
     private var terminalHUDTask: Task<Void, Never>?
     private var hudPresentationGeneration = 0
+    private var voiceSessionLease: VoiceSessionLease?
+    private var holdQuickTapGesture = DictationQuickTapGesture()
 
     private var state: DictationSessionState = .idle {
         didSet { onStateChange?(state) }
@@ -85,6 +90,8 @@ final class DictationCoordinator {
         textInsertionService: TextInsertionServing,
         hudController: HUDWindowController,
         analytics: AnalyticsService,
+        sessionArbiter: VoiceSessionArbiter,
+        personalizationStore: PersonalizationStore = PersonalizationStore(),
         waveformSensitivity: Double = 1.0
     ) {
         self.hotkeyService = hotkeyService
@@ -94,14 +101,9 @@ final class DictationCoordinator {
         self.textInsertionService = textInsertionService
         self.hudController = hudController
         self.analytics = analytics
+        self.sessionArbiter = sessionArbiter
+        self.personalizationStore = personalizationStore
         self.waveformSensitivity = Self.sanitizedWaveformSensitivity(waveformSensitivity)
-
-        self.hudController.onStop = { [weak self] in
-            Task { await self?.stopFromHUD() }
-        }
-        self.hudController.onCancel = { [weak self] in
-            Task { await self?.cancelFromHUD() }
-        }
 
         self.hotkeyService.onPress = { [weak self] action in
             Task { await self?.handleHotkeyPress(action) }
@@ -109,6 +111,10 @@ final class DictationCoordinator {
 
         self.hotkeyService.onRelease = { [weak self] action in
             Task { await self?.handleHotkeyRelease(action) }
+        }
+
+        self.hotkeyService.onQuickTap = { [weak self] action in
+            Task { await self?.handleHotkeyQuickTap(action) }
         }
 
         self.hotkeyService.onAnyKeyPress = { [weak self] in
@@ -151,8 +157,11 @@ final class DictationCoordinator {
     private func handleHotkeyPress(_ action: HotkeyAction) async {
         switch action {
         case .holdToTalk:
+            holdQuickTapGesture.reset()
             if state == .idle || isErrorState {
                 await beginDictationIfPossible(triggerMode: .holdToTalk)
+            } else if state == .listening, activeTriggerMode == .tapToStartStop {
+                await finishDictationIfNeeded()
             }
         case .tapToStartStop:
             switch state {
@@ -172,12 +181,30 @@ final class DictationCoordinator {
             case .listening, .finalizing, .inserting:
                 break
             }
+        case .scribe:
+            onScribeRequested?()
         }
     }
 
     private func handleHotkeyRelease(_ action: HotkeyAction) async {
         guard action == .holdToTalk, activeTriggerMode == .holdToTalk else { return }
         await finishDictationIfNeeded()
+    }
+
+    private func handleHotkeyQuickTap(_ action: HotkeyAction) async {
+        guard action == .holdToTalk else { return }
+        switch holdQuickTapGesture.register(
+            state: state,
+            activeTriggerMode: activeTriggerMode,
+            at: ProcessInfo.processInfo.systemUptime
+        ) {
+        case .none:
+            break
+        case .startToggleRecording:
+            await beginDictationIfPossible(triggerMode: .tapToStartStop)
+        case .stopToggleRecording:
+            await finishDictationIfNeeded()
+        }
     }
 
     private func handleAnyKeyPress() async {
@@ -205,6 +232,8 @@ final class DictationCoordinator {
                 analytics.track("dictation_blocked", properties: ["reason": "permissions"])
                 throw CadenceError.missingRequiredPermissions
             }
+
+            voiceSessionLease = try sessionArbiter.acquire(for: .dictation)
 
             activeTriggerMode = triggerMode
             let sessionID = Self.makeAnalyticsSessionID()
@@ -283,6 +312,7 @@ final class DictationCoordinator {
             )
             warmBackendForCurrentSession()
         } catch {
+            releaseVoiceSessionLease()
             activeTriggerMode = nil
             activeTargetApplication = nil
             publishError(error.localizedDescription)
@@ -363,8 +393,13 @@ final class DictationCoordinator {
                 )
                 correctedText = applyPostProcessing(to: transcript.cleanedText)
             }
+            let personalizedText = ShortcutExpansionService.expand(
+                correctedText,
+                bundleIdentifier: activeTargetApplication?.bundleIdentifier,
+                shortcuts: personalizationStore.load().shortcuts
+            )
             let polishResult = AppAwareTextPolisher.apply(
-                to: correctedText,
+                to: personalizedText,
                 configuration: transcriptionConfiguration,
                 targetApplication: activeTargetApplication
             )
@@ -436,6 +471,7 @@ final class DictationCoordinator {
             activeTargetApplication = nil
             sessionStartedAt = nil
             activeSessionID = nil
+            releaseVoiceSessionLease()
             state = .idle
             publishTerminalHUD(.success)
         } catch {
@@ -467,6 +503,7 @@ final class DictationCoordinator {
             activeTargetApplication = nil
             sessionStartedAt = nil
             activeSessionID = nil
+            releaseVoiceSessionLease()
             publishError(error.localizedDescription)
         }
     }
@@ -691,35 +728,10 @@ final class DictationCoordinator {
         }
     }
 
-    private func stopFromHUD() async {
-        guard activeTriggerMode == .tapToStartStop else { return }
-        await finishDictationIfNeeded()
-    }
-
-    private func cancelFromHUD() async {
-        guard activeTriggerMode == .tapToStartStop else { return }
-        guard state == .listening else { return }
-
-        let metrics = audioCaptureService.stopCapture()
-        stopPreviewLoop()
-        await transcriptionEngine.cancelSession()
-        analytics.track(
-            "dictation_cancelled",
-            properties: [
-                "sessionID": .string(activeSessionID ?? "unknown"),
-                "trigger": .string(activeTriggerMode?.rawValue ?? "unknown"),
-                "durationSeconds": .double(metrics.duration),
-                "speechSeconds": .double(
-                    metrics.sampleRate > 0 ? Double(metrics.speechFrameCount) / metrics.sampleRate : metrics.duration
-                )
-            ]
-        )
-        activeTriggerMode = nil
-        activeTargetApplication = nil
-        sessionStartedAt = nil
-        activeSessionID = nil
-        state = .idle
-        publishTerminalHUD(.cancelled)
+    private func releaseVoiceSessionLease() {
+        guard let voiceSessionLease else { return }
+        sessionArbiter.release(voiceSessionLease)
+        self.voiceSessionLease = nil
     }
 
     private func sessionAnalyticsProperties(triggerMode: DictationTriggerMode) -> [String: AnalyticsValue] {

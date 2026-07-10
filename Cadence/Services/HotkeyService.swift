@@ -11,6 +11,7 @@ private let hotkeyLogger = Logger(
 protocol HotkeyServing: AnyObject {
     var onPress: ((HotkeyAction) -> Void)? { get set }
     var onRelease: ((HotkeyAction) -> Void)? { get set }
+    var onQuickTap: ((HotkeyAction) -> Void)? { get set }
     var onAnyKeyPress: (() -> Void)? { get set }
     var onObservedKeyEvent: ((ObservedKeyEvent) -> Void)? { get set }
     var onDiagnosticsEvent: ((String, [String: String]) -> Void)? { get set }
@@ -27,6 +28,86 @@ struct ObservedKeyEvent: Sendable {
     }
 }
 
+enum ModifierOnlyGestureEffect: Equatable, Sendable {
+    case schedule(HotkeyAction)
+    case cancelScheduled(HotkeyAction)
+    case press(HotkeyAction)
+    case release(HotkeyAction)
+    case quickTap(HotkeyAction)
+}
+
+struct ModifierOnlyGestureEngine: Sendable {
+    private(set) var pendingActions = Set<HotkeyAction>()
+    private(set) var activeActions = Set<HotkeyAction>()
+    private(set) var blockedActions = Set<HotkeyAction>()
+
+    mutating func flagsChanged(
+        bindings: [HotkeyBinding],
+        flags: NSEvent.ModifierFlags,
+        activeModifierKeyCodes: Set<UInt16>,
+        releasedKeyCode: UInt16?
+    ) -> [ModifierOnlyGestureEffect] {
+        var effects: [ModifierOnlyGestureEffect] = []
+
+        for binding in bindings where binding.isEnabled && binding.shortcut.isModifierOnly {
+            let action = binding.action
+            if blockedActions.contains(action) {
+                if flags.isEmpty {
+                    blockedActions.remove(action)
+                }
+                continue
+            }
+            let matches = binding.shortcut.matches(
+                modifiers: flags,
+                activeModifierKeyCodes: activeModifierKeyCodes
+            )
+
+            if matches && !activeActions.contains(action) && !pendingActions.contains(action) {
+                pendingActions.insert(action)
+                effects.append(.schedule(action))
+            } else if !matches && pendingActions.remove(action) != nil {
+                effects.append(.cancelScheduled(action))
+                if Self.isRelease(releasedKeyCode, flags: flags) {
+                    effects.append(action == .holdToTalk ? .quickTap(action) : .press(action))
+                } else {
+                    blockedActions.insert(action)
+                }
+            } else if !matches && activeActions.remove(action) != nil {
+                effects.append(.release(action))
+            }
+        }
+
+        return effects
+    }
+
+    mutating func activationDelayElapsed(for action: HotkeyAction) -> ModifierOnlyGestureEffect? {
+        guard pendingActions.remove(action) != nil else { return nil }
+        activeActions.insert(action)
+        return .press(action)
+    }
+
+    mutating func reset() {
+        pendingActions.removeAll()
+        activeActions.removeAll()
+        blockedActions.removeAll()
+    }
+
+    mutating func cancelPending() {
+        pendingActions.removeAll()
+    }
+
+    private static func isRelease(
+        _ keyCode: UInt16?,
+        flags: NSEvent.ModifierFlags
+    ) -> Bool {
+        guard let keyCode,
+              let flag = HotkeyConfiguration.modifierFlag(forKeyCode: keyCode) else {
+            return flags.isEmpty
+        }
+        return !flags.contains(flag)
+    }
+}
+
 final class HotkeyService: HotkeyServing {
     private enum ModifierOnlyTuning {
         static let activationDelay: TimeInterval = 0.24
@@ -34,6 +115,7 @@ final class HotkeyService: HotkeyServing {
 
     var onPress: ((HotkeyAction) -> Void)?
     var onRelease: ((HotkeyAction) -> Void)?
+    var onQuickTap: ((HotkeyAction) -> Void)?
     var onAnyKeyPress: (() -> Void)?
     var onObservedKeyEvent: ((ObservedKeyEvent) -> Void)?
     var onDiagnosticsEvent: ((String, [String: String]) -> Void)?
@@ -47,10 +129,10 @@ final class HotkeyService: HotkeyServing {
     private var localKeyUpMonitor: Any?
     private var globalFlagsMonitor: Any?
     private var localFlagsMonitor: Any?
-    private var activeModifierOnlyActions = Set<HotkeyAction>()
     private var activeSideSpecificActions = Set<HotkeyAction>()
     private var activeModifierKeyCodes = Set<UInt16>()
     private var pendingModifierOnlyWorkItems: [HotkeyAction: DispatchWorkItem] = [:]
+    private var modifierOnlyGestureEngine = ModifierOnlyGestureEngine()
     private var suppressNextAnyKeyPress = false
     private var isPaused = false
 
@@ -73,6 +155,7 @@ final class HotkeyService: HotkeyServing {
         self.bindings = bindings
         unregisterHotKeys()
         cancelPendingModifierOnlyActions()
+        modifierOnlyGestureEngine.reset()
         registerHotKeys()
     }
 
@@ -80,8 +163,8 @@ final class HotkeyService: HotkeyServing {
         guard isPaused != paused else { return }
         isPaused = paused
         if paused {
-            activeModifierOnlyActions.removeAll()
             activeSideSpecificActions.removeAll()
+            modifierOnlyGestureEngine.reset()
             cancelPendingModifierOnlyActions()
             suppressNextAnyKeyPress = false
         }
@@ -188,18 +271,17 @@ final class HotkeyService: HotkeyServing {
             if let hotKeyRef {
                 hotKeyRefs[binding.action] = hotKeyRef
                 hotkeyLogger.info(
-                    "Registered hotkey action=\(binding.action.displayName, privacy: .public) shortcut=\(binding.shortcut.displayName, privacy: .public)"
+                    "Registered hotkey action=\(binding.action.displayName, privacy: .public)"
                 )
             } else {
                 hotkeyLogger.error(
-                    "Failed to register hotkey action=\(binding.action.displayName, privacy: .public) shortcut=\(binding.shortcut.displayName, privacy: .public) status=\(status, privacy: .public)"
+                    "Failed to register hotkey action=\(binding.action.displayName, privacy: .public) status=\(status, privacy: .public)"
                 )
                 onDiagnosticsEvent?(
                     "hotkey_registration_failed",
                     [
                         "stage": "registerHotKey",
                         "action": binding.action.rawValue,
-                        "shortcut": binding.shortcut.displayName,
                         "status": String(status)
                     ]
                 )
@@ -256,7 +338,7 @@ final class HotkeyService: HotkeyServing {
         localKeyUpMonitor = nil
         globalFlagsMonitor = nil
         localFlagsMonitor = nil
-        activeModifierOnlyActions.removeAll()
+        modifierOnlyGestureEngine.reset()
         activeSideSpecificActions.removeAll()
         activeModifierKeyCodes.removeAll()
         cancelPendingModifierOnlyActions()
@@ -277,7 +359,7 @@ final class HotkeyService: HotkeyServing {
     }
 
     private func handleSideSpecificKeyPress(_ event: NSEvent) {
-        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift, .function])
         for binding in bindings
             where binding.isEnabled &&
             binding.shortcut.requiresSpecificModifierSides &&
@@ -312,34 +394,46 @@ final class HotkeyService: HotkeyServing {
 
     private func handleModifierFlagsChanged(_ event: NSEvent) {
         guard !isPaused else { return }
-        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift, .function])
         activeModifierKeyCodes = HotkeyConfiguration.updatedActiveModifierKeyCodes(activeModifierKeyCodes, with: event)
 
-        for binding in bindings where binding.isEnabled && binding.shortcut.isModifierOnly {
-            let action = binding.action
-            let matches = binding.shortcut.matches(
-                modifiers: flags,
-                activeModifierKeyCodes: activeModifierKeyCodes
-            )
-            let isActive = activeModifierOnlyActions.contains(action)
-            let isPending = pendingModifierOnlyWorkItems[action] != nil
+        let effects = modifierOnlyGestureEngine.flagsChanged(
+            bindings: bindings,
+            flags: flags,
+            activeModifierKeyCodes: activeModifierKeyCodes,
+            releasedKeyCode: event.keyCode
+        )
+        applyModifierOnlyEffects(effects)
+    }
 
-            if matches && !isActive && !isPending {
+    private func applyModifierOnlyEffects(_ effects: [ModifierOnlyGestureEffect]) {
+        for effect in effects {
+            switch effect {
+            case let .schedule(action):
                 let workItem = DispatchWorkItem { [weak self] in
                     guard let self, !self.isPaused else { return }
                     self.pendingModifierOnlyWorkItems[action] = nil
-                    self.activeModifierOnlyActions.insert(action)
+                    guard self.modifierOnlyGestureEngine.activationDelayElapsed(for: action) != nil else { return }
                     self.suppressNextAnyKeyPress = action == .tapToStartStop
                     hotkeyLogger.info("Modifier-only hotkey pressed action=\(action.displayName, privacy: .public)")
                     self.onPress?(action)
                 }
                 pendingModifierOnlyWorkItems[action] = workItem
                 DispatchQueue.main.asyncAfter(deadline: .now() + ModifierOnlyTuning.activationDelay, execute: workItem)
-            } else if !matches && isPending {
+            case let .cancelScheduled(action):
                 pendingModifierOnlyWorkItems[action]?.cancel()
                 pendingModifierOnlyWorkItems[action] = nil
-            } else if !matches && isActive {
-                activeModifierOnlyActions.remove(action)
+            case let .quickTap(action):
+                onQuickTap?(action)
+            case let .press(action):
+                if action != .holdToTalk {
+                    cancelPendingModifierOnlyActions()
+                }
+                onPress?(action)
+            case let .release(action):
+                if action != .holdToTalk {
+                    cancelPendingModifierOnlyActions()
+                }
                 hotkeyLogger.info("Modifier-only hotkey released action=\(action.displayName, privacy: .public)")
                 onRelease?(action)
             }
@@ -351,7 +445,9 @@ final class HotkeyService: HotkeyServing {
             workItem.cancel()
         }
         pendingModifierOnlyWorkItems.removeAll()
+        modifierOnlyGestureEngine.cancelPending()
     }
+
 }
 
 private extension HotkeyAction {
@@ -361,6 +457,8 @@ private extension HotkeyAction {
             return 1
         case .tapToStartStop:
             return 2
+        case .scribe:
+            return 3
         }
     }
 
@@ -370,6 +468,8 @@ private extension HotkeyAction {
             self = .holdToTalk
         case 2:
             self = .tapToStartStop
+        case 3:
+            self = .scribe
         default:
             return nil
         }

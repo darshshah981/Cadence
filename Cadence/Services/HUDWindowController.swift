@@ -1,14 +1,20 @@
 import AppKit
 import SwiftUI
 
+enum HUDMetrics {
+    static let pillHeight: CGFloat = 38
+    static let compactWidth: CGFloat = 176
+    static let holdHintWidth: CGFloat = 260
+    static let statusWidth: CGFloat = 236
+}
+
 @MainActor
 final class HUDWindowController {
     private enum Metrics {
-        static let pillHeight: CGFloat = 38
-        static let holdSize = NSSize(width: 156, height: pillHeight)
-        static let holdHintSize = NSSize(width: 244, height: pillHeight)
-        static let controlsSize = NSSize(width: 224, height: pillHeight)
-        static let statusSize = NSSize(width: 236, height: pillHeight)
+        static let holdSize = NSSize(width: HUDMetrics.compactWidth, height: HUDMetrics.pillHeight)
+        static let holdHintSize = NSSize(width: HUDMetrics.holdHintWidth, height: HUDMetrics.pillHeight)
+        static let lockedSize = NSSize(width: HUDMetrics.compactWidth, height: HUDMetrics.pillHeight)
+        static let statusSize = NSSize(width: HUDMetrics.statusWidth, height: HUDMetrics.pillHeight)
         static let subtitleSize = NSSize(width: 320, height: 36)
         static let bottomInset: CGFloat = 32
         static let subtitleGap: CGFloat = 8
@@ -27,12 +33,7 @@ final class HUDWindowController {
     private let defaults = UserDefaults.standard
     private var dragStartOrigin: NSPoint?
 
-    var onStop: (() -> Void)?
-    var onCancel: (() -> Void)?
-
     init() {
-        viewModel.onStop = { [weak self] in self?.onStop?() }
-        viewModel.onCancel = { [weak self] in self?.onCancel?() }
         viewModel.onDrag = { [weak self] translation in
             self?.handleDragChanged(translation)
         }
@@ -144,7 +145,7 @@ final class HUDWindowController {
         case .recording(let triggerMode, let showsHint):
             switch triggerMode {
             case .tapToStartStop:
-                return Metrics.controlsSize
+                return Metrics.lockedSize
             case .holdToTalk:
                 return showsHint ? Metrics.holdHintSize : Metrics.holdSize
             }
@@ -181,9 +182,7 @@ final class HUDWindowController {
     }
 
     private func targetScreenFrame() -> NSRect {
-        let mouseLocation = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) }) ?? NSScreen.main
-        return (screen ?? NSScreen.main)?.visibleFrame ?? .zero
+        WindowPlacement.visibleFrame()
     }
 
     private func persistedOffset() -> CGPoint {
@@ -228,8 +227,6 @@ final class HUDViewModel: ObservableObject {
     @Published private(set) var state = HUDState.idle
     @Published private(set) var displayBars = Array(repeating: 0.0, count: 16)
 
-    var onStop: (() -> Void)?
-    var onCancel: (() -> Void)?
     var onDrag: ((CGSize) -> Void)?
     var onDragEnded: (() -> Void)?
 
