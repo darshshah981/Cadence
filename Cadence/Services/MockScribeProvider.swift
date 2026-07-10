@@ -3,6 +3,7 @@ import Foundation
 actor MockScribeProvider: ScribeProvider {
     enum Response: Sendable {
         case success(String)
+        case delayedSuccess(String, Duration)
         case failure(ScribeProviderError)
     }
 
@@ -39,10 +40,13 @@ actor MockScribeProvider: ScribeProvider {
         case let .failure(error):
             throw error
         case let .success(text):
-            let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalized.isEmpty else {
-                throw ScribeProviderError.emptyResult
-            }
+            let normalized = try ScribeOutputPolicy.normalizedOutput(text)
+            let result = ScribeResult(requestID: request.id, text: normalized)
+            completedRequests[request.id] = result
+            return result
+        case let .delayedSuccess(text, delay):
+            try await Task.sleep(for: delay)
+            let normalized = try ScribeOutputPolicy.normalizedOutput(text)
             let result = ScribeResult(requestID: request.id, text: normalized)
             completedRequests[request.id] = result
             return result

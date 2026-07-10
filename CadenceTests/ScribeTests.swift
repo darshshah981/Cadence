@@ -12,6 +12,11 @@ struct ScribeTests {
         #expect(!ScribeIntent.compose.requiresSelectedText)
         #expect(ScribeIntent.respond.requiresSelectedText)
         #expect(ScribeIntent.edit.requiresSelectedText)
+        #expect(ScribeIntent.compose.contextScope == .none)
+        #expect(ScribeIntent.respond.contextScope == .selectedText)
+        #expect(ScribeIntent.edit.contextScope == .selectedText)
+        #expect(ScribeIntentPickerResult.cancelled.intent == nil)
+        #expect(ScribeIntentPickerResult.selected(.edit).intent == .edit)
     }
 
     @Test
@@ -58,6 +63,37 @@ struct ScribeTests {
 
         await #expect(throws: ScribeProviderError.emptyResult) {
             try await provider.generate(request)
+        }
+    }
+
+    @Test
+    func mockProviderRejectsMalformedAndOversizedOutput() async {
+        let malformed = MockScribeProvider(responses: [.success("Draft\u{0000}text")])
+        let oversized = MockScribeProvider(
+            responses: [.success(String(repeating: "a", count: ScribeOutputPolicy.maximumUTF8Bytes + 1))]
+        )
+        let request = ScribeRequest(intent: .compose, spokenTranscript: "Write an update")
+
+        await #expect(throws: ScribeProviderError.invalidResult) {
+            try await malformed.generate(request)
+        }
+        await #expect(throws: ScribeProviderError.resultTooLarge) {
+            try await oversized.generate(request)
+        }
+    }
+
+    @Test
+    func mockProviderCooperatesWithTaskCancellation() async {
+        let provider = MockScribeProvider(
+            responses: [.delayedSuccess("Late result", .seconds(10))]
+        )
+        let request = ScribeRequest(intent: .compose, spokenTranscript: "Write an update")
+        let task = Task { try await provider.generate(request) }
+
+        task.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await task.value
         }
     }
 

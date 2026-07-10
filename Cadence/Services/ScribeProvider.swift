@@ -6,6 +6,8 @@ enum ScribeProviderError: String, Error, Equatable, Sendable {
     case timedOut
     case cancelled
     case emptyResult
+    case invalidResult
+    case resultTooLarge
 
     var userMessage: String {
         switch self {
@@ -19,6 +21,10 @@ enum ScribeProviderError: String, Error, Equatable, Sendable {
             return "Scribe was cancelled."
         case .emptyResult:
             return "Scribe did not return any text. Try again or insert the literal transcript."
+        case .invalidResult:
+            return "Scribe returned text Cadence could not safely insert. Try again or insert the literal transcript."
+        case .resultTooLarge:
+            return "Scribe returned too much text to review safely. Try a smaller request."
         }
     }
 }

@@ -32,6 +32,25 @@ enum ScribeIntent: String, CaseIterable, Codable, Identifiable, Sendable {
     var requiresSelectedText: Bool {
         self != .compose
     }
+
+    var contextScope: ScribeContextScope {
+        requiresSelectedText ? .selectedText : .none
+    }
+}
+
+enum ScribeContextScope: String, Codable, Equatable, Sendable {
+    case none
+    case selectedText
+}
+
+enum ScribeIntentPickerResult: Equatable, Sendable {
+    case selected(ScribeIntent)
+    case cancelled
+
+    var intent: ScribeIntent? {
+        guard case let .selected(intent) = self else { return nil }
+        return intent
+    }
 }
 
 enum ScribePrivacyMode: String, CaseIterable, Codable, Identifiable, Sendable {
@@ -132,6 +151,28 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
 struct ScribeResult: Equatable, Sendable {
     let requestID: UUID
     let text: String
+}
+
+enum ScribeOutputPolicy {
+    static let maximumUTF8Bytes = 64 * 1_024
+
+    static func normalizedOutput(_ text: String) throws -> String {
+        let normalized = text.precomposedStringWithCanonicalMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            throw ScribeProviderError.emptyResult
+        }
+        guard normalized.utf8.count <= maximumUTF8Bytes else {
+            throw ScribeProviderError.resultTooLarge
+        }
+        let containsUnsupportedControl = normalized.unicodeScalars.contains { scalar in
+            scalar.value < 0x20 && scalar != "\n" && scalar != "\r" && scalar != "\t"
+        }
+        guard !containsUnsupportedControl else {
+            throw ScribeProviderError.invalidResult
+        }
+        return normalized
+    }
 }
 
 enum ScribeSessionState: Equatable, Sendable {
