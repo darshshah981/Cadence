@@ -6,6 +6,8 @@ struct SettingsView: View {
     var maxContentWidth: CGFloat?
     var contentPadding = EdgeInsets()
     @State private var isAdvancedExpanded = false
+    @State private var editingShortcut: PersonalShortcut?
+    @State private var editingStyleProfile: WritingStyleProfile?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -14,6 +16,7 @@ struct SettingsView: View {
                 setupSection
                 startStopSection
                 scribeSection
+                personalizationSection
                 captureSection
                 writingStyleSection
                 privacySection
@@ -26,6 +29,12 @@ struct SettingsView: View {
         }
         .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: isAdvancedExpanded)
         .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: appModel.dictationQualityPreset)
+        .sheet(item: $editingShortcut) { shortcut in
+            PersonalShortcutEditor(shortcut: shortcut) { appModel.savePersonalShortcut($0) }
+        }
+        .sheet(item: $editingStyleProfile) { profile in
+            WritingStyleProfileEditor(profile: profile) { appModel.saveWritingStyleProfile($0) }
+        }
     }
 
     private func settingsSection<Content: View>(
@@ -119,6 +128,89 @@ struct SettingsView: View {
                 fillerWordControls
             }
         }
+    }
+
+    private var personalizationSection: some View {
+        settingsSection(title: "Personalization", systemImage: "person.crop.circle.badge.checkmark") {
+            FlowSectionCard {
+                personalizationHeader(
+                    title: "Spoken shortcuts",
+                    description: "Expand a short trigger into text you use often.",
+                    buttonTitle: "Add shortcut"
+                ) {
+                    editingShortcut = PersonalShortcut(trigger: "", template: "")
+                }
+
+                if appModel.personalizationLibrary.shortcuts.isEmpty {
+                    personalizationEmptyRow("No spoken shortcuts yet.")
+                } else {
+                    ForEach(appModel.personalizationLibrary.shortcuts) { shortcut in
+                        insetDivider
+                        PersonalizationItemRow(
+                            title: shortcut.trigger,
+                            detail: shortcut.template,
+                            isEnabled: Binding(
+                                get: { shortcut.isEnabled },
+                                set: { appModel.setPersonalShortcutEnabled(id: shortcut.id, enabled: $0) }
+                            ),
+                            onEdit: { editingShortcut = shortcut },
+                            onDelete: { appModel.deletePersonalShortcut(id: shortcut.id) }
+                        )
+                    }
+                }
+
+                insetDivider
+                personalizationHeader(
+                    title: "Writing profiles",
+                    description: "Choose tone and formatting globally or for one app.",
+                    buttonTitle: "Add profile"
+                ) {
+                    editingStyleProfile = WritingStyleProfile(name: "")
+                }
+
+                if appModel.personalizationLibrary.styleProfiles.isEmpty {
+                    personalizationEmptyRow("No writing profiles yet.")
+                } else {
+                    ForEach(appModel.personalizationLibrary.styleProfiles) { profile in
+                        insetDivider
+                        PersonalizationItemRow(
+                            title: profile.name,
+                            detail: profile.appBundleIdentifier.map { "App: \($0)" } ?? "All apps",
+                            isEnabled: Binding(
+                                get: { profile.isEnabled },
+                                set: { appModel.setWritingStyleProfileEnabled(id: profile.id, enabled: $0) }
+                            ),
+                            onEdit: { editingStyleProfile = profile },
+                            onDelete: { appModel.deleteWritingStyleProfile(id: profile.id) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func personalizationHeader(
+        title: String,
+        description: String,
+        buttonTitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            SettingsLabelRow(title: title, description: description)
+            Spacer()
+            Button(buttonTitle, action: action)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .padding(12)
+    }
+
+    private func personalizationEmptyRow(_ message: String) -> some View {
+        Text(message)
+            .font(.system(size: 11))
+            .foregroundStyle(FlowTheme.textTertiary)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 10)
     }
 
     private var privacySection: some View {
@@ -1361,5 +1453,165 @@ final class ShortcutRecorderContainerView: NSView {
         default:
             return false
         }
+    }
+}
+
+private struct PersonalizationItemRow: View {
+    let title: String
+    let detail: String
+    @Binding var isEnabled: Bool
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    @State private var confirmsDeletion = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Toggle("", isOn: $isEnabled)
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityLabel("Enable \(title)")
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                Text(detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .lineLimit(2)
+            }
+            Spacer()
+            Menu {
+                Button("Edit", action: onEdit)
+                Divider()
+                Button("Delete", role: .destructive) { confirmsDeletion = true }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .accessibilityLabel("Actions for \(title)")
+        }
+        .padding(12)
+        .confirmationDialog("Delete \(title)?", isPresented: $confirmsDeletion, titleVisibility: .visible) {
+            Button("Delete", role: .destructive, action: onDelete)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes it from Cadence on this Mac.")
+        }
+    }
+}
+
+private struct PersonalShortcutEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: PersonalShortcut
+    @State private var isAppSpecific: Bool
+    @State private var appBundleIdentifier: String
+    let onSave: (PersonalShortcut) -> Void
+
+    init(shortcut: PersonalShortcut, onSave: @escaping (PersonalShortcut) -> Void) {
+        _draft = State(initialValue: shortcut)
+        if case let .application(bundleIdentifier) = shortcut.scope {
+            _isAppSpecific = State(initialValue: true)
+            _appBundleIdentifier = State(initialValue: bundleIdentifier)
+        } else {
+            _isAppSpecific = State(initialValue: false)
+            _appBundleIdentifier = State(initialValue: "")
+        }
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(draft.trigger.isEmpty ? "Add spoken shortcut" : "Edit spoken shortcut")
+                .font(.title2.weight(.semibold))
+            Form {
+                TextField("Spoken trigger", text: $draft.trigger)
+                TextField("Replacement text", text: $draft.template, axis: .vertical)
+                    .lineLimit(3...8)
+                Toggle("Only in one app", isOn: $isAppSpecific)
+                if isAppSpecific {
+                    TextField("App bundle identifier", text: $appBundleIdentifier)
+                        .help("For example: com.apple.mail")
+                }
+            }
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Save shortcut") {
+                    draft.scope = isAppSpecific
+                        ? .application(appBundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines))
+                        : .global
+                    onSave(draft)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!draft.isValid || (isAppSpecific && appBundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+            }
+        }
+        .padding(24)
+        .frame(width: 460)
+    }
+}
+
+private struct WritingStyleProfileEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: WritingStyleProfile
+    @State private var isAppSpecific: Bool
+    @State private var appBundleIdentifier: String
+    let onSave: (WritingStyleProfile) -> Void
+
+    init(profile: WritingStyleProfile, onSave: @escaping (WritingStyleProfile) -> Void) {
+        _draft = State(initialValue: profile)
+        _isAppSpecific = State(initialValue: profile.appBundleIdentifier != nil)
+        _appBundleIdentifier = State(initialValue: profile.appBundleIdentifier ?? "")
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(draft.name.isEmpty ? "Add writing profile" : "Edit writing profile")
+                .font(.title2.weight(.semibold))
+            Form {
+                TextField("Profile name", text: $draft.name)
+                Picker("Tone", selection: $draft.tone) {
+                    ForEach(WritingTone.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                }
+                Picker("Length", selection: $draft.length) {
+                    ForEach(WritingLength.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                }
+                Picker("Punctuation", selection: $draft.punctuation) {
+                    ForEach(WritingPunctuation.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                }
+                Picker("Formatting", selection: $draft.formatting) {
+                    ForEach(WritingFormatting.allCases) {
+                        Text($0.rawValue == "plainText" ? "Plain text" : $0.rawValue.capitalized).tag($0)
+                    }
+                }
+                Toggle("Preserve code exactly", isOn: $draft.preservesCodeLiterals)
+                Toggle("Only in one app", isOn: $isAppSpecific)
+                if isAppSpecific {
+                    TextField("App bundle identifier", text: $appBundleIdentifier)
+                        .help("For example: com.apple.mail")
+                }
+            }
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Save profile") {
+                    draft.appBundleIdentifier = isAppSpecific
+                        ? appBundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+                        : nil
+                    onSave(draft)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (isAppSpecific && appBundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+            }
+        }
+        .padding(24)
+        .frame(width: 480)
     }
 }

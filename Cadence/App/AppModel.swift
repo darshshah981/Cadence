@@ -126,6 +126,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var showsShortcutDock: Bool
     @Published private(set) var waveformSensitivity: Double
     @Published private(set) var appearancePreference: AppearancePreference
+    @Published private(set) var personalizationLibrary: PersonalizationLibrary
     @Published var menuScreen: MenuScreen = .home
 
     @Published private(set) var holdToTalkBinding: HotkeyBinding
@@ -154,6 +155,7 @@ final class AppModel: ObservableObject {
     private let meetingDetectionService = MeetingDetectionService()
     private var googleCalendarConfiguration: GoogleCalendarOAuthConfiguration?
     private let defaults: UserDefaults
+    private let personalizationStore: PersonalizationStore
     private var cancellables = Set<AnyCancellable>()
     private var lastExternalApplication: NSRunningApplication?
     private var transcriptionConfigurationTask: Task<Void, Never>?
@@ -182,10 +184,13 @@ final class AppModel: ObservableObject {
         let showsShortcutDock = (defaults.object(forKey: PreferenceKey.showsShortcutDock) as? Bool) ?? true
         let waveformSensitivity = Self.loadWaveformSensitivity(defaults: defaults)
         let appearancePreference = Self.loadAppearancePreference(defaults: defaults)
+        let personalizationStore = PersonalizationStore(defaults: defaults)
         self.analyticsEnabled = analyticsEnabled
         self.showsShortcutDock = showsShortcutDock
         self.waveformSensitivity = waveformSensitivity
         self.appearancePreference = appearancePreference
+        self.personalizationStore = personalizationStore
+        self.personalizationLibrary = personalizationStore.load()
         self.meetingCaptureSource = AppModel.loadMeetingCaptureSource(defaults: defaults)
         let googleOAuthClientID = AppModel.loadGoogleOAuthClientID(defaults: defaults)
         let googleOAuthClientSecret = AppModel.loadGoogleOAuthClientSecret(defaults: defaults)
@@ -359,6 +364,63 @@ final class AppModel: ObservableObject {
             providerCapabilities: Self.makeScribeProvider().capabilities,
             permissionsGranted: permissions.allRequiredGranted
         )
+    }
+
+    func savePersonalShortcut(_ shortcut: PersonalShortcut) {
+        guard shortcut.isValid else {
+            lastError = "Shortcut name and replacement text are required."
+            return
+        }
+        if let index = personalizationLibrary.shortcuts.firstIndex(where: { $0.id == shortcut.id }) {
+            personalizationLibrary.shortcuts[index] = shortcut
+        } else {
+            personalizationLibrary.shortcuts.append(shortcut)
+        }
+        persistPersonalizationLibrary()
+    }
+
+    func setPersonalShortcutEnabled(id: UUID, enabled: Bool) {
+        guard let index = personalizationLibrary.shortcuts.firstIndex(where: { $0.id == id }) else { return }
+        personalizationLibrary.shortcuts[index].isEnabled = enabled
+        persistPersonalizationLibrary()
+    }
+
+    func deletePersonalShortcut(id: UUID) {
+        personalizationLibrary.shortcuts.removeAll { $0.id == id }
+        persistPersonalizationLibrary()
+    }
+
+    func saveWritingStyleProfile(_ profile: WritingStyleProfile) {
+        guard !profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            lastError = "Style profile name is required."
+            return
+        }
+        if let index = personalizationLibrary.styleProfiles.firstIndex(where: { $0.id == profile.id }) {
+            personalizationLibrary.styleProfiles[index] = profile
+        } else {
+            personalizationLibrary.styleProfiles.append(profile)
+        }
+        persistPersonalizationLibrary()
+    }
+
+    func setWritingStyleProfileEnabled(id: UUID, enabled: Bool) {
+        guard let index = personalizationLibrary.styleProfiles.firstIndex(where: { $0.id == id }) else { return }
+        personalizationLibrary.styleProfiles[index].isEnabled = enabled
+        persistPersonalizationLibrary()
+    }
+
+    func deleteWritingStyleProfile(id: UUID) {
+        personalizationLibrary.styleProfiles.removeAll { $0.id == id }
+        persistPersonalizationLibrary()
+    }
+
+    private func persistPersonalizationLibrary() {
+        do {
+            try personalizationStore.save(personalizationLibrary)
+            lastError = nil
+        } catch {
+            lastError = "Cadence could not save personalization on this Mac."
+        }
     }
 
     var primaryTriggerMode: DictationTriggerMode {
