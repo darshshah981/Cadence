@@ -12,6 +12,8 @@ enum HUDMetrics {
 final class HUDWindowController {
     private enum Metrics {
         static let logoIdleSize = NSSize(width: 44, height: 44)
+        static let expandedTraySize = NSSize(width: 240, height: HUDMetrics.pillHeight)
+        static let controlsSize = NSSize(width: 188, height: HUDMetrics.pillHeight)
         static let holdSize = NSSize(width: HUDMetrics.compactWidth, height: HUDMetrics.pillHeight)
         static let holdHintSize = NSSize(width: HUDMetrics.holdHintWidth, height: HUDMetrics.pillHeight)
         static let lockedSize = NSSize(width: HUDMetrics.compactWidth, height: HUDMetrics.pillHeight)
@@ -30,12 +32,22 @@ final class HUDWindowController {
     private var tooltipPanel: NSPanel?
     private var pillHostingView: NSHostingView<HUDView>?
     private var subtitleHostingView: NSHostingView<HUDSubtitleView>?
-    private let viewModel = HUDViewModel()
+    let viewModel = HUDViewModel()
     private let dropZoneViewModel = HUDDropZoneViewModel()
     private let defaults = UserDefaults.standard
     private var dragStartOrigin: NSPoint?
     private var screenChangeObserver: NSObjectProtocol?
     private var tooltipDismissTask: Task<Void, Never>?
+    private var clickAwayMonitor: Any?
+    private var idleCollapseTask: Task<Void, Never>?
+    private static let idleCollapseSeconds: UInt64 = 8
+    private var isSuppressed = false
+
+    var onStop: (() -> Void)?
+    var onCancel: (() -> Void)?
+    var onCopyLast: (() -> Void)?
+    var onAddToDictionary: (() -> Void)?
+    var onHide: ((HUDHideDuration) -> Void)?
 
     init() {
         viewModel.onDrag = { [weak self] translation in
@@ -44,6 +56,13 @@ final class HUDWindowController {
         viewModel.onDragEnded = { [weak self] in
             self?.handleDragEnded()
         }
+        viewModel.onExpandToggle = { [weak self] expanded in
+            self?.handleExpandedChanged(expanded)
+        }
+        viewModel.onCopyLast = { [weak self] in self?.onCopyLast?() }
+        viewModel.onAddToDictionary = { [weak self] in self?.onAddToDictionary?() }
+        viewModel.onHide = { [weak self] duration in self?.onHide?(duration) }
+
         screenChangeObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
@@ -66,10 +85,17 @@ final class HUDWindowController {
         position(pillPanel: pillPanel)
     }
 
+    func setSuppressed(_ suppressed: Bool) {
+        isSuppressed = suppressed
+        if !suppressed {
+            update(with: viewModel.state)
+        }
+    }
+
     func update(with state: HUDState) {
         viewModel.apply(state)
 
-        guard state.isVisible else {
+        guard state.isVisible, !isSuppressed else {
             pillPanel?.orderOut(nil)
             subtitlePanel?.orderOut(nil)
             return
@@ -167,7 +193,7 @@ final class HUDWindowController {
     private func pillSize(for state: HUDState) -> NSSize {
         switch state.visualState {
         case .idle:
-            return Metrics.logoIdleSize
+            return viewModel.isExpanded ? Metrics.expandedTraySize : Metrics.logoIdleSize
         case .recording(let triggerMode, let showsHint):
             switch triggerMode {
             case .tapToStartStop:
@@ -355,6 +381,72 @@ final class HUDWindowController {
     private func markDragTooltipShown() {
         defaults.set(true, forKey: "Cadence.dragTooltipShown")
     }
+
+    // MARK: - Expandable Tray
+
+    private func handleExpandedChanged(_ expanded: Bool) {
+        guard let pillPanel, viewModel.state.visualState == .idle else { return }
+        let size = expanded ? Metrics.expandedTraySize : Metrics.logoIdleSize
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0, 0, 1)
+            pillPanel.animator().setFrame(.init(origin: pillPanel.frame.origin, size: size), display: true)
+        }
+        position(pillPanel: pillPanel)
+        if expanded {
+            installClickAwayMonitor()
+            startIdleCollapseTimer()
+        } else {
+            removeClickAwayMonitor()
+            cancelIdleCollapseTimer()
+        }
+    }
+
+    func showCopyConfirmation() {
+        viewModel.showCopyConfirmation = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1.2))
+            self?.viewModel.showCopyConfirmation = false
+        }
+    }
+
+    private func installClickAwayMonitor() {
+        removeClickAwayMonitor()
+        clickAwayMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self, let pillPanel = self.pillPanel, self.viewModel.isExpanded else { return event }
+            let locationInWindow = NSEvent.mouseLocation
+            if pillPanel.frame.contains(locationInWindow) { return event }
+            if event.window !== pillPanel, Self.isMenuWindow(event.window) { return event }
+            self.viewModel.setExpanded(false)
+            return event
+        }
+    }
+
+    private func removeClickAwayMonitor() {
+        if let clickAwayMonitor {
+            NSEvent.removeMonitor(clickAwayMonitor)
+            self.clickAwayMonitor = nil
+        }
+    }
+
+    private static func isMenuWindow(_ window: NSWindow?) -> Bool {
+        guard let window else { return false }
+        return window.className.contains("NSMenu") || window is NSMenu
+    }
+
+    private func startIdleCollapseTimer() {
+        cancelIdleCollapseTimer()
+        idleCollapseTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.idleCollapseSeconds))
+            guard !Task.isCancelled, let self else { return }
+            self.viewModel.setExpanded(false)
+        }
+    }
+
+    private func cancelIdleCollapseTimer() {
+        idleCollapseTask?.cancel()
+        idleCollapseTask = nil
+    }
 }
 
 struct HUDTooltipView: View {
@@ -378,18 +470,44 @@ struct HUDTooltipView: View {
     }
 }
 
+enum DictionaryFeedback: Equatable {
+    case idle
+    case capturing
+    case added
+    case nothingSelected
+    case failed
+}
+
 @MainActor
 final class HUDViewModel: ObservableObject {
     @Published private(set) var state = HUDState.idle
     @Published private(set) var displayBars = Array(repeating: 0.0, count: 16)
     @Published var position: HUDPosition = .bottomCenter
+    @Published var isExpanded = false
+    @Published var canCopyLast = false
+    @Published var showCopyConfirmation = false
+    @Published var dictionaryFeedback: DictionaryFeedback = .idle
 
     var onDrag: ((CGSize) -> Void)?
     var onDragEnded: (() -> Void)?
+    var onExpandToggle: ((Bool) -> Void)?
+    var onCopyLast: (() -> Void)?
+    var onAddToDictionary: (() -> Void)?
+    var onHide: ((HUDHideDuration) -> Void)?
 
     private var targetBars = Array(repeating: 0.0, count: 16)
     private var smoothingTask: Task<Void, Never>?
     private var reducedMotion = false
+    private var hasPulsedThisSession = false
+
+    var reduceMotionProvider: () -> Bool = {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    private static let activationPulseBars: [Double] = [
+        0.05, 0.15, 0.30, 0.50, 0.70, 0.85, 0.95, 0.90,
+        0.90, 0.95, 0.85, 0.70, 0.50, 0.30, 0.15, 0.05
+    ]
 
     func setReducedMotion(_ reducedMotion: Bool) {
         guard self.reducedMotion != reducedMotion else { return }
@@ -402,12 +520,35 @@ final class HUDViewModel: ObservableObject {
         }
     }
 
+    func toggleExpanded() {
+        isExpanded.toggle()
+        onExpandToggle?(isExpanded)
+    }
+
+    func setExpanded(_ expanded: Bool) {
+        guard isExpanded != expanded else { return }
+        isExpanded = expanded
+        onExpandToggle?(isExpanded)
+    }
+
+    static let dragThreshold: CGFloat = 4
+
+    nonisolated static func recognizeTap(translation: CGSize) -> Bool {
+        abs(translation.width) + abs(translation.height) < dragThreshold
+    }
+
     func apply(_ state: HUDState) {
+        let wasIdle = self.state.visualState == .idle
+        let wasVisible = self.state.isVisible
         self.state = state
+        if state.visualState != .idle, wasIdle, isExpanded {
+            setExpanded(false)
+        }
         targetBars = normalizedBars(from: state.waveformLevels)
 
         guard state.isVisible else {
             displayBars = Array(repeating: 0.0, count: 16)
+            hasPulsedThisSession = false
             smoothingTask?.cancel()
             smoothingTask = nil
             return
@@ -418,6 +559,11 @@ final class HUDViewModel: ObservableObject {
             smoothingTask?.cancel()
             smoothingTask = nil
             return
+        }
+
+        if !wasVisible, !hasPulsedThisSession, isRecordingState, !reduceMotionProvider() {
+            displayBars = Self.activationPulseBars
+            hasPulsedThisSession = true
         }
 
         guard smoothingTask == nil else { return }

@@ -49,6 +49,7 @@
 		ABAD465AB72369B95269DDFA /* SystemAudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DB6392F9F82CF975E2419B0 /* SystemAudioCaptureService.swift */; };
 		B61EFD617B4E75AC083EF588 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07592451F56FA01E1134A310 /* AppDelegate.swift */; };
 		BC36445E2622767E16C4D4B5 /* MockScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313AA9B02FCDB5A01080DE76 /* MockScribeProvider.swift */; };
+		BE3775994F8519CF5CBA8FDF /* FeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED3C6DD8BC26913A0F5ED418 /* FeedbackService.swift */; };
 		C3DB8E25F8D83D59D0D0CB53 /* ScribeCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF8C6312871F32727CBB8DA8 /* ScribeCoordinatorTests.swift */; };
 		C71EE7242BD181CB0DDC95E7 /* ScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19004982898DC1FD2A4774E4 /* ScribeProvider.swift */; };
 		C7F338241FF54CDBB0035A78 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF63FA1E7E53378DC4B66F6A /* AudioCaptureService.swift */; };
@@ -65,6 +66,7 @@
 		EE054AE21BAF7F07BF62DD2A /* WhisperKitTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A8C73B4837E38B0677B8E5 /* WhisperKitTranscriptionEngine.swift */; };
 		EF826D5DA46782A058A62AE8 /* TranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */; };
 		FB42AB240E3A107E5126D3C0 /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE629DF637FE0D79187F0CAF /* MainWindowView.swift */; };
+		FDBC510D1CB0219D26DE217F /* IdleExpandedTray.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF41CADF917C4FFF0F73654 /* IdleExpandedTray.swift */; };
 		FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */; };
 		FF67B1A27DA18B3BCFB2A756 /* MeetingRollingTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76231658305ADA779483A7F8 /* MeetingRollingTranscriptionService.swift */; };
 /* End PBXBuildFile section */
@@ -138,6 +140,8 @@
 		DF8C6312871F32727CBB8DA8 /* ScribeCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeCoordinatorTests.swift; sourceTree = "<group>"; };
 		E578BEB1EADBEB5800402E25 /* MeetingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingModels.swift; sourceTree = "<group>"; };
 		E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingNotesWindow.swift; sourceTree = "<group>"; };
+		EBF41CADF917C4FFF0F73654 /* IdleExpandedTray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleExpandedTray.swift; sourceTree = "<group>"; };
+		ED3C6DD8BC26913A0F5ED418 /* FeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackService.swift; sourceTree = "<group>"; };
 		F5E855124924D6CDE8135E7B /* ScribeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeTests.swift; sourceTree = "<group>"; };
 		F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionEngine.swift; sourceTree = "<group>"; };
 		FC22C16A79401A6870742A6E /* HUDWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDWindowController.swift; sourceTree = "<group>"; };
@@ -188,6 +192,7 @@
 			children = (
 				015505B1691B6CE2E9F788AB /* HUDDropZoneOverlay.swift */,
 				58943A986FD1C46B9F453ED0 /* HUDView.swift */,
+				EBF41CADF917C4FFF0F73654 /* IdleExpandedTray.swift */,
 				DE629DF637FE0D79187F0CAF /* MainWindowView.swift */,
 				E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */,
 				74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */,
@@ -235,6 +240,7 @@
 				CF63FA1E7E53378DC4B66F6A /* AudioCaptureService.swift */,
 				6A485E597733F3F0F173BF23 /* CalendarEventCacheStore.swift */,
 				9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */,
+				ED3C6DD8BC26913A0F5ED418 /* FeedbackService.swift */,
 				4F2F36578CB8F0AF6D9A0C63 /* FoundationModelsScribeProvider.swift */,
 				C1BA8806A19E0089A3DBB906 /* GoogleCalendarService.swift */,
 				36DCCAD2BECF88FDCBA8B4D3 /* HotkeyService.swift */,
@@ -394,12 +400,14 @@
 				5E268FC2CD9E558B8CEAFCE0 /* CalendarEventCacheStore.swift in Sources */,
 				A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */,
 				0A71E31A51D2EC604CDAF28F /* DictationModels.swift in Sources */,
+				BE3775994F8519CF5CBA8FDF /* FeedbackService.swift in Sources */,
 				827C3C6F3B9D6355BB6EE82B /* FoundationModelsScribeProvider.swift in Sources */,
 				944F0BE2AB36F33A1A8F3801 /* GoogleCalendarService.swift in Sources */,
 				3294D3FAE83F800F084A9845 /* HUDDropZoneOverlay.swift in Sources */,
 				D0ACFD368BDD7CB8693AB2D7 /* HUDView.swift in Sources */,
 				9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */,
 				D3E5CC707DAEC25A40DF8435 /* HotkeyService.swift in Sources */,
+				FDBC510D1CB0219D26DE217F /* IdleExpandedTray.swift in Sources */,
 				FB42AB240E3A107E5126D3C0 /* MainWindowView.swift in Sources */,
 				A5F36020AF84151664929781 /* MeetingAudioStore.swift in Sources */,
 				57F06125EB560A0004973BDA /* MeetingDetectionService.swift in Sources */,

@@ -69,6 +69,7 @@ final class AppModel: ObservableObject {
         static let scribeSidedModifierKeyCodes = "Cadence.scribeSidedModifierKeyCodes"
         static let transcriptHistory = "FlowState.transcriptHistory"
         static let showsShortcutDock = "Cadence.showsShortcutDock"
+        static let dictationSoundFeedbackEnabled = "Cadence.dictationSoundFeedbackEnabled"
         static let meetingCaptureSource = "Cadence.meetingCaptureSource"
         static let acknowledgedOrphanRecordingIDs = "Cadence.acknowledgedOrphanRecordingIDs"
         static let appearancePreference = "Cadence.appearancePreference"
@@ -126,6 +127,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var transcriptionConfiguration: TranscriptionConfiguration
     @Published private(set) var analyticsEnabled: Bool
     @Published private(set) var showsShortcutDock: Bool
+    @Published private(set) var dictationSoundFeedbackEnabled: Bool
     @Published private(set) var waveformSensitivity: Double
     @Published private(set) var appearancePreference: AppearancePreference
     @Published private(set) var personalizationLibrary: PersonalizationLibrary
@@ -146,6 +148,8 @@ final class AppModel: ObservableObject {
     private let scribePanelWindowController = ScribePanelWindowController()
     private let voiceSessionArbiter: VoiceSessionArbiter
     let onboardingMicrophoneMonitor: OnboardingMicrophoneMonitor
+    private let hudController: HUDWindowController
+    private let feedbackService: SoundFeedbackService
     private let analytics: AnalyticsService
     private let mainWindowController = MainWindowController()
     private let meetingStore: MeetingStore
@@ -189,6 +193,7 @@ final class AppModel: ObservableObject {
         self.transcriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
         let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
         let showsShortcutDock = (defaults.object(forKey: PreferenceKey.showsShortcutDock) as? Bool) ?? true
+        let dictationSoundFeedbackEnabled = (defaults.object(forKey: PreferenceKey.dictationSoundFeedbackEnabled) as? Bool) ?? true
         let waveformSensitivity = Self.loadWaveformSensitivity(defaults: defaults)
         let appearancePreference = Self.loadAppearancePreference(defaults: defaults)
         let personalizationStore = PersonalizationStore(defaults: defaults)
@@ -196,6 +201,7 @@ final class AppModel: ObservableObject {
         let onboardingProgress = onboardingProgressStore.load()
         self.analyticsEnabled = analyticsEnabled
         self.showsShortcutDock = showsShortcutDock
+        self.dictationSoundFeedbackEnabled = dictationSoundFeedbackEnabled
         self.waveformSensitivity = waveformSensitivity
         self.appearancePreference = appearancePreference
         self.personalizationStore = personalizationStore
@@ -261,6 +267,7 @@ final class AppModel: ObservableObject {
         self.permissions = permissionsService.snapshot()
 
         let hudController = HUDWindowController()
+        self.hudController = hudController
         let transcriptionEngine = WhisperKitTranscriptionEngine()
         let scribeTranscriptionEngine = WhisperKitTranscriptionEngine()
         let audioCaptureService = AudioCaptureService()
@@ -281,6 +288,9 @@ final class AppModel: ObservableObject {
         )
         self.hotkeyService = hotkeyService
 
+        let feedbackService = SoundFeedbackService(isEnabled: dictationSoundFeedbackEnabled)
+        self.feedbackService = feedbackService
+
         self.coordinator = DictationCoordinator(
             hotkeyService: hotkeyService,
             permissionsService: permissionsService,
@@ -289,6 +299,7 @@ final class AppModel: ObservableObject {
             textInsertionService: textInsertionService,
             hudController: hudController,
             analytics: analytics,
+            feedbackService: feedbackService,
             sessionArbiter: voiceSessionArbiter,
             personalizationStore: personalizationStore,
             waveformSensitivity: waveformSensitivity
@@ -1749,6 +1760,82 @@ final class AppModel: ObservableObject {
         analytics.track("shortcut_dock_visibility_changed", properties: ["visible": String(isVisible)])
     }
 
+    private func refreshHUDCanCopyLast() {
+        hudController.viewModel.canCopyLast = !transcriptHistory.isEmpty
+    }
+
+    private func captureSelectedTextForDictionary() {
+        let selected = AXUIElement.systemWide.selectedText
+        guard let text = selected, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            hudController.viewModel.dictionaryFeedback = .nothingSelected
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1.5))
+                self?.hudController.viewModel.dictionaryFeedback = .idle
+            }
+            return
+        }
+        hudController.viewModel.dictionaryFeedback = .capturing
+        let currentVocabulary = transcriptionConfiguration.vocabularyText
+        let updatedVocabulary: String
+        if currentVocabulary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            updatedVocabulary = text
+        } else {
+            updatedVocabulary = currentVocabulary + "\n" + text
+        }
+        setVocabularyText(updatedVocabulary)
+        hudController.viewModel.dictionaryFeedback = .added
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            self?.hudController.viewModel.dictionaryFeedback = .idle
+        }
+        analytics.track("word_added_to_dictionary", properties: ["length": .int(text.count)])
+    }
+
+    private var hudHiddenUntil: Date?
+    private var hudHideTask: Task<Void, Never>?
+
+    private func hideHUD(for duration: HUDHideDuration) {
+        hudHiddenUntil = duration.seconds.map { Date().addingTimeInterval($0) }
+        hudController.setSuppressed(true)
+        hudController.update(with: .init(
+            visualState: .idle,
+            subtitle: "",
+            level: 0,
+            waveformLevels: [],
+            isVisible: false,
+            showsSubtitle: false
+        ))
+        cancelHUDSessionResumeTimer()
+        if duration == .untilNextSession {
+            return
+        }
+        hudHideTask = Task { @MainActor [weak self] in
+            guard let self, let seconds = duration.seconds else { return }
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled else { return }
+            self.resumeHUD()
+            self.coordinator.presentLogoIdle()
+        }
+    }
+
+    private func cancelHUDSessionResumeTimer() {
+        hudHideTask?.cancel()
+        hudHideTask = nil
+    }
+
+    private func resumeHUD() {
+        hudHiddenUntil = nil
+        cancelHUDSessionResumeTimer()
+        hudController.setSuppressed(false)
+    }
+
+    func setDictationSoundFeedbackEnabled(_ enabled: Bool) {
+        guard dictationSoundFeedbackEnabled != enabled else { return }
+        dictationSoundFeedbackEnabled = enabled
+        defaults.set(enabled, forKey: PreferenceKey.dictationSoundFeedbackEnabled)
+        feedbackService.isEnabled = enabled
+    }
+
     private var currentHotkeyBindings: [HotkeyBinding] {
         Self.currentHotkeyBindings(
             hold: holdToTalkBinding,
@@ -1762,6 +1849,7 @@ final class AppModel: ObservableObject {
             self?.state = state
             if case .listening = state {
                 self?.clearTransientCaptureErrorIfNeeded()
+                self?.resumeHUD()
             }
         }
 
@@ -1793,6 +1881,24 @@ final class AppModel: ObservableObject {
         coordinator.onBackendStatus = { [weak self] summary in
             self?.backendDescription = summary
         }
+
+        hudController.onCopyLast = { [weak self] in
+            guard let self, let latest = self.transcriptHistory.first else { return }
+            self.copyTranscript(latest)
+            self.hudController.showCopyConfirmation()
+        }
+
+        hudController.onAddToDictionary = { [weak self] in
+            guard let self else { return }
+            self.captureSelectedTextForDictionary()
+        }
+
+        hudController.onHide = { [weak self] duration in
+            guard let self else { return }
+            self.hideHUD(for: duration)
+        }
+
+        hudController.viewModel.canCopyLast = !transcriptHistory.isEmpty
     }
 
     private func bindHotkeyDiagnostics() {
@@ -2080,6 +2186,7 @@ final class AppModel: ObservableObject {
             transcriptHistory = Array(transcriptHistory.prefix(20))
         }
         persistTranscriptHistory()
+        refreshHUDCanCopyLast()
     }
 
     private func persistMeetingNote(_ note: MeetingNote) {
@@ -3172,5 +3279,30 @@ private final class MeetingAudioStopGate: @unchecked Sendable {
         guard !didResume else { return }
         didResume = true
         continuation.resume(returning: result)
+    }
+}
+
+private extension AXUIElement {
+    static let systemWide = AXUIElementCreateSystemWide()
+
+    var selectedText: String? {
+        var selectedRange: CFTypeRef?
+        let err = AXUIElementCopyAttributeValue(
+            AXUIElement.systemWide,
+            "AXFocusedApplication" as CFString,
+            &selectedRange
+        )
+        guard err == .success, let focusedApp = selectedRange else { return nil }
+        let appElement: AXUIElement = focusedApp as! AXUIElement
+
+        var focusedUIElement: CFTypeRef?
+        let uiErr = AXUIElementCopyAttributeValue(appElement, "AXFocusedUIElement" as CFString, &focusedUIElement)
+        guard uiErr == .success, let focused = focusedUIElement else { return nil }
+        let element: AXUIElement = focused as! AXUIElement
+
+        var selectedTextValue: CFTypeRef?
+        let textErr = AXUIElementCopyAttributeValue(element, "AXSelectedText" as CFString, &selectedTextValue)
+        guard textErr == .success, let text = selectedTextValue as? String else { return nil }
+        return text
     }
 }

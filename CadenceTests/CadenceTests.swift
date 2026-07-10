@@ -2761,6 +2761,142 @@ struct CadenceTests {
         }
         return String(data: response, encoding: .utf8) ?? ""
     }
+
+    @Test
+    @MainActor
+    func soundFeedbackServiceDefaultsToEnabled() {
+        let service = SoundFeedbackService()
+        #expect(service.isEnabled)
+    }
+
+    @Test
+    @MainActor
+    func soundFeedbackServiceRespectsDisabledFlag() {
+        let service = SoundFeedbackService(isEnabled: false)
+        #expect(!service.isEnabled)
+        service.playActivationSound()
+    }
+
+    @Test
+    @MainActor
+    func capturingFeedbackServiceRecordsActivationWhenEnabled() {
+        let service = CapturingFeedbackService()
+        service.isEnabled = true
+        service.playActivationSound()
+        #expect(service.activationSoundCallCount == 1)
+    }
+
+    @Test
+    @MainActor
+    func capturingFeedbackServiceSkipsActivationWhenDisabled() {
+        let service = CapturingFeedbackService()
+        service.isEnabled = false
+        service.playActivationSound()
+        #expect(service.activationSoundCallCount == 0)
+    }
+
+    @Test
+    @MainActor
+    func hudViewModelInjectsPulseOnHiddenToRecordingTransition() {
+        let viewModel = HUDViewModel()
+        viewModel.reduceMotionProvider = { false }
+
+        viewModel.apply(HUDState.idle)
+
+        let recordingState = HUDState(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            subtitle: "",
+            level: 0.1,
+            waveformLevels: Array(repeating: 0.0, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        )
+        viewModel.apply(recordingState)
+
+        #expect(viewModel.displayBars.contains { $0 > 0.1 })
+    }
+
+    @Test
+    @MainActor
+    func hudViewModelDoesNotReInjectPulseOnSubsequentUpdates() {
+        let viewModel = HUDViewModel()
+        viewModel.reduceMotionProvider = { false }
+
+        let recordingState = HUDState(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            subtitle: "",
+            level: 0.1,
+            waveformLevels: Array(repeating: 0.0, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        )
+        viewModel.apply(HUDState.idle)
+        viewModel.apply(recordingState)
+
+        let firstBars = viewModel.displayBars
+
+        viewModel.apply(recordingState)
+        viewModel.apply(recordingState)
+
+        for index in 0..<16 {
+            #expect(viewModel.displayBars[index] <= firstBars[index] + 0.001)
+        }
+    }
+
+    @Test
+    @MainActor
+    func hudViewModelResetsPulseFlagWhenHidden() {
+        let viewModel = HUDViewModel()
+        viewModel.reduceMotionProvider = { false }
+
+        let recordingState = HUDState(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            subtitle: "",
+            level: 0.1,
+            waveformLevels: Array(repeating: 0.0, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        )
+        viewModel.apply(HUDState.idle)
+        viewModel.apply(recordingState)
+        #expect(viewModel.displayBars.contains { $0 > 0.1 })
+
+        viewModel.apply(HUDState.idle)
+        #expect(viewModel.displayBars.allSatisfy { $0 == 0 })
+
+        viewModel.apply(recordingState)
+        #expect(viewModel.displayBars.contains { $0 > 0.1 })
+    }
+
+    @Test
+    @MainActor
+    func hudViewModelSkipsPulseWhenReduceMotionActive() {
+        let viewModel = HUDViewModel()
+        viewModel.reduceMotionProvider = { true }
+
+        let recordingState = HUDState(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            subtitle: "",
+            level: 0.1,
+            waveformLevels: Array(repeating: 0.0, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        )
+        viewModel.apply(HUDState.idle)
+        viewModel.apply(recordingState)
+
+        #expect(viewModel.displayBars.allSatisfy { $0 == 0 })
+    }
+}
+
+private final class CapturingFeedbackService: FeedbackServing {
+    var isEnabled: Bool = true
+    private(set) var activationSoundCallCount = 0
+
+    func playActivationSound() {
+        guard isEnabled else { return }
+        activationSoundCallCount += 1
+    }
 }
 
 private final class CapturingAnalyticsSink: AnalyticsSink, @unchecked Sendable {
@@ -3045,5 +3181,140 @@ private final actor SlowFinalizationTranscriptionEngine: TranscriptionEngine {
 
     func statusSummary() async -> String {
         "Slow finalization test engine"
+    }
+}
+
+struct IdleExpandedTrayTests {
+    @Test
+    @MainActor
+    func hudViewModelIsExpandedDefaultsToFalse() {
+        let model = HUDViewModel()
+        #expect(model.isExpanded == false)
+    }
+
+    @Test
+    @MainActor
+    func toggleExpandedFlipsStateAndFiresCallback() {
+        let model = HUDViewModel()
+        var callbacks: [Bool] = []
+        model.onExpandToggle = { callbacks.append($0) }
+
+        model.toggleExpanded()
+        #expect(model.isExpanded == true)
+        model.toggleExpanded()
+        #expect(model.isExpanded == false)
+        #expect(callbacks == [true, false])
+    }
+
+    @Test
+    @MainActor
+    func setExpandedOnlyFiresWhenChanged() {
+        let model = HUDViewModel()
+        var callCount = 0
+        model.onExpandToggle = { _ in callCount += 1 }
+
+        model.setExpanded(false)
+        #expect(callCount == 0)
+        model.setExpanded(true)
+        #expect(callCount == 1)
+        model.setExpanded(true)
+        #expect(callCount == 1)
+    }
+
+    @Test
+    @MainActor
+    func applyAutoCollapsesWhenLeavingIdle() {
+        let model = HUDViewModel()
+        model.apply(.logoIdle)
+        model.setExpanded(true)
+        #expect(model.isExpanded == true)
+
+        model.apply(HUDState(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            subtitle: "", level: 0, waveformLevels: [], isVisible: true, showsSubtitle: false
+        ))
+
+        #expect(model.isExpanded == false)
+    }
+
+    @Test
+    @MainActor
+    func applyDoesNotCollapseWhenStayingIdle() {
+        let model = HUDViewModel()
+        model.setExpanded(true)
+
+        model.apply(.logoIdle)
+
+        #expect(model.isExpanded == true)
+    }
+
+    @Test
+    func hudVisualStateIdleIsDistinctFromOtherCases() {
+        #expect(HUDVisualState.idle != .recording(triggerMode: .holdToTalk, showsHint: false))
+        #expect(HUDVisualState.idle != .preparingModel)
+        #expect(HUDVisualState.idle != .transcribing)
+    }
+
+    @Test
+    func hudStateLogoIdleIsVisible() {
+        #expect(HUDState.logoIdle.isVisible == true)
+        #expect(HUDState.logoIdle.visualState == .idle)
+    }
+
+    @Test
+    func hudStateIdleIsTrulyHidden() {
+        #expect(HUDState.idle.isVisible == false)
+        #expect(HUDState.logoIdle.isVisible == true)
+    }
+}
+
+struct TapDragDisambiguationTests {
+    @Test
+    func recognizeTapReturnsTrueForSmallTranslation() {
+        #expect(HUDViewModel.recognizeTap(translation: CGSize(width: 2, height: 1)) == true)
+    }
+
+    @Test
+    func recognizeTapReturnsFalseForLargeTranslation() {
+        #expect(HUDViewModel.recognizeTap(translation: CGSize(width: 20, height: 5)) == false)
+    }
+
+    @Test
+    func recognizeTapReturnsTrueAtExactThreshold() {
+        #expect(HUDViewModel.recognizeTap(translation: CGSize(width: 2, height: 1)) == true)
+    }
+
+    @Test
+    func recognizeTapReturnsTrueForZeroTranslation() {
+        #expect(HUDViewModel.recognizeTap(translation: .zero) == true)
+    }
+}
+
+struct HUDHideDurationTests {
+    @Test
+    func tenMinutesIs600Seconds() {
+        #expect(HUDHideDuration.tenMinutes.seconds == 600)
+    }
+
+    @Test
+    func oneHourIs3600Seconds() {
+        #expect(HUDHideDuration.oneHour.seconds == 3600)
+    }
+
+    @Test
+    func untilNextSessionHasNilSeconds() {
+        #expect(HUDHideDuration.untilNextSession.seconds == nil)
+    }
+
+    @Test
+    func allCasesContainThreeOptions() {
+        #expect(HUDHideDuration.allCases.count == 3)
+    }
+
+    @Test
+    func displayNamesAreHumanReadable() {
+        #expect(HUDHideDuration.tenMinutes.displayName == "Hide for 10 minutes")
+        #expect(HUDHideDuration.oneHour.displayName == "Hide for 1 hour")
+        #expect(HUDHideDuration.untilNextSession.displayName == "Hide until next session")
     }
 }
