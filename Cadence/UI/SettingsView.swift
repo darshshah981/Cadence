@@ -13,6 +13,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 setupSection
                 startStopSection
+                scribeSection
                 captureSection
                 writingStyleSection
                 privacySection
@@ -71,6 +72,33 @@ struct SettingsView: View {
                 meetingNotesRow
                 insetDivider
                 setupCheckRow
+            }
+        }
+    }
+
+    private var scribeSection: some View {
+        settingsSection(title: "Scribe", systemImage: "sparkles") {
+            FlowSectionCard {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: appModel.scribeReadiness.canGenerate ? "sparkles" : "lock.fill")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(appModel.scribeReadiness.canGenerate ? FlowTheme.success : FlowTheme.textTertiary)
+                        .frame(width: 20)
+
+                    SettingsLabelRow(
+                        title: appModel.scribeReadiness.canGenerate ? "Ready to draft" : "Literal Dictation remains available",
+                        description: appModel.scribeProviderStatus
+                    )
+
+                    Spacer()
+
+                    Button("Try Scribe") {
+                        appModel.showScribe()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(12)
             }
         }
     }
@@ -437,6 +465,17 @@ struct SettingsView: View {
 
             insetDivider
 
+            ShortcutSettingRow(
+                title: "Open Scribe",
+                description: "Choose whether to draft, respond, or edit selected text.",
+                hint: "Separate from Dictation. \(appModel.scribeProviderStatus)",
+                isEnabled: scribeEnabledBinding,
+                shortcut: scribeShortcutBinding,
+                onRecordingChange: appModel.setShortcutRecordingActive
+            )
+
+            insetDivider
+
             SettingsToggleRow(
                 title: "Shortcut reminder",
                 description: "Show a small reminder while Cadence is waiting for your voice.",
@@ -452,7 +491,7 @@ struct SettingsView: View {
                 .foregroundStyle(FlowTheme.success)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Cadence is ready")
+                Text("Dictation is ready")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(FlowTheme.textPrimary)
 
@@ -542,6 +581,13 @@ struct SettingsView: View {
         )
     }
 
+    private var scribeShortcutBinding: Binding<HotkeyConfiguration> {
+        Binding(
+            get: { appModel.scribeBinding.shortcut },
+            set: { appModel.setShortcut($0, for: .scribe) }
+        )
+    }
+
     private var tapStopsOnNextKeyPressBinding: Binding<Bool> {
         Binding(
             get: { appModel.transcriptionConfiguration.tapStopsOnNextKeyPress },
@@ -604,6 +650,13 @@ struct SettingsView: View {
         Binding(
             get: { appModel.tapToStartStopBinding.isEnabled },
             set: { appModel.setTapToStartStopEnabled($0) }
+        )
+    }
+
+    private var scribeEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { appModel.scribeBinding.isEnabled },
+            set: { appModel.setScribeEnabled($0) }
         )
     }
 

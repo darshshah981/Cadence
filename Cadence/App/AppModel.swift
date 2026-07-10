@@ -96,6 +96,7 @@ final class AppModel: ObservableObject {
 
     @Published private(set) var permissions: PermissionsSnapshot
     @Published private(set) var state: DictationSessionState = .idle
+    @Published private(set) var scribeState: ScribeSessionState = .idle
     @Published private(set) var hudState = HUDState.idle
     @Published private(set) var lastTranscript = ""
     @Published private(set) var transcriptHistory: [TranscriptHistoryItem]
@@ -135,6 +136,10 @@ final class AppModel: ObservableObject {
     private let permissionGuideWindowController = PermissionGuideWindowController()
     private let hotkeyService: HotkeyService
     private let coordinator: DictationCoordinator
+    private let scribeCoordinator: ScribeCoordinator
+    private let scribeTranscriptionEngine: TranscriptionEngine
+    private let scribePanelWindowController = ScribePanelWindowController()
+    private let voiceSessionArbiter: VoiceSessionArbiter
     private let analytics: AnalyticsService
     private let mainWindowController = MainWindowController()
     private let meetingStore: MeetingStore
@@ -162,6 +167,7 @@ final class AppModel: ObservableObject {
     private var activeMeetingCaptureChunkQueue: MeetingCaptureChunkQueue?
     @Published private var activeMeetingCaptureStartedAt: Date?
     private var meetingCaptureStopTask: Task<Void, Never>?
+    private var meetingVoiceSessionLease: VoiceSessionLease?
     private var calendarDetectionTimer: Timer?
     private var promptedCalendarEventIDs = Set<String>()
 
@@ -240,8 +246,13 @@ final class AppModel: ObservableObject {
 
         let hudController = HUDWindowController()
         let transcriptionEngine = WhisperKitTranscriptionEngine()
+        let scribeTranscriptionEngine = WhisperKitTranscriptionEngine()
         let audioCaptureService = AudioCaptureService()
+        let scribeAudioCaptureService = AudioCaptureService()
         let textInsertionService = TextInsertionService()
+        let voiceSessionArbiter = VoiceSessionArbiter()
+        self.voiceSessionArbiter = voiceSessionArbiter
+        self.scribeTranscriptionEngine = scribeTranscriptionEngine
         let hotkeyService = HotkeyService(
             bindings: Self.currentHotkeyBindings(
                 hold: initialHoldBinding,
@@ -259,11 +270,21 @@ final class AppModel: ObservableObject {
             textInsertionService: textInsertionService,
             hudController: hudController,
             analytics: analytics,
+            sessionArbiter: voiceSessionArbiter,
             waveformSensitivity: waveformSensitivity
+        )
+        self.scribeCoordinator = ScribeCoordinator(
+            audioCaptureService: scribeAudioCaptureService,
+            transcriptionEngine: scribeTranscriptionEngine,
+            provider: Self.makeScribeProvider(),
+            contextService: ScribeContextService(),
+            textInsertionService: textInsertionService,
+            sessionArbiter: voiceSessionArbiter
         )
 
         applyAppearancePreference()
         bindCoordinator()
+        bindScribeCoordinator()
         bindHotkeyDiagnostics()
         bindPermissionRefresh()
         AppDelegate.openMainWindow = { [weak self] in
@@ -322,6 +343,22 @@ final class AppModel: ObservableObject {
             .filter(\.isEnabled)
             .map { "\($0.action.displayName): \($0.shortcut.displayName)" }
             .joined(separator: " • ")
+    }
+
+    var scribeProviderStatus: String {
+        #if DEBUG
+        return "Local preview provider · no network"
+        #else
+        return "Private mode · literal fallback only"
+        #endif
+    }
+
+    var scribeReadiness: ScribeReadiness {
+        ScribeReadiness(
+            privacyMode: Self.scribePrivacyMode,
+            providerCapabilities: Self.makeScribeProvider().capabilities,
+            permissionsGranted: permissions.allRequiredGranted
+        )
     }
 
     var primaryTriggerMode: DictationTriggerMode {
@@ -999,6 +1036,16 @@ final class AppModel: ObservableObject {
             return
         }
 
+        do {
+            meetingVoiceSessionLease = try voiceSessionArbiter.acquire(for: .meeting)
+        } catch let VoiceSessionArbiterError.busy(activeKind) {
+            systemAudioCaptureState = .failed("Stop the active \(activeKind.rawValue) session before recording a meeting.")
+            return
+        } catch {
+            systemAudioCaptureState = .failed("Cadence could not reserve audio capture for this meeting.")
+            return
+        }
+
         let captureSource = meetingCaptureSource
         let recordingID = UUID()
         let audioRecorder: MeetingAudioRecorder
@@ -1009,6 +1056,7 @@ final class AppModel: ObservableObject {
                 source: captureSource
             )
         } catch {
+            releaseMeetingVoiceSessionLease()
             systemAudioCaptureState = .failed(error.localizedDescription)
             lastError = error.localizedDescription
             return
@@ -1096,6 +1144,7 @@ final class AppModel: ObservableObject {
                 self.activeMeetingAudioRecorder = nil
                 self.activeMeetingCaptureChunkQueue = nil
                 self.activeMeetingCaptureStartedAt = nil
+                self.releaseMeetingVoiceSessionLease()
                 self.systemAudioCaptureState = .failed(error.localizedDescription)
                 self.lastError = error.localizedDescription
                 self.analytics.track(
@@ -1133,6 +1182,7 @@ final class AppModel: ObservableObject {
             let service = self.meetingTranscriptionService
             self.systemAudioCaptureLevel = 0
             let metrics = await self.stopActiveMeetingCaptureServicesWithTimeout()
+            self.releaseMeetingVoiceSessionLease()
             await chunkQueue?.drain()
             self.systemAudioCapturedFrameCount = metrics.frameCount
             var recording = await recorder?.finish(fallbackMetrics: metrics)
@@ -1731,6 +1781,169 @@ final class AppModel: ObservableObject {
 
     private func refreshRegisteredHotkeys() {
         coordinator.updateHotkeyBindings(sanitizedHotkeyBindings())
+    }
+
+    func showScribe() {
+        switch scribeState {
+        case .idle, .succeeded, .cancelled, .failed:
+            scribeState = .choosingIntent
+            scribePanelWindowController.presentIntentPicker(providerStatus: scribeProviderStatus)
+        default:
+            scribePanelWindowController.update(
+                state: scribeState,
+                failureMessage: scribeFailureMessage,
+                literalTranscript: scribeCoordinator.literalTranscript
+            )
+        }
+    }
+
+    private func beginScribe(intent: ScribeIntent) {
+        guard permissions.allRequiredGranted else {
+            lastError = "Finish microphone, Accessibility, and Input Monitoring setup before using Scribe."
+            scribePanelWindowController.update(
+                state: .failed(requestID: nil, error: .unavailable),
+                failureMessage: lastError,
+                literalTranscript: nil
+            )
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.scribeTranscriptionEngine.updateConfiguration(self.transcriptionConfiguration)
+                try await self.scribeCoordinator.begin(intent: intent)
+                self.lastError = nil
+            } catch let error as ScribeContextError {
+                self.lastError = error.userMessage
+                self.scribeState = .failed(requestID: nil, error: .unavailable)
+                self.scribePanelWindowController.update(
+                    state: self.scribeState,
+                    failureMessage: error.userMessage,
+                    literalTranscript: nil
+                )
+            } catch let VoiceSessionArbiterError.busy(activeKind) {
+                let message = "Stop the active \(activeKind.rawValue) session before starting Scribe."
+                self.lastError = message
+                self.scribeState = .failed(requestID: nil, error: .unavailable)
+                self.scribePanelWindowController.update(
+                    state: self.scribeState,
+                    failureMessage: message,
+                    literalTranscript: nil
+                )
+            } catch {
+                let message = "Scribe could not start. Check microphone access and try again."
+                self.lastError = message
+                self.scribeState = .failed(requestID: nil, error: .unavailable)
+                self.scribePanelWindowController.update(
+                    state: self.scribeState,
+                    failureMessage: message,
+                    literalTranscript: nil
+                )
+            }
+        }
+    }
+
+    private func stopScribeRecording() {
+        Task { @MainActor [weak self] in
+            await self?.scribeCoordinator.finishRecording()
+        }
+    }
+
+    private func cancelScribe() {
+        if scribeState == .choosingIntent {
+            scribeState = .idle
+            scribePanelWindowController.close()
+            return
+        }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.scribeCoordinator.cancel()
+            try? await Task.sleep(for: .milliseconds(500))
+            guard case .cancelled = self.scribeState else { return }
+            self.scribeState = .idle
+            self.scribePanelWindowController.close()
+        }
+    }
+
+    private func retryScribe() {
+        Task { @MainActor [weak self] in
+            await self?.scribeCoordinator.retryGeneration()
+        }
+    }
+
+    private func insertScribeResult() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.scribeCoordinator.insertReviewedResult()
+                try? await Task.sleep(for: .milliseconds(650))
+                guard case .succeeded = self.scribeState else { return }
+                self.scribeState = .idle
+                self.scribePanelWindowController.close()
+            } catch let error as ScribeContextError {
+                self.scribePanelWindowController.update(
+                    state: self.scribeState,
+                    failureMessage: error.userMessage,
+                    literalTranscript: self.scribeCoordinator.literalTranscript
+                )
+            } catch {
+                self.lastError = "Cadence could not safely insert that draft. Copy it instead."
+            }
+        }
+    }
+
+    private func copyScribeResult() {
+        guard let text = scribeCoordinator.reviewedResult?.text else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private var scribeFailureMessage: String? {
+        switch scribeCoordinator.failure {
+        case let .provider(error):
+            return error.userMessage
+        case let .context(error):
+            return error.userMessage
+        case let .voiceSessionBusy(kind):
+            return "Stop the active \(kind.rawValue) session before starting Scribe."
+        case .transcription:
+            return "Cadence could not transcribe that request. Try again or use Dictation."
+        case .uncertainInsertion:
+            return "Some text may have been inserted. Cadence will not retry automatically."
+        case nil:
+            return nil
+        }
+    }
+
+    private func bindScribeCoordinator() {
+        coordinator.onScribeRequested = { [weak self] in
+            self?.showScribe()
+        }
+        scribeCoordinator.onStateChange = { [weak self] state in
+            guard let self else { return }
+            self.scribeState = state
+            self.scribePanelWindowController.update(
+                state: state,
+                failureMessage: self.scribeFailureMessage,
+                literalTranscript: self.scribeCoordinator.literalTranscript
+            )
+        }
+
+        let viewModel = scribePanelWindowController.viewModel
+        viewModel.onChooseIntent = { [weak self] intent in self?.beginScribe(intent: intent) }
+        viewModel.onStop = { [weak self] in self?.stopScribeRecording() }
+        viewModel.onCancel = { [weak self] in self?.cancelScribe() }
+        viewModel.onRetry = { [weak self] in self?.retryScribe() }
+        viewModel.onUseLiteral = { [weak self] in self?.scribeCoordinator.useLiteralTranscript() }
+        viewModel.onInsert = { [weak self] in self?.insertScribeResult() }
+        viewModel.onCopy = { [weak self] in self?.copyScribeResult() }
+    }
+
+    private func releaseMeetingVoiceSessionLease() {
+        guard let meetingVoiceSessionLease else { return }
+        voiceSessionArbiter.release(meetingVoiceSessionLease)
+        self.meetingVoiceSessionLease = nil
     }
 
     private func appendTranscriptToHistory(_ transcript: String, sessionID: String?) {
@@ -2803,6 +3016,24 @@ final class AppModel: ObservableObject {
                 sidedModifierKeyCodes: PreferenceKey.scribeSidedModifierKeyCodes
             )
         }
+    }
+
+    private static var scribePrivacyMode: ScribePrivacyMode {
+        #if DEBUG
+        return .approvedProvider
+        #else
+        return .privateMode
+        #endif
+    }
+
+    private static func makeScribeProvider() -> any ScribeProvider {
+        #if DEBUG
+        return MockScribeProvider(responses: [
+            .success("This is a local preview draft from Cadence. Review it before inserting.")
+        ])
+        #else
+        return UnavailableScribeProvider()
+        #endif
     }
 }
 

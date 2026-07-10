@@ -5,8 +5,8 @@ import SwiftUI
 final class HUDWindowController {
     private enum Metrics {
         static let pillHeight: CGFloat = 38
-        static let holdSize = NSSize(width: 156, height: pillHeight)
-        static let holdHintSize = NSSize(width: 244, height: pillHeight)
+        static let holdSize = NSSize(width: 176, height: pillHeight)
+        static let holdHintSize = NSSize(width: 260, height: pillHeight)
         static let controlsSize = NSSize(width: 224, height: pillHeight)
         static let statusSize = NSSize(width: 236, height: pillHeight)
         static let subtitleSize = NSSize(width: 320, height: 36)

@@ -47,6 +47,7 @@ final class DictationCoordinator {
     var onPreviewTranscript: ((PreviewTranscript) -> Void)?
     var onError: ((String) -> Void)?
     var onBackendStatus: ((String) -> Void)?
+    var onScribeRequested: (() -> Void)?
 
     private let hotkeyService: HotkeyService
     private let permissionsService: PermissionsService
@@ -55,6 +56,7 @@ final class DictationCoordinator {
     private let textInsertionService: TextInsertionServing
     private let hudController: HUDWindowController
     private let analytics: AnalyticsService
+    private let sessionArbiter: VoiceSessionArbiter
     private var transcriptionConfiguration = TranscriptionConfiguration()
     private var activeTriggerMode: DictationTriggerMode?
     private var stopTapDictationOnNextKeyPress = false
@@ -72,6 +74,7 @@ final class DictationCoordinator {
     private var lastSuccessfulCompletionAt: Date?
     private var terminalHUDTask: Task<Void, Never>?
     private var hudPresentationGeneration = 0
+    private var voiceSessionLease: VoiceSessionLease?
 
     private var state: DictationSessionState = .idle {
         didSet { onStateChange?(state) }
@@ -85,6 +88,7 @@ final class DictationCoordinator {
         textInsertionService: TextInsertionServing,
         hudController: HUDWindowController,
         analytics: AnalyticsService,
+        sessionArbiter: VoiceSessionArbiter,
         waveformSensitivity: Double = 1.0
     ) {
         self.hotkeyService = hotkeyService
@@ -94,6 +98,7 @@ final class DictationCoordinator {
         self.textInsertionService = textInsertionService
         self.hudController = hudController
         self.analytics = analytics
+        self.sessionArbiter = sessionArbiter
         self.waveformSensitivity = Self.sanitizedWaveformSensitivity(waveformSensitivity)
 
         self.hudController.onStop = { [weak self] in
@@ -173,7 +178,7 @@ final class DictationCoordinator {
                 break
             }
         case .scribe:
-            break
+            onScribeRequested?()
         }
     }
 
@@ -207,6 +212,8 @@ final class DictationCoordinator {
                 analytics.track("dictation_blocked", properties: ["reason": "permissions"])
                 throw CadenceError.missingRequiredPermissions
             }
+
+            voiceSessionLease = try sessionArbiter.acquire(for: .dictation)
 
             activeTriggerMode = triggerMode
             let sessionID = Self.makeAnalyticsSessionID()
@@ -285,6 +292,7 @@ final class DictationCoordinator {
             )
             warmBackendForCurrentSession()
         } catch {
+            releaseVoiceSessionLease()
             activeTriggerMode = nil
             activeTargetApplication = nil
             publishError(error.localizedDescription)
@@ -438,6 +446,7 @@ final class DictationCoordinator {
             activeTargetApplication = nil
             sessionStartedAt = nil
             activeSessionID = nil
+            releaseVoiceSessionLease()
             state = .idle
             publishTerminalHUD(.success)
         } catch {
@@ -469,6 +478,7 @@ final class DictationCoordinator {
             activeTargetApplication = nil
             sessionStartedAt = nil
             activeSessionID = nil
+            releaseVoiceSessionLease()
             publishError(error.localizedDescription)
         }
     }
@@ -705,6 +715,7 @@ final class DictationCoordinator {
         let metrics = audioCaptureService.stopCapture()
         stopPreviewLoop()
         await transcriptionEngine.cancelSession()
+        releaseVoiceSessionLease()
         analytics.track(
             "dictation_cancelled",
             properties: [
@@ -722,6 +733,12 @@ final class DictationCoordinator {
         activeSessionID = nil
         state = .idle
         publishTerminalHUD(.cancelled)
+    }
+
+    private func releaseVoiceSessionLease() {
+        guard let voiceSessionLease else { return }
+        sessionArbiter.release(voiceSessionLease)
+        self.voiceSessionLease = nil
     }
 
     private func sessionAnalyticsProperties(triggerMode: DictationTriggerMode) -> [String: AnalyticsValue] {
