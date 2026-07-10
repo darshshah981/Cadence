@@ -64,6 +64,7 @@ final class AppModel: ObservableObject {
         static let tapSidedModifierKeyCodes = "Cadence.tapSidedModifierKeyCodes"
         static let transcriptHistory = "FlowState.transcriptHistory"
         static let showsShortcutDock = "Cadence.showsShortcutDock"
+        static let dictationSoundFeedbackEnabled = "Cadence.dictationSoundFeedbackEnabled"
         static let meetingCaptureSource = "Cadence.meetingCaptureSource"
         static let appearancePreference = "Cadence.appearancePreference"
         static let firstSuccessfulDictationTracked = "Cadence.firstSuccessfulDictationTracked"
@@ -119,6 +120,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var transcriptionConfiguration: TranscriptionConfiguration
     @Published private(set) var analyticsEnabled: Bool
     @Published private(set) var showsShortcutDock: Bool
+    @Published private(set) var dictationSoundFeedbackEnabled: Bool
     @Published private(set) var waveformSensitivity: Double
     @Published private(set) var appearancePreference: AppearancePreference
     @Published var menuScreen: MenuScreen = .home
@@ -130,6 +132,7 @@ final class AppModel: ObservableObject {
     private let permissionGuideWindowController = PermissionGuideWindowController()
     private let hotkeyService: HotkeyService
     private let coordinator: DictationCoordinator
+    private let feedbackService: SoundFeedbackService
     private let analytics: AnalyticsService
     private let mainWindowController = MainWindowController()
     private let meetingStore: MeetingStore
@@ -167,10 +170,12 @@ final class AppModel: ObservableObject {
         self.transcriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
         let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
         let showsShortcutDock = (defaults.object(forKey: PreferenceKey.showsShortcutDock) as? Bool) ?? true
+        let dictationSoundFeedbackEnabled = (defaults.object(forKey: PreferenceKey.dictationSoundFeedbackEnabled) as? Bool) ?? true
         let waveformSensitivity = Self.loadWaveformSensitivity(defaults: defaults)
         let appearancePreference = Self.loadAppearancePreference(defaults: defaults)
         self.analyticsEnabled = analyticsEnabled
         self.showsShortcutDock = showsShortcutDock
+        self.dictationSoundFeedbackEnabled = dictationSoundFeedbackEnabled
         self.waveformSensitivity = waveformSensitivity
         self.appearancePreference = appearancePreference
         self.meetingCaptureSource = AppModel.loadMeetingCaptureSource(defaults: defaults)
@@ -227,6 +232,9 @@ final class AppModel: ObservableObject {
         let hotkeyService = HotkeyService(bindings: Self.currentHotkeyBindings(hold: initialHoldBinding, tap: initialTapBinding))
         self.hotkeyService = hotkeyService
 
+        let feedbackService = SoundFeedbackService(isEnabled: dictationSoundFeedbackEnabled)
+        self.feedbackService = feedbackService
+
         self.coordinator = DictationCoordinator(
             hotkeyService: hotkeyService,
             permissionsService: permissionsService,
@@ -235,6 +243,7 @@ final class AppModel: ObservableObject {
             textInsertionService: textInsertionService,
             hudController: hudController,
             analytics: analytics,
+            feedbackService: feedbackService,
             waveformSensitivity: waveformSensitivity
         )
 
@@ -1490,6 +1499,13 @@ final class AppModel: ObservableObject {
         showsShortcutDock = isVisible
         defaults.set(isVisible, forKey: PreferenceKey.showsShortcutDock)
         analytics.track("shortcut_dock_visibility_changed", properties: ["visible": String(isVisible)])
+    }
+
+    func setDictationSoundFeedbackEnabled(_ enabled: Bool) {
+        guard dictationSoundFeedbackEnabled != enabled else { return }
+        dictationSoundFeedbackEnabled = enabled
+        defaults.set(enabled, forKey: PreferenceKey.dictationSoundFeedbackEnabled)
+        feedbackService.isEnabled = enabled
     }
 
     private var currentHotkeyBindings: [HotkeyBinding] {

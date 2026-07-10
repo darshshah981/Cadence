@@ -239,16 +239,33 @@ final class HUDViewModel: ObservableObject {
 
     private var targetBars = Array(repeating: 0.0, count: 16)
     private var smoothingTask: Task<Void, Never>?
+    private var hasPulsedThisSession = false
+
+    var reduceMotionProvider: () -> Bool = {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    private static let activationPulseBars: [Double] = [
+        0.05, 0.15, 0.30, 0.50, 0.70, 0.85, 0.95, 0.90,
+        0.90, 0.95, 0.85, 0.70, 0.50, 0.30, 0.15, 0.05
+    ]
 
     func apply(_ state: HUDState) {
+        let wasVisible = self.state.isVisible
         self.state = state
         targetBars = normalizedBars(from: state.waveformLevels)
 
         guard state.isVisible else {
             displayBars = Array(repeating: 0.0, count: 16)
+            hasPulsedThisSession = false
             smoothingTask?.cancel()
             smoothingTask = nil
             return
+        }
+
+        if !wasVisible, !hasPulsedThisSession, isRecordingState, !reduceMotionProvider() {
+            displayBars = Self.activationPulseBars
+            hasPulsedThisSession = true
         }
 
         guard smoothingTask == nil else { return }

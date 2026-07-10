@@ -55,6 +55,7 @@ final class DictationCoordinator {
     private let textInsertionService: TextInsertionServing
     private let hudController: HUDWindowController
     private let analytics: AnalyticsService
+    private let feedbackService: FeedbackServing
     private var transcriptionConfiguration = TranscriptionConfiguration()
     private var activeTriggerMode: DictationTriggerMode?
     private var stopTapDictationOnNextKeyPress = false
@@ -83,6 +84,7 @@ final class DictationCoordinator {
         textInsertionService: TextInsertionServing,
         hudController: HUDWindowController,
         analytics: AnalyticsService,
+        feedbackService: FeedbackServing,
         waveformSensitivity: Double = 1.0
     ) {
         self.hotkeyService = hotkeyService
@@ -92,6 +94,7 @@ final class DictationCoordinator {
         self.textInsertionService = textInsertionService
         self.hudController = hudController
         self.analytics = analytics
+        self.feedbackService = feedbackService
         self.waveformSensitivity = Self.sanitizedWaveformSensitivity(waveformSensitivity)
 
         self.hudController.onStop = { [weak self] in
@@ -278,6 +281,7 @@ final class DictationCoordinator {
                 waveformLevels: latestWaveformLevels,
                 showsSubtitle: false
             )
+            feedbackService.playActivationSound()
             warmBackendForCurrentSession()
         } catch {
             activeTriggerMode = nil

@@ -282,6 +282,12 @@ struct SettingsView: View {
                 description: "Stop recording when you start typing.",
                 isOn: tapStopsOnNextKeyPressBinding
             )
+            insetDivider
+            SettingsToggleRow(
+                title: "Activation sound",
+                description: "Play a short sound when dictation starts.",
+                isOn: dictationSoundFeedbackBinding
+            )
         }
     }
 
@@ -546,6 +552,13 @@ struct SettingsView: View {
         Binding(
             get: { appModel.transcriptionConfiguration.tapStopsOnNextKeyPress },
             set: { appModel.setTapStopsOnNextKeyPress($0) }
+        )
+    }
+
+    private var dictationSoundFeedbackBinding: Binding<Bool> {
+        Binding(
+            get: { appModel.dictationSoundFeedbackEnabled },
+            set: { appModel.setDictationSoundFeedbackEnabled($0) }
         )
     }
 
