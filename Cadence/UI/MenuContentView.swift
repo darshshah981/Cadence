@@ -196,7 +196,7 @@ struct MenuContentView: View {
                 copiedTranscriptID: appModel.copiedTranscriptID,
                 shortcutHint: primaryShortcutHint,
                 expandedTranscriptIDs: $expandedTranscriptIDs,
-                onCopy: appModel.copyTranscript,
+                onCopy: { _ = appModel.copyTranscript($0) },
                 onOpenPermissionsWizard: appModel.openPermissionsWizard,
                 onOpenSettings: appModel.showSettingsScreen
             )

@@ -1413,7 +1413,7 @@ private struct DashboardDetailView: View {
                     transcripts: Array(appModel.transcriptHistory.prefix(4)),
                     notes: Array(appModel.meetingNotes.prefix(4)),
                     onOpenMeetings: onOpenMeetings,
-                    onCopy: appModel.copyTranscript
+                    onCopy: { _ = appModel.copyTranscript($0) }
                 )
             }
             .padding(28)

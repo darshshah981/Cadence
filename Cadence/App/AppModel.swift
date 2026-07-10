@@ -1719,36 +1719,38 @@ final class AppModel: ObservableObject {
         coordinator.setHotkeysPaused(isActive)
     }
 
-    func copyTranscript(_ item: TranscriptHistoryItem) {
-        let wordCount = Self.wordCount(in: item.text)
-        analytics.track(
-            "transcript_copied",
-            properties: [
-                "sessionID": .string(item.analyticsSessionID ?? "history-only"),
-                "charactersBucket": .string(Self.countBucket(item.text.count)),
-                "characterCount": .int(item.text.count),
-                "wordsBucket": .string(Self.countBucket(wordCount)),
-                "wordCount": .int(wordCount)
-            ]
-        )
-        if Date().timeIntervalSince(item.createdAt) <= AnalyticsTuning.followUpWindow {
+    @discardableResult
+    func copyTranscript(_ item: TranscriptHistoryItem) -> Bool {
+        TranscriptCopyCommit.perform(item.text) { [self] in
+            let wordCount = Self.wordCount(in: item.text)
             analytics.track(
-                "manual_copy_after_dictation",
+                "transcript_copied",
                 properties: [
                     "sessionID": .string(item.analyticsSessionID ?? "history-only"),
-                    "secondsSinceTranscript": .double(Self.analyticsSeconds(Date().timeIntervalSince(item.createdAt))),
+                    "charactersBucket": .string(Self.countBucket(item.text.count)),
                     "characterCount": .int(item.text.count),
+                    "wordsBucket": .string(Self.countBucket(wordCount)),
                     "wordCount": .int(wordCount)
                 ]
             )
-        }
-        TranscriptPasteboardAction.copy(item.text)
-        copiedTranscriptID = item.id
+            if Date().timeIntervalSince(item.createdAt) <= AnalyticsTuning.followUpWindow {
+                analytics.track(
+                    "manual_copy_after_dictation",
+                    properties: [
+                        "sessionID": .string(item.analyticsSessionID ?? "history-only"),
+                        "secondsSinceTranscript": .double(Self.analyticsSeconds(Date().timeIntervalSince(item.createdAt))),
+                        "characterCount": .int(item.text.count),
+                        "wordCount": .int(wordCount)
+                    ]
+                )
+            }
+            copiedTranscriptID = item.id
 
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(1.2))
-            if self?.copiedTranscriptID == item.id {
-                self?.copiedTranscriptID = nil
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1.2))
+                if self?.copiedTranscriptID == item.id {
+                    self?.copiedTranscriptID = nil
+                }
             }
         }
     }

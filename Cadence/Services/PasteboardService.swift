@@ -17,15 +17,21 @@ struct SystemTextPasteboardWriter: TextPasteboardWriting {
 }
 
 @MainActor
-enum TranscriptPasteboardAction {
+enum TranscriptCopyCommit {
     @discardableResult
-    static func copy(_ text: String) -> Bool {
-        copy(text, using: SystemTextPasteboardWriter())
+    static func perform(_ text: String, onSuccess: () -> Void) -> Bool {
+        perform(text, using: SystemTextPasteboardWriter(), onSuccess: onSuccess)
     }
 
     @discardableResult
-    static func copy(_ text: String, using pasteboard: TextPasteboardWriting) -> Bool {
-        pasteboard.replaceContents(with: text)
+    static func perform(
+        _ text: String,
+        using pasteboard: TextPasteboardWriting,
+        onSuccess: () -> Void
+    ) -> Bool {
+        guard pasteboard.replaceContents(with: text) else { return false }
+        onSuccess()
+        return true
     }
 }
 
@@ -33,10 +39,9 @@ enum HUDCopyLastAction {
     @discardableResult
     static func perform(
         history: [TranscriptHistoryItem],
-        copy: (TranscriptHistoryItem) -> Void
+        copy: (TranscriptHistoryItem) -> Bool
     ) -> Bool {
         guard let latest = history.first else { return false }
-        copy(latest)
-        return true
+        return copy(latest)
     }
 }

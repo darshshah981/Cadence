@@ -745,8 +745,9 @@ struct HUDReleaseHardeningTests {
         var copiedID: UUID?
 
         let shouldConfirm = HUDCopyLastAction.perform(history: [latest, older]) { item in
-            copiedID = item.id
-            TranscriptPasteboardAction.copy(item.text, using: pasteboard)
+            TranscriptCopyCommit.perform(item.text, using: pasteboard) {
+                copiedID = item.id
+            }
         }
 
         #expect(shouldConfirm)
@@ -758,10 +759,34 @@ struct HUDReleaseHardeningTests {
     @Test
     func copyLastEmptyHistoryDoesNothingAndDoesNotConfirm() {
         var copyCount = 0
-        let shouldConfirm = HUDCopyLastAction.perform(history: []) { _ in copyCount += 1 }
+        let shouldConfirm = HUDCopyLastAction.perform(history: []) { _ in
+            copyCount += 1
+            return true
+        }
 
         #expect(!shouldConfirm)
         #expect(copyCount == 0)
+    }
+
+    @Test
+    @MainActor
+    func failedPasteboardWriteDoesNotCommitCopiedStateAnalyticsOrConfirmation() {
+        let pasteboard = HardeningPasteboardWriter(succeeds: false)
+        let item = TranscriptHistoryItem(text: "synthetic failure")
+        var copiedStateID: UUID?
+        var successAnalyticsCount = 0
+
+        let shouldConfirm = HUDCopyLastAction.perform(history: [item]) { latest in
+            TranscriptCopyCommit.perform(latest.text, using: pasteboard) {
+                copiedStateID = latest.id
+                successAnalyticsCount += 1
+            }
+        }
+
+        #expect(!shouldConfirm)
+        #expect(copiedStateID == nil)
+        #expect(successAnalyticsCount == 0)
+        #expect(pasteboard.replaceCount == 1)
     }
 
     @Test
@@ -891,13 +916,18 @@ private final class HardeningCapturingFeedbackService: FeedbackServing {
 
 @MainActor
 private final class HardeningPasteboardWriter: TextPasteboardWriting {
+    private let succeeds: Bool
     private(set) var value: String?
     private(set) var replaceCount = 0
+
+    init(succeeds: Bool = true) {
+        self.succeeds = succeeds
+    }
 
     func replaceContents(with text: String) -> Bool {
         value = text
         replaceCount += 1
-        return true
+        return succeeds
     }
 }
 
