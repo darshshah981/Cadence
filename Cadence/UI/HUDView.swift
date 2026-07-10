@@ -13,6 +13,12 @@ struct HUDView: View {
                 statusPill(icon: .spinner, text: "Setting up speech model…")
             case .transcribing:
                 statusPill(icon: .spinner, text: "Transcribing…")
+            case .inserting:
+                statusPill(icon: .spinner, text: "Inserting…")
+            case .success:
+                statusPill(icon: .success, text: "Inserted")
+            case .cancelled:
+                statusPill(icon: .cancelled, text: "Cancelled")
             case .error(let message):
                 statusPill(icon: .error, text: message)
             }
@@ -20,12 +26,20 @@ struct HUDView: View {
         .animation(reduceMotion ? nil : .timingCurve(0.25, 0, 0, 1, duration: 0.18), value: model.state.visualState)
         .contentShape(Rectangle())
         .gesture(dragGesture)
+        .accessibilityLabel(model.state.visualState.accessibilityLabel)
+        .accessibilityHint(model.state.visualState.accessibilityHint ?? "")
+        .onAppear { model.setReducedMotion(reduceMotion) }
+        .onChange(of: reduceMotion) { _, reduced in model.setReducedMotion(reduced) }
     }
 
     private func recordingPill(triggerMode: DictationTriggerMode, showsHint: Bool) -> some View {
         HStack(spacing: 10) {
             if triggerMode == .tapToStartStop {
                 dismissButton
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(FlowTheme.accent)
+                    .accessibilityHidden(true)
             }
 
             WaveformCanvasView(levels: model.displayBars)
@@ -58,6 +72,14 @@ struct HUDView: View {
                 Image(systemName: "exclamationmark")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(FlowTheme.error)
+            case .success:
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(FlowTheme.accent)
+            case .cancelled:
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(FlowTheme.textSecondary)
             }
 
             Text(text)
@@ -83,6 +105,8 @@ struct HUDView: View {
             }
         }
         .buttonStyle(HUDControlButtonStyle())
+        .accessibilityLabel("Cancel dictation")
+        .accessibilityHint("Discard this dictation session.")
     }
 
     private var stopButton: some View {
@@ -94,12 +118,14 @@ struct HUDView: View {
                 .background(FlowTheme.accent, in: Circle())
         }
         .buttonStyle(HUDControlButtonStyle())
+        .accessibilityLabel("Stop dictation")
+        .accessibilityHint("Finish dictating and transcribe the recording.")
     }
 
     private func pillWidth(triggerMode: DictationTriggerMode, showsHint: Bool) -> CGFloat {
         switch triggerMode {
         case .tapToStartStop:
-            return 204
+            return 224
         case .holdToTalk:
             return showsHint ? 244 : 156
         }
@@ -118,6 +144,8 @@ struct HUDView: View {
     private enum StatusIcon {
         case spinner
         case error
+        case success
+        case cancelled
     }
 
     private var dragGesture: some Gesture {
@@ -143,6 +171,15 @@ private struct HUDSpinnerView: View {
             .frame(width: 14, height: 14)
             .onAppear {
                 guard !reduceMotion else { return }
+                withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+                    isAnimating = true
+                }
+            }
+            .onChange(of: reduceMotion) { _, reduced in
+                guard !reduced else {
+                    isAnimating = false
+                    return
+                }
                 withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
                     isAnimating = true
                 }

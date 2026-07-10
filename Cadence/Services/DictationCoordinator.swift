@@ -70,6 +70,8 @@ final class DictationCoordinator {
     private var activeTargetApplication: DictationTargetApplication?
     private var firstPreviewTracked = false
     private var lastSuccessfulCompletionAt: Date?
+    private var terminalHUDTask: Task<Void, Never>?
+    private var hudPresentationGeneration = 0
 
     private var state: DictationSessionState = .idle {
         didSet { onStateChange?(state) }
@@ -192,6 +194,7 @@ final class DictationCoordinator {
         }
 
         do {
+            invalidateTerminalHUD()
             var permissions = permissionsService.snapshot()
             if !permissions.microphoneGranted {
                 _ = await permissionsService.requestMicrophoneAccess()
@@ -374,7 +377,7 @@ final class DictationCoordinator {
 
             state = .inserting
             publishHUD(
-                visualState: .transcribing,
+                visualState: .inserting,
                 subtitle: "",
                 level: 0.6,
                 waveformLevels: latestWaveformLevels,
@@ -429,15 +432,12 @@ final class DictationCoordinator {
             )
             lastSuccessfulCompletionAt = Date()
 
-            state = .idle
             activeTriggerMode = nil
             activeTargetApplication = nil
             sessionStartedAt = nil
             activeSessionID = nil
-            hideHUD()
-
-            try await Task.sleep(for: .milliseconds(700))
-            hideHUD()
+            state = .idle
+            publishTerminalHUD(.success)
         } catch {
             dictationLogger.error(
                 "Cadence timing finalize failed total=\(Self.formatSeconds(Date().timeIntervalSince(finalizeStartedAt)), privacy: .public)s error=\(error.localizedDescription, privacy: .public)"
@@ -495,22 +495,36 @@ final class DictationCoordinator {
         hudController.update(with: .idle)
     }
 
-    private func publishError(_ message: String) {
-        stopPreviewLoop()
-        activeTriggerMode = nil
-        state = .error(message)
-        onError?(message)
+    private func invalidateTerminalHUD() {
+        hudPresentationGeneration += 1
+        terminalHUDTask?.cancel()
+        terminalHUDTask = nil
+    }
+
+    private func publishTerminalHUD(_ visualState: HUDVisualState) {
+        invalidateTerminalHUD()
+        let generation = hudPresentationGeneration
         publishHUD(
-            visualState: .error(message: humanizedHUDMessage(for: message)),
+            visualState: visualState,
             subtitle: "",
             level: 0,
             waveformLevels: Array(repeating: 0, count: 16),
             showsSubtitle: false
         )
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2.5))
-            self?.hideHUD()
+        terminalHUDTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard let self, !Task.isCancelled, self.hudPresentationGeneration == generation else { return }
+            self.hideHUD()
+            self.terminalHUDTask = nil
         }
+    }
+
+    private func publishError(_ message: String) {
+        stopPreviewLoop()
+        activeTriggerMode = nil
+        state = .error(message)
+        onError?(message)
+        publishTerminalHUD(.error(message: humanizedHUDMessage(for: message)))
     }
 
     private var isErrorState: Bool {
@@ -522,6 +536,7 @@ final class DictationCoordinator {
 
     private func startPreviewLoop() {
         stopPreviewLoop()
+        let previewSessionID = activeSessionID
         latestPreview = PreviewTranscript(confirmedText: "", unconfirmedText: "")
         latestAudioLevel = 0
         latestWaveformLevels = Array(repeating: 0, count: 16)
@@ -544,6 +559,11 @@ final class DictationCoordinator {
                 guard shouldPollForPause || shouldPollForCadence else { continue }
 
                 if let preview = await self.transcriptionEngine.previewTranscript() {
+                    guard !Task.isCancelled,
+                          self.state == .listening,
+                          self.activeSessionID == previewSessionID else {
+                        continue
+                    }
                     self.lastPreviewTimestamp = now
                     let correctedPreview = PreviewTranscript(
                         confirmedText: self.applyPostProcessing(to: preview.confirmedText),
@@ -699,7 +719,7 @@ final class DictationCoordinator {
         sessionStartedAt = nil
         activeSessionID = nil
         state = .idle
-        hideHUD()
+        publishTerminalHUD(.cancelled)
     }
 
     private func sessionAnalyticsProperties(triggerMode: DictationTriggerMode) -> [String: AnalyticsValue] {
