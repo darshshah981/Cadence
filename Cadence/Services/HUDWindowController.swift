@@ -6,6 +6,7 @@ final class HUDWindowController {
     private enum Metrics {
         static let pillHeight: CGFloat = 38
         static let logoIdleSize = NSSize(width: 44, height: 44)
+        static let expandedTraySize = NSSize(width: 240, height: pillHeight)
         static let holdSize = NSSize(width: 140, height: pillHeight)
         static let holdHintSize = NSSize(width: 228, height: pillHeight)
         static let controlsSize = NSSize(width: 188, height: pillHeight)
@@ -30,6 +31,9 @@ final class HUDWindowController {
 
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
+    var onCopyLast: (() -> Void)?
+    var onAddToDictionary: (() -> Void)?
+    var onHide: ((HUDHideDuration) -> Void)?
 
     init() {
         viewModel.onStop = { [weak self] in self?.onStop?() }
@@ -40,6 +44,12 @@ final class HUDWindowController {
         viewModel.onDragEnded = { [weak self] in
             self?.handleDragEnded()
         }
+        viewModel.onExpandToggle = { [weak self] expanded in
+            self?.handleExpandedChanged(expanded)
+        }
+        viewModel.onCopyLast = { [weak self] in self?.onCopyLast?() }
+        viewModel.onAddToDictionary = { [weak self] in self?.onAddToDictionary?() }
+        viewModel.onHide = { [weak self] duration in self?.onHide?(duration) }
     }
 
     func update(with state: HUDState) {
@@ -143,7 +153,7 @@ final class HUDWindowController {
     private func pillSize(for state: HUDState) -> NSSize {
         switch state.visualState {
         case .idle:
-            return Metrics.logoIdleSize
+            return viewModel.isExpanded ? Metrics.expandedTraySize : Metrics.logoIdleSize
         case .recording(let triggerMode, let showsHint):
             switch triggerMode {
             case .tapToStartStop:
@@ -224,6 +234,25 @@ final class HUDWindowController {
         defaults.set(offsetY, forKey: PreferenceKey.offsetY)
         dragStartOrigin = nil
     }
+
+    private func handleExpandedChanged(_ expanded: Bool) {
+        guard let pillPanel, viewModel.state.visualState == .idle else { return }
+        let size = expanded ? Metrics.expandedTraySize : Metrics.logoIdleSize
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0, 0, 1)
+            pillPanel.animator().setFrame(.init(origin: pillPanel.frame.origin, size: size), display: true)
+        }
+        position(pillPanel: pillPanel)
+    }
+}
+
+enum DictionaryFeedback: Equatable {
+    case idle
+    case capturing
+    case added
+    case nothingSelected
+    case failed
 }
 
 @MainActor
@@ -231,17 +260,39 @@ final class HUDViewModel: ObservableObject {
     @Published private(set) var state = HUDState.idle
     @Published private(set) var displayBars = Array(repeating: 0.0, count: 16)
     @Published var position: HUDPosition = .bottomCenter
+    @Published var isExpanded = false
+    @Published var canCopyLast = false
+    @Published var dictionaryFeedback: DictionaryFeedback = .idle
 
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
     var onDrag: ((CGSize) -> Void)?
     var onDragEnded: (() -> Void)?
+    var onExpandToggle: ((Bool) -> Void)?
+    var onCopyLast: (() -> Void)?
+    var onAddToDictionary: (() -> Void)?
+    var onHide: ((HUDHideDuration) -> Void)?
 
     private var targetBars = Array(repeating: 0.0, count: 16)
     private var smoothingTask: Task<Void, Never>?
 
+    func toggleExpanded() {
+        isExpanded.toggle()
+        onExpandToggle?(isExpanded)
+    }
+
+    func setExpanded(_ expanded: Bool) {
+        guard isExpanded != expanded else { return }
+        isExpanded = expanded
+        onExpandToggle?(isExpanded)
+    }
+
     func apply(_ state: HUDState) {
+        let wasIdle = self.state.visualState == .idle
         self.state = state
+        if state.visualState != .idle, wasIdle, isExpanded {
+            setExpanded(false)
+        }
         targetBars = normalizedBars(from: state.waveformLevels)
 
         guard state.isVisible else {

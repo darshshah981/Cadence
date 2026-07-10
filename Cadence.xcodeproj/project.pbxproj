@@ -41,6 +41,7 @@
 		EE054AE21BAF7F07BF62DD2A /* WhisperKitTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A8C73B4837E38B0677B8E5 /* WhisperKitTranscriptionEngine.swift */; };
 		EF826D5DA46782A058A62AE8 /* TranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */; };
 		FB42AB240E3A107E5126D3C0 /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE629DF637FE0D79187F0CAF /* MainWindowView.swift */; };
+		FDBC510D1CB0219D26DE217F /* IdleExpandedTray.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF41CADF917C4FFF0F73654 /* IdleExpandedTray.swift */; };
 		FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */; };
 		FF67B1A27DA18B3BCFB2A756 /* MeetingRollingTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76231658305ADA779483A7F8 /* MeetingRollingTranscriptionService.swift */; };
 /* End PBXBuildFile section */
@@ -92,6 +93,7 @@
 		DE629DF637FE0D79187F0CAF /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowView.swift; sourceTree = "<group>"; };
 		E578BEB1EADBEB5800402E25 /* MeetingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingModels.swift; sourceTree = "<group>"; };
 		E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingNotesWindow.swift; sourceTree = "<group>"; };
+		EBF41CADF917C4FFF0F73654 /* IdleExpandedTray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleExpandedTray.swift; sourceTree = "<group>"; };
 		F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionEngine.swift; sourceTree = "<group>"; };
 		FC22C16A79401A6870742A6E /* HUDWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDWindowController.swift; sourceTree = "<group>"; };
 		FF53A70456557098B43E818E /* TextInsertionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionService.swift; sourceTree = "<group>"; };
@@ -131,6 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				58943A986FD1C46B9F453ED0 /* HUDView.swift */,
+				EBF41CADF917C4FFF0F73654 /* IdleExpandedTray.swift */,
 				DE629DF637FE0D79187F0CAF /* MainWindowView.swift */,
 				E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */,
 				74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */,
@@ -326,6 +329,7 @@
 				D0ACFD368BDD7CB8693AB2D7 /* HUDView.swift in Sources */,
 				9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */,
 				D3E5CC707DAEC25A40DF8435 /* HotkeyService.swift in Sources */,
+				FDBC510D1CB0219D26DE217F /* IdleExpandedTray.swift in Sources */,
 				FB42AB240E3A107E5126D3C0 /* MainWindowView.swift in Sources */,
 				A5F36020AF84151664929781 /* MeetingAudioStore.swift in Sources */,
 				57F06125EB560A0004973BDA /* MeetingDetectionService.swift in Sources */,

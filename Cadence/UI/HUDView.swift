@@ -8,7 +8,11 @@ struct HUDView: View {
         Group {
             switch model.state.visualState {
             case .idle:
-                logoBadge
+                if model.isExpanded {
+                    IdleExpandedTray(model: model)
+                } else {
+                    logoBadge
+                }
             case .recording(let triggerMode, let showsHint):
                 recordingPill(triggerMode: triggerMode, showsHint: showsHint)
             case .preparingModel:
@@ -20,6 +24,7 @@ struct HUDView: View {
             }
         }
         .animation(reduceMotion ? nil : .timingCurve(0.25, 0, 0, 1, duration: 0.18), value: model.state.visualState)
+        .animation(reduceMotion ? nil : FlowMotion.control, value: model.isExpanded)
         .contentShape(Rectangle())
         .gesture(dragGesture)
     }
@@ -162,7 +167,7 @@ struct HUDView: View {
     }
 }
 
-private struct HUDSpinnerView: View {
+struct HUDSpinnerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isAnimating = false
 
@@ -213,7 +218,7 @@ private struct WaveformCanvasView: View {
     }
 }
 
-private struct HUDControlButtonStyle: ButtonStyle {
+struct HUDControlButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
