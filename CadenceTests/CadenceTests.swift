@@ -47,6 +47,19 @@ struct CadenceTests {
     }
 
     @Test
+    @MainActor
+    func freshDefaultsPreserveScribeLeftControlConstraint() throws {
+        let suiteName = "HotkeyDefaults.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let binding = AppModel.loadBinding(defaults: defaults, action: .scribe)
+
+        #expect(binding.shortcut == .defaultScribe)
+        #expect(binding.shortcut.sidedModifierKeyCodes == [59])
+    }
+
+    @Test
     func hotkeyConfigurationFormatsUpdatedShortcutDisplayName() {
         let configuration = HotkeyConfiguration(
             keyCode: 9,
@@ -184,6 +197,130 @@ struct CadenceTests {
         #expect(!nextFirstTap)
         #expect(!expiredSecondTap)
         #expect(finalNearbyTap)
+    }
+
+    @Test
+    func dictationQuickTapGestureStartsOnDoublePressAndStopsOnThirdPress() {
+        var gesture = DictationQuickTapGesture()
+
+        #expect(gesture.register(state: .idle, activeTriggerMode: nil, at: 10) == .none)
+        #expect(gesture.register(state: .idle, activeTriggerMode: nil, at: 10.2) == .startToggleRecording)
+        #expect(gesture.register(
+            state: .listening,
+            activeTriggerMode: .tapToStartStop,
+            at: 10.4
+        ) == .stopToggleRecording)
+        #expect(gesture.register(state: .finalizing, activeTriggerMode: .tapToStartStop, at: 10.5) == .none)
+    }
+
+    @Test
+    func productionModifierEngineCoversHoldQuickTapAndReleaseSequences() {
+        var engine = ModifierOnlyGestureEngine()
+        let bindings = [HotkeyBinding.defaultHoldToTalk, HotkeyBinding.defaultScribe]
+
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function],
+            activeModifierKeyCodes: [63],
+            releasedKeyCode: 63
+        ) == [.schedule(.holdToTalk)])
+        #expect(engine.activationDelayElapsed(for: .holdToTalk) == .press(.holdToTalk))
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [],
+            activeModifierKeyCodes: [],
+            releasedKeyCode: 63
+        ) == [.release(.holdToTalk)])
+
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function],
+            activeModifierKeyCodes: [63],
+            releasedKeyCode: 63
+        ) == [.schedule(.holdToTalk)])
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [],
+            activeModifierKeyCodes: [],
+            releasedKeyCode: 63
+        ) == [.cancelScheduled(.holdToTalk), .quickTap(.holdToTalk)])
+    }
+
+    @Test
+    func fnScribeChordDoesNotLeakIntoDictationGesture() {
+        var engine = ModifierOnlyGestureEngine()
+        let bindings = [HotkeyBinding.defaultHoldToTalk, HotkeyBinding.defaultScribe]
+
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function],
+            activeModifierKeyCodes: [63],
+            releasedKeyCode: 63
+        ) == [.schedule(.holdToTalk)])
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function, .control],
+            activeModifierKeyCodes: [63, 59],
+            releasedKeyCode: 59
+        ) == [.cancelScheduled(.holdToTalk), .schedule(.scribe)])
+        #expect(engine.activationDelayElapsed(for: .scribe) == .press(.scribe))
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function],
+            activeModifierKeyCodes: [63],
+            releasedKeyCode: 59
+        ) == [.release(.scribe)])
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [],
+            activeModifierKeyCodes: [],
+            releasedKeyCode: 63
+        ).isEmpty)
+    }
+
+    @Test
+    func interruptedFnChordDoesNotStartOrQuickTapDictation() {
+        var engine = ModifierOnlyGestureEngine()
+        let bindings = [HotkeyBinding.defaultHoldToTalk]
+
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function],
+            activeModifierKeyCodes: [63],
+            releasedKeyCode: 63
+        ) == [.schedule(.holdToTalk)])
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function, .shift],
+            activeModifierKeyCodes: [63, 56],
+            releasedKeyCode: 56
+        ) == [.cancelScheduled(.holdToTalk)])
+        #expect(engine.activationDelayElapsed(for: .holdToTalk) == nil)
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [],
+            activeModifierKeyCodes: [],
+            releasedKeyCode: 63
+        ).isEmpty)
+    }
+
+    @Test
+    @MainActor
+    func scribeLaunchPinsTargetBeforePresentingComposeFocus() throws {
+        var events: [String] = []
+        let model = ScribePanelViewModel()
+
+        ScribePanelLaunchSequence.launch(
+            prepareTarget: { events.append("target-pinned") },
+            presentPicker: { initialFocus in
+                events.append("panel-presented-\(initialFocus.rawValue)")
+                model.presentPicker(providerStatus: "On-device", initialFocus: initialFocus)
+            }
+        )
+
+        #expect(events == ["target-pinned", "panel-presented-compose"])
+        #expect(model.state == .choosingIntent)
+        #expect(model.requestedIntentFocus == .compose)
     }
 
     @Test

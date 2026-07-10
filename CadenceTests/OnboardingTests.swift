@@ -38,4 +38,38 @@ final class OnboardingTests: XCTestCase {
 
         XCTAssertEqual(progress.currentStep, .ready)
     }
+
+    @MainActor
+    func testMicrophoneStartFailureReleasesVoiceLease() {
+        let arbiter = VoiceSessionArbiter()
+        let monitor = OnboardingMicrophoneMonitor(
+            captureService: ThrowingAudioCaptureService(),
+            sessionArbiter: arbiter
+        )
+
+        monitor.start()
+
+        XCTAssertNil(arbiter.activeKind)
+        XCTAssertFalse(monitor.isListening)
+        XCTAssertNotNil(monitor.errorMessage)
+    }
+}
+
+private final class ThrowingAudioCaptureService: AudioCaptureServing {
+    struct StartError: Error {}
+
+    func startCapture(chunkHandler: @escaping @Sendable (AudioChunk, Double) -> Void) throws {
+        throw StartError()
+    }
+
+    func stopCapture() -> AudioCaptureSessionMetrics {
+        AudioCaptureSessionMetrics(
+            duration: 0,
+            frameCount: 0,
+            sampleRate: 16_000,
+            speechDetected: false,
+            speechFrameCount: 0,
+            peakLevel: 0
+        )
+    }
 }

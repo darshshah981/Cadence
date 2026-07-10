@@ -100,12 +100,12 @@ struct SettingsView: View {
                     )
 
                     Spacer()
-
-                    Button("Try Scribe") {
-                        appModel.showScribe()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                    Text(appModel.scribeBinding.shortcut.symbolDisplayName)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .padding(12)
             }
@@ -328,11 +328,21 @@ struct SettingsView: View {
                 .padding(12)
                 insetDivider
                 SettingsActionRow(
-                    title: "Replay onboarding",
-                    description: "Review Dictation, Scribe, privacy, and shortcuts without changing saved meetings or settings.",
-                    buttonTitle: "Replay"
+                    title: appModel.onboardingProgress.wasSkipped && !appModel.onboardingProgress.isComplete
+                        ? "Resume onboarding"
+                        : "Replay onboarding",
+                    description: appModel.onboardingProgress.wasSkipped && !appModel.onboardingProgress.isComplete
+                        ? "Continue from the step where you left off."
+                        : "Review Dictation, Scribe, privacy, and shortcuts without changing saved meetings or settings.",
+                    buttonTitle: appModel.onboardingProgress.wasSkipped && !appModel.onboardingProgress.isComplete
+                        ? "Resume"
+                        : "Replay"
                 ) {
-                    appModel.replayOnboarding()
+                    if appModel.onboardingProgress.wasSkipped && !appModel.onboardingProgress.isComplete {
+                        appModel.resumeOnboarding()
+                    } else {
+                        appModel.replayOnboarding()
+                    }
                 }
             }
         }

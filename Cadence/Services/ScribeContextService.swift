@@ -42,19 +42,40 @@ struct ScribeAccessibilityReadSnapshot: Equatable, Sendable {
     let verificationToken: String
     let selectedText: String?
     let isSecureField: Bool
+    let selectionIdentity: ScribeSelectionIdentity?
+
+    init(
+        target: ScribeTargetIdentity,
+        verificationToken: String,
+        selectedText: String?,
+        isSecureField: Bool,
+        selectionIdentity: ScribeSelectionIdentity? = nil
+    ) {
+        self.target = target
+        self.verificationToken = verificationToken
+        self.selectedText = selectedText
+        self.isSecureField = isSecureField
+        self.selectionIdentity = selectionIdentity
+    }
 }
 
 @MainActor
 protocol ScribeAccessibilityReading: AnyObject {
     var isTrusted: Bool { get }
-    func readFocusedSnapshot(includeSelection: Bool) throws -> ScribeAccessibilityReadSnapshot
+    func pinFocusedTarget() throws
+    func readPinnedSnapshot(includeSelection: Bool) throws -> ScribeAccessibilityReadSnapshot
+    func replacePinnedSelection(with text: String) throws -> Bool
+    func clearPinnedTarget()
 }
 
 @MainActor
 protocol ScribeContextServing: AnyObject {
+    func prepareTarget() throws
     func capture(for intent: ScribeIntent) throws -> ScribeContextSnapshot
     func verifyTarget(for capture: ScribeContextSnapshot) throws -> Bool
+    func insert(_ text: String, for capture: ScribeContextSnapshot) throws -> Bool
     func clear(_ capture: ScribeContextSnapshot)
+    func discardPreparedTarget()
 }
 
 @MainActor
@@ -72,12 +93,17 @@ final class ScribeContextService: ScribeContextServing {
         self.reader = reader
     }
 
+    func prepareTarget() throws {
+        guard reader.isTrusted else { throw ScribeContextError.accessibilityDenied }
+        try reader.pinFocusedTarget()
+    }
+
     func capture(for intent: ScribeIntent) throws -> ScribeContextSnapshot {
         guard reader.isTrusted else {
             throw ScribeContextError.accessibilityDenied
         }
 
-        let raw = try reader.readFocusedSnapshot(includeSelection: intent.requiresSelectedText)
+        let raw = try reader.readPinnedSnapshot(includeSelection: intent.requiresSelectedText)
         let selectedText: String
         if intent.requiresSelectedText {
             guard !raw.isSecureField else {
@@ -95,7 +121,8 @@ final class ScribeContextService: ScribeContextServing {
             target: raw.target,
             scope: intent.contextScope,
             selectedText: selectedText,
-            verificationToken: raw.verificationToken
+            verificationToken: raw.verificationToken,
+            selectionIdentity: raw.selectionIdentity
         )
         activeCaptures[capture.id] = raw.verificationToken
         return capture
@@ -109,16 +136,35 @@ final class ScribeContextService: ScribeContextServing {
             throw ScribeContextError.accessibilityDenied
         }
 
-        let current = try reader.readFocusedSnapshot(includeSelection: false)
+        let current = try reader.readPinnedSnapshot(includeSelection: capture.scope == .selectedText)
         guard current.target == capture.target,
               current.verificationToken == capture.verificationToken else {
             throw ScribeContextError.targetChanged
         }
+        if capture.scope == .selectedText {
+            let currentSelection = current.selectedText.flatMap { try? Self.normalizedContext($0) }
+            guard !current.isSecureField,
+                  current.selectionIdentity == capture.selectionIdentity,
+                  currentSelection == capture.selectedText else {
+                throw ScribeContextError.targetChanged
+            }
+        }
         return true
+    }
+
+    func insert(_ text: String, for capture: ScribeContextSnapshot) throws -> Bool {
+        guard try verifyTarget(for: capture) else { return false }
+        return try reader.replacePinnedSelection(with: text)
     }
 
     func clear(_ capture: ScribeContextSnapshot) {
         activeCaptures.removeValue(forKey: capture.id)
+        if activeCaptures.isEmpty { reader.clearPinnedTarget() }
+    }
+
+    func discardPreparedTarget() {
+        activeCaptures.removeAll()
+        reader.clearPinnedTarget()
     }
 
     static func normalizedContext(_ text: String) throws -> String {
@@ -142,23 +188,33 @@ final class ScribeContextService: ScribeContextServing {
 
 @MainActor
 final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
+    private var pinnedElement: AXUIElement?
+    private var pinnedWindow: AXUIElement?
+
     var isTrusted: Bool { AXIsProcessTrusted() }
 
-    func readFocusedSnapshot(includeSelection: Bool) throws -> ScribeAccessibilityReadSnapshot {
+    func pinFocusedTarget() throws {
         guard isTrusted else {
             throw ScribeContextError.accessibilityDenied
         }
-
         let system = AXUIElementCreateSystemWide()
         let focusedElement = try copyElementAttribute(kAXFocusedUIElementAttribute as CFString, from: system)
+        pinnedElement = focusedElement
+        pinnedWindow = (try? copyElementAttribute(kAXWindowAttribute as CFString, from: focusedElement))
+            ?? focusedElement
+    }
+
+    func readPinnedSnapshot(includeSelection: Bool) throws -> ScribeAccessibilityReadSnapshot {
+        guard isTrusted else { throw ScribeContextError.accessibilityDenied }
+        guard let focusedElement = pinnedElement, let window = pinnedWindow else {
+            throw ScribeContextError.noFocusedTarget
+        }
         var processIdentifier: pid_t = 0
         guard AXUIElementGetPid(focusedElement, &processIdentifier) == .success,
               processIdentifier > 0 else {
             throw ScribeContextError.noFocusedTarget
         }
 
-        let window = (try? copyElementAttribute(kAXWindowAttribute as CFString, from: focusedElement))
-            ?? focusedElement
         let bundleIdentifier = NSRunningApplication(processIdentifier: processIdentifier)?.bundleIdentifier
         let role = copyStringAttribute(kAXRoleAttribute as CFString, from: focusedElement)
         let subrole = copyStringAttribute(kAXSubroleAttribute as CFString, from: focusedElement)
@@ -166,6 +222,7 @@ final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
             || subrole == (kAXSecureTextFieldSubrole as String)
 
         let selectedText: String?
+        let selectionIdentity: ScribeSelectionIdentity?
         if includeSelection {
             var value: CFTypeRef?
             let status = AXUIElementCopyAttributeValue(
@@ -183,8 +240,10 @@ final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
             default:
                 throw ScribeContextError.noFocusedTarget
             }
+            selectionIdentity = copySelectedTextRange(from: focusedElement)
         } else {
             selectedText = nil
+            selectionIdentity = nil
         }
 
         return ScribeAccessibilityReadSnapshot(
@@ -194,8 +253,50 @@ final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
             ),
             verificationToken: "\(processIdentifier):\(CFHash(window)):\(CFHash(focusedElement))",
             selectedText: selectedText,
-            isSecureField: isSecureField
+            isSecureField: isSecureField,
+            selectionIdentity: selectionIdentity
         )
+    }
+
+    func replacePinnedSelection(with text: String) throws -> Bool {
+        guard isTrusted else { throw ScribeContextError.accessibilityDenied }
+        guard let pinnedElement else { throw ScribeContextError.noFocusedTarget }
+        let status = AXUIElementSetAttributeValue(
+            pinnedElement,
+            kAXSelectedTextAttribute as CFString,
+            text as CFTypeRef
+        )
+        switch status {
+        case .success:
+            return true
+        case .attributeUnsupported, .notImplemented:
+            return false
+        default:
+            throw ScribeContextError.targetChanged
+        }
+    }
+
+    func clearPinnedTarget() {
+        pinnedElement = nil
+        pinnedWindow = nil
+    }
+
+    private func copySelectedTextRange(from element: AXUIElement) -> ScribeSelectionIdentity? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            &value
+        ) == .success,
+        let value,
+        CFGetTypeID(value) == AXValueGetTypeID() else {
+            return nil
+        }
+        let rangeValue = unsafeBitCast(value, to: AXValue.self)
+        guard AXValueGetType(rangeValue) == .cfRange else { return nil }
+        var range = CFRange()
+        guard AXValueGetValue(rangeValue, .cfRange, &range) else { return nil }
+        return ScribeSelectionIdentity(location: range.location, length: range.length)
     }
 
     private func copyElementAttribute(

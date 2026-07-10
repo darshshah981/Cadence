@@ -76,7 +76,7 @@ final class DictationCoordinator {
     private var terminalHUDTask: Task<Void, Never>?
     private var hudPresentationGeneration = 0
     private var voiceSessionLease: VoiceSessionLease?
-    private var holdQuickTapLatch = DoublePressLatch()
+    private var holdQuickTapGesture = DictationQuickTapGesture()
 
     private var state: DictationSessionState = .idle {
         didSet { onStateChange?(state) }
@@ -157,7 +157,7 @@ final class DictationCoordinator {
     private func handleHotkeyPress(_ action: HotkeyAction) async {
         switch action {
         case .holdToTalk:
-            holdQuickTapLatch.reset()
+            holdQuickTapGesture.reset()
             if state == .idle || isErrorState {
                 await beginDictationIfPossible(triggerMode: .holdToTalk)
             } else if state == .listening, activeTriggerMode == .tapToStartStop {
@@ -193,22 +193,18 @@ final class DictationCoordinator {
 
     private func handleHotkeyQuickTap(_ action: HotkeyAction) async {
         guard action == .holdToTalk else { return }
-
-        if state == .listening, activeTriggerMode == .tapToStartStop {
-            holdQuickTapLatch.reset()
+        switch holdQuickTapGesture.register(
+            state: state,
+            activeTriggerMode: activeTriggerMode,
+            at: ProcessInfo.processInfo.systemUptime
+        ) {
+        case .none:
+            break
+        case .startToggleRecording:
+            await beginDictationIfPossible(triggerMode: .tapToStartStop)
+        case .stopToggleRecording:
             await finishDictationIfNeeded()
-            return
         }
-
-        guard state == .idle || isErrorState else {
-            holdQuickTapLatch.reset()
-            return
-        }
-
-        let now = ProcessInfo.processInfo.systemUptime
-        guard holdQuickTapLatch.registerTap(at: now) else { return }
-        holdQuickTapLatch.reset()
-        await beginDictationIfPossible(triggerMode: .tapToStartStop)
     }
 
     private func handleAnyKeyPress() async {

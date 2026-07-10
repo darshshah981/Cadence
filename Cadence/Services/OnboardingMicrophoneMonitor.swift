@@ -25,6 +25,7 @@ final class OnboardingMicrophoneMonitor: ObservableObject {
         guard !isListening else { return }
         do {
             let lease = try sessionArbiter.acquire(for: .microphoneCheck)
+            self.lease = lease
             let (stream, continuation) = AsyncStream.makeStream(
                 of: Double.self,
                 bufferingPolicy: .bufferingNewest(1)
@@ -42,7 +43,6 @@ final class OnboardingMicrophoneMonitor: ObservableObject {
             try captureService.startCapture { [continuation] _, level in
                 continuation.yield(level)
             }
-            self.lease = lease
             isListening = true
             errorMessage = nil
         } catch VoiceSessionArbiterError.busy {

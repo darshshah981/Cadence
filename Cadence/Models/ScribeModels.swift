@@ -126,24 +126,32 @@ struct ScribeContextSnapshot: Equatable, Sendable {
     let scope: ScribeContextScope
     let selectedText: String
     let verificationToken: String
+    let selectionIdentity: ScribeSelectionIdentity?
 
     init(
         id: UUID = UUID(),
         target: ScribeTargetIdentity,
         scope: ScribeContextScope = .selectedText,
         selectedText: String,
-        verificationToken: String = UUID().uuidString
+        verificationToken: String = UUID().uuidString,
+        selectionIdentity: ScribeSelectionIdentity? = nil
     ) {
         self.id = id
         self.target = target
         self.scope = scope
         self.selectedText = selectedText
         self.verificationToken = verificationToken
+        self.selectionIdentity = selectionIdentity
     }
 
     var disclosure: String {
         scope == .selectedText ? "Using selected text" : "No selected text used"
     }
+}
+
+struct ScribeSelectionIdentity: Equatable, Sendable {
+    let location: Int
+    let length: Int
 }
 
 struct ScribeRequest: Equatable, Identifiable, Sendable {

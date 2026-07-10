@@ -21,7 +21,6 @@ enum ScribeSessionFailure: Equatable, Sendable {
     case context(ScribeContextError)
     case voiceSessionBusy(VoiceSessionKind)
     case transcription
-    case uncertainInsertion
 }
 
 @MainActor
@@ -36,12 +35,12 @@ final class ScribeCoordinator {
     private(set) var reviewedResult: ScribeResult?
     private(set) var failure: ScribeSessionFailure?
     private(set) var activeRequestID: UUID?
+    var canRetryGeneration: Bool { activeRequest != nil }
 
     private let audioCaptureService: AudioCaptureServing
     private let transcriptionEngine: TranscriptionEngine
     private let provider: any ScribeProvider
     private let contextService: ScribeContextServing
-    private let textInsertionService: GuardedTextInsertionServing
     private let sessionArbiter: VoiceSessionArbiter
     private let personalizationStore: PersonalizationStore
     private let generationTimeout: Duration
@@ -55,13 +54,13 @@ final class ScribeCoordinator {
     private var insertionCompleted = false
     private var audioContinuation: AsyncStream<ScribeCapturedAudio>.Continuation?
     private var audioIngestionTask: Task<Void, Never>?
+    private var isStarting = false
 
     init(
         audioCaptureService: AudioCaptureServing,
         transcriptionEngine: TranscriptionEngine,
         provider: any ScribeProvider,
         contextService: ScribeContextServing,
-        textInsertionService: GuardedTextInsertionServing,
         sessionArbiter: VoiceSessionArbiter,
         personalizationStore: PersonalizationStore = PersonalizationStore(),
         generationTimeout: Duration = .seconds(30)
@@ -70,19 +69,25 @@ final class ScribeCoordinator {
         self.transcriptionEngine = transcriptionEngine
         self.provider = provider
         self.contextService = contextService
-        self.textInsertionService = textInsertionService
         self.sessionArbiter = sessionArbiter
         self.personalizationStore = personalizationStore
         self.generationTimeout = generationTimeout
     }
 
+    func prepareTarget() throws {
+        try contextService.prepareTarget()
+    }
+
     func begin(intent: ScribeIntent) async throws {
-        guard state == .idle || isTerminalState else {
+        guard !isStarting, state == .idle || isTerminalState else {
             throw ScribeCoordinatorError.invalidState
         }
 
+        isStarting = true
+        defer { isStarting = false }
         resetTransientState()
         generation += 1
+        let beginGeneration = generation
         let requestID = UUID()
         activeRequestID = requestID
         activeIntent = intent
@@ -99,6 +104,7 @@ final class ScribeCoordinator {
         do {
             activeCapture = try contextService.capture(for: intent)
             try await transcriptionEngine.startSession()
+            guard beginGeneration == generation else { throw CancellationError() }
             let (stream, continuation) = AsyncStream.makeStream(
                 of: ScribeCapturedAudio.self,
                 bufferingPolicy: .bufferingOldest(256)
@@ -131,10 +137,10 @@ final class ScribeCoordinator {
               let requestID = activeRequestID else { return }
 
         let runGeneration = generation
+        state = .transcribing(requestID: requestID)
         let metrics = audioCaptureService.stopCapture()
         await finishAudioIngestion(cancel: false)
         guard runGeneration == generation else { return }
-        state = .transcribing(requestID: requestID)
 
         do {
             let transcript = try await transcriptionEngine.finishSession(metrics: metrics)
@@ -206,25 +212,18 @@ final class ScribeCoordinator {
             throw ScribeCoordinatorError.invalidState
         }
 
-        do {
-            guard try contextService.verifyTarget(for: capture) else {
-                throw ScribeContextError.targetChanged
-            }
-        } catch let error as ScribeContextError {
-            failure = .context(error)
-            throw error
-        }
-
         state = .inserting(requestID: result.requestID)
         do {
-            _ = try await textInsertionService.insertGuarded(result.text)
+            guard try contextService.insert(result.text, for: capture) else {
+                throw ScribeContextError.unsupportedSelection
+            }
             insertionCompleted = true
             state = .succeeded(requestID: result.requestID)
             clearContext()
-        } catch GuardedTextInsertionError.uncertainPartialInsertion {
-            failure = .uncertainInsertion
+        } catch let error as ScribeContextError {
+            failure = .context(error)
             state = .failed(requestID: result.requestID, error: .unavailable)
-            throw GuardedTextInsertionError.uncertainPartialInsertion
+            throw error
         }
     }
 
@@ -240,6 +239,9 @@ final class ScribeCoordinator {
         await finishAudioIngestion(cancel: true)
         await transcriptionEngine.cancelSession()
         releaseVoiceLease()
+        if activeCapture == nil {
+            contextService.discardPreparedTarget()
+        }
         clearContext()
         activeRequest = nil
         reviewedResult = nil

@@ -6,20 +6,11 @@ protocol TextInsertionServing: AnyObject {
     func deleteLastInsertion() async throws
 }
 
-enum GuardedTextInsertionOutcome: Equatable, Sendable {
-    case inserted
-}
-
 enum GuardedTextInsertionError: Error, Equatable, Sendable {
     case uncertainPartialInsertion
 }
 
-@MainActor
-protocol GuardedTextInsertionServing: AnyObject {
-    func insertGuarded(_ text: String) async throws -> GuardedTextInsertionOutcome
-}
-
-final class TextInsertionService: TextInsertionServing, GuardedTextInsertionServing {
+final class TextInsertionService: TextInsertionServing {
     private var lastInsertedText = ""
 
     func insert(_ text: String) async throws {
@@ -29,11 +20,6 @@ final class TextInsertionService: TextInsertionServing, GuardedTextInsertionServ
 
         try await postUnicodeString(text)
         lastInsertedText = text
-    }
-
-    func insertGuarded(_ text: String) async throws -> GuardedTextInsertionOutcome {
-        try await insert(text)
-        return .inserted
     }
 
     func deleteLastInsertion() async throws {

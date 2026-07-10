@@ -176,6 +176,7 @@ final class AppModel: ObservableObject {
     private var meetingVoiceSessionLease: VoiceSessionLease?
     private var calendarDetectionTimer: Timer?
     private var promptedCalendarEventIDs = Set<String>()
+    private var pendingScribeIntent: ScribeIntent?
 
     init() {
         let defaults = UserDefaults.standard
@@ -295,7 +296,6 @@ final class AppModel: ObservableObject {
             transcriptionEngine: scribeTranscriptionEngine,
             provider: scribeProvider,
             contextService: ScribeContextService(),
-            textInsertionService: textInsertionService,
             sessionArbiter: voiceSessionArbiter,
             personalizationStore: personalizationStore
         )
@@ -367,7 +367,9 @@ final class AppModel: ObservableObject {
         #if DEBUG
         return "Local preview provider · no network"
         #else
-        return "Private mode · literal fallback only"
+        return scribeProviderCapabilities.contains(.semanticGeneration)
+            ? "On-device Apple Intelligence · no network"
+            : "On-device drafting unavailable · literal fallback only"
         #endif
     }
 
@@ -461,6 +463,12 @@ final class AppModel: ObservableObject {
 
     func replayOnboarding() {
         onboardingProgress = .fresh
+        saveOnboardingProgress()
+    }
+
+    func resumeOnboarding() {
+        guard !onboardingProgress.isComplete else { return }
+        onboardingProgress.wasSkipped = false
         saveOnboardingProgress()
     }
 
@@ -1876,8 +1884,24 @@ final class AppModel: ObservableObject {
     func showScribe() {
         switch scribeState {
         case .idle, .succeeded, .cancelled, .failed:
-            scribeState = .choosingIntent
-            scribePanelWindowController.presentIntentPicker(providerStatus: scribeProviderStatus)
+            do {
+                try ScribePanelLaunchSequence.launch(
+                    prepareTarget: { try scribeCoordinator.prepareTarget() },
+                    presentPicker: { initialFocus in
+                        scribeState = .choosingIntent
+                        scribePanelWindowController.presentIntentPicker(
+                            providerStatus: scribeProviderStatus,
+                            initialFocus: initialFocus
+                        )
+                    }
+                )
+            } catch let error as ScribeContextError {
+                presentScribeStartFailure(error.userMessage)
+                return
+            } catch {
+                presentScribeStartFailure("Cadence could not identify where to write. Return to the original app and try again.")
+                return
+            }
         default:
             scribePanelWindowController.update(
                 state: scribeState,
@@ -1888,6 +1912,7 @@ final class AppModel: ObservableObject {
     }
 
     private func beginScribe(intent: ScribeIntent) {
+        pendingScribeIntent = intent
         guard permissions.allRequiredGranted else {
             presentScribeStartFailure("Finish microphone, Accessibility, and Input Monitoring setup before using Scribe.")
             return
@@ -1903,6 +1928,8 @@ final class AppModel: ObservableObject {
                 self.presentScribeStartFailure(error.userMessage)
             } catch let VoiceSessionArbiterError.busy(activeKind) {
                 self.presentScribeStartFailure("Stop the active \(activeKind.rawValue) session before starting Scribe.")
+            } catch is CancellationError {
+                return
             } catch {
                 self.presentScribeStartFailure("Scribe could not start. Check microphone access and try again.")
             }
@@ -1926,22 +1953,26 @@ final class AppModel: ObservableObject {
     }
 
     private func cancelScribe() {
-        if scribeState == .choosingIntent {
-            scribeState = .idle
-            scribePanelWindowController.close()
-            return
-        }
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.scribeCoordinator.cancel()
             try? await Task.sleep(for: .milliseconds(500))
             guard case .cancelled = self.scribeState else { return }
+            self.pendingScribeIntent = nil
             self.scribeState = .idle
             self.scribePanelWindowController.close()
         }
     }
 
     private func retryScribe() {
+        if !scribeCoordinator.canRetryGeneration, let pendingScribeIntent {
+            beginScribe(intent: pendingScribeIntent)
+            return
+        }
+        if !scribeCoordinator.canRetryGeneration {
+            showScribe()
+            return
+        }
         Task { @MainActor [weak self] in
             await self?.scribeCoordinator.retryGeneration()
         }
@@ -1952,10 +1983,6 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             do {
                 try await self.scribeCoordinator.insertReviewedResult()
-                try? await Task.sleep(for: .milliseconds(650))
-                guard case .succeeded = self.scribeState else { return }
-                self.scribeState = .idle
-                self.scribePanelWindowController.close()
             } catch let error as ScribeContextError {
                 self.scribePanelWindowController.update(
                     state: self.scribeState,
@@ -1984,8 +2011,6 @@ final class AppModel: ObservableObject {
             return "Stop the active \(kind.rawValue) session before starting Scribe."
         case .transcription:
             return "Cadence could not transcribe that request. Try again or use Dictation."
-        case .uncertainInsertion:
-            return "Some text may have been inserted. Cadence will not retry automatically."
         case nil:
             return nil
         }
@@ -2013,6 +2038,11 @@ final class AppModel: ObservableObject {
         viewModel.onUseLiteral = { [weak self] in self?.scribeCoordinator.useLiteralTranscript() }
         viewModel.onInsert = { [weak self] in self?.insertScribeResult() }
         viewModel.onCopy = { [weak self] in self?.copyScribeResult() }
+        viewModel.onClose = { [weak self] in
+            self?.pendingScribeIntent = nil
+            self?.scribeState = .idle
+            self?.scribePanelWindowController.close()
+        }
     }
 
     private func releaseMeetingVoiceSessionLease() {
@@ -2888,7 +2918,7 @@ final class AppModel: ObservableObject {
         )
     }
 
-    private static func loadBinding(defaults: UserDefaults, action: HotkeyAction) -> HotkeyBinding {
+    static func loadBinding(defaults: UserDefaults, action: HotkeyAction) -> HotkeyBinding {
         var binding: HotkeyBinding
         switch action {
         case .holdToTalk:
@@ -2916,9 +2946,11 @@ final class AppModel: ObservableObject {
             binding.shortcut.keyDisplay = keyDisplay
         }
 
-        binding.shortcut.sidedModifierKeyCodes = HotkeyConfiguration.sidedModifierKeyCodes(
-            from: defaults.string(forKey: keys.sidedModifierKeyCodes)
-        )
+        if let sidedModifierKeyCodes = defaults.string(forKey: keys.sidedModifierKeyCodes) {
+            binding.shortcut.sidedModifierKeyCodes = HotkeyConfiguration.sidedModifierKeyCodes(
+                from: sidedModifierKeyCodes
+            )
+        }
 
         return binding
     }
@@ -3094,11 +3126,7 @@ final class AppModel: ObservableObject {
     }
 
     private static var scribePrivacyMode: ScribePrivacyMode {
-        #if DEBUG
         return .approvedProvider
-        #else
-        return .privateMode
-        #endif
     }
 
     private static func makeScribeProvider() -> any ScribeProvider {
@@ -3107,6 +3135,14 @@ final class AppModel: ObservableObject {
             .success("This is a local preview draft from Cadence. Review it before inserting.")
         ])
         #else
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            let provider = FoundationModelsScribeProvider()
+            if provider.capabilities.contains(.semanticGeneration) {
+                return provider
+            }
+        }
+        #endif
         return UnavailableScribeProvider()
         #endif
     }

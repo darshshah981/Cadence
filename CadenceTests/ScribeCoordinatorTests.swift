@@ -32,7 +32,7 @@ struct ScribeCoordinatorTests {
         #expect(fixture.arbiter.activeKind == nil)
 
         try await fixture.coordinator.insertReviewedResult()
-        #expect(fixture.insertion.insertedTexts == ["A polished update."])
+        #expect(fixture.context.insertedTexts == ["A polished update."])
         #expect(fixture.context.clearedCaptureIDs.count == 1)
 
         await #expect(throws: ScribeCoordinatorError.insertionAlreadyCompleted) {
@@ -122,7 +122,7 @@ struct ScribeCoordinatorTests {
             try await fixture.coordinator.insertReviewedResult()
         }
 
-        #expect(fixture.insertion.insertedTexts.isEmpty)
+        #expect(fixture.context.insertedTexts.isEmpty)
         #expect(fixture.coordinator.reviewedResult?.text == "Draft")
     }
 
@@ -148,15 +148,57 @@ struct ScribeCoordinatorTests {
         #expect(fixture.context.clearedCaptureIDs.count == 1)
         #expect(fixture.arbiter.activeKind == nil)
     }
+
+    @Test
+    func concurrentBeginIsRejectedWhileEngineIsStarting() async throws {
+        let engine = ControllableScribeEngine(suspendsStart: true)
+        let fixture = ScribeCoordinatorFixture(engine: engine)
+        let firstBegin = Task { try await fixture.coordinator.begin(intent: .compose) }
+        await engine.waitForStartCount(1)
+
+        await #expect(throws: ScribeCoordinatorError.invalidState) {
+            try await fixture.coordinator.begin(intent: .edit)
+        }
+
+        await engine.resumeStart()
+        try await firstBegin.value
+        await fixture.coordinator.cancel()
+        #expect(fixture.arbiter.activeKind == nil)
+    }
+
+    @Test
+    func repeatedStopRunsOnlyOneFinalTranscription() async throws {
+        let engine = ControllableScribeEngine(suspendsFinish: true)
+        let fixture = ScribeCoordinatorFixture(engine: engine)
+        try await fixture.coordinator.begin(intent: .compose)
+
+        let firstStop = Task { await fixture.coordinator.finishRecording() }
+        await engine.waitForFinishCount(1)
+        await fixture.coordinator.finishRecording()
+
+        let finishCount = await engine.finishCount
+        #expect(finishCount == 1)
+        await engine.resumeFinish()
+        await firstStop.value
+    }
+
+    @Test
+    func cancellingIntentPickerDiscardsPinnedTarget() async throws {
+        let fixture = ScribeCoordinatorFixture()
+        try fixture.coordinator.prepareTarget()
+
+        await fixture.coordinator.cancel()
+
+        #expect(fixture.context.discardPreparedTargetCount == 1)
+    }
 }
 
 @MainActor
 private final class ScribeCoordinatorFixture {
     let arbiter = VoiceSessionArbiter()
     let context: StubScribeContextService
-    let insertion = StubGuardedInsertionService()
     let audio = StubAudioCaptureService()
-    let engine = StubScribeTranscriptionEngine(text: "Spoken request")
+    let engine: any TranscriptionEngine
     let coordinator: ScribeCoordinator
 
     init(
@@ -164,19 +206,73 @@ private final class ScribeCoordinatorFixture {
         provider: (any ScribeProvider)? = nil,
         selectedText: String = "Selected context",
         personalizationStore: PersonalizationStore = PersonalizationStore(),
+        engine: (any TranscriptionEngine)? = nil,
         generationTimeout: Duration = .seconds(5)
     ) {
         context = StubScribeContextService(selectedText: selectedText)
+        self.engine = engine ?? StubScribeTranscriptionEngine(text: "Spoken request")
         coordinator = ScribeCoordinator(
             audioCaptureService: audio,
-            transcriptionEngine: engine,
+            transcriptionEngine: self.engine,
             provider: provider ?? MockScribeProvider(responses: providerResponses),
             contextService: context,
-            textInsertionService: insertion,
             sessionArbiter: arbiter,
             personalizationStore: personalizationStore,
             generationTimeout: generationTimeout
         )
+    }
+}
+
+private actor ControllableScribeEngine: TranscriptionEngine {
+    private let suspendsStart: Bool
+    private let suspendsFinish: Bool
+    private var startContinuation: CheckedContinuation<Void, Never>?
+    private var finishContinuation: CheckedContinuation<Void, Never>?
+    private(set) var startCount = 0
+    private(set) var finishCount = 0
+
+    init(suspendsStart: Bool = false, suspendsFinish: Bool = false) {
+        self.suspendsStart = suspendsStart
+        self.suspendsFinish = suspendsFinish
+    }
+
+    func updateConfiguration(_ configuration: TranscriptionConfiguration) async throws {}
+    func isPrepared() async -> Bool { true }
+    func prepare() async throws {}
+    func startSession() async throws {
+        startCount += 1
+        if suspendsStart {
+            await withCheckedContinuation { startContinuation = $0 }
+        }
+    }
+    func appendAudio(_ chunk: AudioChunk) async {}
+    func previewTranscript() async -> PreviewTranscript? { nil }
+    func finishSession(metrics: AudioCaptureSessionMetrics) async throws -> FinalTranscript {
+        finishCount += 1
+        if suspendsFinish {
+            await withCheckedContinuation { finishContinuation = $0 }
+        }
+        return FinalTranscript(rawText: "Spoken request", cleanedText: "Spoken request", duration: metrics.duration)
+    }
+    func cancelSession() async {}
+    func statusSummary() async -> String { "Ready" }
+
+    func waitForStartCount(_ expected: Int) async {
+        while startCount < expected { await Task.yield() }
+    }
+
+    func waitForFinishCount(_ expected: Int) async {
+        while finishCount < expected { await Task.yield() }
+    }
+
+    func resumeStart() {
+        startContinuation?.resume()
+        startContinuation = nil
+    }
+
+    func resumeFinish() {
+        finishContinuation?.resume()
+        finishContinuation = nil
     }
 }
 
@@ -185,10 +281,14 @@ private final class StubScribeContextService: ScribeContextServing {
     private let selectedText: String
     var shouldVerify = true
     private(set) var clearedCaptureIDs: [UUID] = []
+    private(set) var insertedTexts: [String] = []
+    private(set) var discardPreparedTargetCount = 0
 
     init(selectedText: String) {
         self.selectedText = selectedText
     }
+
+    func prepareTarget() throws {}
 
     func capture(for intent: ScribeIntent) throws -> ScribeContextSnapshot {
         ScribeContextSnapshot(
@@ -204,9 +304,17 @@ private final class StubScribeContextService: ScribeContextServing {
         return true
     }
 
+    func insert(_ text: String, for capture: ScribeContextSnapshot) throws -> Bool {
+        guard try verifyTarget(for: capture) else { return false }
+        insertedTexts.append(text)
+        return true
+    }
+
     func clear(_ capture: ScribeContextSnapshot) {
         clearedCaptureIDs.append(capture.id)
     }
+
+    func discardPreparedTarget() { discardPreparedTargetCount += 1 }
 }
 
 private final class StubAudioCaptureService: AudioCaptureServing {
@@ -245,16 +353,6 @@ private actor StubScribeTranscriptionEngine: TranscriptionEngine {
     }
     func cancelSession() async {}
     func statusSummary() async -> String { "Ready" }
-}
-
-@MainActor
-private final class StubGuardedInsertionService: GuardedTextInsertionServing {
-    private(set) var insertedTexts: [String] = []
-
-    func insertGuarded(_ text: String) async throws -> GuardedTextInsertionOutcome {
-        insertedTexts.append(text)
-        return .inserted
-    }
 }
 
 private actor CapturingScribeProvider: ScribeProvider {

@@ -1,12 +1,23 @@
 import AppKit
 import SwiftUI
 
+enum ScribePanelLaunchSequence {
+    static func launch(
+        prepareTarget: () throws -> Void,
+        presentPicker: (ScribeIntent) -> Void
+    ) rethrows {
+        try prepareTarget()
+        presentPicker(.compose)
+    }
+}
+
 @MainActor
 final class ScribePanelViewModel: ObservableObject {
     @Published private(set) var state = ScribeSessionState.choosingIntent
     @Published private(set) var failureMessage: String?
     @Published private(set) var literalTranscript: String?
     @Published private(set) var providerStatus = "Private preview"
+    @Published private(set) var requestedIntentFocus: ScribeIntent?
 
     var onChooseIntent: ((ScribeIntent) -> Void)?
     var onStop: (() -> Void)?
@@ -15,9 +26,11 @@ final class ScribePanelViewModel: ObservableObject {
     var onUseLiteral: (() -> Void)?
     var onInsert: (() -> Void)?
     var onCopy: (() -> Void)?
+    var onClose: (() -> Void)?
 
-    func presentPicker(providerStatus: String) {
+    func presentPicker(providerStatus: String, initialFocus: ScribeIntent) {
         self.providerStatus = providerStatus
+        requestedIntentFocus = initialFocus
         failureMessage = nil
         literalTranscript = nil
         state = .choosingIntent
@@ -37,6 +50,7 @@ final class ScribePanelViewModel: ObservableObject {
 struct ScribePanelView: View {
     @ObservedObject var model: ScribePanelViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var focusedIntent: ScribeIntent?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -53,6 +67,10 @@ struct ScribePanelView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .animation(reduceMotion ? nil : FlowMotion.quick, value: model.state)
         .accessibilityElement(children: .contain)
+        .onAppear { focusFirstIntentIfNeeded() }
+        .onChange(of: model.state) { _, _ in focusFirstIntentIfNeeded() }
+        .onChange(of: model.requestedIntentFocus) { _, intent in focusedIntent = intent }
+        .onExitCommand { model.onCancel?() }
     }
 
     private var header: some View {
@@ -93,7 +111,7 @@ struct ScribePanelView: View {
         case .inserting:
             statusView(icon: "keyboard", title: "Inserting draft…", detail: "Cadence is writing into the original app.")
         case .succeeded:
-            statusView(icon: "checkmark.circle.fill", title: "Draft inserted", detail: "Scribe finished without changing your meeting data.")
+            successView
         case .cancelled:
             statusView(icon: "xmark.circle", title: "Scribe cancelled", detail: "No text was inserted.")
         case .failed:
@@ -130,6 +148,7 @@ struct ScribePanelView: View {
                     .padding(10)
                 }
                 .buttonStyle(.plain)
+                .focused($focusedIntent, equals: intent)
                 .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .accessibilityLabel(intent.displayName)
                 .accessibilityHint(intent.shortDescription)
@@ -211,6 +230,24 @@ struct ScribePanelView: View {
         }
     }
 
+    private var successView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            statusView(
+                icon: "checkmark.circle.fill",
+                title: "Draft sent",
+                detail: "Cadence updated the pinned text field atomically. Copy the draft here if the app did not display it."
+            )
+            HStack {
+                Button("Copy draft") { model.onCopy?() }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button("Done") { model.onClose?() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+
     private func statusView(icon: String, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
@@ -236,6 +273,17 @@ struct ScribePanelView: View {
         case .edit: return "text.cursor"
         }
     }
+
+    private func focusFirstIntentIfNeeded() {
+        if model.state == .choosingIntent || model.state == .idle {
+            focusedIntent = model.requestedIntentFocus ?? .compose
+        }
+    }
+}
+
+private final class ScribeNonactivatingPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
 }
 
 @MainActor
@@ -250,8 +298,8 @@ final class ScribePanelWindowController {
     let viewModel = ScribePanelViewModel()
     private var panel: NSPanel?
 
-    func presentIntentPicker(providerStatus: String) {
-        viewModel.presentPicker(providerStatus: providerStatus)
+    func presentIntentPicker(providerStatus: String, initialFocus: ScribeIntent = .compose) {
+        viewModel.presentPicker(providerStatus: providerStatus, initialFocus: initialFocus)
         show(size: Metrics.picker)
     }
 
@@ -277,12 +325,13 @@ final class ScribePanelWindowController {
         let panel = makePanelIfNeeded(size: size)
         panel.setContentSize(size)
         position(panel)
+        panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
     }
 
     private func makePanelIfNeeded(size: NSSize) -> NSPanel {
         if let panel { return panel }
-        let panel = NSPanel(
+        let panel = ScribeNonactivatingPanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,

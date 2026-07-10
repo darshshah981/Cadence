@@ -64,6 +64,45 @@ struct DoublePressLatch: Equatable, Sendable {
     }
 }
 
+enum DictationQuickTapDecision: Equatable, Sendable {
+    case none
+    case startToggleRecording
+    case stopToggleRecording
+}
+
+struct DictationQuickTapGesture: Equatable, Sendable {
+    private var latch = DoublePressLatch()
+
+    mutating func register(
+        state: DictationSessionState,
+        activeTriggerMode: DictationTriggerMode?,
+        at time: TimeInterval
+    ) -> DictationQuickTapDecision {
+        if state == .listening, activeTriggerMode == .tapToStartStop {
+            latch.reset()
+            return .stopToggleRecording
+        }
+
+        guard state == .idle || isError(state) else {
+            latch.reset()
+            return .none
+        }
+
+        guard latch.registerTap(at: time) else { return .none }
+        latch.reset()
+        return .startToggleRecording
+    }
+
+    mutating func reset() {
+        latch.reset()
+    }
+
+    private func isError(_ state: DictationSessionState) -> Bool {
+        if case .error = state { return true }
+        return false
+    }
+}
+
 struct AudioChunk: Sendable {
     let samples: [Float]
     let frameCount: Int

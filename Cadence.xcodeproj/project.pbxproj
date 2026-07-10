@@ -36,6 +36,7 @@
 		760EAABAB0ED99780F4DAFDB /* MeetingNotesWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */; };
 		76260FD4F0061F8FFE5ACB9E /* UnavailableScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E54A61FAA183DBB172417E /* UnavailableScribeProvider.swift */; };
 		8006F55E629A70E7ED335961 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 40FEC6F1B63663537E6E73B3 /* Assets.xcassets */; };
+		827C3C6F3B9D6355BB6EE82B /* FoundationModelsScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F2F36578CB8F0AF6D9A0C63 /* FoundationModelsScribeProvider.swift */; };
 		878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37031AF8A914D482FABFFD6B /* PermissionsService.swift */; };
 		8C3A810CDD019ABE9195E199 /* OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393D34EA2315483D46C808AC /* OnboardingTests.swift */; };
 		92FC15C8C81AF3196473B914 /* VoiceSessionArbiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033B2CF865C8DF76F736802F /* VoiceSessionArbiter.swift */; };
@@ -96,6 +97,7 @@
 		3EBFA44D1684C89D8604C40F /* ShortcutExpansionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutExpansionService.swift; sourceTree = "<group>"; };
 		40FEC6F1B63663537E6E73B3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		42E7124C5AF7EC6EBAB0DE7E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		4F2F36578CB8F0AF6D9A0C63 /* FoundationModelsScribeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelsScribeProvider.swift; sourceTree = "<group>"; };
 		53DC5566E2688823A894040D /* CadenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CadenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5471DB10D447DC26C66499B4 /* ScribeContextService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeContextService.swift; sourceTree = "<group>"; };
 		57F88FDABE976A050039E642 /* DictationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModels.swift; sourceTree = "<group>"; };
@@ -230,6 +232,7 @@
 				CF63FA1E7E53378DC4B66F6A /* AudioCaptureService.swift */,
 				6A485E597733F3F0F173BF23 /* CalendarEventCacheStore.swift */,
 				9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */,
+				4F2F36578CB8F0AF6D9A0C63 /* FoundationModelsScribeProvider.swift */,
 				C1BA8806A19E0089A3DBB906 /* GoogleCalendarService.swift */,
 				36DCCAD2BECF88FDCBA8B4D3 /* HotkeyService.swift */,
 				FC22C16A79401A6870742A6E /* HUDWindowController.swift */,
@@ -388,6 +391,7 @@
 				5E268FC2CD9E558B8CEAFCE0 /* CalendarEventCacheStore.swift in Sources */,
 				A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */,
 				0A71E31A51D2EC604CDAF28F /* DictationModels.swift in Sources */,
+				827C3C6F3B9D6355BB6EE82B /* FoundationModelsScribeProvider.swift in Sources */,
 				944F0BE2AB36F33A1A8F3801 /* GoogleCalendarService.swift in Sources */,
 				D0ACFD368BDD7CB8693AB2D7 /* HUDView.swift in Sources */,
 				9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */,
