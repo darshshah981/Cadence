@@ -150,18 +150,26 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
     let id: UUID
     let intent: ScribeIntent
     let spokenTranscript: String
-    let context: ScribeContextSnapshot?
+    let context: ScribeRequestContext?
 
     init(
         id: UUID = UUID(),
         intent: ScribeIntent,
         spokenTranscript: String,
-        context: ScribeContextSnapshot? = nil
+        context: ScribeRequestContext? = nil
     ) {
         self.id = id
         self.intent = intent
         self.spokenTranscript = spokenTranscript
         self.context = context
+    }
+}
+
+struct ScribeRequestContext: Equatable, Sendable {
+    let selectedText: String
+
+    init(selectedText: String) {
+        self.selectedText = selectedText
     }
 }
 

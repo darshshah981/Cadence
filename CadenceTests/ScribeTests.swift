@@ -40,10 +40,7 @@ struct ScribeTests {
         let request = ScribeRequest(
             intent: .respond,
             spokenTranscript: "Decline politely",
-            context: ScribeContextSnapshot(
-                target: ScribeTargetIdentity(processIdentifier: 42, bundleIdentifier: "com.apple.TextEdit"),
-                selectedText: "Can you attend tomorrow?"
-            )
+            context: ScribeRequestContext(selectedText: "Can you attend tomorrow?")
         )
 
         let first = try await provider.generate(request)

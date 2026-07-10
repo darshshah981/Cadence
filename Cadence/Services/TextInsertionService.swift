@@ -6,7 +6,20 @@ protocol TextInsertionServing: AnyObject {
     func deleteLastInsertion() async throws
 }
 
-final class TextInsertionService: TextInsertionServing {
+enum GuardedTextInsertionOutcome: Equatable, Sendable {
+    case inserted
+}
+
+enum GuardedTextInsertionError: Error, Equatable, Sendable {
+    case uncertainPartialInsertion
+}
+
+@MainActor
+protocol GuardedTextInsertionServing: AnyObject {
+    func insertGuarded(_ text: String) async throws -> GuardedTextInsertionOutcome
+}
+
+final class TextInsertionService: TextInsertionServing, GuardedTextInsertionServing {
     private var lastInsertedText = ""
 
     func insert(_ text: String) async throws {
@@ -16,6 +29,16 @@ final class TextInsertionService: TextInsertionServing {
 
         try await postUnicodeString(text)
         lastInsertedText = text
+    }
+
+    func insertGuarded(_ text: String) async throws -> GuardedTextInsertionOutcome {
+        guard AXIsProcessTrusted() else {
+            throw CadenceError.accessibilityPermissionMissing
+        }
+
+        try await postUnicodeString(text)
+        lastInsertedText = text
+        return .inserted
     }
 
     func deleteLastInsertion() async throws {
@@ -29,8 +52,10 @@ final class TextInsertionService: TextInsertionServing {
             throw CadenceError.eventSourceUnavailable
         }
 
+        var insertedScalars = 0
         for scalar in text.utf16 {
-            try autoreleasepool {
+            do {
+                try autoreleasepool {
                 guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
                       let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
                     throw CadenceError.eventSourceUnavailable
@@ -41,6 +66,13 @@ final class TextInsertionService: TextInsertionServing {
                 keyUp.keyboardSetUnicodeString(stringLength: 1, unicodeString: &value)
                 keyDown.post(tap: .cghidEventTap)
                 keyUp.post(tap: .cghidEventTap)
+                }
+                insertedScalars += 1
+            } catch {
+                if insertedScalars > 0 {
+                    throw GuardedTextInsertionError.uncertainPartialInsertion
+                }
+                throw error
             }
         }
     }
