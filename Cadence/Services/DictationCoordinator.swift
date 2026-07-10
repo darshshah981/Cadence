@@ -75,6 +75,7 @@ final class DictationCoordinator {
     private var terminalHUDTask: Task<Void, Never>?
     private var hudPresentationGeneration = 0
     private var voiceSessionLease: VoiceSessionLease?
+    private var holdQuickTapLatch = DoublePressLatch()
 
     private var state: DictationSessionState = .idle {
         didSet { onStateChange?(state) }
@@ -114,6 +115,10 @@ final class DictationCoordinator {
 
         self.hotkeyService.onRelease = { [weak self] action in
             Task { await self?.handleHotkeyRelease(action) }
+        }
+
+        self.hotkeyService.onQuickTap = { [weak self] action in
+            Task { await self?.handleHotkeyQuickTap(action) }
         }
 
         self.hotkeyService.onAnyKeyPress = { [weak self] in
@@ -156,8 +161,11 @@ final class DictationCoordinator {
     private func handleHotkeyPress(_ action: HotkeyAction) async {
         switch action {
         case .holdToTalk:
+            holdQuickTapLatch.reset()
             if state == .idle || isErrorState {
                 await beginDictationIfPossible(triggerMode: .holdToTalk)
+            } else if state == .listening, activeTriggerMode == .tapToStartStop {
+                await finishDictationIfNeeded()
             }
         case .tapToStartStop:
             switch state {
@@ -185,6 +193,26 @@ final class DictationCoordinator {
     private func handleHotkeyRelease(_ action: HotkeyAction) async {
         guard action == .holdToTalk, activeTriggerMode == .holdToTalk else { return }
         await finishDictationIfNeeded()
+    }
+
+    private func handleHotkeyQuickTap(_ action: HotkeyAction) async {
+        guard action == .holdToTalk else { return }
+
+        if state == .listening, activeTriggerMode == .tapToStartStop {
+            holdQuickTapLatch.reset()
+            await finishDictationIfNeeded()
+            return
+        }
+
+        guard state == .idle || isErrorState else {
+            holdQuickTapLatch.reset()
+            return
+        }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        guard holdQuickTapLatch.registerTap(at: now) else { return }
+        holdQuickTapLatch.reset()
+        await beginDictationIfPossible(triggerMode: .tapToStartStop)
     }
 
     private func handleAnyKeyPress() async {

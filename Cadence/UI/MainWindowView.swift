@@ -134,6 +134,14 @@ struct MainWindowView: View {
         .task {
             await appModel.refreshPermissions()
         }
+        .sheet(
+            isPresented: Binding(
+                get: { appModel.isOnboardingPresented },
+                set: { if !$0 { appModel.skipOnboarding() } }
+            )
+        ) {
+            OnboardingView(appModel: appModel)
+        }
     }
 
     private var showsTopToolbar: Bool {
@@ -233,10 +241,6 @@ private struct StenoSidebar: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 14)
 
-            StenoSearchButton()
-                .padding(.horizontal, 12)
-                .padding(.bottom, 10)
-
             Rectangle()
                 .fill(FlowTheme.border.opacity(0.45))
                 .frame(height: 1)
@@ -267,7 +271,7 @@ private struct StenoSidebar: View {
                 }
 
                 StenoSidebarRow(
-                    title: "Ask",
+                    title: "Ask notes",
                     count: nil,
                     systemImage: "sparkle.magnifyingglass",
                     isSelected: activeItem == .ask,
@@ -278,7 +282,7 @@ private struct StenoSidebar: View {
                 }
 
                 StenoSidebarRow(
-                    title: "Speech to text",
+                    title: "Dictation history",
                     count: appModel.transcriptHistory.count,
                     systemImage: "waveform",
                     isSelected: activeItem == .speechToText,
@@ -304,28 +308,6 @@ private struct StenoSidebar: View {
             Spacer()
         }
         .background(FlowTheme.subtle)
-    }
-}
-
-private struct StenoSearchButton: View {
-    var body: some View {
-        HStack(spacing: 9) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 13))
-            Text("Search")
-                .font(.system(size: 13))
-            Spacer()
-            Text("Cmd K")
-                .font(.system(size: 11))
-                .foregroundStyle(FlowTheme.textTertiary)
-        }
-        .foregroundStyle(FlowTheme.textSecondary)
-        .frame(height: 30)
-        .padding(.horizontal, 10)
-        .background(FlowTheme.textPrimary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Search")
-        .accessibilityIdentifier("sidebar-search")
     }
 }
 
@@ -687,7 +669,7 @@ private struct StenoGlobalAskContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Ask")
+                Text("Ask notes")
                     .font(.system(size: 26, weight: .regular, design: .serif))
                     .foregroundStyle(FlowTheme.textPrimary)
 
@@ -839,7 +821,7 @@ private struct StenoSpeechHistoryContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Speech to text")
+                Text("Dictation history")
                     .font(.system(size: 26, weight: .regular, design: .serif))
                     .foregroundStyle(FlowTheme.textPrimary)
                     .padding(.bottom, 18)

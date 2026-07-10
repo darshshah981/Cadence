@@ -34,11 +34,7 @@ struct HUDView: View {
 
     private func recordingPill(triggerMode: DictationTriggerMode, showsHint: Bool) -> some View {
         HStack(spacing: 10) {
-            if triggerMode == .tapToStartStop {
-                dismissButton
-            }
-
-            if triggerMode.showsHoldIndicator {
+            if triggerMode.showsLockIndicator {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(FlowTheme.accent)
@@ -55,12 +51,8 @@ struct HUDView: View {
                     .lineLimit(1)
                     .fixedSize()
             }
-
-            if triggerMode == .tapToStartStop {
-                stopButton
-            }
         }
-        .padding(.horizontal, triggerMode == .tapToStartStop ? 8 : 14)
+        .padding(.horizontal, 14)
         .frame(width: pillWidth(triggerMode: triggerMode, showsHint: showsHint), height: 38)
         .background(pillBackground)
         .overlay(pillStroke)
@@ -96,39 +88,10 @@ struct HUDView: View {
         .overlay(pillStroke)
     }
 
-    private var dismissButton: some View {
-        Button(action: { model.onCancel?() }) {
-            ZStack {
-                Circle()
-                    .fill(FlowTheme.subtle)
-                    .frame(width: 20, height: 20)
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(FlowTheme.textSecondary)
-            }
-        }
-        .buttonStyle(HUDControlButtonStyle())
-        .accessibilityLabel("Cancel dictation")
-        .accessibilityHint("Discard this dictation session.")
-    }
-
-    private var stopButton: some View {
-        Button(action: { model.onStop?() }) {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(Color.white)
-                .frame(width: 16, height: 16)
-                .padding(10)
-                .background(FlowTheme.accent, in: Circle())
-        }
-        .buttonStyle(HUDControlButtonStyle())
-        .accessibilityLabel("Stop dictation")
-        .accessibilityHint("Finish dictating and transcribe the recording.")
-    }
-
     private func pillWidth(triggerMode: DictationTriggerMode, showsHint: Bool) -> CGFloat {
         switch triggerMode {
         case .tapToStartStop:
-            return 224
+            return 176
         case .holdToTalk:
             return showsHint ? 260 : 176
         }

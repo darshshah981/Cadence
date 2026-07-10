@@ -41,7 +41,9 @@ struct CadenceTests {
 
     @Test
     func defaultHotkeyMatchesPlannedShortcut() {
-        #expect(HotkeyConfiguration.defaultHoldToTalk.displayName == "Option + Shift + Space")
+        #expect(HotkeyConfiguration.defaultHoldToTalk.displayName == "Fn")
+        #expect(HotkeyConfiguration.defaultHoldToTalk.symbolDisplayName == "fn")
+        #expect(HotkeyConfiguration.defaultHoldToTalk.matches(modifiers: [.function], activeModifierKeyCodes: []))
     }
 
     @Test
@@ -133,6 +135,12 @@ struct CadenceTests {
         #expect(HotkeyBinding.defaultScribe.action == .scribe)
         #expect(HotkeyBinding.defaultScribe.isEnabled)
         #expect(HotkeyAction.scribe.supports(.defaultScribe))
+        #expect(HotkeyConfiguration.defaultScribe.displayName == "Fn + Left Control")
+        #expect(HotkeyConfiguration.defaultScribe.symbolDisplayName == "fn L⌃")
+        #expect(HotkeyConfiguration.defaultScribe.matches(
+            modifiers: [.function, .control],
+            activeModifierKeyCodes: [59]
+        ))
         #expect(!HotkeyAction.scribe.supports(HotkeyConfiguration(
             keyCode: HotkeyConfiguration.modifierOnlyKeyCode,
             carbonModifiers: UInt32(optionKey),
@@ -145,12 +153,37 @@ struct CadenceTests {
         let hold = HUDVisualState.recording(triggerMode: .holdToTalk, showsHint: false)
         let persistent = HUDVisualState.recording(triggerMode: .tapToStartStop, showsHint: false)
 
-        #expect(DictationTriggerMode.holdToTalk.showsHoldIndicator)
-        #expect(!DictationTriggerMode.tapToStartStop.showsHoldIndicator)
+        #expect(!DictationTriggerMode.holdToTalk.showsLockIndicator)
+        #expect(DictationTriggerMode.tapToStartStop.showsLockIndicator)
         #expect(hold.accessibilityLabel == "Dictation is listening")
         #expect(hold.accessibilityHint == "Release the shortcut to finish dictating.")
         #expect(persistent.accessibilityLabel == "Continuous dictation is listening")
-        #expect(persistent.accessibilityHint == "Use Stop to finish dictating, or Cancel to discard this session.")
+        #expect(persistent.accessibilityHint == "Press the Dictation shortcut again to finish.")
+        #expect(!HUDState(
+            visualState: persistent,
+            subtitle: "",
+            level: 0,
+            waveformLevels: [],
+            isVisible: true,
+            showsSubtitle: false
+        ).showsControls)
+    }
+
+    @Test
+    func doublePressLatchRecognizesOnlyTwoNearbyTaps() {
+        var latch = DoublePressLatch(maxInterval: 0.38)
+
+        let firstTap = latch.registerTap(at: 10)
+        let nearbySecondTap = latch.registerTap(at: 10.25)
+        let nextFirstTap = latch.registerTap(at: 11)
+        let expiredSecondTap = latch.registerTap(at: 11.5)
+        let finalNearbyTap = latch.registerTap(at: 11.7)
+
+        #expect(!firstTap)
+        #expect(nearbySecondTap)
+        #expect(!nextFirstTap)
+        #expect(!expiredSecondTap)
+        #expect(finalNearbyTap)
     }
 
     @Test

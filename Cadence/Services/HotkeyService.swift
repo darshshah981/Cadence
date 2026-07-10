@@ -11,6 +11,7 @@ private let hotkeyLogger = Logger(
 protocol HotkeyServing: AnyObject {
     var onPress: ((HotkeyAction) -> Void)? { get set }
     var onRelease: ((HotkeyAction) -> Void)? { get set }
+    var onQuickTap: ((HotkeyAction) -> Void)? { get set }
     var onAnyKeyPress: (() -> Void)? { get set }
     var onObservedKeyEvent: ((ObservedKeyEvent) -> Void)? { get set }
     var onDiagnosticsEvent: ((String, [String: String]) -> Void)? { get set }
@@ -34,6 +35,7 @@ final class HotkeyService: HotkeyServing {
 
     var onPress: ((HotkeyAction) -> Void)?
     var onRelease: ((HotkeyAction) -> Void)?
+    var onQuickTap: ((HotkeyAction) -> Void)?
     var onAnyKeyPress: (() -> Void)?
     var onObservedKeyEvent: ((ObservedKeyEvent) -> Void)?
     var onDiagnosticsEvent: ((String, [String: String]) -> Void)?
@@ -276,7 +278,7 @@ final class HotkeyService: HotkeyServing {
     }
 
     private func handleSideSpecificKeyPress(_ event: NSEvent) {
-        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift, .function])
         for binding in bindings
             where binding.isEnabled &&
             binding.shortcut.requiresSpecificModifierSides &&
@@ -311,7 +313,7 @@ final class HotkeyService: HotkeyServing {
 
     private func handleModifierFlagsChanged(_ event: NSEvent) {
         guard !isPaused else { return }
-        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift, .function])
         activeModifierKeyCodes = HotkeyConfiguration.updatedActiveModifierKeyCodes(activeModifierKeyCodes, with: event)
 
         for binding in bindings where binding.isEnabled && binding.shortcut.isModifierOnly {
@@ -337,8 +339,19 @@ final class HotkeyService: HotkeyServing {
             } else if !matches && isPending {
                 pendingModifierOnlyWorkItems[action]?.cancel()
                 pendingModifierOnlyWorkItems[action] = nil
+                if Self.isModifierReleaseEvent(event, flags: flags) {
+                    if action == .holdToTalk {
+                        onQuickTap?(action)
+                    } else {
+                        cancelPendingModifierOnlyActions()
+                        onPress?(action)
+                    }
+                }
             } else if !matches && isActive {
                 activeModifierOnlyActions.remove(action)
+                if action != .holdToTalk {
+                    cancelPendingModifierOnlyActions()
+                }
                 hotkeyLogger.info("Modifier-only hotkey released action=\(action.displayName, privacy: .public)")
                 onRelease?(action)
             }
@@ -350,6 +363,22 @@ final class HotkeyService: HotkeyServing {
             workItem.cancel()
         }
         pendingModifierOnlyWorkItems.removeAll()
+    }
+
+    private static func isModifierReleaseEvent(
+        _ event: NSEvent,
+        flags: NSEvent.ModifierFlags
+    ) -> Bool {
+        let flag: NSEvent.ModifierFlags
+        switch event.keyCode {
+        case 54, 55: flag = .command
+        case 56, 60: flag = .shift
+        case 58, 61: flag = .option
+        case 59, 62: flag = .control
+        case 63: flag = .function
+        default: return flags.isEmpty
+        }
+        return !flags.contains(flag)
     }
 }
 

@@ -326,6 +326,14 @@ struct SettingsView: View {
                     }
                 }
                 .padding(12)
+                insetDivider
+                SettingsActionRow(
+                    title: "Replay onboarding",
+                    description: "Review Dictation, Scribe, privacy, and shortcuts without changing saved meetings or settings.",
+                    buttonTitle: "Replay"
+                ) {
+                    appModel.replayOnboarding()
+                }
             }
         }
     }
@@ -536,9 +544,9 @@ struct SettingsView: View {
             insetDivider
 
             ShortcutSettingRow(
-                title: "Hold to dictate",
-                description: "Hold the shortcut, speak, then release to insert.",
-                hint: "Best for quick thoughts.",
+                title: "Press to dictate",
+                description: "Hold the shortcut to dictate, or double-press it to lock recording on.",
+                hint: "Release to insert in press-to-dictate mode.",
                 isEnabled: holdEnabledBinding,
                 shortcut: holdShortcutBinding,
                 onRecordingChange: appModel.setShortcutRecordingActive
@@ -1374,7 +1382,7 @@ final class ShortcutRecorderContainerView: NSView {
             return
         }
 
-        let modifierFlags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let modifierFlags = event.modifierFlags.intersection([.command, .option, .control, .shift, .function])
         let sidedModifierKeyCodes = HotkeyConfiguration.activeSidedModifierKeyCodes(
             from: activeModifierKeyCodes,
             modifiers: modifierFlags
@@ -1397,7 +1405,7 @@ final class ShortcutRecorderContainerView: NSView {
             return
         }
 
-        let modifierFlags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let modifierFlags = event.modifierFlags.intersection([.command, .option, .control, .shift, .function])
         activeModifierKeyCodes = HotkeyConfiguration.updatedActiveModifierKeyCodes(activeModifierKeyCodes, with: event)
         let sidedModifierKeyCodes = HotkeyConfiguration.activeSidedModifierKeyCodes(
             from: activeModifierKeyCodes,
@@ -1448,7 +1456,7 @@ final class ShortcutRecorderContainerView: NSView {
 
     private static func isModifierOnlyKey(_ keyCode: UInt16) -> Bool {
         switch keyCode {
-        case 54, 55, 56, 57, 58, 59, 60, 61, 62:
+        case 54, 55, 56, 57, 58, 59, 60, 61, 62, 63:
             return true
         default:
             return false
@@ -1505,6 +1513,7 @@ private struct PersonalShortcutEditor: View {
     @State private var draft: PersonalShortcut
     @State private var isAppSpecific: Bool
     @State private var appBundleIdentifier: String
+    private let isNew: Bool
     let onSave: (PersonalShortcut) -> Void
 
     init(shortcut: PersonalShortcut, onSave: @escaping (PersonalShortcut) -> Void) {
@@ -1516,12 +1525,13 @@ private struct PersonalShortcutEditor: View {
             _isAppSpecific = State(initialValue: false)
             _appBundleIdentifier = State(initialValue: "")
         }
+        self.isNew = shortcut.trigger.isEmpty
         self.onSave = onSave
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(draft.trigger.isEmpty ? "Add spoken shortcut" : "Edit spoken shortcut")
+            Text(isNew ? "Add spoken shortcut" : "Edit spoken shortcut")
                 .font(.title2.weight(.semibold))
             Form {
                 TextField("Spoken trigger", text: $draft.trigger)
@@ -1559,18 +1569,20 @@ private struct WritingStyleProfileEditor: View {
     @State private var draft: WritingStyleProfile
     @State private var isAppSpecific: Bool
     @State private var appBundleIdentifier: String
+    private let isNew: Bool
     let onSave: (WritingStyleProfile) -> Void
 
     init(profile: WritingStyleProfile, onSave: @escaping (WritingStyleProfile) -> Void) {
         _draft = State(initialValue: profile)
         _isAppSpecific = State(initialValue: profile.appBundleIdentifier != nil)
         _appBundleIdentifier = State(initialValue: profile.appBundleIdentifier ?? "")
+        self.isNew = profile.name.isEmpty
         self.onSave = onSave
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(draft.name.isEmpty ? "Add writing profile" : "Edit writing profile")
+            Text(isNew ? "Add writing profile" : "Edit writing profile")
                 .font(.title2.weight(.semibold))
             Form {
                 TextField("Profile name", text: $draft.name)

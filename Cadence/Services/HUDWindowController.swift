@@ -7,7 +7,7 @@ final class HUDWindowController {
         static let pillHeight: CGFloat = 38
         static let holdSize = NSSize(width: 176, height: pillHeight)
         static let holdHintSize = NSSize(width: 260, height: pillHeight)
-        static let controlsSize = NSSize(width: 224, height: pillHeight)
+        static let lockedSize = NSSize(width: 176, height: pillHeight)
         static let statusSize = NSSize(width: 236, height: pillHeight)
         static let subtitleSize = NSSize(width: 320, height: 36)
         static let bottomInset: CGFloat = 32
@@ -144,7 +144,7 @@ final class HUDWindowController {
         case .recording(let triggerMode, let showsHint):
             switch triggerMode {
             case .tapToStartStop:
-                return Metrics.controlsSize
+                return Metrics.lockedSize
             case .holdToTalk:
                 return showsHint ? Metrics.holdHintSize : Metrics.holdSize
             }

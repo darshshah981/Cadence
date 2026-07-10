@@ -127,6 +127,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var waveformSensitivity: Double
     @Published private(set) var appearancePreference: AppearancePreference
     @Published private(set) var personalizationLibrary: PersonalizationLibrary
+    @Published private(set) var onboardingProgress: OnboardingProgress
+    @Published private(set) var isOnboardingPresented: Bool
     @Published var menuScreen: MenuScreen = .home
 
     @Published private(set) var holdToTalkBinding: HotkeyBinding
@@ -141,6 +143,7 @@ final class AppModel: ObservableObject {
     private let scribeTranscriptionEngine: TranscriptionEngine
     private let scribePanelWindowController = ScribePanelWindowController()
     private let voiceSessionArbiter: VoiceSessionArbiter
+    let onboardingMicrophoneMonitor: OnboardingMicrophoneMonitor
     private let analytics: AnalyticsService
     private let mainWindowController = MainWindowController()
     private let meetingStore: MeetingStore
@@ -156,6 +159,7 @@ final class AppModel: ObservableObject {
     private var googleCalendarConfiguration: GoogleCalendarOAuthConfiguration?
     private let defaults: UserDefaults
     private let personalizationStore: PersonalizationStore
+    private let onboardingProgressStore: OnboardingProgressStore
     private var cancellables = Set<AnyCancellable>()
     private var lastExternalApplication: NSRunningApplication?
     private var transcriptionConfigurationTask: Task<Void, Never>?
@@ -185,12 +189,17 @@ final class AppModel: ObservableObject {
         let waveformSensitivity = Self.loadWaveformSensitivity(defaults: defaults)
         let appearancePreference = Self.loadAppearancePreference(defaults: defaults)
         let personalizationStore = PersonalizationStore(defaults: defaults)
+        let onboardingProgressStore = OnboardingProgressStore(defaults: defaults)
+        let onboardingProgress = onboardingProgressStore.load()
         self.analyticsEnabled = analyticsEnabled
         self.showsShortcutDock = showsShortcutDock
         self.waveformSensitivity = waveformSensitivity
         self.appearancePreference = appearancePreference
         self.personalizationStore = personalizationStore
         self.personalizationLibrary = personalizationStore.load()
+        self.onboardingProgressStore = onboardingProgressStore
+        self.onboardingProgress = onboardingProgress
+        self.isOnboardingPresented = !onboardingProgress.isComplete && !onboardingProgress.wasSkipped
         self.meetingCaptureSource = AppModel.loadMeetingCaptureSource(defaults: defaults)
         let googleOAuthClientID = AppModel.loadGoogleOAuthClientID(defaults: defaults)
         let googleOAuthClientSecret = AppModel.loadGoogleOAuthClientSecret(defaults: defaults)
@@ -257,6 +266,7 @@ final class AppModel: ObservableObject {
         let textInsertionService = TextInsertionService()
         let voiceSessionArbiter = VoiceSessionArbiter()
         self.voiceSessionArbiter = voiceSessionArbiter
+        self.onboardingMicrophoneMonitor = OnboardingMicrophoneMonitor(sessionArbiter: voiceSessionArbiter)
         self.scribeTranscriptionEngine = scribeTranscriptionEngine
         let hotkeyService = HotkeyService(
             bindings: Self.currentHotkeyBindings(
@@ -412,6 +422,50 @@ final class AppModel: ObservableObject {
     func deleteWritingStyleProfile(id: UUID) {
         personalizationLibrary.styleProfiles.removeAll { $0.id == id }
         persistPersonalizationLibrary()
+    }
+
+    func advanceOnboarding() {
+        let lastIndex = OnboardingStep.allCases.count - 1
+        guard onboardingProgress.stepIndex < lastIndex else {
+            completeOnboarding()
+            return
+        }
+        onboardingProgress.stepIndex += 1
+        saveOnboardingProgress()
+    }
+
+    func moveBackInOnboarding() {
+        guard onboardingProgress.stepIndex > 0 else { return }
+        onboardingProgress.stepIndex -= 1
+        saveOnboardingProgress()
+    }
+
+    func skipOnboarding() {
+        onboardingProgress.wasSkipped = true
+        isOnboardingPresented = false
+        saveOnboardingProgress()
+    }
+
+    func completeOnboarding() {
+        onboardingProgress.stepIndex = OnboardingStep.allCases.count - 1
+        onboardingProgress.isComplete = true
+        onboardingProgress.wasSkipped = false
+        isOnboardingPresented = false
+        saveOnboardingProgress()
+    }
+
+    func replayOnboarding() {
+        onboardingProgress = .fresh
+        isOnboardingPresented = true
+        saveOnboardingProgress()
+    }
+
+    private func saveOnboardingProgress() {
+        do {
+            try onboardingProgressStore.save(onboardingProgress)
+        } catch {
+            lastError = "Cadence could not save onboarding progress on this Mac."
+        }
     }
 
     private func persistPersonalizationLibrary() {

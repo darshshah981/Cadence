@@ -19,9 +19,9 @@ enum DictationTriggerMode: String, CaseIterable, Identifiable, Sendable {
     var displayName: String {
         switch self {
         case .holdToTalk:
-            return "Hold To Talk"
+            return "Press to Dictate"
         case .tapToStartStop:
-            return "Press To Start/Stop"
+            return "Toggle Recording"
         }
     }
 
@@ -30,12 +30,37 @@ enum DictationTriggerMode: String, CaseIterable, Identifiable, Sendable {
         case .holdToTalk:
             return "Press and hold to record, release to finish."
         case .tapToStartStop:
-            return "Press once to start, then stop with the shortcut or the pill."
+            return "Press once to start, then press the shortcut again to stop."
         }
     }
 
-    var showsHoldIndicator: Bool {
-        self == .holdToTalk
+    var showsLockIndicator: Bool {
+        self == .tapToStartStop
+    }
+}
+
+struct DoublePressLatch: Equatable, Sendable {
+    let maxInterval: TimeInterval
+    private(set) var previousTapTime: TimeInterval?
+
+    init(maxInterval: TimeInterval = 0.38) {
+        self.maxInterval = maxInterval
+    }
+
+    mutating func registerTap(at time: TimeInterval) -> Bool {
+        if let previousTapTime {
+            let interval = time - previousTapTime
+            if interval >= 0, interval <= maxInterval {
+                self.previousTapTime = nil
+                return true
+            }
+        }
+        previousTapTime = time
+        return false
+    }
+
+    mutating func reset() {
+        previousTapTime = nil
     }
 }
 
@@ -634,7 +659,7 @@ enum HUDVisualState: Equatable {
     var accessibilityHint: String? {
         switch self {
         case .recording(.tapToStartStop, _):
-            return "Use Stop to finish dictating, or Cancel to discard this session."
+            return "Press the Dictation shortcut again to finish."
         case .recording(.holdToTalk, _):
             return "Release the shortcut to finish dictating."
         default:
@@ -652,9 +677,6 @@ struct HUDState: Equatable {
     let showsSubtitle: Bool
 
     var showsControls: Bool {
-        if case .recording(let triggerMode, _) = visualState {
-            return triggerMode == .tapToStartStop
-        }
         return false
     }
 
@@ -678,9 +700,9 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
     var displayName: String {
         switch self {
         case .holdToTalk:
-            return "Hold To Talk"
+            return "Press to Dictate"
         case .tapToStartStop:
-            return "Press To Start/Stop"
+            return "Toggle Recording"
         case .scribe:
             return "Scribe"
         }
@@ -691,9 +713,9 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
         case .holdToTalk:
             return "Press and hold to record, release to finish. Limit this to 1-2 keys total."
         case .tapToStartStop:
-            return "Press once to start, then stop from the shortcut or the pill. Use 3 or more keys total."
+            return "Press once to start, then press the shortcut again to stop. Use 3 or more keys total."
         case .scribe:
-            return "Open Scribe to draft, respond, or edit. Use 3 or more keys total."
+            return "Open Scribe to draft, respond, or edit. Use 2 or more keys total."
         }
     }
 
@@ -715,7 +737,7 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
         case .tapToStartStop:
             return shortcut.componentCount >= 3
         case .scribe:
-            return shortcut.componentCount >= 3
+            return shortcut.componentCount >= 2
         }
     }
 
@@ -726,7 +748,7 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
         case .tapToStartStop:
             return "Use at least 3 keys total."
         case .scribe:
-            return "Use at least 3 keys total."
+            return "Use at least 2 keys total."
         }
     }
 }
@@ -764,10 +786,11 @@ struct HotkeyConfiguration: Equatable, Sendable {
 
     private var modifierDisplayName: String {
         if !sidedModifierKeyCodes.isEmpty {
-            return sidedModifierKeyCodes
+            var parts = sidedModifierKeyCodes
                 .sorted { Self.modifierSortOrder(for: $0) < Self.modifierSortOrder(for: $1) }
                 .map(Self.sidedModifierDisplayName)
-                .joined(separator: " + ")
+            if carbonModifiers & UInt32(kEventKeyModifierFnMask) != 0 { parts.insert("Fn", at: 0) }
+            return parts.joined(separator: " + ")
         }
 
         return Self.modifierDisplayName(for: carbonModifiers)
@@ -775,9 +798,11 @@ struct HotkeyConfiguration: Equatable, Sendable {
 
     private var modifierSymbolParts: [String] {
         if !sidedModifierKeyCodes.isEmpty {
-            return sidedModifierKeyCodes
+            var parts = sidedModifierKeyCodes
                 .sorted { Self.modifierSortOrder(for: $0) < Self.modifierSortOrder(for: $1) }
                 .map(Self.sidedModifierSymbolName)
+            if carbonModifiers & UInt32(kEventKeyModifierFnMask) != 0 { parts.insert("fn", at: 0) }
+            return parts
         }
 
         var parts: [String] = []
@@ -785,6 +810,7 @@ struct HotkeyConfiguration: Equatable, Sendable {
         if carbonModifiers & UInt32(optionKey) != 0 { parts.append("⌥") }
         if carbonModifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
         if carbonModifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
+        if carbonModifiers & UInt32(kEventKeyModifierFnMask) != 0 { parts.append("fn") }
         return parts
     }
 
@@ -825,9 +851,9 @@ struct HotkeyConfiguration: Equatable, Sendable {
     }
 
     static let defaultHoldToTalk = HotkeyConfiguration(
-        keyCode: 49,
-        carbonModifiers: UInt32(optionKey) | UInt32(shiftKey),
-        keyDisplay: "Space"
+        keyCode: modifierOnlyKeyCode,
+        carbonModifiers: UInt32(kEventKeyModifierFnMask),
+        keyDisplay: ""
     )
 
     static let defaultTapToStartStop = HotkeyConfiguration(
@@ -837,9 +863,10 @@ struct HotkeyConfiguration: Equatable, Sendable {
     )
 
     static let defaultScribe = HotkeyConfiguration(
-        keyCode: 1,
-        carbonModifiers: UInt32(controlKey) | UInt32(optionKey),
-        keyDisplay: "S"
+        keyCode: modifierOnlyKeyCode,
+        carbonModifiers: UInt32(kEventKeyModifierFnMask) | UInt32(controlKey),
+        keyDisplay: "",
+        sidedModifierKeyCodes: [59]
     )
 
     static func from(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String?) -> HotkeyConfiguration {
@@ -887,6 +914,7 @@ struct HotkeyConfiguration: Equatable, Sendable {
         if modifiers.contains(.option) { carbon |= UInt32(optionKey) }
         if modifiers.contains(.control) { carbon |= UInt32(controlKey) }
         if modifiers.contains(.shift) { carbon |= UInt32(shiftKey) }
+        if modifiers.contains(.function) { carbon |= UInt32(kEventKeyModifierFnMask) }
         return carbon
     }
 
@@ -896,6 +924,7 @@ struct HotkeyConfiguration: Equatable, Sendable {
         if carbonModifiers & UInt32(optionKey) != 0 { parts.append("Option") }
         if carbonModifiers & UInt32(shiftKey) != 0 { parts.append("Shift") }
         if carbonModifiers & UInt32(cmdKey) != 0 { parts.append("Command") }
+        if carbonModifiers & UInt32(kEventKeyModifierFnMask) != 0 { parts.append("Fn") }
         return parts.joined(separator: " + ")
     }
 
@@ -905,6 +934,7 @@ struct HotkeyConfiguration: Equatable, Sendable {
         if carbonModifiers & UInt32(optionKey) != 0 { parts.append("⌥") }
         if carbonModifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
         if carbonModifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
+        if carbonModifiers & UInt32(kEventKeyModifierFnMask) != 0 { parts.append("fn") }
         return parts.joined(separator: " ")
     }
 
@@ -913,10 +943,11 @@ struct HotkeyConfiguration: Equatable, Sendable {
             return symbolModifierDisplayName(for: carbonModifiers)
         }
 
-        return sidedModifierKeyCodes
+        var parts = sidedModifierKeyCodes
             .sorted { modifierSortOrder(for: $0) < modifierSortOrder(for: $1) }
             .map(sidedModifierSymbolName)
-            .joined(separator: " ")
+        if carbonModifiers & UInt32(kEventKeyModifierFnMask) != 0 { parts.insert("fn", at: 0) }
+        return parts.joined(separator: " ")
     }
 
     static func updatedActiveModifierKeyCodes(
@@ -955,7 +986,7 @@ struct HotkeyConfiguration: Equatable, Sendable {
         _ keyCodes: Set<UInt16>,
         modifiers: NSEvent.ModifierFlags
     ) -> Set<UInt16> {
-        let flags = modifiers.intersection([.command, .option, .control, .shift])
+        let flags = modifiers.intersection([.command, .option, .control, .shift, .function])
         return Set(keyCodes.filter { keyCode in
             guard isSidedModifierKey(keyCode) else { return false }
             return flags.contains(modifierFlag(forSidedKeyCode: keyCode))

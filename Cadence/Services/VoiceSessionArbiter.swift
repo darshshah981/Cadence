@@ -4,6 +4,7 @@ enum VoiceSessionKind: String, Equatable, Sendable {
     case dictation
     case scribe
     case meeting
+    case microphoneCheck
 }
 
 struct VoiceSessionLease: Equatable, Sendable {
