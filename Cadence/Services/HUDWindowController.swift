@@ -5,9 +5,9 @@ import SwiftUI
 final class HUDWindowController {
     private enum Metrics {
         static let pillHeight: CGFloat = 38
-        static let holdSize = NSSize(width: 140, height: pillHeight)
-        static let holdHintSize = NSSize(width: 228, height: pillHeight)
-        static let controlsSize = NSSize(width: 188, height: pillHeight)
+        static let holdSize = NSSize(width: 156, height: pillHeight)
+        static let holdHintSize = NSSize(width: 244, height: pillHeight)
+        static let controlsSize = NSSize(width: 224, height: pillHeight)
         static let statusSize = NSSize(width: 236, height: pillHeight)
         static let subtitleSize = NSSize(width: 320, height: 36)
         static let bottomInset: CGFloat = 32
@@ -148,7 +148,7 @@ final class HUDWindowController {
             case .holdToTalk:
                 return showsHint ? Metrics.holdHintSize : Metrics.holdSize
             }
-        case .preparingModel, .transcribing, .error:
+        case .preparingModel, .transcribing, .inserting, .success, .cancelled, .error:
             return Metrics.statusSize
         }
     }
@@ -235,6 +235,18 @@ final class HUDViewModel: ObservableObject {
 
     private var targetBars = Array(repeating: 0.0, count: 16)
     private var smoothingTask: Task<Void, Never>?
+    private var reducedMotion = false
+
+    func setReducedMotion(_ reducedMotion: Bool) {
+        guard self.reducedMotion != reducedMotion else { return }
+        self.reducedMotion = reducedMotion
+
+        if reducedMotion {
+            smoothingTask?.cancel()
+            smoothingTask = nil
+            displayBars = targetBars
+        }
+    }
 
     func apply(_ state: HUDState) {
         self.state = state
@@ -242,6 +254,13 @@ final class HUDViewModel: ObservableObject {
 
         guard state.isVisible else {
             displayBars = Array(repeating: 0.0, count: 16)
+            smoothingTask?.cancel()
+            smoothingTask = nil
+            return
+        }
+
+        if reducedMotion {
+            displayBars = targetBars
             smoothingTask?.cancel()
             smoothingTask = nil
             return

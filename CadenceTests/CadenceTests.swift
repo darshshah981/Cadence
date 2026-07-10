@@ -128,6 +128,27 @@ struct CadenceTests {
     }
 
     @Test
+    func dictationHUDMakesPersistentListeningExplicit() {
+        let hold = HUDVisualState.recording(triggerMode: .holdToTalk, showsHint: false)
+        let persistent = HUDVisualState.recording(triggerMode: .tapToStartStop, showsHint: false)
+
+        #expect(hold.accessibilityLabel == "Dictation is listening")
+        #expect(hold.accessibilityHint == "Release the shortcut to finish dictating.")
+        #expect(persistent.accessibilityLabel == "Continuous dictation is listening")
+        #expect(persistent.accessibilityHint == "Use Stop to finish dictating, or Cancel to discard this session.")
+    }
+
+    @Test
+    func dictationHUDExposesTerminalAndProcessingStates() {
+        #expect(HUDVisualState.preparingModel.accessibilityLabel == "Preparing the speech model")
+        #expect(HUDVisualState.transcribing.accessibilityLabel == "Transcribing dictation")
+        #expect(HUDVisualState.inserting.accessibilityLabel == "Inserting dictation")
+        #expect(HUDVisualState.success.accessibilityLabel == "Dictation inserted")
+        #expect(HUDVisualState.cancelled.accessibilityLabel == "Dictation cancelled")
+        #expect(HUDVisualState.error(message: "Mic access needed").accessibilityLabel == "Mic access needed")
+    }
+
+    @Test
     func defaultTranscriptionConfigurationUsesFastPreset() {
         let configuration = TranscriptionConfiguration()
 
