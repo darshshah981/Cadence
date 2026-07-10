@@ -368,6 +368,38 @@ struct HUDVisualGeometryTests {
     }
 
     @Test
+    func idleToExpandedContentStaysAttachedThroughoutMorph() {
+        assertContentAttachments(
+            from: HUDPresentation(visualState: .idle, isExpanded: false),
+            to: HUDPresentation(visualState: .idle, isExpanded: true)
+        )
+    }
+
+    @Test
+    func idleToHoldContentStaysAttachedThroughoutMorph() {
+        assertContentAttachments(
+            from: HUDPresentation(visualState: .idle, isExpanded: false),
+            to: HUDPresentation(visualState: .recording(triggerMode: .holdToTalk, showsHint: true), isExpanded: false)
+        )
+    }
+
+    @Test
+    func idleToLockedContentStaysAttachedThroughoutMorph() {
+        assertContentAttachments(
+            from: HUDPresentation(visualState: .idle, isExpanded: false),
+            to: HUDPresentation(visualState: .recording(triggerMode: .tapToStartStop, showsHint: false), isExpanded: false)
+        )
+    }
+
+    @Test
+    func statusToIdleContentStaysAttachedThroughoutMorph() {
+        assertContentAttachments(
+            from: HUDPresentation(visualState: .success, isExpanded: false),
+            to: HUDPresentation(visualState: .idle, isExpanded: false)
+        )
+    }
+
+    @Test
     func teachingTooltipUsesInsideFacingSideAndClampsToVisibleScreen() {
         let tooltipSize = NSSize(width: 200, height: 40)
         for position in HUDPosition.allCases {
@@ -461,6 +493,62 @@ struct HUDVisualGeometryTests {
                 #expect(start.maxX == end.maxX && middle.maxX == end.maxX)
                 #expect(start.minY == end.minY && middle.minY == end.minY)
             }
+        }
+    }
+
+    private func assertContentAttachments(from: HUDPresentation, to: HUDPresentation) {
+        let startSize = HUDPanelLayout.size(for: from)
+        let endSize = HUDPanelLayout.size(for: to)
+        for position in HUDPosition.allCases {
+            let start = HUDPanelLayout.targetFrame(
+                position: position,
+                screenFrame: screen,
+                visibleFrame: visible,
+                size: startSize
+            )
+            let end = HUDPanelLayout.targetFrame(
+                position: position,
+                screenFrame: screen,
+                visibleFrame: visible,
+                size: endSize
+            )
+            for progress in [0.0, 0.5, 1.0] {
+                let panel = HUDPanelLayout.interpolate(from: start, to: end, progress: progress)
+                for contentSize in [startSize, endSize] {
+                    let localOrigin = HUDContentAttachment.appKitOrigin(
+                        position: position,
+                        contentSize: contentSize,
+                        containerSize: panel.size
+                    )
+                    let content = NSRect(
+                        x: panel.minX + localOrigin.x,
+                        y: panel.minY + localOrigin.y,
+                        width: contentSize.width,
+                        height: contentSize.height
+                    )
+                    assertAttached(content: content, to: panel, at: position)
+                }
+            }
+        }
+    }
+
+    private func assertAttached(content: NSRect, to panel: NSRect, at position: HUDPosition) {
+        switch position {
+        case .bottomCenter:
+            #expect(content.midX == panel.midX)
+            #expect(content.minY == panel.minY)
+        case .topLeft:
+            #expect(content.minX == panel.minX)
+            #expect(content.maxY == panel.maxY)
+        case .topRight:
+            #expect(content.maxX == panel.maxX)
+            #expect(content.maxY == panel.maxY)
+        case .bottomLeft:
+            #expect(content.minX == panel.minX)
+            #expect(content.minY == panel.minY)
+        case .bottomRight:
+            #expect(content.maxX == panel.maxX)
+            #expect(content.minY == panel.minY)
         }
     }
 }

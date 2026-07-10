@@ -15,19 +15,61 @@ struct HUDAdaptiveShape: Shape {
     }
 }
 
+struct HUDContentAttachment {
+    let alignment: Alignment
+    let anchor: UnitPoint
+
+    static func forPosition(_ position: HUDPosition) -> HUDContentAttachment {
+        switch position {
+        case .bottomCenter:
+            HUDContentAttachment(alignment: .bottom, anchor: .bottom)
+        case .topLeft:
+            HUDContentAttachment(alignment: .topLeading, anchor: .topLeading)
+        case .topRight:
+            HUDContentAttachment(alignment: .topTrailing, anchor: .topTrailing)
+        case .bottomLeft:
+            HUDContentAttachment(alignment: .bottomLeading, anchor: .bottomLeading)
+        case .bottomRight:
+            HUDContentAttachment(alignment: .bottomTrailing, anchor: .bottomTrailing)
+        }
+    }
+
+    static func appKitOrigin(
+        position: HUDPosition,
+        contentSize: NSSize,
+        containerSize: NSSize
+    ) -> NSPoint {
+        switch position {
+        case .bottomCenter:
+            NSPoint(x: (containerSize.width - contentSize.width) / 2, y: 0)
+        case .topLeft:
+            NSPoint(x: 0, y: containerSize.height - contentSize.height)
+        case .topRight:
+            NSPoint(
+                x: containerSize.width - contentSize.width,
+                y: containerSize.height - contentSize.height
+            )
+        case .bottomLeft:
+            .zero
+        case .bottomRight:
+            NSPoint(x: containerSize.width - contentSize.width, y: 0)
+        }
+    }
+}
+
 struct HUDView: View {
     @ObservedObject var model: HUDViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: attachment.alignment) {
             if let previous = model.previousPresentation {
                 content(for: previous)
                     .opacity(1 - model.morphProgress)
                     .scaleEffect(
                         x: 1 - 0.04 * model.morphProgress,
                         y: 1,
-                        anchor: morphAnchor
+                        anchor: attachment.anchor
                     )
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
@@ -38,9 +80,11 @@ struct HUDView: View {
                 .scaleEffect(
                     x: model.previousPresentation == nil ? 1 : 0.96 + 0.04 * model.morphProgress,
                     y: 1,
-                    anchor: morphAnchor
+                    anchor: attachment.anchor
                 )
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: attachment.alignment)
+        .clipped()
         .modifier(HUDRootAccessibilityModifier(presentation: model.presentation))
         .onAppear { model.setReducedMotion(reduceMotion) }
         .onChange(of: reduceMotion) { _, reduced in model.setReducedMotion(reduced) }
@@ -73,7 +117,7 @@ struct HUDView: View {
     }
 
     private var logoBadge: some View {
-        ZStack(alignment: logoAlignment) {
+        ZStack(alignment: attachment.alignment) {
             Color.clear
             Image("HUDLogo")
                 .resizable()
@@ -87,24 +131,8 @@ struct HUDView: View {
             }
     }
 
-    private var logoAlignment: Alignment {
-        switch model.position {
-        case .bottomCenter: .bottom
-        case .topLeft: .topLeading
-        case .topRight: .topTrailing
-        case .bottomLeft: .bottomLeading
-        case .bottomRight: .bottomTrailing
-        }
-    }
-
-    private var morphAnchor: UnitPoint {
-        switch model.position {
-        case .bottomCenter: .bottom
-        case .topLeft: .topLeading
-        case .topRight: .topTrailing
-        case .bottomLeft: .bottomLeading
-        case .bottomRight: .bottomTrailing
-        }
+    private var attachment: HUDContentAttachment {
+        HUDContentAttachment.forPosition(model.position)
     }
 
     private func recordingPill(triggerMode: DictationTriggerMode, showsHint: Bool) -> some View {
