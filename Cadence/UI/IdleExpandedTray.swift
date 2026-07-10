@@ -14,12 +14,23 @@ struct IdleExpandedTray: View {
         }
         .padding(.horizontal, 10)
         .frame(height: HUDMetrics.pillHeight)
-        .background(trayBackground)
-        .overlay(trayStroke)
+        .background {
+            ZStack {
+                trayBackground
+                Button(action: model.handleTrayBackgroundTap) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .accessibilityHidden(true)
+            }
+        }
+        .overlay(trayStroke.allowsHitTesting(false))
     }
 
     private var copyButton: some View {
-        Button(action: { model.onCopyLast?() }) {
+        Button(action: model.requestCopyLast) {
             Group {
                 if model.showCopyConfirmation {
                     Image(systemName: "checkmark")
@@ -42,7 +53,7 @@ struct IdleExpandedTray: View {
 
     @ViewBuilder
     private var dictionaryButton: some View {
-        Button(action: { model.onAddToDictionary?() }) {
+        Button(action: model.requestAddToDictionary) {
             dictionaryButtonContent
         }
         .buttonStyle(HUDControlButtonStyle())
@@ -84,7 +95,7 @@ struct IdleExpandedTray: View {
         Menu {
             ForEach(HUDHideDuration.allCases, id: \.self) { duration in
                 Button(duration.displayName) {
-                    model.onHide?(duration)
+                    model.requestHide(duration)
                 }
             }
         } label: {

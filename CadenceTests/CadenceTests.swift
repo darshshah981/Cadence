@@ -2667,12 +2667,14 @@ struct CadenceTests {
 
     @Test
     func dragTooltipShownPersistsAndPreventsReTrigger() {
-        let defaults = UserDefaults.standard
-        let key = "Cadence.dragTooltipShown"
-        defaults.removeObject(forKey: key)
-        #expect(!defaults.bool(forKey: key))
-        defaults.set(true, forKey: key)
-        #expect(defaults.bool(forKey: key))
+        let suite = "CadenceTests.dragTooltip.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = HUDDragTooltipStateStore(defaults: defaults)
+        #expect(!store.hasBeenShown)
+        store.markShown()
+        #expect(store.hasBeenShown)
     }
 
     private func temporaryMeetingStoreURL() -> URL {

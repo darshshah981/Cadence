@@ -69,7 +69,6 @@ final class AppModel: ObservableObject {
         static let scribeSidedModifierKeyCodes = "Cadence.scribeSidedModifierKeyCodes"
         static let transcriptHistory = "FlowState.transcriptHistory"
         static let showsShortcutDock = "Cadence.showsShortcutDock"
-        static let dictationSoundFeedbackEnabled = "Cadence.dictationSoundFeedbackEnabled"
         static let meetingCaptureSource = "Cadence.meetingCaptureSource"
         static let acknowledgedOrphanRecordingIDs = "Cadence.acknowledgedOrphanRecordingIDs"
         static let appearancePreference = "Cadence.appearancePreference"
@@ -79,7 +78,6 @@ final class AppModel: ObservableObject {
         static let didMigrateToLivePreviewDefaultV2 = "FlowState.didMigrateToLivePreviewDefault.v2"
         static let didUndoLivePreviewDefault = "FlowState.didUndoLivePreviewDefault.v1"
         static let hudPosition = "Cadence.hudPosition"
-        static let dragTooltipShown = "Cadence.dragTooltipShown"
     }
 
     private enum AnalyticsTuning {
@@ -202,7 +200,7 @@ final class AppModel: ObservableObject {
         self.transcriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
         let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
         let showsShortcutDock = (defaults.object(forKey: PreferenceKey.showsShortcutDock) as? Bool) ?? true
-        let dictationSoundFeedbackEnabled = (defaults.object(forKey: PreferenceKey.dictationSoundFeedbackEnabled) as? Bool) ?? true
+        let dictationSoundFeedbackEnabled = DictationSoundFeedbackPreference.load(from: defaults)
         let waveformSensitivity = Self.loadWaveformSensitivity(defaults: defaults)
         let appearancePreference = Self.loadAppearancePreference(defaults: defaults)
         let personalizationStore = PersonalizationStore(defaults: defaults)
@@ -1744,9 +1742,7 @@ final class AppModel: ObservableObject {
                 ]
             )
         }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(item.text, forType: .string)
+        TranscriptPasteboardAction.copy(item.text)
         copiedTranscriptID = item.id
 
         Task { @MainActor [weak self] in
@@ -1857,8 +1853,11 @@ final class AppModel: ObservableObject {
     func setDictationSoundFeedbackEnabled(_ enabled: Bool) {
         guard dictationSoundFeedbackEnabled != enabled else { return }
         dictationSoundFeedbackEnabled = enabled
-        defaults.set(enabled, forKey: PreferenceKey.dictationSoundFeedbackEnabled)
-        feedbackService.isEnabled = enabled
+        DictationSoundFeedbackPreference.set(
+            enabled,
+            defaults: defaults,
+            service: feedbackService
+        )
     }
 
     private var currentHotkeyBindings: [HotkeyBinding] {
@@ -1907,9 +1906,10 @@ final class AppModel: ObservableObject {
         }
 
         hudController.onCopyLast = { [weak self] in
-            guard let self, let latest = self.transcriptHistory.first else { return }
-            self.copyTranscript(latest)
-            self.hudController.showCopyConfirmation()
+            guard let self else { return }
+            if HUDCopyLastAction.perform(history: self.transcriptHistory, copy: self.copyTranscript) {
+                self.hudController.showCopyConfirmation()
+            }
         }
 
         hudController.onAddToDictionary = { [weak self] in

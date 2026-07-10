@@ -13,6 +13,55 @@ protocol FeedbackServing: AnyObject {
     func playActivationSound()
 }
 
+enum DictationActivationFeedbackEvent: Equatable {
+    case listeningStarted
+    case audioUpdated
+    case stopped
+    case cancelled
+    case failed
+}
+
+@MainActor
+final class DictationActivationFeedbackGate {
+    private let service: FeedbackServing
+    private var isListeningSessionActive = false
+
+    init(service: FeedbackServing) {
+        self.service = service
+    }
+
+    func handle(_ event: DictationActivationFeedbackEvent) {
+        switch event {
+        case .listeningStarted:
+            guard !isListeningSessionActive else { return }
+            isListeningSessionActive = true
+            service.playActivationSound()
+        case .audioUpdated:
+            break
+        case .stopped, .cancelled, .failed:
+            isListeningSessionActive = false
+        }
+    }
+}
+
+enum DictationSoundFeedbackPreference {
+    static let key = "Cadence.dictationSoundFeedbackEnabled"
+
+    static func load(from defaults: UserDefaults) -> Bool {
+        (defaults.object(forKey: key) as? Bool) ?? true
+    }
+
+    @MainActor
+    static func set(
+        _ enabled: Bool,
+        defaults: UserDefaults,
+        service: FeedbackServing
+    ) {
+        defaults.set(enabled, forKey: key)
+        service.isEnabled = enabled
+    }
+}
+
 final class SoundFeedbackService: FeedbackServing {
     var isEnabled: Bool
 

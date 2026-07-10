@@ -669,6 +669,238 @@ struct HUDAnimationClockTests {
     }
 }
 
+struct HUDReleaseHardeningTests {
+    @Test
+    @MainActor
+    func activationFeedbackFiresOncePerListeningSessionOnly() {
+        let service = HardeningCapturingFeedbackService()
+        let gate = DictationActivationFeedbackGate(service: service)
+
+        gate.handle(.listeningStarted)
+        gate.handle(.audioUpdated)
+        gate.handle(.audioUpdated)
+        gate.handle(.listeningStarted)
+        #expect(service.activationCount == 1)
+
+        gate.handle(.stopped)
+        gate.handle(.cancelled)
+        gate.handle(.failed)
+        #expect(service.activationCount == 1)
+
+        gate.handle(.listeningStarted)
+        #expect(service.activationCount == 2)
+    }
+
+    @Test
+    @MainActor
+    func soundPreferenceDefaultsOnAndPersistsIntoInjectedService() {
+        let suite = "HUDReleaseHardening.sound.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let service = HardeningCapturingFeedbackService()
+
+        #expect(DictationSoundFeedbackPreference.load(from: defaults))
+        DictationSoundFeedbackPreference.set(false, defaults: defaults, service: service)
+        #expect(!DictationSoundFeedbackPreference.load(from: defaults))
+        #expect(defaults.object(forKey: DictationSoundFeedbackPreference.key) as? Bool == false)
+        #expect(!service.isEnabled)
+
+        DictationSoundFeedbackPreference.set(true, defaults: defaults, service: service)
+        #expect(DictationSoundFeedbackPreference.load(from: defaults))
+        #expect(service.isEnabled)
+    }
+
+    @Test
+    func dragTooltipEligibilityCoversThresholdAndShownState() {
+        #expect(!HUDDragTooltipEligibility.shouldShow(successfulDictationCount: 0, hasBeenShown: false))
+        #expect(!HUDDragTooltipEligibility.shouldShow(successfulDictationCount: 2, hasBeenShown: false))
+        #expect(HUDDragTooltipEligibility.shouldShow(successfulDictationCount: 3, hasBeenShown: false))
+        #expect(HUDDragTooltipEligibility.shouldShow(successfulDictationCount: 4, hasBeenShown: false))
+        #expect(!HUDDragTooltipEligibility.shouldShow(successfulDictationCount: 3, hasBeenShown: true))
+        #expect(!HUDDragTooltipEligibility.shouldShow(successfulDictationCount: 4, hasBeenShown: true))
+    }
+
+    @Test
+    func dragTooltipStorePersistsShownStateIdempotently() {
+        let suite = "HUDReleaseHardening.tooltip.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = HUDDragTooltipStateStore(defaults: defaults)
+
+        #expect(!store.hasBeenShown)
+        store.markShown()
+        #expect(store.hasBeenShown)
+        store.markShown()
+        #expect(store.hasBeenShown)
+    }
+
+    @Test
+    @MainActor
+    func copyLastUsesLatestItemPasteboardBoundaryAndConfirmationSignal() {
+        let pasteboard = HardeningPasteboardWriter()
+        let latest = TranscriptHistoryItem(text: "synthetic latest")
+        let older = TranscriptHistoryItem(text: "synthetic older")
+        var copiedID: UUID?
+
+        let shouldConfirm = HUDCopyLastAction.perform(history: [latest, older]) { item in
+            copiedID = item.id
+            TranscriptPasteboardAction.copy(item.text, using: pasteboard)
+        }
+
+        #expect(shouldConfirm)
+        #expect(copiedID == latest.id)
+        #expect(pasteboard.value == "synthetic latest")
+        #expect(pasteboard.replaceCount == 1)
+    }
+
+    @Test
+    func copyLastEmptyHistoryDoesNothingAndDoesNotConfirm() {
+        var copyCount = 0
+        let shouldConfirm = HUDCopyLastAction.perform(history: []) { _ in copyCount += 1 }
+
+        #expect(!shouldConfirm)
+        #expect(copyCount == 0)
+    }
+
+    @Test
+    @MainActor
+    func trayBackgroundCollapsesWhileControlsRemainIndependent() {
+        let model = HUDViewModel()
+        model.apply(.logoIdle)
+        model.setExpanded(true)
+        model.canCopyLast = true
+        var copyCount = 0
+        var dictionaryCount = 0
+        var hideDurations: [HUDHideDuration] = []
+        model.onCopyLast = { copyCount += 1 }
+        model.onAddToDictionary = { dictionaryCount += 1 }
+        model.onHide = { hideDurations.append($0) }
+
+        model.requestCopyLast()
+        model.requestAddToDictionary()
+        model.requestHide(.tenMinutes)
+
+        #expect(copyCount == 1)
+        #expect(dictionaryCount == 1)
+        #expect(hideDurations == [.tenMinutes])
+        #expect(model.isExpanded)
+
+        model.handleTrayBackgroundTap()
+        #expect(!model.isExpanded)
+        #expect(copyCount == 1)
+        #expect(dictionaryCount == 1)
+        #expect(hideDurations == [.tenMinutes])
+    }
+
+    @Test
+    @MainActor
+    func disabledTrayActionsNeverFireCallbacks() {
+        let model = HUDViewModel()
+        var copyCount = 0
+        var dictionaryCount = 0
+        model.onCopyLast = { copyCount += 1 }
+        model.onAddToDictionary = { dictionaryCount += 1 }
+        model.canCopyLast = false
+        model.dictionaryFeedback = .capturing
+
+        model.requestCopyLast()
+        model.requestAddToDictionary()
+
+        #expect(copyCount == 0)
+        #expect(dictionaryCount == 0)
+    }
+
+    @Test
+    func dragRuntimeMovesSnapsAndPersistsThroughProductionStore() {
+        let suite = "HUDReleaseHardening.drag.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = HUDPositionStore(defaults: defaults)
+        let screen = NSRect(x: 0, y: 0, width: 1_000, height: 800)
+        let visible = NSRect(x: 0, y: 50, width: 1_000, height: 726)
+        var runtime = HUDDragRuntime()
+
+        runtime.begin(panelOrigin: NSPoint(x: 478, y: 50), pointer: NSPoint(x: 500, y: 72))
+        #expect(HUDDragOverlayPolicy.shouldShow(isDragging: runtime.isActive, isOverlayVisible: false))
+        #expect(!HUDDragOverlayPolicy.shouldShow(isDragging: runtime.isActive, isOverlayVisible: true))
+        let movedOrigin = runtime.moved(to: NSPoint(x: 970, y: 750))
+        #expect(movedOrigin == NSPoint(x: 948, y: 728))
+        let movedFrame = NSRect(origin: movedOrigin!, size: HUDMetrics.idleHitSize)
+        #expect(runtime.nearestPosition(
+            panelFrame: movedFrame,
+            screenFrame: screen,
+            visibleFrame: visible
+        ) == .topRight)
+        let completion = runtime.complete(
+            panelFrame: movedFrame,
+            screenFrame: screen,
+            visibleFrame: visible
+        )
+
+        #expect(completion?.position == .topRight)
+        #expect(completion?.origin == NSPoint(x: 956, y: 732))
+        #expect(!runtime.isActive)
+        #expect(!HUDDragOverlayPolicy.shouldShow(isDragging: runtime.isActive, isOverlayVisible: false))
+        if let completion { store.save(completion.position) }
+        #expect(store.load() == .topRight)
+    }
+
+    @Test
+    func clickAwayPolicyIgnoresControlsAndMenusButCollapsesOutside() {
+        let panel = NSRect(x: 100, y: 100, width: 240, height: 38)
+        #expect(!HUDClickAwayPolicy.shouldCollapse(
+            isExpanded: true,
+            panelFrame: panel,
+            pointer: NSPoint(x: 120, y: 120),
+            isMenuWindow: false
+        ))
+        #expect(!HUDClickAwayPolicy.shouldCollapse(
+            isExpanded: true,
+            panelFrame: panel,
+            pointer: NSPoint(x: 500, y: 500),
+            isMenuWindow: true
+        ))
+        #expect(HUDClickAwayPolicy.shouldCollapse(
+            isExpanded: true,
+            panelFrame: panel,
+            pointer: NSPoint(x: 500, y: 500),
+            isMenuWindow: false
+        ))
+        #expect(!HUDClickAwayPolicy.shouldCollapse(
+            isExpanded: false,
+            panelFrame: panel,
+            pointer: NSPoint(x: 500, y: 500),
+            isMenuWindow: false
+        ))
+    }
+}
+
+@MainActor
+private final class HardeningCapturingFeedbackService: FeedbackServing {
+    var isEnabled = true
+    private(set) var activationCount = 0
+
+    func playActivationSound() {
+        guard isEnabled else { return }
+        activationCount += 1
+    }
+}
+
+@MainActor
+private final class HardeningPasteboardWriter: TextPasteboardWriting {
+    private(set) var value: String?
+    private(set) var replaceCount = 0
+
+    func replaceContents(with text: String) -> Bool {
+        value = text
+        replaceCount += 1
+        return true
+    }
+}
+
 private struct StubAccessibilitySelectionReader: AccessibilitySelectionReading {
     let value: String?
     let error: SelectionCaptureError?

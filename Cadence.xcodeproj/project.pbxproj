@@ -39,6 +39,7 @@
 		8006F55E629A70E7ED335961 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 40FEC6F1B63663537E6E73B3 /* Assets.xcassets */; };
 		827C3C6F3B9D6355BB6EE82B /* FoundationModelsScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F2F36578CB8F0AF6D9A0C63 /* FoundationModelsScribeProvider.swift */; };
 		878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37031AF8A914D482FABFFD6B /* PermissionsService.swift */; };
+		888734B0BC05B1231663DF8C /* PasteboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2241AB1EAC2C658906A2DF74 /* PasteboardService.swift */; };
 		8C3A810CDD019ABE9195E199 /* OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393D34EA2315483D46C808AC /* OnboardingTests.swift */; };
 		92FC15C8C81AF3196473B914 /* VoiceSessionArbiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033B2CF865C8DF76F736802F /* VoiceSessionArbiter.swift */; };
 		944F0BE2AB36F33A1A8F3801 /* GoogleCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BA8806A19E0089A3DBB906 /* GoogleCalendarService.swift */; };
@@ -91,6 +92,7 @@
 		07592451F56FA01E1134A310 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		14E54A61FAA183DBB172417E /* UnavailableScribeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnavailableScribeProvider.swift; sourceTree = "<group>"; };
 		19004982898DC1FD2A4774E4 /* ScribeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProvider.swift; sourceTree = "<group>"; };
+		2241AB1EAC2C658906A2DF74 /* PasteboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardService.swift; sourceTree = "<group>"; };
 		2747B5C0BD75EFECA1D2569B /* Cadence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cadence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B5252E71CDD37942299004F /* PermissionGuideWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGuideWindow.swift; sourceTree = "<group>"; };
 		2BE62D8EF19E5352F7A93289 /* OnboardingProgressStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingProgressStore.swift; sourceTree = "<group>"; };
@@ -263,6 +265,7 @@
 				A21CC2B73F205DDEA13DE704 /* MockTranscriptionEngine.swift */,
 				5B0F4A27DA91DA33E9400FDB /* OnboardingMicrophoneMonitor.swift */,
 				2BE62D8EF19E5352F7A93289 /* OnboardingProgressStore.swift */,
+				2241AB1EAC2C658906A2DF74 /* PasteboardService.swift */,
 				37031AF8A914D482FABFFD6B /* PermissionsService.swift */,
 				8F79D43E58B9D94CA1C36BFB /* PersonalizationStore.swift */,
 				5471DB10D447DC26C66499B4 /* ScribeContextService.swift */,
@@ -434,6 +437,7 @@
 				C9D71AB490259F5788A95E47 /* OnboardingModels.swift in Sources */,
 				D1609EF2826E0E4269EC7FC1 /* OnboardingProgressStore.swift in Sources */,
 				C97D1DA9A4DC043E128B9696 /* OnboardingView.swift in Sources */,
+				888734B0BC05B1231663DF8C /* PasteboardService.swift in Sources */,
 				04CDBB1AEFDB09993E1867FF /* PermissionGuideWindow.swift in Sources */,
 				878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */,
 				FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */,

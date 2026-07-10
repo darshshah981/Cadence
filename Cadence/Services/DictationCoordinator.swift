@@ -56,7 +56,7 @@ final class DictationCoordinator {
     private let textInsertionService: TextInsertionServing
     private let hudController: HUDWindowController
     private let analytics: AnalyticsService
-    private let feedbackService: FeedbackServing
+    private let activationFeedbackGate: DictationActivationFeedbackGate
     private let sessionArbiter: VoiceSessionArbiter
     private let personalizationStore: PersonalizationStore
     private var transcriptionConfiguration = TranscriptionConfiguration()
@@ -103,7 +103,7 @@ final class DictationCoordinator {
         self.textInsertionService = textInsertionService
         self.hudController = hudController
         self.analytics = analytics
-        self.feedbackService = feedbackService
+        self.activationFeedbackGate = DictationActivationFeedbackGate(service: feedbackService)
         self.sessionArbiter = sessionArbiter
         self.personalizationStore = personalizationStore
         self.waveformSensitivity = Self.sanitizedWaveformSensitivity(waveformSensitivity)
@@ -313,7 +313,7 @@ final class DictationCoordinator {
                 waveformLevels: latestWaveformLevels,
                 showsSubtitle: false
             )
-            feedbackService.playActivationSound()
+            activationFeedbackGate.handle(.listeningStarted)
             warmBackendForCurrentSession()
         } catch {
             releaseVoiceSessionLease()
@@ -339,6 +339,7 @@ final class DictationCoordinator {
 
     private func finishDictationIfNeeded() async {
         guard state == .listening else { return }
+        activationFeedbackGate.handle(.stopped)
 
         let finalizeStartedAt = Date()
         state = .finalizing
@@ -567,6 +568,7 @@ final class DictationCoordinator {
     }
 
     private func publishError(_ message: String) {
+        activationFeedbackGate.handle(.failed)
         stopPreviewLoop()
         activeTriggerMode = nil
         state = .error(message)
@@ -752,6 +754,7 @@ final class DictationCoordinator {
     private func cancelFromHUD() async {
         guard activeTriggerMode == .tapToStartStop else { return }
         guard state == .listening else { return }
+        activationFeedbackGate.handle(.cancelled)
 
         let metrics = audioCaptureService.stopCapture()
         stopPreviewLoop()
@@ -829,10 +832,8 @@ final class DictationCoordinator {
 
     private func checkAndShowDragTooltip() {
         let countKey = "Cadence.holdHintRecordingCount"
-        let tooltipKey = "Cadence.dragTooltipShown"
         let count = UserDefaults.standard.integer(forKey: countKey)
-        guard count >= 3, !UserDefaults.standard.bool(forKey: tooltipKey) else { return }
-        hudController.showDragTooltip()
+        hudController.showDragTooltipIfEligible(successfulDictationCount: count)
     }
 
     private func humanizedHUDMessage(for raw: String) -> String {
