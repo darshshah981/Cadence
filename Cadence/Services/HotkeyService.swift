@@ -369,14 +369,8 @@ final class HotkeyService: HotkeyServing {
         _ event: NSEvent,
         flags: NSEvent.ModifierFlags
     ) -> Bool {
-        let flag: NSEvent.ModifierFlags
-        switch event.keyCode {
-        case 54, 55: flag = .command
-        case 56, 60: flag = .shift
-        case 58, 61: flag = .option
-        case 59, 62: flag = .control
-        case 63: flag = .function
-        default: return flags.isEmpty
+        guard let flag = HotkeyConfiguration.modifierFlag(forKeyCode: event.keyCode) else {
+            return flags.isEmpty
         }
         return !flags.contains(flag)
     }

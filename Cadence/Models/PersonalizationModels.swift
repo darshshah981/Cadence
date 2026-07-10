@@ -39,6 +39,7 @@ enum WritingTone: String, CaseIterable, Codable, Identifiable, Sendable {
     case direct
 
     var id: String { rawValue }
+    var displayName: String { rawValue.capitalized }
 }
 
 enum WritingLength: String, CaseIterable, Codable, Identifiable, Sendable {
@@ -47,6 +48,7 @@ enum WritingLength: String, CaseIterable, Codable, Identifiable, Sendable {
     case detailed
 
     var id: String { rawValue }
+    var displayName: String { rawValue.capitalized }
 }
 
 enum WritingPunctuation: String, CaseIterable, Codable, Identifiable, Sendable {
@@ -55,6 +57,7 @@ enum WritingPunctuation: String, CaseIterable, Codable, Identifiable, Sendable {
     case literal
 
     var id: String { rawValue }
+    var displayName: String { rawValue.capitalized }
 }
 
 enum WritingFormatting: String, CaseIterable, Codable, Identifiable, Sendable {
@@ -63,6 +66,13 @@ enum WritingFormatting: String, CaseIterable, Codable, Identifiable, Sendable {
     case structured
 
     var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .automatic: return "Automatic"
+        case .plainText: return "Plain text"
+        case .structured: return "Structured"
+        }
+    }
 }
 
 struct WritingStyleProfile: Identifiable, Codable, Equatable, Sendable {

@@ -5,18 +5,15 @@ enum StyleProfileResolver {
         bundleIdentifier: String?,
         profiles: [WritingStyleProfile]
     ) -> WritingStyleProfile? {
-        let enabled = profiles.filter { $0.isEnabled }
         if let bundleIdentifier,
-           let exact = enabled
-            .filter({ $0.appBundleIdentifier == bundleIdentifier })
-            .sorted(by: stableOrder)
-            .first {
+           let exact = profiles.lazy
+            .filter({ $0.isEnabled && $0.appBundleIdentifier == bundleIdentifier })
+            .min(by: stableOrder) {
             return exact
         }
-        return enabled
-            .filter { $0.appBundleIdentifier == nil }
-            .sorted(by: stableOrder)
-            .first
+        return profiles.lazy
+            .filter { $0.isEnabled && $0.appBundleIdentifier == nil }
+            .min(by: stableOrder)
     }
 
     private static func stableOrder(_ lhs: WritingStyleProfile, _ rhs: WritingStyleProfile) -> Bool {

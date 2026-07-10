@@ -10,6 +10,8 @@ final class OnboardingMicrophoneMonitor: ObservableObject {
     private let captureService: AudioCaptureServing
     private let sessionArbiter: VoiceSessionArbiter
     private var lease: VoiceSessionLease?
+    private var levelContinuation: AsyncStream<Double>.Continuation?
+    private var levelTask: Task<Void, Never>?
 
     init(
         captureService: AudioCaptureServing = AudioCaptureService(),
@@ -23,10 +25,22 @@ final class OnboardingMicrophoneMonitor: ObservableObject {
         guard !isListening else { return }
         do {
             let lease = try sessionArbiter.acquire(for: .microphoneCheck)
-            try captureService.startCapture { [weak self] _, level in
-                Task { @MainActor in
-                    self?.level = level
+            let (stream, continuation) = AsyncStream.makeStream(
+                of: Double.self,
+                bufferingPolicy: .bufferingNewest(1)
+            )
+            levelContinuation = continuation
+            levelTask = Task { [weak self] in
+                for await rawLevel in stream {
+                    guard let self, !Task.isCancelled else { return }
+                    let displayedLevel = (rawLevel * 12).rounded(.down) / 12
+                    if self.level != displayedLevel {
+                        self.level = displayedLevel
+                    }
                 }
+            }
+            try captureService.startCapture { [continuation] _, level in
+                continuation.yield(level)
             }
             self.lease = lease
             isListening = true
@@ -34,6 +48,7 @@ final class OnboardingMicrophoneMonitor: ObservableObject {
         } catch VoiceSessionArbiterError.busy {
             errorMessage = "Finish the active recording before checking the microphone."
         } catch {
+            stopLevelUpdates()
             if let lease {
                 sessionArbiter.release(lease)
                 self.lease = nil
@@ -45,11 +60,19 @@ final class OnboardingMicrophoneMonitor: ObservableObject {
     func stop() {
         guard isListening else { return }
         _ = captureService.stopCapture()
+        stopLevelUpdates()
         if let lease {
             sessionArbiter.release(lease)
             self.lease = nil
         }
         isListening = false
         level = 0
+    }
+
+    private func stopLevelUpdates() {
+        levelContinuation?.finish()
+        levelContinuation = nil
+        levelTask?.cancel()
+        levelTask = nil
     }
 }

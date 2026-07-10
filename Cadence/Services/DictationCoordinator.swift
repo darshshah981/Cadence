@@ -57,6 +57,7 @@ final class DictationCoordinator {
     private let hudController: HUDWindowController
     private let analytics: AnalyticsService
     private let sessionArbiter: VoiceSessionArbiter
+    private let personalizationStore: PersonalizationStore
     private var transcriptionConfiguration = TranscriptionConfiguration()
     private var activeTriggerMode: DictationTriggerMode?
     private var stopTapDictationOnNextKeyPress = false
@@ -90,6 +91,7 @@ final class DictationCoordinator {
         hudController: HUDWindowController,
         analytics: AnalyticsService,
         sessionArbiter: VoiceSessionArbiter,
+        personalizationStore: PersonalizationStore = PersonalizationStore(),
         waveformSensitivity: Double = 1.0
     ) {
         self.hotkeyService = hotkeyService
@@ -100,14 +102,8 @@ final class DictationCoordinator {
         self.hudController = hudController
         self.analytics = analytics
         self.sessionArbiter = sessionArbiter
+        self.personalizationStore = personalizationStore
         self.waveformSensitivity = Self.sanitizedWaveformSensitivity(waveformSensitivity)
-
-        self.hudController.onStop = { [weak self] in
-            Task { await self?.stopFromHUD() }
-        }
-        self.hudController.onCancel = { [weak self] in
-            Task { await self?.cancelFromHUD() }
-        }
 
         self.hotkeyService.onPress = { [weak self] action in
             Task { await self?.handleHotkeyPress(action) }
@@ -401,8 +397,13 @@ final class DictationCoordinator {
                 )
                 correctedText = applyPostProcessing(to: transcript.cleanedText)
             }
+            let personalizedText = ShortcutExpansionService.expand(
+                correctedText,
+                bundleIdentifier: activeTargetApplication?.bundleIdentifier,
+                shortcuts: personalizationStore.load().shortcuts
+            )
             let polishResult = AppAwareTextPolisher.apply(
-                to: correctedText,
+                to: personalizedText,
                 configuration: transcriptionConfiguration,
                 targetApplication: activeTargetApplication
             )
@@ -729,38 +730,6 @@ final class DictationCoordinator {
         default:
             return "other"
         }
-    }
-
-    private func stopFromHUD() async {
-        guard activeTriggerMode == .tapToStartStop else { return }
-        await finishDictationIfNeeded()
-    }
-
-    private func cancelFromHUD() async {
-        guard activeTriggerMode == .tapToStartStop else { return }
-        guard state == .listening else { return }
-
-        let metrics = audioCaptureService.stopCapture()
-        stopPreviewLoop()
-        await transcriptionEngine.cancelSession()
-        releaseVoiceSessionLease()
-        analytics.track(
-            "dictation_cancelled",
-            properties: [
-                "sessionID": .string(activeSessionID ?? "unknown"),
-                "trigger": .string(activeTriggerMode?.rawValue ?? "unknown"),
-                "durationSeconds": .double(metrics.duration),
-                "speechSeconds": .double(
-                    metrics.sampleRate > 0 ? Double(metrics.speechFrameCount) / metrics.sampleRate : metrics.duration
-                )
-            ]
-        )
-        activeTriggerMode = nil
-        activeTargetApplication = nil
-        sessionStartedAt = nil
-        activeSessionID = nil
-        state = .idle
-        publishTerminalHUD(.cancelled)
     }
 
     private func releaseVoiceSessionLease() {

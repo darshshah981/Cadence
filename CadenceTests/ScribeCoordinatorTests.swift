@@ -56,6 +56,42 @@ struct ScribeCoordinatorTests {
     }
 
     @Test
+    func requestAppliesLocalShortcutAndStyleWithoutSendingAppIdentity() async throws {
+        let suiteName = "ScribePersonalization.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = PersonalizationStore(defaults: defaults)
+        try store.save(PersonalizationLibrary(
+            shortcuts: [PersonalShortcut(trigger: "Spoken request", template: "Expanded locally")],
+            styleProfiles: [WritingStyleProfile(
+                name: "TextEdit profile",
+                appBundleIdentifier: "com.apple.TextEdit",
+                tone: .direct,
+                length: .concise,
+                punctuation: .minimal,
+                formatting: .plainText
+            )]
+        ))
+        let provider = CapturingScribeProvider(resultText: "Result")
+        let fixture = ScribeCoordinatorFixture(provider: provider, personalizationStore: store)
+
+        try await fixture.coordinator.begin(intent: .compose)
+        await fixture.coordinator.finishRecording()
+
+        let request = await provider.requests.first
+        #expect(request?.spokenTranscript == "Expanded locally")
+        #expect(request?.style == ScribeStyleInstructions(
+            profile: WritingStyleProfile(
+                name: "Ignored at provider boundary",
+                tone: .direct,
+                length: .concise,
+                punctuation: .minimal,
+                formatting: .plainText
+            )
+        ))
+    }
+
+    @Test
     func providerTimeoutRetainsLiteralTranscriptForRetryAndFallback() async throws {
         let fixture = ScribeCoordinatorFixture(
             providerResponses: [
@@ -127,6 +163,7 @@ private final class ScribeCoordinatorFixture {
         providerResponses: [MockScribeProvider.Response] = [.success("Draft")],
         provider: (any ScribeProvider)? = nil,
         selectedText: String = "Selected context",
+        personalizationStore: PersonalizationStore = PersonalizationStore(),
         generationTimeout: Duration = .seconds(5)
     ) {
         context = StubScribeContextService(selectedText: selectedText)
@@ -137,6 +174,7 @@ private final class ScribeCoordinatorFixture {
             contextService: context,
             textInsertionService: insertion,
             sessionArbiter: arbiter,
+            personalizationStore: personalizationStore,
             generationTimeout: generationTimeout
         )
     }

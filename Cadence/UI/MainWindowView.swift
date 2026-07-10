@@ -227,16 +227,9 @@ private struct StenoSidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Image(systemName: "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 19, weight: .regular))
-                    .foregroundStyle(FlowTheme.textPrimary)
-                    .frame(width: 24)
-
-                Text("Cadence.")
-                    .font(.system(size: 18, weight: .regular, design: .serif))
-                    .foregroundStyle(FlowTheme.textPrimary)
-            }
+            Text("Cadence")
+                .font(.system(size: 18, weight: .regular, design: .serif))
+                .foregroundStyle(FlowTheme.textPrimary)
             .padding(.top, 18)
             .padding(.horizontal, 16)
             .padding(.bottom, 14)
@@ -284,7 +277,7 @@ private struct StenoSidebar: View {
                 StenoSidebarRow(
                     title: "Dictation history",
                     count: appModel.transcriptHistory.count,
-                    systemImage: "waveform",
+                    systemImage: "clock.arrow.circlepath",
                     isSelected: activeItem == .speechToText,
                     accessibilityIdentifier: "sidebar-speech-to-text"
                 ) {

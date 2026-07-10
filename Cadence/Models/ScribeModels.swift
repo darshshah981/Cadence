@@ -151,17 +151,36 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
     let intent: ScribeIntent
     let spokenTranscript: String
     let context: ScribeRequestContext?
+    let style: ScribeStyleInstructions?
 
     init(
         id: UUID = UUID(),
         intent: ScribeIntent,
         spokenTranscript: String,
-        context: ScribeRequestContext? = nil
+        context: ScribeRequestContext? = nil,
+        style: ScribeStyleInstructions? = nil
     ) {
         self.id = id
         self.intent = intent
         self.spokenTranscript = spokenTranscript
         self.context = context
+        self.style = style
+    }
+}
+
+struct ScribeStyleInstructions: Equatable, Sendable {
+    let tone: WritingTone
+    let length: WritingLength
+    let punctuation: WritingPunctuation
+    let formatting: WritingFormatting
+    let preservesCodeLiterals: Bool
+
+    init(profile: WritingStyleProfile) {
+        self.tone = profile.tone
+        self.length = profile.length
+        self.punctuation = profile.punctuation
+        self.formatting = profile.formatting
+        self.preservesCodeLiterals = profile.preservesCodeLiterals
     }
 }
 

@@ -1003,6 +1003,10 @@ struct HotkeyConfiguration: Equatable, Sendable {
     }
 
     private static func modifierFlag(forSidedKeyCode keyCode: UInt16) -> NSEvent.ModifierFlags {
+        modifierFlag(forKeyCode: keyCode) ?? []
+    }
+
+    static func modifierFlag(forKeyCode keyCode: UInt16) -> NSEvent.ModifierFlags? {
         switch keyCode {
         case 54, 55:
             return .command
@@ -1012,8 +1016,10 @@ struct HotkeyConfiguration: Equatable, Sendable {
             return .option
         case 59, 62:
             return .control
+        case 63:
+            return .function
         default:
-            return []
+            return nil
         }
     }
 

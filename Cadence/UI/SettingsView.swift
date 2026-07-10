@@ -1587,18 +1587,16 @@ private struct WritingStyleProfileEditor: View {
             Form {
                 TextField("Profile name", text: $draft.name)
                 Picker("Tone", selection: $draft.tone) {
-                    ForEach(WritingTone.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                    ForEach(WritingTone.allCases) { Text($0.displayName).tag($0) }
                 }
                 Picker("Length", selection: $draft.length) {
-                    ForEach(WritingLength.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                    ForEach(WritingLength.allCases) { Text($0.displayName).tag($0) }
                 }
                 Picker("Punctuation", selection: $draft.punctuation) {
-                    ForEach(WritingPunctuation.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                    ForEach(WritingPunctuation.allCases) { Text($0.displayName).tag($0) }
                 }
                 Picker("Formatting", selection: $draft.formatting) {
-                    ForEach(WritingFormatting.allCases) {
-                        Text($0.rawValue == "plainText" ? "Plain text" : $0.rawValue.capitalized).tag($0)
-                    }
+                    ForEach(WritingFormatting.allCases) { Text($0.displayName).tag($0) }
                 }
                 Toggle("Preserve code exactly", isOn: $draft.preservesCodeLiterals)
                 Toggle("Only in one app", isOn: $isAppSpecific)

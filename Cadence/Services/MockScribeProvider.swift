@@ -10,6 +10,7 @@ actor MockScribeProvider: ScribeProvider {
     nonisolated let capabilities: ScribeProviderCapabilities
     private var responses: [Response]
     private var completedRequests: [UUID: ScribeResult] = [:]
+    private var completedRequestOrder: [UUID] = []
     private(set) var generationCount = 0
 
     init(
@@ -42,14 +43,22 @@ actor MockScribeProvider: ScribeProvider {
         case let .success(text):
             let normalized = try ScribeOutputPolicy.normalizedOutput(text)
             let result = ScribeResult(requestID: request.id, text: normalized)
-            completedRequests[request.id] = result
+            cache(result)
             return result
         case let .delayedSuccess(text, delay):
             try await Task.sleep(for: delay)
             let normalized = try ScribeOutputPolicy.normalizedOutput(text)
             let result = ScribeResult(requestID: request.id, text: normalized)
-            completedRequests[request.id] = result
+            cache(result)
             return result
+        }
+    }
+
+    private func cache(_ result: ScribeResult) {
+        completedRequests[result.requestID] = result
+        completedRequestOrder.append(result.requestID)
+        while completedRequestOrder.count > 16 {
+            completedRequests.removeValue(forKey: completedRequestOrder.removeFirst())
         }
     }
 }

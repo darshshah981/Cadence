@@ -6,6 +6,11 @@ private let scribeLogger = Logger(
     category: "Scribe"
 )
 
+private struct ScribeCapturedAudio: Sendable {
+    let chunk: AudioChunk
+    let level: Double
+}
+
 enum ScribeCoordinatorError: Error, Equatable, Sendable {
     case invalidState
     case insertionAlreadyCompleted
@@ -38,6 +43,7 @@ final class ScribeCoordinator {
     private let contextService: ScribeContextServing
     private let textInsertionService: GuardedTextInsertionServing
     private let sessionArbiter: VoiceSessionArbiter
+    private let personalizationStore: PersonalizationStore
     private let generationTimeout: Duration
 
     private var activeIntent: ScribeIntent?
@@ -47,6 +53,8 @@ final class ScribeCoordinator {
     private var generationTask: Task<Void, Never>?
     private var generation = 0
     private var insertionCompleted = false
+    private var audioContinuation: AsyncStream<ScribeCapturedAudio>.Continuation?
+    private var audioIngestionTask: Task<Void, Never>?
 
     init(
         audioCaptureService: AudioCaptureServing,
@@ -55,6 +63,7 @@ final class ScribeCoordinator {
         contextService: ScribeContextServing,
         textInsertionService: GuardedTextInsertionServing,
         sessionArbiter: VoiceSessionArbiter,
+        personalizationStore: PersonalizationStore = PersonalizationStore(),
         generationTimeout: Duration = .seconds(30)
     ) {
         self.audioCaptureService = audioCaptureService
@@ -63,6 +72,7 @@ final class ScribeCoordinator {
         self.contextService = contextService
         self.textInsertionService = textInsertionService
         self.sessionArbiter = sessionArbiter
+        self.personalizationStore = personalizationStore
         self.generationTimeout = generationTimeout
     }
 
@@ -89,15 +99,24 @@ final class ScribeCoordinator {
         do {
             activeCapture = try contextService.capture(for: intent)
             try await transcriptionEngine.startSession()
-            try audioCaptureService.startCapture { [weak self] chunk, level in
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    await transcriptionEngine.appendAudio(chunk)
-                    onAudioLevel?(level)
+            let (stream, continuation) = AsyncStream.makeStream(
+                of: ScribeCapturedAudio.self,
+                bufferingPolicy: .bufferingOldest(256)
+            )
+            audioContinuation = continuation
+            audioIngestionTask = Task { [weak self, transcriptionEngine] in
+                for await capturedAudio in stream {
+                    guard let self, !Task.isCancelled else { return }
+                    await transcriptionEngine.appendAudio(capturedAudio.chunk)
+                    self.onAudioLevel?(capturedAudio.level)
                 }
+            }
+            try audioCaptureService.startCapture { [continuation] chunk, level in
+                continuation.yield(ScribeCapturedAudio(chunk: chunk, level: level))
             }
             state = .listening(requestID: requestID, intent: intent)
         } catch {
+            await finishAudioIngestion(cancel: true)
             await transcriptionEngine.cancelSession()
             releaseVoiceLease()
             clearContext()
@@ -113,6 +132,8 @@ final class ScribeCoordinator {
 
         let runGeneration = generation
         let metrics = audioCaptureService.stopCapture()
+        await finishAudioIngestion(cancel: false)
+        guard runGeneration == generation else { return }
         state = .transcribing(requestID: requestID)
 
         do {
@@ -126,13 +147,24 @@ final class ScribeCoordinator {
             }
 
             literalTranscript = transcript
+            let personalization = personalizationStore.load()
+            let expandedTranscript = ShortcutExpansionService.expand(
+                transcript,
+                bundleIdentifier: capture.target.bundleIdentifier,
+                shortcuts: personalization.shortcuts
+            )
+            let style = StyleProfileResolver.resolve(
+                bundleIdentifier: capture.target.bundleIdentifier,
+                profiles: personalization.styleProfiles
+            ).map(ScribeStyleInstructions.init(profile:))
             let request = ScribeRequest(
                 id: requestID,
                 intent: intent,
-                spokenTranscript: transcript,
+                spokenTranscript: expandedTranscript,
                 context: capture.scope == .selectedText
                     ? ScribeRequestContext(selectedText: capture.selectedText)
-                    : nil
+                    : nil,
+                style: style
             )
             activeRequest = request
             await startGeneration(request, generation: runGeneration)
@@ -205,6 +237,7 @@ final class ScribeCoordinator {
         if case .listening = state {
             _ = audioCaptureService.stopCapture()
         }
+        await finishAudioIngestion(cancel: true)
         await transcriptionEngine.cancelSession()
         releaseVoiceLease()
         clearContext()
@@ -301,6 +334,16 @@ final class ScribeCoordinator {
         reviewedResult = nil
         failure = nil
         insertionCompleted = false
+    }
+
+    private func finishAudioIngestion(cancel: Bool) async {
+        audioContinuation?.finish()
+        audioContinuation = nil
+        if cancel {
+            audioIngestionTask?.cancel()
+        }
+        await audioIngestionTask?.value
+        audioIngestionTask = nil
     }
 
     private var isTerminalState: Bool {

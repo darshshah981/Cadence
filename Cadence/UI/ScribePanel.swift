@@ -249,7 +249,6 @@ final class ScribePanelWindowController {
 
     let viewModel = ScribePanelViewModel()
     private var panel: NSPanel?
-    private var hostingView: NSHostingView<ScribePanelView>?
 
     func presentIntentPicker(providerStatus: String) {
         viewModel.presentPicker(providerStatus: providerStatus)
@@ -312,14 +311,11 @@ final class ScribePanelWindowController {
             ])
         }
         self.panel = panel
-        self.hostingView = hostingView
         return panel
     }
 
     private func position(_ panel: NSPanel) {
-        let mouseLocation = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) }) ?? NSScreen.main
-        let frame = screen?.visibleFrame ?? .zero
+        let frame = WindowPlacement.visibleFrame()
         let origin = NSPoint(
             x: min(max(frame.midX - panel.frame.width / 2, frame.minX), frame.maxX - panel.frame.width),
             y: min(max(frame.minY + Metrics.bottomInset, frame.minY), frame.maxY - panel.frame.height)

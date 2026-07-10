@@ -53,7 +53,7 @@ struct HUDView: View {
             }
         }
         .padding(.horizontal, 14)
-        .frame(width: pillWidth(triggerMode: triggerMode, showsHint: showsHint), height: 38)
+        .frame(width: pillWidth(triggerMode: triggerMode, showsHint: showsHint), height: HUDMetrics.pillHeight)
         .background(pillBackground)
         .overlay(pillStroke)
     }
@@ -91,9 +91,9 @@ struct HUDView: View {
     private func pillWidth(triggerMode: DictationTriggerMode, showsHint: Bool) -> CGFloat {
         switch triggerMode {
         case .tapToStartStop:
-            return 176
+            return HUDMetrics.compactWidth
         case .holdToTalk:
-            return showsHint ? 260 : 176
+            return showsHint ? HUDMetrics.holdHintWidth : HUDMetrics.compactWidth
         }
     }
 
@@ -182,16 +182,5 @@ private struct WaveformCanvasView: View {
                 context.fill(path, with: .color(FlowTheme.accent.opacity(0.96)))
             }
         }
-    }
-}
-
-private struct HUDControlButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
-            .brightness(configuration.isPressed ? 0.08 : 0)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

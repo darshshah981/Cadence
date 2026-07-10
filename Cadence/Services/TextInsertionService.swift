@@ -32,12 +32,7 @@ final class TextInsertionService: TextInsertionServing, GuardedTextInsertionServ
     }
 
     func insertGuarded(_ text: String) async throws -> GuardedTextInsertionOutcome {
-        guard AXIsProcessTrusted() else {
-            throw CadenceError.accessibilityPermissionMissing
-        }
-
-        try await postUnicodeString(text)
-        lastInsertedText = text
+        try await insert(text)
         return .inserted
     }
 
