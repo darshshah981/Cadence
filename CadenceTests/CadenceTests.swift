@@ -128,6 +128,19 @@ struct CadenceTests {
     }
 
     @Test
+    func scribeHasAnIndependentNonDictationShortcut() {
+        #expect(HotkeyAction.scribe.dictationTriggerMode == nil)
+        #expect(HotkeyBinding.defaultScribe.action == .scribe)
+        #expect(HotkeyBinding.defaultScribe.isEnabled)
+        #expect(HotkeyAction.scribe.supports(.defaultScribe))
+        #expect(!HotkeyAction.scribe.supports(HotkeyConfiguration(
+            keyCode: HotkeyConfiguration.modifierOnlyKeyCode,
+            carbonModifiers: UInt32(optionKey),
+            keyDisplay: ""
+        )))
+    }
+
+    @Test
     func dictationHUDMakesPersistentListeningExplicit() {
         let hold = HUDVisualState.recording(triggerMode: .holdToTalk, showsHint: false)
         let persistent = HUDVisualState.recording(triggerMode: .tapToStartStop, showsHint: false)

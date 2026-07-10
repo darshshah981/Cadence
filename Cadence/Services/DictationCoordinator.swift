@@ -172,6 +172,8 @@ final class DictationCoordinator {
             case .listening, .finalizing, .inserting:
                 break
             }
+        case .scribe:
+            break
         }
     }
 

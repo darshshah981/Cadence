@@ -671,6 +671,7 @@ struct HUDState: Equatable {
 enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
     case holdToTalk
     case tapToStartStop
+    case scribe
 
     var id: String { rawValue }
 
@@ -680,6 +681,8 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
             return "Hold To Talk"
         case .tapToStartStop:
             return "Press To Start/Stop"
+        case .scribe:
+            return "Scribe"
         }
     }
 
@@ -689,15 +692,19 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
             return "Press and hold to record, release to finish. Limit this to 1-2 keys total."
         case .tapToStartStop:
             return "Press once to start, then stop from the shortcut or the pill. Use 3 or more keys total."
+        case .scribe:
+            return "Open Scribe to draft, respond, or edit. Use 3 or more keys total."
         }
     }
 
-    var triggerMode: DictationTriggerMode {
+    var dictationTriggerMode: DictationTriggerMode? {
         switch self {
         case .holdToTalk:
             return .holdToTalk
         case .tapToStartStop:
             return .tapToStartStop
+        case .scribe:
+            return nil
         }
     }
 
@@ -707,6 +714,8 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
             return shortcut.componentCount <= 2
         case .tapToStartStop:
             return shortcut.componentCount >= 3
+        case .scribe:
+            return shortcut.componentCount >= 3
         }
     }
 
@@ -715,6 +724,8 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
         case .holdToTalk:
             return "Use at most 2 keys total."
         case .tapToStartStop:
+            return "Use at least 3 keys total."
+        case .scribe:
             return "Use at least 3 keys total."
         }
     }
@@ -823,6 +834,12 @@ struct HotkeyConfiguration: Equatable, Sendable {
         keyCode: 49,
         carbonModifiers: UInt32(controlKey) | UInt32(optionKey),
         keyDisplay: "Space"
+    )
+
+    static let defaultScribe = HotkeyConfiguration(
+        keyCode: 1,
+        carbonModifiers: UInt32(controlKey) | UInt32(optionKey),
+        keyDisplay: "S"
     )
 
     static func from(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String?) -> HotkeyConfiguration {
@@ -1136,6 +1153,12 @@ struct HotkeyBinding: Equatable, Sendable, Identifiable {
         action: .tapToStartStop,
         isEnabled: false,
         shortcut: .defaultTapToStartStop
+    )
+
+    static let defaultScribe = HotkeyBinding(
+        action: .scribe,
+        isEnabled: true,
+        shortcut: .defaultScribe
     )
 }
 

@@ -360,6 +360,8 @@ private extension HotkeyAction {
             return 1
         case .tapToStartStop:
             return 2
+        case .scribe:
+            return 3
         }
     }
 
@@ -369,6 +371,8 @@ private extension HotkeyAction {
             self = .holdToTalk
         case 2:
             self = .tapToStartStop
+        case 3:
+            self = .scribe
         default:
             return nil
         }

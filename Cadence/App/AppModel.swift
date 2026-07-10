@@ -62,6 +62,11 @@ final class AppModel: ObservableObject {
         static let tapModifiers = "FlowState.tapModifiers"
         static let tapKeyDisplay = "FlowState.tapKeyDisplay"
         static let tapSidedModifierKeyCodes = "Cadence.tapSidedModifierKeyCodes"
+        static let scribeEnabled = "Cadence.scribeEnabled"
+        static let scribeKeyCode = "Cadence.scribeKeyCode"
+        static let scribeModifiers = "Cadence.scribeModifiers"
+        static let scribeKeyDisplay = "Cadence.scribeKeyDisplay"
+        static let scribeSidedModifierKeyCodes = "Cadence.scribeSidedModifierKeyCodes"
         static let transcriptHistory = "FlowState.transcriptHistory"
         static let showsShortcutDock = "Cadence.showsShortcutDock"
         static let meetingCaptureSource = "Cadence.meetingCaptureSource"
@@ -124,6 +129,7 @@ final class AppModel: ObservableObject {
 
     @Published private(set) var holdToTalkBinding: HotkeyBinding
     @Published private(set) var tapToStartStopBinding: HotkeyBinding
+    @Published private(set) var scribeBinding: HotkeyBinding
 
     private let permissionsService: PermissionsService
     private let permissionGuideWindowController = PermissionGuideWindowController()
@@ -163,6 +169,7 @@ final class AppModel: ObservableObject {
         let defaults = UserDefaults.standard
         let initialHoldBinding = AppModel.loadBinding(defaults: defaults, action: .holdToTalk)
         let initialTapBinding = AppModel.loadBinding(defaults: defaults, action: .tapToStartStop)
+        let initialScribeBinding = AppModel.loadBinding(defaults: defaults, action: .scribe)
         self.defaults = defaults
         self.transcriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
         let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
@@ -196,6 +203,7 @@ final class AppModel: ObservableObject {
         self.analytics = AnalyticsService(isEnabled: analyticsEnabled)
         self.holdToTalkBinding = initialHoldBinding
         self.tapToStartStopBinding = initialTapBinding
+        self.scribeBinding = initialScribeBinding
         self.transcriptHistory = AppModel.loadTranscriptHistory(defaults: defaults)
         let meetingStore = AppModel.makeMeetingStore()
         let meetingAudioStore = AppModel.makeMeetingAudioStore()
@@ -234,7 +242,13 @@ final class AppModel: ObservableObject {
         let transcriptionEngine = WhisperKitTranscriptionEngine()
         let audioCaptureService = AudioCaptureService()
         let textInsertionService = TextInsertionService()
-        let hotkeyService = HotkeyService(bindings: Self.currentHotkeyBindings(hold: initialHoldBinding, tap: initialTapBinding))
+        let hotkeyService = HotkeyService(
+            bindings: Self.currentHotkeyBindings(
+                hold: initialHoldBinding,
+                tap: initialTapBinding,
+                scribe: initialScribeBinding
+            )
+        )
         self.hotkeyService = hotkeyService
 
         self.coordinator = DictationCoordinator(
@@ -322,9 +336,15 @@ final class AppModel: ObservableObject {
     }
 
     var hotkeyConflictMessage: String? {
-        guard holdToTalkBinding.isEnabled, tapToStartStopBinding.isEnabled else { return nil }
-        guard holdToTalkBinding.shortcut.conflicts(with: tapToStartStopBinding.shortcut) else { return nil }
-        return "Hold To Talk and Press To Start/Stop cannot use the same shortcut at the same time."
+        let enabled = currentHotkeyBindings.filter(\.isEnabled)
+        for index in enabled.indices {
+            for otherIndex in enabled.indices where otherIndex > index {
+                if enabled[index].shortcut.conflicts(with: enabled[otherIndex].shortcut) {
+                    return "\(enabled[index].action.displayName) and \(enabled[otherIndex].action.displayName) need different shortcuts."
+                }
+            }
+        }
+        return nil
     }
 
     var setupProgressLabel: String {
@@ -1428,6 +1448,24 @@ final class AppModel: ObservableObject {
         refreshRegisteredHotkeys()
     }
 
+    func setScribeEnabled(_ isEnabled: Bool) {
+        guard scribeBinding.isEnabled != isEnabled else { return }
+        if isEnabled,
+           currentHotkeyBindings.contains(where: {
+               $0.action != .scribe && $0.isEnabled && $0.shortcut.conflicts(with: scribeBinding.shortcut)
+           }) {
+            shortcutValidationMessage = "Scribe needs a shortcut that is not used by Dictation."
+            analytics.track("shortcut_conflict_detected", properties: ["shortcut": "scribe", "stage": "enable"])
+            return
+        }
+
+        shortcutValidationMessage = nil
+        analytics.track("shortcut_enabled_changed", properties: ["shortcut": "scribe", "enabled": String(isEnabled)])
+        scribeBinding.isEnabled = isEnabled
+        persist(binding: scribeBinding)
+        refreshRegisteredHotkeys()
+    }
+
     func setPrimaryTriggerMode(_ mode: DictationTriggerMode) {
         guard primaryTriggerMode != mode || holdToTalkBinding.isEnabled == tapToStartStopBinding.isEnabled else { return }
         analytics.track("shortcut_mode_changed", properties: ["mode": mode.rawValue])
@@ -1461,6 +1499,15 @@ final class AppModel: ObservableObject {
                 analytics.track("shortcut_conflict_detected", properties: ["shortcut": "holdToTalk", "stage": "change"])
                 return
             }
+        case .scribe:
+            if scribeBinding.isEnabled,
+               currentHotkeyBindings.contains(where: {
+                   $0.action != .scribe && $0.isEnabled && shortcut.conflicts(with: $0.shortcut)
+               }) {
+                shortcutValidationMessage = "Scribe needs a shortcut that is not used by Dictation."
+                analytics.track("shortcut_conflict_detected", properties: ["shortcut": "scribe", "stage": "change"])
+                return
+            }
         case .tapToStartStop:
             if tapToStartStopBinding.isEnabled,
                holdToTalkBinding.isEnabled,
@@ -1484,6 +1531,11 @@ final class AppModel: ObservableObject {
             analytics.track("shortcut_changed", properties: ["shortcut": "tapToStartStop"])
             tapToStartStopBinding.shortcut = shortcut
             persist(binding: tapToStartStopBinding)
+        case .scribe:
+            guard scribeBinding.shortcut != shortcut else { return }
+            analytics.track("shortcut_changed", properties: ["shortcut": "scribe"])
+            scribeBinding.shortcut = shortcut
+            persist(binding: scribeBinding)
         }
 
         refreshRegisteredHotkeys()
@@ -1544,7 +1596,11 @@ final class AppModel: ObservableObject {
     }
 
     private var currentHotkeyBindings: [HotkeyBinding] {
-        Self.currentHotkeyBindings(hold: holdToTalkBinding, tap: tapToStartStopBinding)
+        Self.currentHotkeyBindings(
+            hold: holdToTalkBinding,
+            tap: tapToStartStopBinding,
+            scribe: scribeBinding
+        )
     }
 
     private func bindCoordinator() {
@@ -2165,15 +2221,14 @@ final class AppModel: ObservableObject {
     }
 
     private func sanitizedHotkeyBindings() -> [HotkeyBinding] {
-        guard holdToTalkBinding.isEnabled,
-              tapToStartStopBinding.isEnabled,
-              holdToTalkBinding.shortcut.conflicts(with: tapToStartStopBinding.shortcut) else {
-            return currentHotkeyBindings
-        }
-
         var sanitized = currentHotkeyBindings
-        if let tapIndex = sanitized.firstIndex(where: { $0.action == .tapToStartStop }) {
-            sanitized[tapIndex].isEnabled = false
+        var acceptedShortcuts: [HotkeyConfiguration] = []
+        for index in sanitized.indices where sanitized[index].isEnabled {
+            if acceptedShortcuts.contains(where: { $0.conflicts(with: sanitized[index].shortcut) }) {
+                sanitized[index].isEnabled = false
+            } else {
+                acceptedShortcuts.append(sanitized[index].shortcut)
+            }
         }
         return sanitized
     }
@@ -2552,6 +2607,8 @@ final class AppModel: ObservableObject {
             binding = .defaultHoldToTalk
         case .tapToStartStop:
             binding = .defaultTapToStartStop
+        case .scribe:
+            binding = .defaultScribe
         }
 
         let keys = Self.preferenceKeys(for: action)
@@ -2578,8 +2635,12 @@ final class AppModel: ObservableObject {
         return binding
     }
 
-    private static func currentHotkeyBindings(hold: HotkeyBinding, tap: HotkeyBinding) -> [HotkeyBinding] {
-        [hold, tap]
+    private static func currentHotkeyBindings(
+        hold: HotkeyBinding,
+        tap: HotkeyBinding,
+        scribe: HotkeyBinding
+    ) -> [HotkeyBinding] {
+        [hold, tap, scribe]
     }
 
     private static func loadTranscriptHistory(defaults: UserDefaults) -> [TranscriptHistoryItem] {
@@ -2732,6 +2793,14 @@ final class AppModel: ObservableObject {
                 modifiers: PreferenceKey.tapModifiers,
                 keyDisplay: PreferenceKey.tapKeyDisplay,
                 sidedModifierKeyCodes: PreferenceKey.tapSidedModifierKeyCodes
+            )
+        case .scribe:
+            return (
+                enabled: PreferenceKey.scribeEnabled,
+                keyCode: PreferenceKey.scribeKeyCode,
+                modifiers: PreferenceKey.scribeModifiers,
+                keyDisplay: PreferenceKey.scribeKeyDisplay,
+                sidedModifierKeyCodes: PreferenceKey.scribeSidedModifierKeyCodes
             )
         }
     }
