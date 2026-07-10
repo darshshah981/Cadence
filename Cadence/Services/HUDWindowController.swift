@@ -1,11 +1,97 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
-enum HUDMetrics {
-    static let pillHeight: CGFloat = 38
-    static let compactWidth: CGFloat = 176
-    static let holdHintWidth: CGFloat = 260
-    static let statusWidth: CGFloat = 236
+enum HUDWaveformSmoother {
+    static func step(current: Double, target: Double, deltaTime: TimeInterval) -> Double {
+        let clampedTarget = max(0, min(1, target))
+        let rate = clampedTarget > current ? HUDMotion.waveformAttackRate : HUDMotion.waveformReleaseRate
+        let factor = 1 - exp(-rate * max(0, deltaTime))
+        let next = current + (clampedTarget - current) * factor
+        return abs(next - clampedTarget) <= HUDMotion.stableTolerance ? clampedTarget : max(0, min(1, next))
+    }
+
+    static func isStable(current: [Double], target: [Double]) -> Bool {
+        guard current.count == target.count else { return false }
+        return zip(current, target).allSatisfy { abs($0 - $1) <= HUDMotion.stableTolerance }
+    }
+}
+
+enum HUDDisplayRefreshPolicy {
+    static func preferredRange(maximumFramesPerSecond: Int) -> CAFrameRateRange {
+        let maximum = Float(max(1, maximumFramesPerSecond))
+        return CAFrameRateRange(minimum: min(60, maximum), maximum: maximum, preferred: maximum)
+    }
+}
+
+@MainActor
+final class HUDDisplayLinkClock: NSObject {
+    var onFrame: ((TimeInterval) -> Bool)?
+
+    private weak var view: NSView?
+    private var displayLink: CADisplayLink?
+    private var previousTimestamp: TimeInterval?
+    private lazy var callbackTarget = HUDDisplayLinkCallbackTarget(owner: self)
+
+    func attach(to view: NSView) {
+        guard self.view !== view else { return }
+        invalidate()
+        self.view = view
+        let link = view.displayLink(
+            target: callbackTarget,
+            selector: #selector(HUDDisplayLinkCallbackTarget.displayLinkDidFire(_:))
+        )
+        link.isPaused = true
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+    }
+
+    func requestFrames() {
+        guard let displayLink else { return }
+        let maximumFPS = view?.window?.screen?.maximumFramesPerSecond ?? 60
+        displayLink.preferredFrameRateRange = HUDDisplayRefreshPolicy.preferredRange(
+            maximumFramesPerSecond: maximumFPS
+        )
+        previousTimestamp = nil
+        displayLink.isPaused = false
+    }
+
+    func invalidate() {
+        displayLink?.invalidate()
+        displayLink = nil
+        previousTimestamp = nil
+    }
+
+    deinit {
+        displayLink?.invalidate()
+    }
+
+    fileprivate func displayLinkDidFire(_ link: CADisplayLink) {
+        let deltaTime: TimeInterval
+        if let previousTimestamp {
+            deltaTime = min(0.1, max(0, link.timestamp - previousTimestamp))
+        } else {
+            deltaTime = link.duration > 0 ? link.duration : 1 / 60
+        }
+        previousTimestamp = link.timestamp
+        if onFrame?(deltaTime) != true {
+            link.isPaused = true
+            previousTimestamp = nil
+        }
+    }
+}
+
+@MainActor
+private final class HUDDisplayLinkCallbackTarget: NSObject {
+    weak var owner: HUDDisplayLinkClock?
+
+    init(owner: HUDDisplayLinkClock) {
+        self.owner = owner
+    }
+
+    @objc func displayLinkDidFire(_ link: CADisplayLink) {
+        owner?.displayLinkDidFire(link)
+    }
 }
 
 enum HUDLogoInteractionEvent: Equatable {
@@ -62,6 +148,30 @@ enum HUDPanelLayout {
             size: size
         )
     }
+
+    static func interpolate(from: NSRect, to: NSRect, progress: Double) -> NSRect {
+        let progress = CGFloat(max(0, min(1, progress)))
+        return NSRect(
+            x: from.minX + (to.minX - from.minX) * progress,
+            y: from.minY + (to.minY - from.minY) * progress,
+            width: from.width + (to.width - from.width) * progress,
+            height: from.height + (to.height - from.height) * progress
+        )
+    }
+
+    static func subtitleOrigin(
+        position: HUDPosition,
+        pillFrame: NSRect,
+        subtitleSize: NSSize = HUDMetrics.subtitleSize
+    ) -> NSPoint {
+        let x = pillFrame.midX - subtitleSize.width / 2
+        switch position {
+        case .topLeft, .topRight:
+            return NSPoint(x: x, y: pillFrame.minY - HUDMetrics.subtitleGap - subtitleSize.height)
+        case .bottomCenter, .bottomLeft, .bottomRight:
+            return NSPoint(x: x, y: pillFrame.maxY + HUDMetrics.subtitleGap)
+        }
+    }
 }
 
 enum HUDDragGeometry {
@@ -103,16 +213,12 @@ final class HUDPositionStore {
 
 @MainActor
 final class HUDWindowController {
-    private enum Metrics {
-        static let logoIdleSize = NSSize(width: 44, height: 44)
-        static let expandedTraySize = NSSize(width: 240, height: HUDMetrics.pillHeight)
-        static let controlsSize = NSSize(width: 188, height: HUDMetrics.pillHeight)
-        static let holdSize = NSSize(width: HUDMetrics.compactWidth, height: HUDMetrics.pillHeight)
-        static let holdHintSize = NSSize(width: HUDMetrics.holdHintWidth, height: HUDMetrics.pillHeight)
-        static let lockedSize = NSSize(width: HUDMetrics.compactWidth, height: HUDMetrics.pillHeight)
-        static let statusSize = NSSize(width: HUDMetrics.statusWidth, height: HUDMetrics.pillHeight)
-        static let subtitleSize = NSSize(width: 320, height: 36)
-        static let subtitleGap: CGFloat = 8
+    private struct MorphTransition {
+        let startFrame: NSRect
+        let targetFrame: NSRect
+        let startProgress: Double
+        let targetProgress: Double
+        var elapsed: TimeInterval
     }
 
     private var pillPanel: NSPanel?
@@ -131,6 +237,8 @@ final class HUDWindowController {
     private var tooltipDismissTask: Task<Void, Never>?
     private var clickAwayMonitor: Any?
     private var idleCollapseTask: Task<Void, Never>?
+    private let displayLinkClock = HUDDisplayLinkClock()
+    private var morphTransition: MorphTransition?
     private static let idleCollapseSeconds: UInt64 = 8
     private var isIdleSuppressed = false
 
@@ -152,6 +260,16 @@ final class HUDWindowController {
         viewModel.onCopyLast = { [weak self] in self?.onCopyLast?() }
         viewModel.onAddToDictionary = { [weak self] in self?.onAddToDictionary?() }
         viewModel.onHide = { [weak self] duration in self?.onHide?(duration) }
+        viewModel.onAnimationRequested = { [weak self] in
+            self?.displayLinkClock.requestFrames()
+        }
+        viewModel.onReducedMotionChanged = { [weak self] reduced in
+            guard reduced else { return }
+            self?.finishMorphImmediately()
+        }
+        displayLinkClock.onFrame = { [weak self] deltaTime in
+            self?.advanceAnimations(deltaTime: deltaTime) ?? false
+        }
 
         screenChangeObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -216,11 +334,15 @@ final class HUDWindowController {
                 hostingView.bottomAnchor.constraint(equalTo: pillPanel.contentView!.bottomAnchor)
             ])
             pillHostingView = hostingView
+            displayLinkClock.attach(to: hostingView)
+            if viewModel.hasPendingWaveformAnimation {
+                displayLinkClock.requestFrames()
+            }
         } else {
             pillHostingView?.rootView = HUDView(model: viewModel)
         }
 
-        setPanelFrame(pillPanel, size: targetSize, animated: false)
+        setPanelFrame(pillPanel, size: targetSize)
         pillPanel.orderFrontRegardless()
 
         if state.showsSubtitle, !state.subtitle.isEmpty {
@@ -254,7 +376,7 @@ final class HUDWindowController {
             return pillPanel
         }
 
-        let panel = makePanel(size: Metrics.holdSize)
+        let panel = makePanel(size: NSSize(width: HUDMetrics.compactWidth, height: HUDMetrics.pillHeight))
         pillPanel = panel
         return panel
     }
@@ -264,7 +386,7 @@ final class HUDWindowController {
             return subtitlePanel
         }
 
-        let panel = makePanel(size: Metrics.subtitleSize)
+        let panel = makePanel(size: HUDMetrics.subtitleSize)
         subtitlePanel = panel
         return panel
     }
@@ -292,16 +414,19 @@ final class HUDWindowController {
     private func pillSize(for state: HUDState) -> NSSize {
         switch state.visualState {
         case .idle:
-            return viewModel.isExpanded ? Metrics.expandedTraySize : Metrics.logoIdleSize
+            return viewModel.isExpanded ? HUDMetrics.expandedTraySize : HUDMetrics.idleHitSize
         case .recording(let triggerMode, let showsHint):
             switch triggerMode {
             case .tapToStartStop:
-                return Metrics.lockedSize
+                return NSSize(width: HUDMetrics.compactWidth, height: HUDMetrics.pillHeight)
             case .holdToTalk:
-                return showsHint ? Metrics.holdHintSize : Metrics.holdSize
+                return NSSize(
+                    width: showsHint ? HUDMetrics.holdHintWidth : HUDMetrics.compactWidth,
+                    height: HUDMetrics.pillHeight
+                )
             }
         case .preparingModel, .transcribing, .inserting, .success, .cancelled, .error:
-            return Metrics.statusSize
+            return NSSize(width: HUDMetrics.statusWidth, height: HUDMetrics.pillHeight)
         }
     }
 
@@ -316,11 +441,12 @@ final class HUDWindowController {
     }
 
     private func position(subtitlePanel: NSPanel, relativeTo pillPanel: NSPanel) {
-        let origin = NSPoint(
-            x: pillPanel.frame.midX - Metrics.subtitleSize.width / 2,
-            y: pillPanel.frame.maxY + Metrics.subtitleGap
+        subtitlePanel.setFrameOrigin(
+            HUDPanelLayout.subtitleOrigin(
+                position: viewModel.position,
+                pillFrame: pillPanel.frame
+            )
         )
-        subtitlePanel.setFrameOrigin(origin)
     }
 
     private func targetScreen() -> NSScreen? {
@@ -406,6 +532,10 @@ final class HUDWindowController {
 
     private func showDropZoneOverlay() {
         guard let screen = targetScreen() else { return }
+        showDropZoneOverlay(on: screen)
+    }
+
+    private func showDropZoneOverlay(on screen: NSScreen) {
         let frame = screen.frame
         if overlayPanel == nil {
             let panel = NSPanel(
@@ -437,6 +567,7 @@ final class HUDWindowController {
             ])
             overlayPanel = panel
         }
+        dropZoneViewModel.configure(screenFrame: screen.frame, visibleFrame: screen.visibleFrame)
         overlayPanel?.setFrame(frame, display: true)
         overlayPanel?.orderFrontRegardless()
     }
@@ -447,10 +578,13 @@ final class HUDWindowController {
     }
 
     private func updateDropZoneNearest(to point: NSPoint) {
-        guard let screen = targetScreen() else { return }
+        guard let screen = WindowPlacement.screen(containing: point) ?? targetScreen() else { return }
+        if dropZoneViewModel.screenFrame != screen.frame {
+            showDropZoneOverlay(on: screen)
+        }
         let screenFrame = screen.frame
         let visibleFrame = screen.visibleFrame
-        let hudSize = pillPanel?.frame.size ?? Metrics.logoIdleSize
+        let hudSize = pillPanel?.frame.size ?? HUDMetrics.idleHitSize
         dropZoneViewModel.nearestZone = HUDPosition.nearest(
             to: point,
             screenFrame: screenFrame,
@@ -517,12 +651,22 @@ final class HUDWindowController {
 
     private func handleExpandedChanged(_ expanded: Bool) {
         guard let pillPanel, viewModel.state.visualState == .idle else { return }
-        let size = expanded ? Metrics.expandedTraySize : Metrics.logoIdleSize
-        setPanelFrame(
-            pillPanel,
-            size: size,
-            animated: HUDPanelTransition.shouldAnimate(reduceMotion: viewModel.isReducedMotionEnabled)
-        )
+        let size = expanded ? HUDMetrics.expandedTraySize : HUDMetrics.idleHitSize
+        let target = targetFrame(for: pillPanel, size: size)
+        if HUDPanelTransition.shouldAnimate(reduceMotion: viewModel.isReducedMotionEnabled) {
+            morphTransition = MorphTransition(
+                startFrame: pillPanel.frame,
+                targetFrame: target,
+                startProgress: viewModel.morphProgress,
+                targetProgress: expanded ? 1 : 0,
+                elapsed: 0
+            )
+            displayLinkClock.requestFrames()
+        } else {
+            morphTransition = nil
+            pillPanel.setFrame(target, display: true)
+            viewModel.setMorphProgress(expanded ? 1 : 0)
+        }
         if expanded {
             installClickAwayMonitor()
             startIdleCollapseTimer()
@@ -532,25 +676,62 @@ final class HUDWindowController {
         }
     }
 
-    private func setPanelFrame(_ panel: NSPanel, size: NSSize, animated: Bool) {
+    private func setPanelFrame(_ panel: NSPanel, size: NSSize) {
+        morphTransition = nil
+        panel.setFrame(targetFrame(for: panel, size: size), display: true)
+        if viewModel.state.visualState == .idle {
+            viewModel.setMorphProgress(viewModel.isExpanded ? 1 : 0)
+        }
+    }
+
+    private func targetFrame(for panel: NSPanel, size: NSSize) -> NSRect {
         let position = persistedPosition()
         let screen = screen(for: panel)
-        let target = HUDPanelLayout.targetFrame(
+        viewModel.position = position
+        return HUDPanelLayout.targetFrame(
             position: position,
             screenFrame: screen?.frame ?? .zero,
             visibleFrame: screen?.visibleFrame ?? .zero,
             size: size
         )
-        viewModel.position = position
-        guard animated else {
-            panel.setFrame(target, display: true)
-            return
+    }
+
+    private func advanceAnimations(deltaTime: TimeInterval) -> Bool {
+        let waveformNeedsFrames = viewModel.advanceWaveform(deltaTime: deltaTime)
+        var morphNeedsFrames = false
+        if var transition = morphTransition, let pillPanel {
+            transition.elapsed += deltaTime
+            let linearProgress = min(1, transition.elapsed / HUDMotion.morphDuration)
+            let easedProgress = HUDMotion.easeOutCubic(linearProgress)
+            let frame = HUDPanelLayout.interpolate(
+                from: transition.startFrame,
+                to: transition.targetFrame,
+                progress: easedProgress
+            )
+            pillPanel.setFrame(frame, display: true)
+            let morphProgress = transition.startProgress
+                + (transition.targetProgress - transition.startProgress) * easedProgress
+            viewModel.setMorphProgress(morphProgress)
+            if let subtitlePanel, subtitlePanel.isVisible {
+                position(subtitlePanel: subtitlePanel, relativeTo: pillPanel)
+            }
+            if linearProgress >= 1 {
+                pillPanel.setFrame(transition.targetFrame, display: true)
+                viewModel.setMorphProgress(transition.targetProgress)
+                morphTransition = nil
+            } else {
+                morphTransition = transition
+                morphNeedsFrames = true
+            }
         }
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.18
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0, 0, 1)
-            panel.animator().setFrame(target, display: true)
-        }
+        return waveformNeedsFrames || morphNeedsFrames
+    }
+
+    private func finishMorphImmediately() {
+        guard let transition = morphTransition, let pillPanel else { return }
+        morphTransition = nil
+        pillPanel.setFrame(transition.targetFrame, display: true)
+        viewModel.setMorphProgress(transition.targetProgress)
     }
 
     func showCopyConfirmation() {
@@ -638,15 +819,17 @@ final class HUDViewModel: ObservableObject {
     @Published var canCopyLast = false
     @Published var showCopyConfirmation = false
     @Published var dictionaryFeedback: DictionaryFeedback = .idle
+    @Published private(set) var morphProgress = 0.0
 
     var onLogoInteraction: ((HUDLogoInteractionEvent) -> Void)?
     var onExpandToggle: ((Bool) -> Void)?
     var onCopyLast: (() -> Void)?
     var onAddToDictionary: (() -> Void)?
     var onHide: ((HUDHideDuration) -> Void)?
+    var onAnimationRequested: (() -> Void)?
+    var onReducedMotionChanged: ((Bool) -> Void)?
 
     private var targetBars = Array(repeating: 0.0, count: 16)
-    private var smoothingTask: Task<Void, Never>?
     private var reducedMotion = false
     private var hasPulsedThisSession = false
 
@@ -664,10 +847,9 @@ final class HUDViewModel: ObservableObject {
         self.reducedMotion = reducedMotion
 
         if reducedMotion {
-            smoothingTask?.cancel()
-            smoothingTask = nil
             displayBars = targetBars
         }
+        onReducedMotionChanged?(reducedMotion)
     }
 
     var isReducedMotionEnabled: Bool {
@@ -690,6 +872,26 @@ final class HUDViewModel: ObservableObject {
         onExpandToggle?(isExpanded)
     }
 
+    func setMorphProgress(_ progress: Double) {
+        morphProgress = max(0, min(1, progress))
+    }
+
+    var hasPendingWaveformAnimation: Bool {
+        !isReducedMotionEnabled && !HUDWaveformSmoother.isStable(current: displayBars, target: targetBars)
+    }
+
+    func advanceWaveform(deltaTime: TimeInterval) -> Bool {
+        guard !isReducedMotionEnabled, state.isVisible else { return false }
+        guard !HUDWaveformSmoother.isStable(current: displayBars, target: targetBars) else {
+            displayBars = targetBars
+            return false
+        }
+        displayBars = zip(displayBars, targetBars).map { pair in
+            HUDWaveformSmoother.step(current: pair.0, target: pair.1, deltaTime: deltaTime)
+        }
+        return !HUDWaveformSmoother.isStable(current: displayBars, target: targetBars)
+    }
+
     func apply(_ state: HUDState) {
         let wasIdle = self.state.visualState == .idle
         self.state = state
@@ -701,15 +903,11 @@ final class HUDViewModel: ObservableObject {
         guard state.isVisible else {
             displayBars = Array(repeating: 0.0, count: 16)
             hasPulsedThisSession = false
-            smoothingTask?.cancel()
-            smoothingTask = nil
             return
         }
 
-        if reducedMotion {
+        if isReducedMotionEnabled {
             displayBars = targetBars
-            smoothingTask?.cancel()
-            smoothingTask = nil
             return
         }
 
@@ -721,38 +919,8 @@ final class HUDViewModel: ObservableObject {
             displayBars = Self.activationPulseBars
             hasPulsedThisSession = true
         }
-
-        guard smoothingTask == nil else { return }
-        smoothingTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-
-            while !Task.isCancelled {
-                var changed = false
-                for index in displayBars.indices {
-                    let target = targetBars.indices.contains(index) ? targetBars[index] : 0
-                    let current = displayBars[index]
-                    let delta = target - current
-                    if abs(delta) > 0.001 {
-                        let factor = delta > 0 ? 0.4 : 0.08
-                        displayBars[index] = max(0, min(1, current + delta * factor))
-                        changed = true
-                    } else {
-                        displayBars[index] = target
-                    }
-                }
-
-                if !state.isVisible {
-                    break
-                }
-
-                if !changed, !isRecordingState {
-                    break
-                }
-
-                try? await Task.sleep(for: .milliseconds(16))
-            }
-
-            smoothingTask = nil
+        if hasPendingWaveformAnimation {
+            onAnimationRequested?()
         }
     }
 

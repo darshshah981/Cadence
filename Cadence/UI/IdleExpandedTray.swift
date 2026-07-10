@@ -13,7 +13,7 @@ struct IdleExpandedTray: View {
             contractButton
         }
         .padding(.horizontal, 10)
-        .frame(height: 38)
+        .frame(height: HUDMetrics.pillHeight)
         .background(trayBackground)
         .overlay(trayStroke)
     }
@@ -111,27 +111,13 @@ struct IdleExpandedTray: View {
     }
 
     private var trayBackground: some View {
-        let radii = model.position.cornerRadii
-        return UnevenRoundedRectangle(
-            topLeadingRadius: radii.topLeading,
-            bottomLeadingRadius: radii.bottomLeading,
-            bottomTrailingRadius: radii.bottomTrailing,
-            topTrailingRadius: radii.topTrailing,
-            style: .continuous
-        )
-        .fill(FlowTheme.elevated)
+        HUDAdaptiveShape(position: model.position)
+            .fill(FlowTheme.elevated)
     }
 
     private var trayStroke: some View {
-        let radii = model.position.cornerRadii
-        return UnevenRoundedRectangle(
-            topLeadingRadius: radii.topLeading,
-            bottomLeadingRadius: radii.bottomLeading,
-            bottomTrailingRadius: radii.bottomTrailing,
-            topTrailingRadius: radii.topTrailing,
-            style: .continuous
-        )
-        .stroke(FlowTheme.border, lineWidth: 1)
+        HUDAdaptiveShape(position: model.position)
+            .stroke(FlowTheme.border, lineWidth: 1)
     }
 }
 

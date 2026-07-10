@@ -168,6 +168,264 @@ struct HUDVisibilityServiceTests {
     }
 }
 
+struct HUDVisualGeometryTests {
+    private let screen = NSRect(x: 0, y: 0, width: 1920, height: 1080)
+    private let visible = NSRect(x: 0, y: 70, width: 1920, height: 986)
+
+    @Test
+    func visibleMarkIsThirtyPercentSmallerInsideFullHitTarget() {
+        #expect(HUDMetrics.idleHitSize == NSSize(width: 44, height: 44))
+        #expect(HUDMetrics.idleMarkSize == NSSize(width: 31, height: 31))
+        #expect(HUDMetrics.idleMarkSize.width == (HUDMetrics.idleHitSize.width * 0.7).rounded())
+    }
+
+    @Test
+    func visibleMarkRemainsFlushWithEveryAttachedEdge() {
+        for position in HUDPosition.allCases {
+            let panel = HUDPanelLayout.targetFrame(
+                position: position,
+                screenFrame: screen,
+                visibleFrame: visible,
+                size: HUDMetrics.idleHitSize
+            )
+            let mark = position.visibleMarkFrame(in: panel)
+            #expect(mark.size == HUDMetrics.idleMarkSize)
+            switch position {
+            case .bottomCenter:
+                #expect(mark.midX == panel.midX)
+                #expect(mark.minY == visible.minY)
+            case .topLeft:
+                #expect(mark.minX == screen.minX)
+                #expect(mark.maxY == visible.maxY)
+            case .topRight:
+                #expect(mark.maxX == screen.maxX)
+                #expect(mark.maxY == visible.maxY)
+            case .bottomLeft:
+                #expect(mark.minX == screen.minX)
+                #expect(mark.minY == screen.minY)
+            case .bottomRight:
+                #expect(mark.maxX == screen.maxX)
+                #expect(mark.minY == screen.minY)
+            }
+        }
+    }
+
+    @Test
+    func expansionPreservesEveryPositionAnchor() {
+        for position in HUDPosition.allCases {
+            let collapsed = HUDPanelLayout.targetFrame(
+                position: position,
+                screenFrame: screen,
+                visibleFrame: visible,
+                size: HUDMetrics.idleHitSize
+            )
+            let expanded = HUDPanelLayout.targetFrame(
+                position: position,
+                screenFrame: screen,
+                visibleFrame: visible,
+                size: HUDMetrics.expandedTraySize
+            )
+            switch position {
+            case .bottomCenter:
+                #expect(collapsed.midX == expanded.midX)
+                #expect(collapsed.minY == expanded.minY)
+                #expect(collapsed.minX - expanded.minX == expanded.maxX - collapsed.maxX)
+            case .topLeft:
+                #expect(collapsed.minX == expanded.minX)
+                #expect(collapsed.maxY == expanded.maxY)
+            case .topRight:
+                #expect(collapsed.maxX == expanded.maxX)
+                #expect(collapsed.maxY == expanded.maxY)
+            case .bottomLeft:
+                #expect(collapsed.minX == expanded.minX)
+                #expect(collapsed.minY == expanded.minY)
+            case .bottomRight:
+                #expect(collapsed.maxX == expanded.maxX)
+                #expect(collapsed.minY == expanded.minY)
+            }
+        }
+    }
+
+    @Test
+    func interpolatedMorphFramesPreserveAttachedEdges() {
+        for position in HUDPosition.allCases {
+            let start = HUDPanelLayout.targetFrame(
+                position: position,
+                screenFrame: screen,
+                visibleFrame: visible,
+                size: HUDMetrics.idleHitSize
+            )
+            let end = HUDPanelLayout.targetFrame(
+                position: position,
+                screenFrame: screen,
+                visibleFrame: visible,
+                size: HUDMetrics.expandedTraySize
+            )
+            let middle = HUDPanelLayout.interpolate(from: start, to: end, progress: 0.5)
+            switch position {
+            case .bottomCenter:
+                #expect(middle.midX == start.midX)
+                #expect(middle.minY == start.minY)
+            case .topLeft:
+                #expect(middle.minX == start.minX)
+                #expect(middle.maxY == start.maxY)
+            case .topRight:
+                #expect(middle.maxX == start.maxX)
+                #expect(middle.maxY == start.maxY)
+            case .bottomLeft:
+                #expect(middle.minX == start.minX)
+                #expect(middle.minY == start.minY)
+            case .bottomRight:
+                #expect(middle.maxX == start.maxX)
+                #expect(middle.minY == start.minY)
+            }
+        }
+    }
+
+    @Test
+    func subtitleStaysInsideScreenSideOfAttachedPill() {
+        let topPill = HUDPanelLayout.targetFrame(
+            position: .topLeft,
+            screenFrame: screen,
+            visibleFrame: visible,
+            size: NSSize(width: HUDMetrics.statusWidth, height: HUDMetrics.pillHeight)
+        )
+        let bottomPill = HUDPanelLayout.targetFrame(
+            position: .bottomCenter,
+            screenFrame: screen,
+            visibleFrame: visible,
+            size: NSSize(width: HUDMetrics.statusWidth, height: HUDMetrics.pillHeight)
+        )
+
+        #expect(HUDPanelLayout.subtitleOrigin(position: .topLeft, pillFrame: topPill).y < topPill.minY)
+        #expect(HUDPanelLayout.subtitleOrigin(position: .bottomCenter, pillFrame: bottomPill).y > bottomPill.maxY)
+    }
+
+    @Test
+    func dropRectsMatchVisibleMarkAtActualSnapDestinations() {
+        for position in HUDPosition.allCases {
+            let rect = HUDDropZoneGeometry.canvasRect(
+                for: position,
+                screenFrame: screen,
+                visibleFrame: visible
+            )
+            #expect(rect.size == HUDMetrics.idleMarkSize)
+        }
+        #expect(HUDDropZoneGeometry.canvasRect(
+            for: .topLeft,
+            screenFrame: screen,
+            visibleFrame: visible
+        ) == CGRect(x: 0, y: 24, width: 31, height: 31))
+        #expect(HUDDropZoneGeometry.canvasRect(
+            for: .bottomCenter,
+            screenFrame: screen,
+            visibleFrame: visible
+        ) == CGRect(x: 944.5, y: 979, width: 31, height: 31))
+    }
+
+    @Test
+    func dropRectConversionSupportsNegativeOriginScreens() {
+        let negativeScreen = NSRect(x: -1440, y: 100, width: 1440, height: 900)
+        let negativeVisible = NSRect(x: -1440, y: 100, width: 1440, height: 876)
+
+        #expect(HUDDropZoneGeometry.canvasRect(
+            for: .topRight,
+            screenFrame: negativeScreen,
+            visibleFrame: negativeVisible
+        ) == CGRect(x: 1409, y: 24, width: 31, height: 31))
+    }
+}
+
+struct HUDAnimationClockTests {
+    @Test
+    func waveformAttackIsFrameRateIndependentAt60And120Hz() {
+        let sixty = advanceWaveform(from: 0, to: 1, framesPerSecond: 60, seconds: 0.5)
+        let oneTwenty = advanceWaveform(from: 0, to: 1, framesPerSecond: 120, seconds: 0.5)
+
+        #expect(abs(sixty - oneTwenty) < 0.000_001)
+    }
+
+    @Test
+    func waveformReleaseIsFrameRateIndependentAt60And120Hz() {
+        let sixty = advanceWaveform(from: 1, to: 0, framesPerSecond: 60, seconds: 0.5)
+        let oneTwenty = advanceWaveform(from: 1, to: 0, framesPerSecond: 120, seconds: 0.5)
+
+        #expect(abs(sixty - oneTwenty) < 0.000_001)
+    }
+
+    @Test
+    func displayRefreshPolicyUsesActualMaximumFrameRate() {
+        let promotion = HUDDisplayRefreshPolicy.preferredRange(maximumFramesPerSecond: 120)
+        let standard = HUDDisplayRefreshPolicy.preferredRange(maximumFramesPerSecond: 60)
+
+        #expect(promotion.maximum == 120)
+        #expect(promotion.preferred == 120)
+        #expect(promotion.minimum == 60)
+        #expect(standard.maximum == 60)
+        #expect(standard.preferred == 60)
+    }
+
+    @Test
+    @MainActor
+    func waveformRequestsFramesOnlyUntilStable() {
+        let model = HUDViewModel()
+        model.reduceMotionProvider = { false }
+        var requestCount = 0
+        model.onAnimationRequested = { requestCount += 1 }
+        model.apply(HUDState(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            subtitle: "",
+            level: 0.5,
+            waveformLevels: Array(repeating: 0.5, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        ))
+
+        #expect(requestCount == 1)
+        var needsFrames = true
+        for _ in 0..<600 where needsFrames {
+            needsFrames = model.advanceWaveform(deltaTime: 1 / 120)
+        }
+        #expect(!needsFrames)
+        #expect(!model.hasPendingWaveformAnimation)
+    }
+
+    @Test
+    @MainActor
+    func reducedMotionAppliesResponsiveAudioWithoutInterpolation() {
+        let model = HUDViewModel()
+        model.reduceMotionProvider = { true }
+        model.apply(HUDState(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            subtitle: "",
+            level: 0.7,
+            waveformLevels: Array(repeating: 0.7, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        ))
+
+        #expect(model.displayBars == Array(repeating: 0.7, count: 16))
+        #expect(!model.hasPendingWaveformAnimation)
+    }
+
+    private func advanceWaveform(
+        from initial: Double,
+        to target: Double,
+        framesPerSecond: Int,
+        seconds: Double
+    ) -> Double {
+        var value = initial
+        for _ in 0..<Int(Double(framesPerSecond) * seconds) {
+            value = HUDWaveformSmoother.step(
+                current: value,
+                target: target,
+                deltaTime: 1 / Double(framesPerSecond)
+            )
+        }
+        return value
+    }
+}
+
 private struct StubAccessibilitySelectionReader: AccessibilitySelectionReading {
     let value: String?
     let error: SelectionCaptureError?

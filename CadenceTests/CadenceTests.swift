@@ -2599,13 +2599,14 @@ struct CadenceTests {
     }
 
     @Test
-    func hudPositionTopLeftOriginIsFlushWithScreenCorner() {
+    func hudPositionTopLeftOriginIsBelowMenuBar() {
         let screenFrame = NSRect(x: 0, y: 0, width: 1920, height: 1080)
-        let visibleFrame = NSRect(x: 0, y: 70, width: 1920, height: 1010)
+        let visibleFrame = NSRect(x: 0, y: 70, width: 1920, height: 986)
         let hudSize = NSSize(width: 44, height: 44)
         let origin = HUDPosition.topLeft.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)
         #expect(origin.x == screenFrame.minX)
-        #expect(origin.y == screenFrame.maxY - hudSize.height)
+        #expect(origin.y == visibleFrame.maxY - hudSize.height)
+        #expect(origin.y < screenFrame.maxY - hudSize.height)
     }
 
     @Test
@@ -3349,14 +3350,15 @@ struct HUDPanelLayoutTests {
     @Test
     func targetFrameSupportsNegativeScreenOrigins() {
         let screen = NSRect(x: -1440, y: 120, width: 1440, height: 900)
+        let visible = NSRect(x: -1440, y: 120, width: 1440, height: 876)
         let frame = HUDPanelLayout.targetFrame(
             position: .topRight,
             screenFrame: screen,
-            visibleFrame: screen,
+            visibleFrame: visible,
             size: NSSize(width: 44, height: 44)
         )
 
-        #expect(frame == NSRect(x: -44, y: 976, width: 44, height: 44))
+        #expect(frame == NSRect(x: -44, y: 952, width: 44, height: 44))
     }
 
     @Test

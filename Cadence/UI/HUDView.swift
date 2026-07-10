@@ -1,5 +1,20 @@
 import SwiftUI
 
+struct HUDAdaptiveShape: Shape {
+    let position: HUDPosition
+
+    func path(in rect: CGRect) -> Path {
+        let radii = position.cornerRadii
+        return UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading,
+            bottomLeadingRadius: radii.bottomLeading,
+            bottomTrailingRadius: radii.bottomTrailing,
+            topTrailingRadius: radii.topTrailing,
+            style: .continuous
+        ).path(in: rect)
+    }
+}
+
 struct HUDView: View {
     @ObservedObject var model: HUDViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -10,8 +25,15 @@ struct HUDView: View {
             case .idle:
                 if model.isExpanded {
                     IdleExpandedTray(model: model)
+                        .opacity(model.morphProgress)
+                        .scaleEffect(
+                            x: 0.92 + 0.08 * model.morphProgress,
+                            y: 1,
+                            anchor: morphAnchor
+                        )
                 } else {
                     logoBadge
+                        .opacity(1 - model.morphProgress)
                 }
             case .recording(let triggerMode, let showsHint):
                 recordingPill(triggerMode: triggerMode, showsHint: showsHint)
@@ -30,7 +52,6 @@ struct HUDView: View {
             }
         }
         .animation(reduceMotion ? nil : .timingCurve(0.25, 0, 0, 1, duration: 0.18), value: model.state.visualState)
-        .animation(reduceMotion ? nil : FlowMotion.control, value: model.isExpanded)
         .accessibilityLabel(model.state.visualState.accessibilityLabel)
         .accessibilityHint(model.state.visualState.accessibilityHint ?? "")
         .onAppear { model.setReducedMotion(reduceMotion) }
@@ -38,23 +59,38 @@ struct HUDView: View {
     }
 
     private var logoBadge: some View {
-        let radii = model.position.cornerRadii
-        return Image("HUDLogo")
-            .resizable()
-            .interpolation(.high)
-            .frame(width: 44, height: 44)
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: radii.topLeading,
-                    bottomLeadingRadius: radii.bottomLeading,
-                    bottomTrailingRadius: radii.bottomTrailing,
-                    topTrailingRadius: radii.topTrailing,
-                    style: .continuous
-                )
-            )
+        ZStack(alignment: logoAlignment) {
+            Color.clear
+            Image("HUDLogo")
+                .resizable()
+                .interpolation(.high)
+                .frame(width: HUDMetrics.idleMarkSize.width, height: HUDMetrics.idleMarkSize.height)
+                .clipShape(HUDAdaptiveShape(position: model.position))
+        }
+            .frame(width: HUDMetrics.idleHitSize.width, height: HUDMetrics.idleHitSize.height)
             .overlay {
                 HUDLogoInteractionSurface(model: model)
             }
+    }
+
+    private var logoAlignment: Alignment {
+        switch model.position {
+        case .bottomCenter: .bottom
+        case .topLeft: .topLeading
+        case .topRight: .topTrailing
+        case .bottomLeft: .bottomLeading
+        case .bottomRight: .bottomTrailing
+        }
+    }
+
+    private var morphAnchor: UnitPoint {
+        switch model.position {
+        case .bottomCenter: .bottom
+        case .topLeft: .topLeading
+        case .topRight: .topTrailing
+        case .bottomLeft: .bottomLeading
+        case .bottomRight: .bottomTrailing
+        }
     }
 
     private func recordingPill(triggerMode: DictationTriggerMode, showsHint: Bool) -> some View {
@@ -67,7 +103,7 @@ struct HUDView: View {
             }
 
             WaveformCanvasView(levels: model.displayBars)
-                .frame(width: 112, height: 28)
+                .frame(width: HUDMetrics.waveformWidth, height: HUDMetrics.waveformHeight)
 
             if triggerMode == .holdToTalk, showsHint {
                 Text("Release to stop")
@@ -122,15 +158,8 @@ struct HUDView: View {
         }
     }
 
-    private var adaptiveClipShape: UnevenRoundedRectangle {
-        let radii = model.position.cornerRadii
-        return UnevenRoundedRectangle(
-            topLeadingRadius: radii.topLeading,
-            bottomLeadingRadius: radii.bottomLeading,
-            bottomTrailingRadius: radii.bottomTrailing,
-            topTrailingRadius: radii.topTrailing,
-            style: .continuous
-        )
+    private var adaptiveClipShape: HUDAdaptiveShape {
+        HUDAdaptiveShape(position: model.position)
     }
 
     private var pillBackground: some View {
@@ -247,8 +276,8 @@ private struct WaveformCanvasView: View {
             let barCount = levels.count
             guard barCount > 0 else { return }
 
-            let barWidth: CGFloat = 3
-            let barGap: CGFloat = 3
+            let barWidth = HUDMetrics.waveformBarWidth
+            let barGap = HUDMetrics.waveformBarGap
             let maxHeight = max(22, size.height - 2)
             let minHeight: CGFloat = 4
             let totalWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barGap
