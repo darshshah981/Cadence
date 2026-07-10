@@ -33,6 +33,10 @@ enum DictationTriggerMode: String, CaseIterable, Identifiable, Sendable {
             return "Press once to start, then stop with the shortcut or the pill."
         }
     }
+
+    var showsHoldIndicator: Bool {
+        self == .holdToTalk
+    }
 }
 
 struct AudioChunk: Sendable {

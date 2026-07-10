@@ -36,6 +36,9 @@ struct HUDView: View {
         HStack(spacing: 10) {
             if triggerMode == .tapToStartStop {
                 dismissButton
+            }
+
+            if triggerMode.showsHoldIndicator {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(FlowTheme.accent)
@@ -127,7 +130,7 @@ struct HUDView: View {
         case .tapToStartStop:
             return 224
         case .holdToTalk:
-            return showsHint ? 244 : 156
+            return showsHint ? 260 : 176
         }
     }
 

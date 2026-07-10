@@ -188,18 +188,17 @@ final class HotkeyService: HotkeyServing {
             if let hotKeyRef {
                 hotKeyRefs[binding.action] = hotKeyRef
                 hotkeyLogger.info(
-                    "Registered hotkey action=\(binding.action.displayName, privacy: .public) shortcut=\(binding.shortcut.displayName, privacy: .public)"
+                    "Registered hotkey action=\(binding.action.displayName, privacy: .public)"
                 )
             } else {
                 hotkeyLogger.error(
-                    "Failed to register hotkey action=\(binding.action.displayName, privacy: .public) shortcut=\(binding.shortcut.displayName, privacy: .public) status=\(status, privacy: .public)"
+                    "Failed to register hotkey action=\(binding.action.displayName, privacy: .public) status=\(status, privacy: .public)"
                 )
                 onDiagnosticsEvent?(
                     "hotkey_registration_failed",
                     [
                         "stage": "registerHotKey",
                         "action": binding.action.rawValue,
-                        "shortcut": binding.shortcut.displayName,
                         "status": String(status)
                     ]
                 )

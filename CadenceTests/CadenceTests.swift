@@ -132,6 +132,8 @@ struct CadenceTests {
         let hold = HUDVisualState.recording(triggerMode: .holdToTalk, showsHint: false)
         let persistent = HUDVisualState.recording(triggerMode: .tapToStartStop, showsHint: false)
 
+        #expect(DictationTriggerMode.holdToTalk.showsHoldIndicator)
+        #expect(!DictationTriggerMode.tapToStartStop.showsHoldIndicator)
         #expect(hold.accessibilityLabel == "Dictation is listening")
         #expect(hold.accessibilityHint == "Release the shortcut to finish dictating.")
         #expect(persistent.accessibilityLabel == "Continuous dictation is listening")
