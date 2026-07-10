@@ -132,7 +132,7 @@ final class HUDWindowController {
     private var clickAwayMonitor: Any?
     private var idleCollapseTask: Task<Void, Never>?
     private static let idleCollapseSeconds: UInt64 = 8
-    private var isSuppressed = false
+    private var isIdleSuppressed = false
 
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
@@ -177,17 +177,24 @@ final class HUDWindowController {
         position(pillPanel: pillPanel)
     }
 
-    func setSuppressed(_ suppressed: Bool) {
-        isSuppressed = suppressed
+    func setIdleSuppressed(_ suppressed: Bool) {
+        isIdleSuppressed = suppressed
         if !suppressed {
             update(with: viewModel.state)
+        } else if viewModel.state.visualState == .idle {
+            pillPanel?.orderOut(nil)
+            subtitlePanel?.orderOut(nil)
         }
     }
 
     func update(with state: HUDState) {
         viewModel.apply(state)
 
-        guard state.isVisible, !isSuppressed else {
+        let idleBarVisible = HUDIdleVisibilityPolicy.shouldPresent(
+            visualState: state.visualState,
+            idleBarVisible: !isIdleSuppressed
+        )
+        guard state.isVisible, idleBarVisible else {
             pillPanel?.orderOut(nil)
             subtitlePanel?.orderOut(nil)
             return

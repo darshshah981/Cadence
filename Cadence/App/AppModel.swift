@@ -132,6 +132,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var appearancePreference: AppearancePreference
     @Published private(set) var personalizationLibrary: PersonalizationLibrary
     @Published private(set) var onboardingProgress: OnboardingProgress
+    @Published private(set) var hudVisibility: HUDVisibilityState
     @Published var menuScreen: MenuScreen = .home
 
     @Published private(set) var holdToTalkBinding: HotkeyBinding
@@ -149,6 +150,8 @@ final class AppModel: ObservableObject {
     private let voiceSessionArbiter: VoiceSessionArbiter
     let onboardingMicrophoneMonitor: OnboardingMicrophoneMonitor
     private let hudController: HUDWindowController
+    private let hudVisibilityController: HUDVisibilityController
+    private let selectionCaptureService: SelectionCaptureService
     private let feedbackService: SoundFeedbackService
     private let analytics: AnalyticsService
     private let mainWindowController = MainWindowController()
@@ -186,10 +189,16 @@ final class AppModel: ObservableObject {
 
     init() {
         let defaults = UserDefaults.standard
+        let hudVisibilityController = HUDVisibilityController(
+            store: HUDVisibilityStore(defaults: defaults)
+        )
         let initialHoldBinding = AppModel.loadBinding(defaults: defaults, action: .holdToTalk)
         let initialTapBinding = AppModel.loadBinding(defaults: defaults, action: .tapToStartStop)
         let initialScribeBinding = AppModel.loadBinding(defaults: defaults, action: .scribe)
         self.defaults = defaults
+        self.hudVisibilityController = hudVisibilityController
+        self.hudVisibility = hudVisibilityController.state
+        self.selectionCaptureService = SelectionCaptureService()
         self.transcriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
         let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
         let showsShortcutDock = (defaults.object(forKey: PreferenceKey.showsShortcutDock) as? Bool) ?? true
@@ -315,6 +324,7 @@ final class AppModel: ObservableObject {
 
         applyAppearancePreference()
         bindCoordinator()
+        bindHUDVisibility()
         bindScribeCoordinator()
         bindHotkeyDiagnostics()
         bindPermissionRefresh()
@@ -660,7 +670,8 @@ final class AppModel: ObservableObject {
             ]
         )
 
-        if permissions.allRequiredGranted {
+        applyHUDIdleVisibilityPolicy()
+        if permissions.allRequiredGranted, hudVisibility.showsIdleBar, isDictationIdle {
             coordinator.presentLogoIdle()
         }
     }
@@ -1765,68 +1776,82 @@ final class AppModel: ObservableObject {
     }
 
     private func captureSelectedTextForDictionary() {
-        let selected = AXUIElement.systemWide.selectedText
-        guard let text = selected, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            hudController.viewModel.dictionaryFeedback = .nothingSelected
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(1.5))
-                self?.hudController.viewModel.dictionaryFeedback = .idle
-            }
-            return
-        }
         hudController.viewModel.dictionaryFeedback = .capturing
-        let currentVocabulary = transcriptionConfiguration.vocabularyText
-        let updatedVocabulary: String
-        if currentVocabulary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            updatedVocabulary = text
-        } else {
-            updatedVocabulary = currentVocabulary + "\n" + text
+        do {
+            guard let capture = try selectionCaptureService.capture() else {
+                finishDictionaryCapture(.nothingSelected)
+                return
+            }
+            guard let updatedVocabulary = VocabularyTextAppender.appending(
+                capture.text,
+                to: transcriptionConfiguration.vocabularyText
+            ) else {
+                finishDictionaryCapture(.nothingSelected)
+                return
+            }
+            setVocabularyText(updatedVocabulary)
+            finishDictionaryCapture(.added)
+        } catch {
+            finishDictionaryCapture(.failed)
         }
-        setVocabularyText(updatedVocabulary)
-        hudController.viewModel.dictionaryFeedback = .added
+    }
+
+    private func finishDictionaryCapture(_ outcome: DictionaryCaptureOutcome) {
+        switch outcome {
+        case .added:
+            hudController.viewModel.dictionaryFeedback = .added
+        case .nothingSelected:
+            hudController.viewModel.dictionaryFeedback = .nothingSelected
+        case .failed:
+            hudController.viewModel.dictionaryFeedback = .failed
+        }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(1.5))
             self?.hudController.viewModel.dictionaryFeedback = .idle
         }
-        analytics.track("word_added_to_dictionary", properties: ["length": .int(text.count)])
+        analytics.track("dictionary_capture_completed", properties: outcome.analyticsProperties)
     }
-
-    private var hudHiddenUntil: Date?
-    private var hudHideTask: Task<Void, Never>?
 
     private func hideHUD(for duration: HUDHideDuration) {
-        hudHiddenUntil = duration.seconds.map { Date().addingTimeInterval($0) }
-        hudController.setSuppressed(true)
-        hudController.update(with: .init(
-            visualState: .idle,
-            subtitle: "",
-            level: 0,
-            waveformLevels: [],
-            isVisible: false,
-            showsSubtitle: false
-        ))
-        cancelHUDSessionResumeTimer()
-        if duration == .untilNextSession {
-            return
-        }
-        hudHideTask = Task { @MainActor [weak self] in
-            guard let self, let seconds = duration.seconds else { return }
-            try? await Task.sleep(for: .seconds(seconds))
-            guard !Task.isCancelled else { return }
-            self.resumeHUD()
-            self.coordinator.presentLogoIdle()
+        hudVisibilityController.hide(for: duration)
+        analytics.track("hud_visibility_changed", properties: ["action": duration.rawValue])
+    }
+
+    var isCadenceBarHidden: Bool {
+        !hudVisibility.showsIdleBar
+    }
+
+    func showCadenceBar() {
+        hudVisibilityController.show()
+        analytics.track("hud_visibility_changed", properties: ["action": "show"])
+        if permissions.allRequiredGranted, isDictationIdle {
+            coordinator.presentLogoIdle()
         }
     }
 
-    private func cancelHUDSessionResumeTimer() {
-        hudHideTask?.cancel()
-        hudHideTask = nil
+    private func bindHUDVisibility() {
+        hudVisibilityController.onChange = { [weak self] visibility in
+            guard let self else { return }
+            self.hudVisibility = visibility
+            self.applyHUDIdleVisibilityPolicy()
+            if visibility.showsIdleBar, self.permissions.allRequiredGranted, self.isDictationIdle {
+                self.coordinator.presentLogoIdle()
+            }
+        }
+        applyHUDIdleVisibilityPolicy()
     }
 
-    private func resumeHUD() {
-        hudHiddenUntil = nil
-        cancelHUDSessionResumeTimer()
-        hudController.setSuppressed(false)
+    private func applyHUDIdleVisibilityPolicy() {
+        let showsIdleBar = HUDIdleVisibilityPolicy.showsIdleBar(
+            visibility: hudVisibility,
+            permissionsGranted: permissions.allRequiredGranted
+        )
+        hudController.setIdleSuppressed(!showsIdleBar)
+    }
+
+    private var isDictationIdle: Bool {
+        if case .idle = state { return true }
+        return false
     }
 
     func setDictationSoundFeedbackEnabled(_ enabled: Bool) {
@@ -1849,7 +1874,6 @@ final class AppModel: ObservableObject {
             self?.state = state
             if case .listening = state {
                 self?.clearTransientCaptureErrorIfNeeded()
-                self?.resumeHUD()
             }
         }
 
@@ -3279,30 +3303,5 @@ private final class MeetingAudioStopGate: @unchecked Sendable {
         guard !didResume else { return }
         didResume = true
         continuation.resume(returning: result)
-    }
-}
-
-private extension AXUIElement {
-    static let systemWide = AXUIElementCreateSystemWide()
-
-    var selectedText: String? {
-        var selectedRange: CFTypeRef?
-        let err = AXUIElementCopyAttributeValue(
-            AXUIElement.systemWide,
-            "AXFocusedApplication" as CFString,
-            &selectedRange
-        )
-        guard err == .success, let focusedApp = selectedRange else { return nil }
-        let appElement: AXUIElement = focusedApp as! AXUIElement
-
-        var focusedUIElement: CFTypeRef?
-        let uiErr = AXUIElementCopyAttributeValue(appElement, "AXFocusedUIElement" as CFString, &focusedUIElement)
-        guard uiErr == .success, let focused = focusedUIElement else { return nil }
-        let element: AXUIElement = focused as! AXUIElement
-
-        var selectedTextValue: CFTypeRef?
-        let textErr = AXUIElementCopyAttributeValue(element, "AXSelectedText" as CFString, &selectedTextValue)
-        guard textErr == .success, let text = selectedTextValue as? String else { return nil }
-        return text
     }
 }
