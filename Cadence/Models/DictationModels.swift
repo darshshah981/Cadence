@@ -804,6 +804,28 @@ struct HUDState: Equatable {
     )
 }
 
+enum HUDHideDuration: String, CaseIterable, Sendable {
+    case tenMinutes
+    case oneHour
+    case untilNextSession
+
+    var seconds: TimeInterval? {
+        switch self {
+        case .tenMinutes: return 600
+        case .oneHour: return 3600
+        case .untilNextSession: return nil
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .tenMinutes: "Hide for 10 minutes"
+        case .oneHour: "Hide for 1 hour"
+        case .untilNextSession: "Hide until next session"
+        }
+    }
+}
+
 enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
     case holdToTalk
     case tapToStartStop

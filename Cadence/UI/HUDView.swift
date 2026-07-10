@@ -3,12 +3,19 @@ import SwiftUI
 struct HUDView: View {
     @ObservedObject var model: HUDViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hasDragged = false
+
+    private static let dragThreshold: CGFloat = 4
 
     var body: some View {
         Group {
             switch model.state.visualState {
             case .idle:
-                logoBadge
+                if model.isExpanded {
+                    IdleExpandedTray(model: model)
+                } else {
+                    logoBadge
+                }
             case .recording(let triggerMode, let showsHint):
                 recordingPill(triggerMode: triggerMode, showsHint: showsHint)
             case .preparingModel:
@@ -26,6 +33,7 @@ struct HUDView: View {
             }
         }
         .animation(reduceMotion ? nil : .timingCurve(0.25, 0, 0, 1, duration: 0.18), value: model.state.visualState)
+        .animation(reduceMotion ? nil : FlowMotion.control, value: model.isExpanded)
         .contentShape(Rectangle())
         .gesture(dragGesture)
         .accessibilityLabel(model.state.visualState.accessibilityLabel)
@@ -148,15 +156,25 @@ struct HUDView: View {
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
+                if !hasDragged {
+                    let distance = abs(value.translation.width) + abs(value.translation.height)
+                    if distance < Self.dragThreshold { return }
+                    hasDragged = true
+                }
                 model.onDrag?(value.translation)
             }
             .onEnded { _ in
-                model.onDragEnded?()
+                if hasDragged {
+                    model.onDragEnded?()
+                } else if model.state.visualState == .idle {
+                    model.toggleExpanded()
+                }
+                hasDragged = false
             }
     }
 }
 
-private struct HUDSpinnerView: View {
+struct HUDSpinnerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isAnimating = false
 
@@ -213,5 +231,16 @@ private struct WaveformCanvasView: View {
                 context.fill(path, with: .color(FlowTheme.accent.opacity(0.96)))
             }
         }
+    }
+}
+
+struct HUDControlButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .brightness(configuration.isPressed ? 0.08 : 0)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
