@@ -600,10 +600,42 @@ struct VocabularyPostProcessor {
 }
 
 enum HUDVisualState: Equatable {
+    case idle
     case recording(triggerMode: DictationTriggerMode, showsHint: Bool)
     case preparingModel
     case transcribing
     case error(message: String)
+}
+
+struct HUDCornerRadii: Equatable {
+    let topLeading: CGFloat
+    let bottomLeading: CGFloat
+    let bottomTrailing: CGFloat
+    let topTrailing: CGFloat
+}
+
+enum HUDPosition: String, CaseIterable, Equatable {
+    case bottomCenter
+    case topLeft
+    case topRight
+    case bottomLeft
+    case bottomRight
+
+    var cornerRadii: HUDCornerRadii {
+        let r: CGFloat = 14
+        switch self {
+        case .bottomCenter:
+            return HUDCornerRadii(topLeading: r, bottomLeading: 0, bottomTrailing: 0, topTrailing: r)
+        case .topLeft:
+            return HUDCornerRadii(topLeading: 0, bottomLeading: 0, bottomTrailing: r, topTrailing: 0)
+        case .topRight:
+            return HUDCornerRadii(topLeading: 0, bottomLeading: r, bottomTrailing: 0, topTrailing: 0)
+        case .bottomLeft:
+            return HUDCornerRadii(topLeading: 0, bottomLeading: 0, bottomTrailing: 0, topTrailing: r)
+        case .bottomRight:
+            return HUDCornerRadii(topLeading: r, bottomLeading: 0, bottomTrailing: 0, topTrailing: 0)
+        }
+    }
 }
 
 struct HUDState: Equatable {
@@ -627,6 +659,15 @@ struct HUDState: Equatable {
         level: 0,
         waveformLevels: Array(repeating: 0, count: 16),
         isVisible: false,
+        showsSubtitle: false
+    )
+
+    static let logoIdle = HUDState(
+        visualState: .idle,
+        subtitle: "",
+        level: 0,
+        waveformLevels: Array(repeating: 0, count: 16),
+        isVisible: true,
         showsSubtitle: false
     )
 }

@@ -1714,6 +1714,84 @@ struct CadenceTests {
         #expect(detection.nextPrompt(from: [focus], now: now, promptedEventIDs: []) == nil)
     }
 
+    @Test
+    func hudLogoIdleStateIsVisibleWithIdleVisualState() {
+        let logoIdle = HUDState.logoIdle
+
+        #expect(logoIdle.isVisible)
+        #expect(logoIdle.visualState == .idle)
+        #expect(logoIdle.subtitle == "")
+        #expect(logoIdle.waveformLevels == Array(repeating: 0.0, count: 16))
+    }
+
+    @Test
+    func hudIdleStateIsHiddenAndDistinctFromLogoIdle() {
+        let hidden = HUDState.idle
+        let logo = HUDState.logoIdle
+
+        #expect(!hidden.isVisible)
+        #expect(logo.isVisible)
+        #expect(hidden.visualState != logo.visualState)
+    }
+
+    @Test
+    func hudVisualStateIdleIsDistinctFromOtherCases() {
+        #expect(HUDVisualState.idle != .preparingModel)
+        #expect(HUDVisualState.idle != .transcribing)
+        #expect(HUDVisualState.idle != .error(message: "test"))
+        #expect(HUDVisualState.idle != .recording(triggerMode: .holdToTalk, showsHint: false))
+    }
+
+    @Test
+    func hudPositionBottomCenterHasFlatBottomAndRoundedTop() {
+        let radii = HUDPosition.bottomCenter.cornerRadii
+
+        #expect(radii.topLeading > 0)
+        #expect(radii.topTrailing > 0)
+        #expect(radii.bottomLeading == 0)
+        #expect(radii.bottomTrailing == 0)
+    }
+
+    @Test
+    func hudPositionTopLeftHasFlatTopAndLeft() {
+        let radii = HUDPosition.topLeft.cornerRadii
+
+        #expect(radii.topLeading == 0)
+        #expect(radii.topTrailing == 0)
+        #expect(radii.bottomLeading == 0)
+        #expect(radii.bottomTrailing > 0)
+    }
+
+    @Test
+    func hudPositionTopRightHasFlatTopAndRight() {
+        let radii = HUDPosition.topRight.cornerRadii
+
+        #expect(radii.topLeading == 0)
+        #expect(radii.topTrailing == 0)
+        #expect(radii.bottomTrailing == 0)
+        #expect(radii.bottomLeading > 0)
+    }
+
+    @Test
+    func hudPositionBottomLeftHasFlatBottomAndLeft() {
+        let radii = HUDPosition.bottomLeft.cornerRadii
+
+        #expect(radii.topLeading == 0)
+        #expect(radii.bottomLeading == 0)
+        #expect(radii.bottomTrailing == 0)
+        #expect(radii.topTrailing > 0)
+    }
+
+    @Test
+    func hudPositionBottomRightHasFlatBottomAndRight() {
+        let radii = HUDPosition.bottomRight.cornerRadii
+
+        #expect(radii.topLeading > 0)
+        #expect(radii.topTrailing == 0)
+        #expect(radii.bottomLeading == 0)
+        #expect(radii.bottomTrailing == 0)
+    }
+
     private func temporaryMeetingStoreURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("CadenceTests-\(UUID().uuidString)", isDirectory: true)

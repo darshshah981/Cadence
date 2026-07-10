@@ -7,6 +7,8 @@ struct HUDView: View {
     var body: some View {
         Group {
             switch model.state.visualState {
+            case .idle:
+                logoBadge
             case .recording(let triggerMode, let showsHint):
                 recordingPill(triggerMode: triggerMode, showsHint: showsHint)
             case .preparingModel:
@@ -20,6 +22,24 @@ struct HUDView: View {
         .animation(reduceMotion ? nil : .timingCurve(0.25, 0, 0, 1, duration: 0.18), value: model.state.visualState)
         .contentShape(Rectangle())
         .gesture(dragGesture)
+    }
+
+    private var logoBadge: some View {
+        let radii = model.position.cornerRadii
+        return Image("HUDLogo")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: 44, height: 44)
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: radii.topLeading,
+                    bottomLeadingRadius: radii.bottomLeading,
+                    bottomTrailingRadius: radii.bottomTrailing,
+                    topTrailingRadius: radii.topTrailing,
+                    style: .continuous
+                )
+            )
+            .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 2)
     }
 
     private func recordingPill(triggerMode: DictationTriggerMode, showsHint: Bool) -> some View {
@@ -105,13 +125,24 @@ struct HUDView: View {
         }
     }
 
+    private var adaptiveClipShape: UnevenRoundedRectangle {
+        let radii = model.position.cornerRadii
+        return UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading,
+            bottomLeadingRadius: radii.bottomLeading,
+            bottomTrailingRadius: radii.bottomTrailing,
+            topTrailingRadius: radii.topTrailing,
+            style: .continuous
+        )
+    }
+
     private var pillBackground: some View {
-        Capsule(style: .continuous)
+        adaptiveClipShape
             .fill(FlowTheme.elevated)
     }
 
     private var pillStroke: some View {
-        Capsule(style: .continuous)
+        adaptiveClipShape
             .stroke(FlowTheme.border, lineWidth: 1)
     }
 

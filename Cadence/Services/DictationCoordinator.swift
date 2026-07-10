@@ -434,10 +434,10 @@ final class DictationCoordinator {
             activeTargetApplication = nil
             sessionStartedAt = nil
             activeSessionID = nil
-            hideHUD()
+            transitionToLogoIdle()
 
             try await Task.sleep(for: .milliseconds(700))
-            hideHUD()
+            transitionToLogoIdle()
         } catch {
             dictationLogger.error(
                 "Cadence timing finalize failed total=\(Self.formatSeconds(Date().timeIntervalSince(finalizeStartedAt)), privacy: .public)s error=\(error.localizedDescription, privacy: .public)"
@@ -490,9 +490,14 @@ final class DictationCoordinator {
         hudController.update(with: hudState)
     }
 
-    private func hideHUD() {
-        onHUDChange?(HUDState.idle)
-        hudController.update(with: .idle)
+    private func transitionToLogoIdle() {
+        onHUDChange?(HUDState.logoIdle)
+        hudController.update(with: .logoIdle)
+    }
+
+    func presentLogoIdle() {
+        guard state == .idle else { return }
+        transitionToLogoIdle()
     }
 
     private func publishError(_ message: String) {
@@ -509,7 +514,7 @@ final class DictationCoordinator {
         )
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(2.5))
-            self?.hideHUD()
+            self?.transitionToLogoIdle()
         }
     }
 
@@ -699,7 +704,7 @@ final class DictationCoordinator {
         sessionStartedAt = nil
         activeSessionID = nil
         state = .idle
-        hideHUD()
+        transitionToLogoIdle()
     }
 
     private func sessionAnalyticsProperties(triggerMode: DictationTriggerMode) -> [String: AnalyticsValue] {

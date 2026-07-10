@@ -71,6 +71,8 @@ final class AppModel: ObservableObject {
         static let didMigrateToLivePreviewDefault = "FlowState.didMigrateToLivePreviewDefault"
         static let didMigrateToLivePreviewDefaultV2 = "FlowState.didMigrateToLivePreviewDefault.v2"
         static let didUndoLivePreviewDefault = "FlowState.didUndoLivePreviewDefault.v1"
+        static let hudPosition = "Cadence.hudPosition"
+        static let dragTooltipShown = "Cadence.dragTooltipShown"
     }
 
     private enum AnalyticsTuning {
@@ -449,6 +451,10 @@ final class AppModel: ObservableObject {
                 "inputMonitoring": String(permissions.inputMonitoringGranted)
             ]
         )
+
+        if permissions.allRequiredGranted {
+            coordinator.presentLogoIdle()
+        }
     }
 
     func requestMicrophoneAccess() {

@@ -5,6 +5,7 @@ import SwiftUI
 final class HUDWindowController {
     private enum Metrics {
         static let pillHeight: CGFloat = 38
+        static let logoIdleSize = NSSize(width: 44, height: 44)
         static let holdSize = NSSize(width: 140, height: pillHeight)
         static let holdHintSize = NSSize(width: 228, height: pillHeight)
         static let controlsSize = NSSize(width: 188, height: pillHeight)
@@ -141,6 +142,8 @@ final class HUDWindowController {
 
     private func pillSize(for state: HUDState) -> NSSize {
         switch state.visualState {
+        case .idle:
+            return Metrics.logoIdleSize
         case .recording(let triggerMode, let showsHint):
             switch triggerMode {
             case .tapToStartStop:
@@ -227,6 +230,7 @@ final class HUDWindowController {
 final class HUDViewModel: ObservableObject {
     @Published private(set) var state = HUDState.idle
     @Published private(set) var displayBars = Array(repeating: 0.0, count: 16)
+    @Published var position: HUDPosition = .bottomCenter
 
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
