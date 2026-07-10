@@ -26,12 +26,16 @@ final class HUDWindowController {
 
     private var pillPanel: NSPanel?
     private var subtitlePanel: NSPanel?
+    private var overlayPanel: NSPanel?
+    private var tooltipPanel: NSPanel?
     private var pillHostingView: NSHostingView<HUDView>?
     private var subtitleHostingView: NSHostingView<HUDSubtitleView>?
     private let viewModel = HUDViewModel()
+    private let dropZoneViewModel = HUDDropZoneViewModel()
     private let defaults = UserDefaults.standard
     private var dragStartOrigin: NSPoint?
     private var screenChangeObserver: NSObjectProtocol?
+    private var tooltipDismissTask: Task<Void, Never>?
 
     init() {
         viewModel.onDrag = { [weak self] translation in
@@ -208,6 +212,8 @@ final class HUDWindowController {
 
         if dragStartOrigin == nil {
             dragStartOrigin = pillPanel.frame.origin
+            showDropZoneOverlay()
+            hideDragTooltip()
         }
 
         guard let dragStartOrigin else { return }
@@ -216,6 +222,7 @@ final class HUDWindowController {
             y: dragStartOrigin.y + translation.height
         )
         pillPanel.setFrameOrigin(newOrigin)
+        updateDropZoneNearest(to: NSPoint(x: pillPanel.frame.midX, y: pillPanel.frame.midY))
 
         if let subtitlePanel, subtitlePanel.isVisible {
             position(subtitlePanel: subtitlePanel, relativeTo: pillPanel)
@@ -242,7 +249,132 @@ final class HUDWindowController {
         pillPanel.setFrameOrigin(origin)
         viewModel.position = snapPosition
         defaults.set(snapPosition.rawValue, forKey: PreferenceKey.hudPosition)
+        hideDropZoneOverlay()
+        markDragTooltipShown()
         dragStartOrigin = nil
+    }
+
+    private func showDropZoneOverlay() {
+        guard let screen = targetScreen() else { return }
+        let frame = screen.frame
+        if overlayPanel == nil {
+            let panel = NSPanel(
+                contentRect: frame,
+                styleMask: [.nonactivatingPanel, .fullSizeContentView],
+                backing: .buffered,
+                defer: false
+            )
+            panel.isFloatingPanel = true
+            panel.level = .statusBar
+            panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
+            panel.backgroundColor = .clear
+            panel.isOpaque = false
+            panel.hasShadow = false
+            panel.hidesOnDeactivate = false
+            panel.ignoresMouseEvents = true
+            panel.titleVisibility = .hidden
+            panel.titlebarAppearsTransparent = true
+            let hostingView = NSHostingView(rootView: HUDDropZoneOverlay(model: dropZoneViewModel))
+            hostingView.translatesAutoresizingMaskIntoConstraints = false
+            hostingView.wantsLayer = true
+            hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+            panel.contentView = hostingView
+            NSLayoutConstraint.activate([
+                hostingView.leadingAnchor.constraint(equalTo: panel.contentView!.leadingAnchor),
+                hostingView.trailingAnchor.constraint(equalTo: panel.contentView!.trailingAnchor),
+                hostingView.topAnchor.constraint(equalTo: panel.contentView!.topAnchor),
+                hostingView.bottomAnchor.constraint(equalTo: panel.contentView!.bottomAnchor)
+            ])
+            overlayPanel = panel
+        }
+        overlayPanel?.setFrame(frame, display: true)
+        overlayPanel?.orderFrontRegardless()
+    }
+
+    private func hideDropZoneOverlay() {
+        dropZoneViewModel.nearestZone = nil
+        overlayPanel?.orderOut(nil)
+    }
+
+    private func updateDropZoneNearest(to point: NSPoint) {
+        guard let screen = targetScreen() else { return }
+        let screenFrame = screen.frame
+        let visibleFrame = screen.visibleFrame
+        let hudSize = pillPanel?.frame.size ?? Metrics.logoIdleSize
+        dropZoneViewModel.nearestZone = HUDPosition.nearest(
+            to: point,
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            hudSize: hudSize
+        )
+    }
+
+    func showDragTooltip() {
+        guard !defaults.bool(forKey: "Cadence.dragTooltipShown") else { return }
+        showDropZoneOverlay()
+        if tooltipPanel == nil {
+            let panel = makePanel(size: NSSize(width: 200, height: 40))
+            panel.level = .statusBar
+            let hostingView = NSHostingView(rootView: HUDTooltipView(text: "Drag to any corner"))
+            hostingView.translatesAutoresizingMaskIntoConstraints = false
+            hostingView.wantsLayer = true
+            hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+            panel.contentView = hostingView
+            NSLayoutConstraint.activate([
+                hostingView.leadingAnchor.constraint(equalTo: panel.contentView!.leadingAnchor),
+                hostingView.trailingAnchor.constraint(equalTo: panel.contentView!.trailingAnchor),
+                hostingView.topAnchor.constraint(equalTo: panel.contentView!.topAnchor),
+                hostingView.bottomAnchor.constraint(equalTo: panel.contentView!.bottomAnchor)
+            ])
+            tooltipPanel = panel
+        }
+        if let pillPanel {
+            let origin = NSPoint(
+                x: pillPanel.frame.midX - 100,
+                y: pillPanel.frame.maxY + 12
+            )
+            tooltipPanel?.setFrameOrigin(origin)
+        }
+        tooltipPanel?.orderFrontRegardless()
+        tooltipDismissTask?.cancel()
+        tooltipDismissTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self?.hideDragTooltip() }
+        }
+    }
+
+    func hideDragTooltip() {
+        tooltipPanel?.orderOut(nil)
+        hideDropZoneOverlay()
+        markDragTooltipShown()
+        tooltipDismissTask?.cancel()
+        tooltipDismissTask = nil
+    }
+
+    private func markDragTooltipShown() {
+        defaults.set(true, forKey: "Cadence.dragTooltipShown")
+    }
+}
+
+struct HUDTooltipView: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(Color.white.opacity(0.9))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.black.opacity(0.7))
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+            )
     }
 }
 

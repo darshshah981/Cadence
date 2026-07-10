@@ -409,6 +409,7 @@ final class DictationCoordinator {
 
             onTranscript?(finalText, activeSessionID)
             incrementSuccessfulRecordingCount()
+            checkAndShowDragTooltip()
 
             state = .inserting
             publishHUD(
@@ -820,6 +821,14 @@ final class DictationCoordinator {
         let key = "Cadence.holdHintRecordingCount"
         let count = UserDefaults.standard.integer(forKey: key)
         UserDefaults.standard.set(count + 1, forKey: key)
+    }
+
+    private func checkAndShowDragTooltip() {
+        let countKey = "Cadence.holdHintRecordingCount"
+        let tooltipKey = "Cadence.dragTooltipShown"
+        let count = UserDefaults.standard.integer(forKey: countKey)
+        guard count >= 3, !UserDefaults.standard.bool(forKey: tooltipKey) else { return }
+        hudController.showDragTooltip()
     }
 
     private func humanizedHUDMessage(for raw: String) -> String {

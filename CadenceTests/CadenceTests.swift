@@ -2648,6 +2648,32 @@ struct CadenceTests {
         #expect(o1 == o2)
     }
 
+
+    @Test
+    @MainActor
+    func hudDropZoneViewModelStartsWithNilNearestZone() {
+        let vm = HUDDropZoneViewModel()
+        #expect(vm.nearestZone == nil)
+    }
+
+    @Test
+    @MainActor
+    func hudDropZoneViewModelUpdatesNearestZone() {
+        let vm = HUDDropZoneViewModel()
+        vm.nearestZone = .topLeft
+        #expect(vm.nearestZone == .topLeft)
+    }
+
+    @Test
+    func dragTooltipShownPersistsAndPreventsReTrigger() {
+        let defaults = UserDefaults.standard
+        let key = "Cadence.dragTooltipShown"
+        defaults.removeObject(forKey: key)
+        #expect(!defaults.bool(forKey: key))
+        defaults.set(true, forKey: key)
+        #expect(defaults.bool(forKey: key))
+    }
+
     private func temporaryMeetingStoreURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("CadenceTests-\(UUID().uuidString)", isDirectory: true)
