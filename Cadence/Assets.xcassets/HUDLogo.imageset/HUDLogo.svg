@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="squircleClip">
+      <path d="M0 0 L1024 0 L1024 1024 L0 1024 Z" />
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="#000000" />
+  <path
+    d="M206 579C294 613 333 565 365 468C393 383 431 326 499 326C578 326 608 407 634 502C658 589 682 644 743 644C787 644 819 613 845 560"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="74"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="822" cy="500" r="38" fill="#FFFFFF" fill-opacity="0.5" />
+</svg>

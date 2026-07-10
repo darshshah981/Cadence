@@ -668,6 +668,7 @@ struct VocabularyPostProcessor {
 }
 
 enum HUDVisualState: Equatable {
+    case idle
     case recording(triggerMode: DictationTriggerMode, showsHint: Bool)
     case preparingModel
     case transcribing
@@ -678,6 +679,8 @@ enum HUDVisualState: Equatable {
 
     var accessibilityLabel: String {
         switch self {
+        case .idle:
+            return "Cadence is ready"
         case .recording(let triggerMode, _):
             return triggerMode == .tapToStartStop ? "Continuous dictation is listening" : "Dictation is listening"
         case .preparingModel:
@@ -707,6 +710,69 @@ enum HUDVisualState: Equatable {
     }
 }
 
+struct HUDCornerRadii: Equatable {
+    let topLeading: CGFloat
+    let bottomLeading: CGFloat
+    let bottomTrailing: CGFloat
+    let topTrailing: CGFloat
+}
+
+enum HUDPosition: String, CaseIterable, Equatable {
+    case bottomCenter
+    case topLeft
+    case topRight
+    case bottomLeft
+    case bottomRight
+
+    var cornerRadii: HUDCornerRadii {
+        let r: CGFloat = 14
+        switch self {
+        case .bottomCenter:
+            return HUDCornerRadii(topLeading: r, bottomLeading: 0, bottomTrailing: 0, topTrailing: r)
+        case .topLeft:
+            return HUDCornerRadii(topLeading: 0, bottomLeading: 0, bottomTrailing: r, topTrailing: 0)
+        case .topRight:
+            return HUDCornerRadii(topLeading: 0, bottomLeading: r, bottomTrailing: 0, topTrailing: 0)
+        case .bottomLeft:
+            return HUDCornerRadii(topLeading: 0, bottomLeading: 0, bottomTrailing: 0, topTrailing: r)
+        case .bottomRight:
+            return HUDCornerRadii(topLeading: r, bottomLeading: 0, bottomTrailing: 0, topTrailing: 0)
+        }
+    }
+
+    func origin(screenFrame: NSRect, visibleFrame: NSRect, hudSize: NSSize) -> NSPoint {
+        switch self {
+        case .bottomCenter:
+            return NSPoint(x: visibleFrame.midX - hudSize.width / 2, y: visibleFrame.minY)
+        case .topLeft:
+            return NSPoint(x: screenFrame.minX, y: screenFrame.maxY - hudSize.height)
+        case .topRight:
+            return NSPoint(x: screenFrame.maxX - hudSize.width, y: screenFrame.maxY - hudSize.height)
+        case .bottomLeft:
+            return NSPoint(x: screenFrame.minX, y: screenFrame.minY)
+        case .bottomRight:
+            return NSPoint(x: screenFrame.maxX - hudSize.width, y: screenFrame.minY)
+        }
+    }
+
+    static func nearest(to point: NSPoint, screenFrame: NSRect, visibleFrame: NSRect, hudSize: NSSize) -> HUDPosition {
+        var best = HUDPosition.bottomCenter
+        var bestDistance = CGFloat.infinity
+        for position in HUDPosition.allCases {
+            let origin = position.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)
+            let center = NSPoint(x: origin.x + hudSize.width / 2, y: origin.y + hudSize.height / 2)
+            let dx = point.x - center.x
+            let dy = point.y - center.y
+            let distance = sqrt(dx * dx + dy * dy)
+            if distance < bestDistance {
+                bestDistance = distance
+                best = position
+            }
+        }
+        return best
+    }
+}
+
 struct HUDState: Equatable {
     let visualState: HUDVisualState
     let subtitle: String
@@ -725,6 +791,15 @@ struct HUDState: Equatable {
         level: 0,
         waveformLevels: Array(repeating: 0, count: 16),
         isVisible: false,
+        showsSubtitle: false
+    )
+
+    static let logoIdle = HUDState(
+        visualState: .idle,
+        subtitle: "",
+        level: 0,
+        waveformLevels: Array(repeating: 0, count: 16),
+        isVisible: true,
         showsSubtitle: false
     )
 }

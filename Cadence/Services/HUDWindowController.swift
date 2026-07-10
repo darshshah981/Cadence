@@ -11,18 +11,17 @@ enum HUDMetrics {
 @MainActor
 final class HUDWindowController {
     private enum Metrics {
+        static let logoIdleSize = NSSize(width: 44, height: 44)
         static let holdSize = NSSize(width: HUDMetrics.compactWidth, height: HUDMetrics.pillHeight)
         static let holdHintSize = NSSize(width: HUDMetrics.holdHintWidth, height: HUDMetrics.pillHeight)
         static let lockedSize = NSSize(width: HUDMetrics.compactWidth, height: HUDMetrics.pillHeight)
         static let statusSize = NSSize(width: HUDMetrics.statusWidth, height: HUDMetrics.pillHeight)
         static let subtitleSize = NSSize(width: 320, height: 36)
-        static let bottomInset: CGFloat = 32
         static let subtitleGap: CGFloat = 8
     }
 
     private enum PreferenceKey {
-        static let offsetX = "FlowState.hudOffsetX"
-        static let offsetY = "FlowState.hudOffsetY"
+        static let hudPosition = "Cadence.hudPosition"
     }
 
     private var pillPanel: NSPanel?
@@ -32,6 +31,7 @@ final class HUDWindowController {
     private let viewModel = HUDViewModel()
     private let defaults = UserDefaults.standard
     private var dragStartOrigin: NSPoint?
+    private var screenChangeObserver: NSObjectProtocol?
 
     init() {
         viewModel.onDrag = { [weak self] translation in
@@ -40,6 +40,26 @@ final class HUDWindowController {
         viewModel.onDragEnded = { [weak self] in
             self?.handleDragEnded()
         }
+        screenChangeObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleScreenParametersChanged()
+        }
+    }
+
+    deinit {
+        if let screenChangeObserver {
+            NotificationCenter.default.removeObserver(screenChangeObserver)
+        }
+    }
+
+    private func handleScreenParametersChanged() {
+        guard let pillPanel, pillPanel.isVisible else { return }
+        let current = persistedPosition()
+        guard current == .bottomCenter else { return }
+        position(pillPanel: pillPanel)
     }
 
     func update(with state: HUDState) {
@@ -142,6 +162,8 @@ final class HUDWindowController {
 
     private func pillSize(for state: HUDState) -> NSSize {
         switch state.visualState {
+        case .idle:
+            return Metrics.logoIdleSize
         case .recording(let triggerMode, let showsHint):
             switch triggerMode {
             case .tapToStartStop:
@@ -155,14 +177,13 @@ final class HUDWindowController {
     }
 
     private func position(pillPanel: NSPanel) {
-        let defaultOrigin = centeredOrigin(for: pillPanel.frame.size)
-        let offset = persistedOffset()
-        let frame = targetScreenFrame()
-
-        var origin = NSPoint(x: defaultOrigin.x + offset.x, y: defaultOrigin.y + offset.y)
-        origin.x = min(max(origin.x, frame.minX), frame.maxX - pillPanel.frame.width)
-        origin.y = min(max(origin.y, frame.minY), frame.maxY - pillPanel.frame.height)
+        let hudPosition = persistedPosition()
+        let screen = targetScreen()
+        let screenFrame = screen?.frame ?? .zero
+        let visibleFrame = screen?.visibleFrame ?? .zero
+        let origin = hudPosition.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: pillPanel.frame.size)
         pillPanel.setFrameOrigin(origin)
+        viewModel.position = hudPosition
     }
 
     private func position(subtitlePanel: NSPanel, relativeTo pillPanel: NSPanel) {
@@ -173,23 +194,13 @@ final class HUDWindowController {
         subtitlePanel.setFrameOrigin(origin)
     }
 
-    private func centeredOrigin(for size: NSSize) -> NSPoint {
-        let frame = targetScreenFrame()
-        return NSPoint(
-            x: frame.midX - size.width / 2,
-            y: frame.minY + Metrics.bottomInset
-        )
+    private func targetScreen() -> NSScreen? {
+        WindowPlacement.screen()
     }
 
-    private func targetScreenFrame() -> NSRect {
-        WindowPlacement.visibleFrame()
-    }
-
-    private func persistedOffset() -> CGPoint {
-        CGPoint(
-            x: defaults.double(forKey: PreferenceKey.offsetX),
-            y: defaults.double(forKey: PreferenceKey.offsetY)
-        )
+    private func persistedPosition() -> HUDPosition {
+        let raw = defaults.string(forKey: PreferenceKey.hudPosition) ?? HUDPosition.bottomCenter.rawValue
+        return HUDPosition(rawValue: raw) ?? .bottomCenter
     }
 
     private func handleDragChanged(_ translation: CGSize) {
@@ -213,11 +224,24 @@ final class HUDWindowController {
 
     private func handleDragEnded() {
         guard let pillPanel else { return }
-        let defaultOrigin = centeredOrigin(for: pillPanel.frame.size)
-        let offsetX = pillPanel.frame.origin.x - defaultOrigin.x
-        let offsetY = pillPanel.frame.origin.y - defaultOrigin.y
-        defaults.set(offsetX, forKey: PreferenceKey.offsetX)
-        defaults.set(offsetY, forKey: PreferenceKey.offsetY)
+        let screen = targetScreen()
+        let screenFrame = screen?.frame ?? .zero
+        let visibleFrame = screen?.visibleFrame ?? .zero
+        let hudCenter = NSPoint(x: pillPanel.frame.midX, y: pillPanel.frame.midY)
+        let snapPosition = HUDPosition.nearest(
+            to: hudCenter,
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            hudSize: pillPanel.frame.size
+        )
+        let origin = snapPosition.origin(
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            hudSize: pillPanel.frame.size
+        )
+        pillPanel.setFrameOrigin(origin)
+        viewModel.position = snapPosition
+        defaults.set(snapPosition.rawValue, forKey: PreferenceKey.hudPosition)
         dragStartOrigin = nil
     }
 }
@@ -226,6 +250,7 @@ final class HUDWindowController {
 final class HUDViewModel: ObservableObject {
     @Published private(set) var state = HUDState.idle
     @Published private(set) var displayBars = Array(repeating: 0.0, count: 16)
+    @Published var position: HUDPosition = .bottomCenter
 
     var onDrag: ((CGSize) -> Void)?
     var onDragEnded: (() -> Void)?

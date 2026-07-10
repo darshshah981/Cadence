@@ -2509,6 +2509,145 @@ struct CadenceTests {
         #expect(detection.nextPrompt(from: [focus], now: now, promptedEventIDs: []) == nil)
     }
 
+    @Test
+    func hudLogoIdleStateIsVisibleWithIdleVisualState() {
+        let logoIdle = HUDState.logoIdle
+
+        #expect(logoIdle.isVisible)
+        #expect(logoIdle.visualState == .idle)
+        #expect(logoIdle.subtitle == "")
+        #expect(logoIdle.waveformLevels == Array(repeating: 0.0, count: 16))
+    }
+
+    @Test
+    func hudIdleStateIsHiddenAndDistinctFromLogoIdle() {
+        let hidden = HUDState.idle
+        let logo = HUDState.logoIdle
+
+        #expect(!hidden.isVisible)
+        #expect(logo.isVisible)
+        #expect(hidden.visualState != logo.visualState)
+    }
+
+    @Test
+    func hudVisualStateIdleIsDistinctFromOtherCases() {
+        #expect(HUDVisualState.idle != .preparingModel)
+        #expect(HUDVisualState.idle != .transcribing)
+        #expect(HUDVisualState.idle != .error(message: "test"))
+        #expect(HUDVisualState.idle != .recording(triggerMode: .holdToTalk, showsHint: false))
+    }
+
+    @Test
+    func hudPositionBottomCenterHasFlatBottomAndRoundedTop() {
+        let radii = HUDPosition.bottomCenter.cornerRadii
+
+        #expect(radii.topLeading > 0)
+        #expect(radii.topTrailing > 0)
+        #expect(radii.bottomLeading == 0)
+        #expect(radii.bottomTrailing == 0)
+    }
+
+    @Test
+    func hudPositionTopLeftHasFlatTopAndLeft() {
+        let radii = HUDPosition.topLeft.cornerRadii
+
+        #expect(radii.topLeading == 0)
+        #expect(radii.topTrailing == 0)
+        #expect(radii.bottomLeading == 0)
+        #expect(radii.bottomTrailing > 0)
+    }
+
+    @Test
+    func hudPositionTopRightHasFlatTopAndRight() {
+        let radii = HUDPosition.topRight.cornerRadii
+
+        #expect(radii.topLeading == 0)
+        #expect(radii.topTrailing == 0)
+        #expect(radii.bottomTrailing == 0)
+        #expect(radii.bottomLeading > 0)
+    }
+
+    @Test
+    func hudPositionBottomLeftHasFlatBottomAndLeft() {
+        let radii = HUDPosition.bottomLeft.cornerRadii
+
+        #expect(radii.topLeading == 0)
+        #expect(radii.bottomLeading == 0)
+        #expect(radii.bottomTrailing == 0)
+        #expect(radii.topTrailing > 0)
+    }
+
+    @Test
+    func hudPositionBottomRightHasFlatBottomAndRight() {
+        let radii = HUDPosition.bottomRight.cornerRadii
+
+        #expect(radii.topLeading > 0)
+        #expect(radii.topTrailing == 0)
+        #expect(radii.bottomLeading == 0)
+        #expect(radii.bottomTrailing == 0)
+    }
+
+
+    @Test
+    func hudPositionBottomCenterOriginIsFlushWithDockTop() {
+        let screenFrame = NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let visibleFrame = NSRect(x: 0, y: 70, width: 1920, height: 1010)
+        let hudSize = NSSize(width: 44, height: 44)
+        let origin = HUDPosition.bottomCenter.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)
+        #expect(origin.x == visibleFrame.midX - hudSize.width / 2)
+        #expect(origin.y == visibleFrame.minY)
+    }
+
+    @Test
+    func hudPositionTopLeftOriginIsFlushWithScreenCorner() {
+        let screenFrame = NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let visibleFrame = NSRect(x: 0, y: 70, width: 1920, height: 1010)
+        let hudSize = NSSize(width: 44, height: 44)
+        let origin = HUDPosition.topLeft.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)
+        #expect(origin.x == screenFrame.minX)
+        #expect(origin.y == screenFrame.maxY - hudSize.height)
+    }
+
+    @Test
+    func hudPositionNearestReturnsCorrectCorner() {
+        let sf = NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let vf = NSRect(x: 0, y: 70, width: 1920, height: 1010)
+        let sz = NSSize(width: 44, height: 44)
+        #expect(HUDPosition.nearest(to: NSPoint(x: 30, y: 1060), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .topLeft)
+        #expect(HUDPosition.nearest(to: NSPoint(x: 1900, y: 20), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomRight)
+        #expect(HUDPosition.nearest(to: NSPoint(x: 960, y: 80), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomCenter)
+    }
+
+    @Test
+    func hudPositionRoundTripsThroughRawValue() {
+        for position in HUDPosition.allCases {
+            #expect(HUDPosition(rawValue: position.rawValue) == position)
+        }
+    }
+
+    @Test
+    func hudPositionUnknownRawValueReturnsNil() {
+        #expect(HUDPosition(rawValue: "nonexistent") == nil)
+    }
+
+    @Test
+    func hudPositionBottomCenterOriginChangesWithDockHeight() {
+        let sf = NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let sz = NSSize(width: 44, height: 44)
+        let o1 = HUDPosition.bottomCenter.origin(screenFrame: sf, visibleFrame: NSRect(x: 0, y: 70, width: 1920, height: 1010), hudSize: sz)
+        let o2 = HUDPosition.bottomCenter.origin(screenFrame: sf, visibleFrame: NSRect(x: 0, y: 120, width: 1920, height: 960), hudSize: sz)
+        #expect(o2.y > o1.y)
+    }
+
+    @Test
+    func hudPositionCornerOriginsUnaffectedByVisibleFrameChanges() {
+        let sf = NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let sz = NSSize(width: 44, height: 44)
+        let o1 = HUDPosition.topLeft.origin(screenFrame: sf, visibleFrame: NSRect(x: 0, y: 70, width: 1920, height: 1010), hudSize: sz)
+        let o2 = HUDPosition.topLeft.origin(screenFrame: sf, visibleFrame: NSRect(x: 0, y: 120, width: 1920, height: 960), hudSize: sz)
+        #expect(o1 == o2)
+    }
+
     private func temporaryMeetingStoreURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("CadenceTests-\(UUID().uuidString)", isDirectory: true)

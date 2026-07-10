@@ -527,9 +527,14 @@ final class DictationCoordinator {
         hudController.update(with: hudState)
     }
 
-    private func hideHUD() {
-        onHUDChange?(HUDState.idle)
-        hudController.update(with: .idle)
+    private func transitionToLogoIdle() {
+        onHUDChange?(HUDState.logoIdle)
+        hudController.update(with: .logoIdle)
+    }
+
+    func presentLogoIdle() {
+        guard state == .idle else { return }
+        transitionToLogoIdle()
     }
 
     private func invalidateTerminalHUD() {
@@ -551,7 +556,7 @@ final class DictationCoordinator {
         terminalHUDTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(900))
             guard let self, !Task.isCancelled, self.hudPresentationGeneration == generation else { return }
-            self.hideHUD()
+            self.transitionToLogoIdle()
             self.terminalHUDTask = nil
         }
     }
@@ -732,6 +737,37 @@ final class DictationCoordinator {
         guard let voiceSessionLease else { return }
         sessionArbiter.release(voiceSessionLease)
         self.voiceSessionLease = nil
+    }
+
+    private func stopFromHUD() async {
+        guard activeTriggerMode == .tapToStartStop else { return }
+        await finishDictationIfNeeded()
+    }
+
+    private func cancelFromHUD() async {
+        guard activeTriggerMode == .tapToStartStop else { return }
+        guard state == .listening else { return }
+
+        let metrics = audioCaptureService.stopCapture()
+        stopPreviewLoop()
+        await transcriptionEngine.cancelSession()
+        analytics.track(
+            "dictation_cancelled",
+            properties: [
+                "sessionID": .string(activeSessionID ?? "unknown"),
+                "trigger": .string(activeTriggerMode?.rawValue ?? "unknown"),
+                "durationSeconds": .double(metrics.duration),
+                "speechSeconds": .double(
+                    metrics.sampleRate > 0 ? Double(metrics.speechFrameCount) / metrics.sampleRate : metrics.duration
+                )
+            ]
+        )
+        activeTriggerMode = nil
+        activeTargetApplication = nil
+        sessionStartedAt = nil
+        activeSessionID = nil
+        state = .idle
+        transitionToLogoIdle()
     }
 
     private func sessionAnalyticsProperties(triggerMode: DictationTriggerMode) -> [String: AnalyticsValue] {

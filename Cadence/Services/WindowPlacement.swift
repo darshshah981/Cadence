@@ -5,4 +5,8 @@ enum WindowPlacement {
         let screen = NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) } ?? NSScreen.main
         return screen?.visibleFrame ?? .zero
     }
+
+    static func screen(containing point: NSPoint = NSEvent.mouseLocation) -> NSScreen? {
+        NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) } ?? NSScreen.main
+    }
 }
