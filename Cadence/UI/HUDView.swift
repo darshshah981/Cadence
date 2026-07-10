@@ -3,6 +3,9 @@ import SwiftUI
 struct HUDView: View {
     @ObservedObject var model: HUDViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hasDragged = false
+
+    private static let dragThreshold: CGFloat = 4
 
     var body: some View {
         Group {
@@ -159,10 +162,20 @@ struct HUDView: View {
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
+                if !hasDragged {
+                    let distance = abs(value.translation.width) + abs(value.translation.height)
+                    if distance < Self.dragThreshold { return }
+                    hasDragged = true
+                }
                 model.onDrag?(value.translation)
             }
             .onEnded { _ in
-                model.onDragEnded?()
+                if hasDragged {
+                    model.onDragEnded?()
+                } else if model.state.visualState == .idle {
+                    model.toggleExpanded()
+                }
+                hasDragged = false
             }
     }
 }

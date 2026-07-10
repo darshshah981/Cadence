@@ -28,6 +28,9 @@ final class HUDWindowController {
     private let viewModel = HUDViewModel()
     private let defaults = UserDefaults.standard
     private var dragStartOrigin: NSPoint?
+    private var clickAwayMonitor: Any?
+    private var idleCollapseTask: Task<Void, Never>?
+    private static let idleCollapseSeconds: UInt64 = 8
 
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
@@ -244,6 +247,51 @@ final class HUDWindowController {
             pillPanel.animator().setFrame(.init(origin: pillPanel.frame.origin, size: size), display: true)
         }
         position(pillPanel: pillPanel)
+        if expanded {
+            installClickAwayMonitor()
+            startIdleCollapseTimer()
+        } else {
+            removeClickAwayMonitor()
+            cancelIdleCollapseTimer()
+        }
+    }
+
+    private func installClickAwayMonitor() {
+        removeClickAwayMonitor()
+        clickAwayMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self, let pillPanel = self.pillPanel, self.viewModel.isExpanded else { return event }
+            let locationInWindow = NSEvent.mouseLocation
+            if pillPanel.frame.contains(locationInWindow) { return event }
+            if event.window !== pillPanel, Self.isMenuWindow(event.window) { return event }
+            self.viewModel.setExpanded(false)
+            return event
+        }
+    }
+
+    private func removeClickAwayMonitor() {
+        if let clickAwayMonitor {
+            NSEvent.removeMonitor(clickAwayMonitor)
+            self.clickAwayMonitor = nil
+        }
+    }
+
+    private static func isMenuWindow(_ window: NSWindow?) -> Bool {
+        guard let window else { return false }
+        return window.className.contains("NSMenu") || window is NSMenu
+    }
+
+    private func startIdleCollapseTimer() {
+        cancelIdleCollapseTimer()
+        idleCollapseTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.idleCollapseSeconds))
+            guard !Task.isCancelled, let self else { return }
+            self.viewModel.setExpanded(false)
+        }
+    }
+
+    private func cancelIdleCollapseTimer() {
+        idleCollapseTask?.cancel()
+        idleCollapseTask = nil
     }
 }
 
@@ -285,6 +333,12 @@ final class HUDViewModel: ObservableObject {
         guard isExpanded != expanded else { return }
         isExpanded = expanded
         onExpandToggle?(isExpanded)
+    }
+
+    static let dragThreshold: CGFloat = 4
+
+    nonisolated static func recognizeTap(translation: CGSize) -> Bool {
+        abs(translation.width) + abs(translation.height) < dragThreshold
     }
 
     func apply(_ state: HUDState) {
