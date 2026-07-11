@@ -21,16 +21,29 @@ enum ScribeProviderKind: String, CaseIterable, Codable, Equatable, Sendable {
 enum ScribeProviderRoutingPolicy: String, Codable, Equatable, Sendable {
     case directSingleModel
     case zeroDataRetentionSingleModel
+    case providerControlledSingleModel
 }
 
 enum ScribeProviderRetentionPolicy: String, Codable, Equatable, Sendable {
     case requestStorageDisabled
     case zeroDataRetentionRequired
+    case providerControlled
 }
 
 enum ScribeProviderDataPolicy: String, Codable, Equatable, Sendable {
     case providerPolicyApplies
     case collectionDenied
+    case providerControlled
+}
+
+enum ScribeCredentialStorageDomain: String, Codable, Equatable, Hashable, Sendable {
+    case inherited
+    case candidate
+}
+
+struct ScribeStoredCredentialReference: Codable, Equatable, Hashable, Sendable {
+    let domain: ScribeCredentialStorageDomain
+    let opaqueReference: ScribeCredentialReference
 }
 
 /// Material provider consent. Model identifiers are intentionally absent so an exact-model
@@ -89,6 +102,30 @@ enum ScribeProviderConsentIssuer {
             disclosureRevision: disclosureRevision,
             acceptedAt: acceptedAt
         )
+    }
+}
+
+extension ScribeProviderConsentReceipt {
+    func materiallyMatches(_ configuration: ScribeProviderLibraryConfiguration) -> Bool {
+        guard providerKind == configuration.kind,
+              recipientOrigin == configuration.normalizedOrigin,
+              disclosureRevision == configuration.disclosureVersion else { return false }
+        switch configuration.kind {
+        case .openAIDirect:
+            return routingPolicy == .directSingleModel
+                && retentionPolicy == .requestStorageDisabled
+                && dataPolicy == .providerPolicyApplies
+        case .openRouter:
+            return routingPolicy == .zeroDataRetentionSingleModel
+                && retentionPolicy == .zeroDataRetentionRequired
+                && dataPolicy == .collectionDenied
+        case .deepSeek, .advanced:
+            return routingPolicy == .providerControlledSingleModel
+                && retentionPolicy == .providerControlled
+                && dataPolicy == .providerControlled
+        case .legacyLocal:
+            return false
+        }
     }
 }
 
@@ -507,7 +544,16 @@ struct ScribeProviderLibraryConfiguration: Codable, Equatable, Identifiable, Sen
     let acceptedAt: Date
     let lastValidatedAt: Date
     let credentialReference: ScribeCredentialReference
+    let credentialStorageDomain: ScribeCredentialStorageDomain?
+    let consentReceipt: ScribeProviderConsentReceipt?
     let isEnabled: Bool
+
+    var storedCredentialReference: ScribeStoredCredentialReference {
+        ScribeStoredCredentialReference(
+            domain: credentialStorageDomain ?? .inherited,
+            opaqueReference: credentialReference
+        )
+    }
 
     init(
         id: UUID = UUID(),
@@ -522,7 +568,9 @@ struct ScribeProviderLibraryConfiguration: Codable, Equatable, Identifiable, Sen
         acceptedAt: Date,
         lastValidatedAt: Date,
         credentialReference: ScribeCredentialReference,
-        isEnabled: Bool
+        isEnabled: Bool,
+        credentialStorageDomain: ScribeCredentialStorageDomain? = nil,
+        consentReceipt: ScribeProviderConsentReceipt? = nil
     ) throws {
         self.id = id
         self.kind = kind
@@ -536,6 +584,8 @@ struct ScribeProviderLibraryConfiguration: Codable, Equatable, Identifiable, Sen
         self.acceptedAt = acceptedAt
         self.lastValidatedAt = lastValidatedAt
         self.credentialReference = credentialReference
+        self.credentialStorageDomain = credentialStorageDomain
+        self.consentReceipt = consentReceipt
         self.isEnabled = isEnabled
     }
 
@@ -558,7 +608,9 @@ struct ScribeProviderLibraryConfiguration: Codable, Equatable, Identifiable, Sen
             acceptedAt: acceptedAt,
             lastValidatedAt: lastValidatedAt,
             credentialReference: credentialReference,
-            isEnabled: isEnabled
+            isEnabled: isEnabled,
+            credentialStorageDomain: credentialStorageDomain,
+            consentReceipt: consentReceipt
         )
     }
 
@@ -587,7 +639,9 @@ struct ScribeProviderLibraryConfiguration: Codable, Equatable, Identifiable, Sen
             acceptedAt: acceptedAt,
             lastValidatedAt: lastValidatedAt,
             credentialReference: credentialReference,
-            isEnabled: isEnabled ?? self.isEnabled
+            isEnabled: isEnabled ?? self.isEnabled,
+            credentialStorageDomain: credentialStorageDomain,
+            consentReceipt: consentReceipt
         )
     }
 }
@@ -608,6 +662,13 @@ enum ScribeProviderLibraryConfigurationValidator {
             guard !catalogID.isEmpty,
                   catalogID.utf8.count <= ScribeProviderLibraryConfiguration.maximumCatalogIDUTF8Bytes,
                   !catalogID.unicodeScalars.contains(where: isUnsupportedControl) else { return false }
+        }
+        if let receipt = value.consentReceipt {
+            guard value.kind != .legacyLocal,
+                  receipt.materiallyMatches(value),
+                  receipt.acceptedAt <= value.lastValidatedAt else { return false }
+        } else if value.kind == .legacyLocal {
+            guard value.credentialStorageDomain == nil else { return false }
         }
         switch value.kind {
         case .deepSeek:

@@ -162,7 +162,12 @@ final class AppModel: ObservableObject {
     private let coordinator: DictationCoordinator
     private let scribeCoordinator: ScribeCoordinator
     private let scribeTranscriptionEngine: TranscriptionEngine
-    private let scribeProviderController: ScribeProviderController
+    private let scribeProviderV2Controller: ScribeProviderV2Controller
+    private let scribeProviderRuntime: ScribeProviderRuntime
+    private let scribeProviderV2ConnectionManager: ScribeProviderV2ConnectionManager
+    private let scribeProviderSetupSession: ScribeProviderSetupSession
+    private let scribeModelCatalogService: ScribeModelCatalogService
+    private let scribeConsentAuthority: ScribeProviderConsentAuthority
     private let adaptiveScribeLiveReaderService: AdaptiveScribeLiveReaderService
     private let adaptiveScribeReaderMonitor: AdaptiveScribeReaderMonitor
     private let writingEnvironmentStore: WritingEnvironmentStore
@@ -322,19 +327,24 @@ final class AppModel: ObservableObject {
             : nil
         #endif
         let scribeConfigurationStore = ScribeProviderConfigurationStore(defaults: defaults)
-        #if DEBUG
-        let scribeCredentialStore = ScribeLaunchFixtures.credentialStore()
-        #else
-        let scribeCredentialStore = KeychainScribeCredentialStore()
-        #endif
-        let scribeProviderController = ScribeProviderController(
-            configurationStore: scribeConfigurationStore,
-            credentialStore: scribeCredentialStore,
-            legacyProvider: legacyScribeProvider
+        let scribeProviderLibraryStore = ScribeProviderLibraryStore(defaults: defaults)
+        let scribeCredentialVault = KeychainScribeCredentialVault()
+        let scribeCleanupLedgerStore = ScribeCredentialCleanupLedgerStore(defaults: defaults)
+        let scribeProviderRuntime = ScribeProviderRuntime(
+            libraryStore: scribeProviderLibraryStore,
+            legacyStore: scribeConfigurationStore,
+            ledgerStore: scribeCleanupLedgerStore,
+            vault: scribeCredentialVault,
+            legacyLocalProvider: legacyScribeProvider
         )
+        let scribeProviderV2Controller = scribeProviderRuntime.controller
+        let scribeProviderV2ConnectionManager = scribeProviderRuntime.manager
+        let scribeProviderSetupSession = scribeProviderRuntime.setupSession
+        let scribeModelCatalogService = scribeProviderRuntime.modelCatalog
+        let scribeConsentAuthority = scribeProviderRuntime.consentAuthority
         let writingEnvironmentStore = WritingEnvironmentStore(defaults: defaults)
         let adaptiveScribeLiveReaderService = AdaptiveScribeLiveReaderService(
-            providerStore: ScribeProviderLibraryStore(defaults: defaults),
+            providerStore: scribeProviderLibraryStore,
             applicationStore: ApplicationConfigurationStore(defaults: defaults),
             presetStore: ScribePresetCatalogStateStore(defaults: defaults),
             settingsStore: SettingsPresentationStore(defaults: defaults),
@@ -366,12 +376,17 @@ final class AppModel: ObservableObject {
         self.voiceSessionArbiter = voiceSessionArbiter
         self.onboardingMicrophoneMonitor = OnboardingMicrophoneMonitor(sessionArbiter: voiceSessionArbiter)
         self.scribeTranscriptionEngine = scribeTranscriptionEngine
-        self.scribeProviderController = scribeProviderController
+        self.scribeProviderV2Controller = scribeProviderV2Controller
+        self.scribeProviderRuntime = scribeProviderRuntime
+        self.scribeProviderV2ConnectionManager = scribeProviderV2ConnectionManager
+        self.scribeProviderSetupSession = scribeProviderSetupSession
+        self.scribeModelCatalogService = scribeModelCatalogService
+        self.scribeConsentAuthority = scribeConsentAuthority
         self.adaptiveScribeLiveReaderService = adaptiveScribeLiveReaderService
         self.adaptiveScribeReaderMonitor = adaptiveScribeReaderMonitor
         self.writingEnvironmentStore = writingEnvironmentStore
         self.scribeDiagnosticsService = scribeDiagnosticsService
-        self.scribeProviderReadiness = scribeProviderController.readiness
+        self.scribeProviderReadiness = scribeProviderV2Controller.readiness
         self.adaptiveScribeV2Availability = v2MigrationResult?.liveReaderState.scribeAvailability
             ?? .setupRequired
         self.showsLegacyWritingProfileNotice = migrationResult?.shouldShowLegacyProfileNotice ?? false
@@ -408,7 +423,7 @@ final class AppModel: ObservableObject {
             audioCaptureService: scribeAudioCaptureService,
             transcriptionEngine: scribeTranscriptionEngine,
             provider: scribeProvider,
-            providerActionResolver: { try scribeProviderController.actionForNewRequest() },
+            providerActionResolver: { try await scribeProviderV2Controller.actionForNewRequest() },
             contextService: ScribeContextService(),
             sessionArbiter: voiceSessionArbiter,
             personalizationStore: personalizationStore,
@@ -416,8 +431,9 @@ final class AppModel: ObservableObject {
             adaptationEnabled: {
                 (defaults.object(forKey: AdaptiveScribeMigrationService.adaptationEnabledKey) as? Bool) ?? true
             },
-            providerDispatchAuthorization: {
-                adaptiveScribeReaderMonitor.authorizeProviderDispatch()
+            providerDispatchAuthorization: { action in
+                guard adaptiveScribeReaderMonitor.authorizeProviderDispatch() else { return false }
+                return await scribeProviderV2Controller.authorizeDispatch(action.actionIdentity)
             },
             transcriptionConfiguration: initialTranscriptionConfiguration
         )
@@ -430,7 +446,6 @@ final class AppModel: ObservableObject {
         bindCoordinator()
         bindHUDVisibility()
         bindScribeCoordinator()
-        bindScribeProviderController()
         bindHotkeyDiagnostics()
         bindPermissionRefresh()
         AppDelegate.openMainWindow = { [weak self] in
@@ -442,6 +457,8 @@ final class AppModel: ObservableObject {
         #endif
         Task {
             await scribeDiagnosticsService.load()
+            try? await scribeProviderV2Controller.reconcileAtStartup()
+            scribeProviderReadiness = scribeProviderV2Controller.readiness
             await refreshPermissions()
             await applyTranscriptionConfiguration(prewarm: false)
             await warmBackend()
@@ -496,7 +513,17 @@ final class AppModel: ObservableObject {
     }
 
     var scribeProviderStatus: String {
-        scribeProviderController.statusText
+        switch scribeProviderReadiness {
+        case .disabled: return "Scribe is disabled · provider key retained"
+        case .setupRequired: return "Provider setup required · literal Dictation remains available"
+        case .validating: return "Validating the selected provider…"
+        case let .ready(kind): return "\(kind.displayName) connected · review before insert"
+        case let .temporarilyUnavailable(kind): return "\(kind.displayName) is temporarily unavailable"
+        case .configurationInvalid: return "Provider configuration needs repair"
+        case let .needsAttention(kind): return "\(kind.displayName) needs attention"
+        case let .deprecated(kind): return "\(kind.displayName) needs a Cadence update"
+        case .removed: return "Provider removed · provider setup required"
+        }
     }
 
     var scribeReadiness: ScribeReadiness {
@@ -2131,15 +2158,19 @@ final class AppModel: ObservableObject {
     }
 
     var configuredScribeProviderKind: ScribeProviderKind? {
-        scribeProviderController.configuredKind
+        scribeProviderV2Controller.configuredKind
     }
 
     var configuredScribeProviderIsEnabled: Bool {
-        scribeProviderController.configuredProviderIsEnabled
+        scribeProviderV2Controller.configuredProviderIsEnabled
     }
 
     var configuredScribeRecipient: String? {
-        scribeProviderController.configuredRecipient
+        scribeProviderV2Controller.configuredRecipient
+    }
+
+    private var activeConfiguredScribeConfigurationID: UUID? {
+        scribeProviderV2Controller.activeConfigurationID
     }
 
     func presentScribeProviderSetup() {
@@ -2155,9 +2186,16 @@ final class AppModel: ObservableObject {
 
     func dismissScribeProviderSetup() {
         isScribeProviderSetupPresented = false
+        Task { [scribeProviderSetupSession] in await scribeProviderSetupSession.dismiss() }
     }
 
-    func connectDeepSeekForScribe(credential: String) async throws {
+    func switchScribeProviderSetup(to kind: ScribeProviderKind) {
+        Task { [scribeProviderSetupSession] in
+            await scribeProviderSetupSession.providerSwitched(to: kind)
+        }
+    }
+
+    func connectDeepSeekForScribe(credential: String, confirmed: Bool = false) async throws {
         await recordScribeDiagnostic(
             kind: .validationStarted,
             phase: .validation,
@@ -2165,8 +2203,34 @@ final class AppModel: ObservableObject {
             outcome: .success
         )
         do {
-            try await scribeProviderController.connectDeepSeek(credential: credential)
-            scribeProviderReadiness = scribeProviderController.readiness
+            await scribeProviderSetupSession.providerSwitched(to: .deepSeek)
+            guard let entry = ScribeProviderCatalog.releaseOne.deepSeekEntries.first else {
+                throw ScribeProviderConnectionError.validationFailed
+            }
+            let receipt = await scribeConsentAuthority.issueEphemeral(
+                providerKind: .deepSeek,
+                recipientOrigin: "https://api.deepseek.com",
+                routingPolicy: .providerControlledSingleModel,
+                retentionPolicy: .providerControlled,
+                dataPolicy: .providerControlled
+            )
+            let candidate = ScribeProviderConnectionCandidate(
+                id: UUID(),
+                kind: .deepSeek,
+                displayName: "DeepSeek",
+                normalizedOrigin: "https://api.deepseek.com",
+                baseURL: URL(string: "https://api.deepseek.com")!,
+                requestURL: entry.endpoint,
+                selectedModelID: entry.modelID,
+                catalogID: entry.catalogID,
+                consentReceipt: receipt,
+                acceptedAt: receipt.acceptedAt
+            )
+            try await connectV2(candidate: candidate, credential: credential, confirmed: confirmed) { candidate, key in
+                try await DeepSeekScribeProvider(
+                    credentialLoader: { key }
+                ).validateConnection()
+            }
             await recordScribeDiagnostic(
                 kind: .validationCompleted,
                 phase: .validation,
@@ -2187,7 +2251,8 @@ final class AppModel: ObservableObject {
     func connectAdvancedScribeProvider(
         baseURL: String,
         model: String,
-        credential: String
+        credential: String,
+        confirmed: Bool = false
     ) async throws {
         await recordScribeDiagnostic(
             kind: .validationStarted,
@@ -2196,12 +2261,35 @@ final class AppModel: ObservableObject {
             outcome: .success
         )
         do {
-            try await scribeProviderController.connectAdvanced(
-                baseURL: baseURL,
-                model: model,
-                credential: credential
+            await scribeProviderSetupSession.providerSwitched(to: .advanced)
+            let endpoint = try AdvancedScribeEndpoint(baseURL)
+            let modelID = try ScribeModelIdentifier(model)
+            let receipt = await scribeConsentAuthority.issueEphemeral(
+                providerKind: .advanced,
+                recipientOrigin: endpoint.normalizedOrigin,
+                routingPolicy: .providerControlledSingleModel,
+                retentionPolicy: .providerControlled,
+                dataPolicy: .providerControlled
             )
-            scribeProviderReadiness = scribeProviderController.readiness
+            let candidate = ScribeProviderConnectionCandidate(
+                id: UUID(),
+                kind: .advanced,
+                displayName: "Custom OpenAI-compatible",
+                normalizedOrigin: endpoint.normalizedOrigin,
+                baseURL: endpoint.normalizedBaseURL,
+                requestURL: endpoint.requestURL,
+                selectedModelID: modelID.rawValue,
+                catalogID: nil,
+                consentReceipt: receipt,
+                acceptedAt: receipt.acceptedAt
+            )
+            try await connectV2(candidate: candidate, credential: credential, confirmed: confirmed) { candidate, key in
+                try await OpenAICompatibleScribeProvider(
+                    endpoint: try AdvancedScribeEndpoint(candidate.baseURL.absoluteString),
+                    model: try ScribeModelIdentifier(candidate.selectedModelID),
+                    credentialLoader: { key }
+                ).validateConnection()
+            }
             await recordScribeDiagnostic(
                 kind: .validationCompleted,
                 phase: .validation,
@@ -2219,8 +2307,105 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func connectOpenAIForScribe(model: String, credential: String, confirmed: Bool = false) async throws {
+        await scribeProviderSetupSession.providerSwitched(to: .openAIDirect)
+        let modelID = try ScribeModelIdentifier(model)
+        let receipt = await scribeConsentAuthority.issueEphemeral(
+            providerKind: .openAIDirect,
+            recipientOrigin: "https://api.openai.com",
+            routingPolicy: .directSingleModel,
+            retentionPolicy: .requestStorageDisabled,
+            dataPolicy: .providerPolicyApplies
+        )
+        let candidate = ScribeProviderConnectionCandidate(
+            id: UUID(), kind: .openAIDirect, displayName: "OpenAI",
+            normalizedOrigin: "https://api.openai.com",
+            baseURL: URL(string: "https://api.openai.com")!,
+            requestURL: URL(string: "https://api.openai.com/v1/responses")!,
+            selectedModelID: modelID.rawValue, catalogID: nil,
+            consentReceipt: receipt, acceptedAt: receipt.acceptedAt
+        )
+        try await connectCatalogV2(candidate: candidate, credential: credential, confirmed: confirmed)
+    }
+
+    func connectOpenRouterForScribe(model: String, credential: String, confirmed: Bool = false) async throws {
+        await scribeProviderSetupSession.providerSwitched(to: .openRouter)
+        let modelID = try ScribeModelIdentifier(model)
+        let receipt = await scribeConsentAuthority.issueEphemeral(
+            providerKind: .openRouter,
+            recipientOrigin: "https://openrouter.ai",
+            routingPolicy: .zeroDataRetentionSingleModel,
+            retentionPolicy: .zeroDataRetentionRequired,
+            dataPolicy: .collectionDenied
+        )
+        let candidate = ScribeProviderConnectionCandidate(
+            id: UUID(), kind: .openRouter, displayName: "OpenRouter",
+            normalizedOrigin: "https://openrouter.ai",
+            baseURL: URL(string: "https://openrouter.ai")!,
+            requestURL: URL(string: "https://openrouter.ai/api/v1/chat/completions")!,
+            selectedModelID: modelID.rawValue, catalogID: nil,
+            consentReceipt: receipt, acceptedAt: receipt.acceptedAt
+        )
+        try await connectCatalogV2(candidate: candidate, credential: credential, confirmed: confirmed)
+    }
+
+    private func connectCatalogV2(
+        candidate: ScribeProviderConnectionCandidate,
+        credential: String,
+        confirmed: Bool
+    ) async throws {
+        try await confirmActiveProviderMutation(confirmed: confirmed)
+        _ = try await scribeProviderRuntime.connectCatalogValidated(
+            candidate: candidate,
+            credential: credential
+        )
+        scribeProviderReadiness = scribeProviderV2Controller.readiness
+    }
+
+    private func connectV2(
+        candidate: ScribeProviderConnectionCandidate,
+        credential: String,
+        confirmed: Bool,
+        validate: @escaping ScribeProviderV2ConnectionManager.Validator
+    ) async throws {
+        try await confirmActiveProviderMutation(confirmed: confirmed)
+        let revision = scribeProviderSetupSession.prepareAttempt(
+            providerKind: candidate.kind,
+            credential: credential
+        )
+        let fence: @Sendable () async -> Bool = { [weak scribeProviderSetupSession] in
+            guard let scribeProviderSetupSession else { return false }
+            return await scribeProviderSetupSession.acceptsCallback(revision: revision)
+        }
+        do {
+            _ = try await scribeProviderV2ConnectionManager.connect(
+                candidate: candidate,
+                credential: credential,
+                attemptFence: fence,
+                validate: validate
+            )
+            scribeProviderSetupSession.completeAttempt(revision: revision)
+            scribeProviderReadiness = scribeProviderV2Controller.readiness
+        } catch {
+            scribeProviderSetupSession.completeAttempt(revision: revision)
+            scribeProviderReadiness = scribeProviderV2Controller.readiness
+            throw error
+        }
+    }
+
+    private func confirmActiveProviderMutation(confirmed: Bool) async throws {
+        guard ScribeProviderMutationPolicy.activationDecision(
+            activeAction: scribeCoordinator.activeProviderActionIdentity
+        ) == .confirmationRequired else { return }
+        guard confirmed else { throw ScribeProviderConnectionError.activeActionConfirmationRequired }
+        await scribeCoordinator.cancel()
+        guard scribeCoordinator.activeProviderActionIdentity == nil else {
+            throw ScribeProviderConnectionError.activeActionConfirmationRequired
+        }
+    }
+
     func generateScribePracticeDraft() async throws -> String {
-        let action = try scribeProviderController.actionForNewRequest()
+        let action = try await scribeProviderV2Controller.actionForNewRequest()
         try action.validateForAcquisition(intent: .compose)
         let environment = WritingEnvironmentResolver.resolve(
             recognizedEnvironmentID: .global,
@@ -2239,6 +2424,13 @@ final class AppModel: ObservableObject {
                 destination: action.destination
             )
         )
+        guard await scribeProviderV2Controller.authorizeDispatch(action.actionIdentity) else {
+            throw ScribeProviderFailure(
+                phase: .generation,
+                category: .configurationInvalid,
+                retryDisposition: .reconnect
+            )
+        }
         let result = try await action.provider.generate(providerRequest)
         guard result.requestID == request.id else { throw ScribeProviderError.invalidResult }
         return try ScribeRequestPolicy.validateOutput(
@@ -2248,19 +2440,44 @@ final class AppModel: ObservableObject {
         )
     }
 
-    func setConfiguredScribeProviderEnabled(_ enabled: Bool) {
-        do {
-            try scribeProviderController.setEnabled(enabled)
-            scribeProviderReadiness = scribeProviderController.readiness
-        } catch {
-            lastError = "Cadence could not update the Scribe provider state."
+    func setConfiguredScribeProviderEnabled(_ enabled: Bool, confirmed: Bool = false) {
+        guard let configurationID = activeConfiguredScribeConfigurationID else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let decision = try await self.scribeProviderV2Controller.setEnabled(
+                    configurationID: configurationID,
+                    enabled: enabled,
+                    activeAction: self.scribeCoordinator.activeProviderActionIdentity,
+                    confirmed: confirmed,
+                    cancelActiveAction: { await self.scribeCoordinator.cancel() }
+                )
+                if decision == .confirmationRequired {
+                    self.lastError = "Cancel the active Scribe action before changing its provider."
+                }
+                self.scribeProviderReadiness = self.scribeProviderV2Controller.readiness
+            } catch {
+                self.lastError = "Cadence could not update the Scribe provider state."
+            }
         }
     }
 
-    func removeConfiguredScribeProvider() {
-        do {
-            try scribeProviderController.removeProvider()
-            scribeProviderReadiness = scribeProviderController.readiness
+    func removeConfiguredScribeProvider(confirmed: Bool = false) {
+        guard let configurationID = activeConfiguredScribeConfigurationID else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let decision = try await self.scribeProviderV2Controller.remove(
+                    configurationID: configurationID,
+                    activeAction: self.scribeCoordinator.activeProviderActionIdentity,
+                    confirmed: confirmed,
+                    cancelActiveAction: { await self.scribeCoordinator.cancel() }
+                )
+                guard decision == .allowed else {
+                    self.lastError = "Cancel the active Scribe action before removing its provider."
+                    return
+                }
+                self.scribeProviderReadiness = self.scribeProviderV2Controller.readiness
             Task { [scribeDiagnosticsService] in
                 await scribeDiagnosticsService.record(ScribeDiagnosticEvent(
                     kind: .providerRemoved,
@@ -2269,8 +2486,9 @@ final class AppModel: ObservableObject {
                     outcome: .success
                 ))
             }
-        } catch {
-            lastError = "Cadence could not remove the Scribe provider from this Mac."
+            } catch {
+                self.lastError = "Cadence could not remove the Scribe provider from this Mac."
+            }
         }
     }
 
@@ -2682,19 +2900,6 @@ final class AppModel: ObservableObject {
             return false
         }
         return true
-    }
-
-    private func bindScribeProviderController() {
-        scribeProviderController.onReadinessChange = { [weak self] readiness in
-            self?.scribeProviderReadiness = readiness
-        }
-        scribeProviderController.onProviderRemoved = { [weak self] in
-            guard let self else { return }
-            self.scribeCoordinator.invalidateProviderWork()
-            Task { @MainActor in
-                await self.scribeCoordinator.cancel()
-            }
-        }
     }
 
     private func recordScribeState(_ state: ScribeSessionState) async {

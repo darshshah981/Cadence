@@ -5,13 +5,72 @@ import Testing
 @MainActor
 struct ScribeCoordinatorTests {
     @Test
+    func v2ControllerRevocationBetweenSnapshotAndDispatchMakesZeroTransportRequests() async throws {
+        let library = U5LibraryStore()
+        let vault = U5Vault()
+        let authority = ScribeProviderConsentAuthority()
+        let reconciler = ScribeCredentialReconciler(
+            libraryStore: library,
+            legacyStore: U5LegacyStore(),
+            ledgerStore: U5LedgerStore(),
+            vault: vault
+        )
+        let receipt = ScribeProviderConsentIssuer.issue(
+            providerKind: .openAIDirect,
+            recipientOrigin: "https://api.openai.com",
+            routingPolicy: .directSingleModel,
+            retentionPolicy: .requestStorageDisabled,
+            dataPolicy: .providerPolicyApplies,
+            disclosureRevision: ScribeProviderDisclosure.currentVersion,
+            acceptedAt: Date(timeIntervalSince1970: 10)
+        )
+        let reference = ScribeStoredCredentialReference(
+            domain: .candidate, opaqueReference: .init(rawValue: "coordinator-v2")
+        )
+        let configuration = try U5Fixtures.configuration(
+            kind: .openAIDirect, model: "gpt-test", receipt: receipt, reference: reference
+        )
+        let configured = ScribeProviderLibrary(
+            revision: 2, configurations: [configuration], activeConfigurationID: configuration.id
+        )
+        library.result = .valid(configured)
+        await vault.insert(reference)
+        await authority.bootstrap(from: configured)
+        let transport = U4RecordingTransport(results: [])
+        let controller = ScribeProviderV2Controller(
+            libraryStore: library,
+            vault: vault,
+            consentAuthority: authority,
+            reconciler: reconciler,
+            transport: transport
+        )
+        let fixture = ScribeCoordinatorFixture(
+            providerActionResolver: { try await controller.actionForNewRequest() },
+            providerDispatchAuthorization: { action in
+                await controller.authorizeDispatch(action.actionIdentity)
+            }
+        )
+
+        try await fixture.coordinator.begin(intent: .compose)
+        await authority.revoke(receipt.id)
+        await fixture.coordinator.finishRecording()
+
+        #expect(await transport.requests.isEmpty)
+        if case .cancelled = fixture.coordinator.state {
+            // Expected exact V2 checkpoint rejection before transport.
+        } else {
+            Issue.record("Expected cancellation after consent revocation")
+        }
+    }
+
+    @Test
     func defaultsNotificationInvalidationCancelsActiveCoordinatorAndStopsProvider() async throws {
         let runtime = try AdaptiveRuntimeFixture()
         defer { runtime.cleanUp() }
         let provider = CapturingScribeProvider(resultText: "Must not run")
         let fixture = ScribeCoordinatorFixture(
             provider: provider,
-            providerDispatchAuthorization: { runtime.monitor.authorizeProviderDispatch() }
+            providerDispatchAuthorization: { _ in runtime.monitor.authorizeProviderDispatch() }
         )
         var cancellation: Task<Void, Never>?
         runtime.monitor.onInvalidation = {
@@ -47,7 +106,7 @@ struct ScribeCoordinatorTests {
         let provider = CapturingScribeProvider(resultText: "Must not run")
         let fixture = ScribeCoordinatorFixture(
             provider: provider,
-            providerDispatchAuthorization: { runtime.monitor.authorizeProviderDispatch() }
+            providerDispatchAuthorization: { _ in runtime.monitor.authorizeProviderDispatch() }
         )
         try await fixture.coordinator.begin(intent: .compose)
         try runtime.gateStore.save(.allDisabled)
@@ -213,7 +272,7 @@ struct ScribeCoordinatorTests {
     }
 
     @Test
-    func preparedActionPinsRecipientAndProviderUntilTheSessionEnds() async throws {
+    func actionResolvedAtBeginPinsRecipientAndProviderUntilTheSessionEnds() async throws {
         let firstProvider = CapturingScribeProvider(resultText: "First result")
         let replacementProvider = CapturingScribeProvider(resultText: "Replacement result")
         var selectedAction = ScribeProviderActionSnapshot(
@@ -236,9 +295,9 @@ struct ScribeCoordinatorTests {
         try await fixture.coordinator.begin(intent: .respond)
         await fixture.coordinator.finishRecording()
 
-        #expect(await firstProvider.requests.count == 1)
-        #expect(await replacementProvider.requests.isEmpty)
-        #expect(fixture.coordinator.reviewedResult?.text == "First result")
+        #expect(await firstProvider.requests.isEmpty)
+        #expect(await replacementProvider.requests.count == 1)
+        #expect(fixture.coordinator.reviewedResult?.text == "Replacement result")
     }
 
     @Test
@@ -483,14 +542,14 @@ private final class ScribeCoordinatorFixture {
     init(
         providerResponses: [MockScribeProvider.Response] = [.success("Draft")],
         provider: (any ScribeProvider)? = nil,
-        providerActionResolver: (() throws -> ScribeProviderActionSnapshot)? = nil,
+        providerActionResolver: (@MainActor () async throws -> ScribeProviderActionSnapshot)? = nil,
         selectedText: String = "Selected context",
         bundleIdentifier: String = "com.apple.TextEdit",
         recognitionSignature: TargetRecognitionSignature? = nil,
         personalizationStore: PersonalizationStore = PersonalizationStore(),
         environmentRecognizer: WritingEnvironmentRecognizer = WritingEnvironmentRecognizer(),
         writingEnvironmentPreferences: @escaping () -> WritingEnvironmentPreferenceLoadResult = { .absent },
-        providerDispatchAuthorization: @escaping @MainActor () -> Bool = { true },
+        providerDispatchAuthorization: @escaping @MainActor (ScribeProviderActionSnapshot) async -> Bool = { _ in true },
         engine: (any TranscriptionEngine)? = nil,
         generationTimeout: Duration = .seconds(5),
         generationSoftWait: Duration = .seconds(8)

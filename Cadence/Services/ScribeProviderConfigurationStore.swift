@@ -137,3 +137,114 @@ final class ScribeProviderLibraryStore {
         return nil
     }
 }
+
+protocol ScribeProviderLibraryPersisting: AnyObject {
+    func load() -> ScribeProviderLibraryLoadResult
+    func save(_ library: ScribeProviderLibrary) throws
+    func referencedCredentials() -> ScribeCredentialReferenceSet
+}
+
+extension ScribeProviderLibraryStore: ScribeProviderLibraryPersisting {}
+
+enum ScribeCleanupLedgerLoadResult: Equatable, Sendable {
+    case absent
+    case valid(ScribeCredentialCleanupLedger)
+    case rejected
+}
+
+struct ScribeCredentialCleanupLedger: Codable, Equatable, Sendable {
+    static let currentSchemaVersion = 1
+    static let maximumEntries = 128
+
+    let schemaVersion: Int
+    let revision: Int
+    let references: Set<ScribeStoredCredentialReference>
+
+    init(
+        schemaVersion: Int = currentSchemaVersion,
+        revision: Int,
+        references: Set<ScribeStoredCredentialReference>
+    ) {
+        self.schemaVersion = schemaVersion
+        self.revision = revision
+        self.references = references
+    }
+}
+
+protocol ScribeCredentialCleanupLedgerPersisting: AnyObject {
+    func load() -> ScribeCleanupLedgerLoadResult
+    func save(_ ledger: ScribeCredentialCleanupLedger?) throws
+}
+
+final class ScribeCredentialCleanupLedgerStore: ScribeCredentialCleanupLedgerPersisting {
+    static let defaultKey = "Cadence.scribeCredentialCleanupLedger"
+    private let bytes: any ScribeCleanupLedgerBytesPersisting
+    private let key: String
+
+    init(defaults: UserDefaults = .standard, key: String = defaultKey) {
+        self.bytes = UserDefaultsScribeCleanupLedgerBytes(defaults: defaults)
+        self.key = key
+    }
+
+    init(bytes: any ScribeCleanupLedgerBytesPersisting, key: String = defaultKey) {
+        self.bytes = bytes
+        self.key = key
+    }
+
+    func load() -> ScribeCleanupLedgerLoadResult {
+        guard let data = bytes.data(forKey: key) else { return .absent }
+        guard let ledger = try? JSONDecoder().decode(ScribeCredentialCleanupLedger.self, from: data),
+              Self.isValid(ledger) else { return .rejected }
+        return .valid(ledger)
+    }
+
+    func save(_ ledger: ScribeCredentialCleanupLedger?) throws {
+        if let ledger, !Self.isValid(ledger) { throw StrictPersistenceError.invalidValue }
+        if case .rejected = load() { throw ScribeProviderConnectionError.retainedStoreUnreadable }
+        let previous = bytes.data(forKey: key)
+        do {
+            if let ledger {
+                try bytes.set(try JSONEncoder().encode(ledger), forKey: key)
+                guard load() == .valid(ledger) else { throw StrictPersistenceError.semanticReadbackFailed }
+            } else {
+                try bytes.remove(forKey: key)
+                guard load() == .absent else { throw StrictPersistenceError.semanticReadbackFailed }
+            }
+        } catch {
+            try? restore(previous)
+            throw error
+        }
+    }
+
+    private func restore(_ previous: Data?) throws {
+        if let previous { try bytes.set(previous, forKey: key) }
+        else { try bytes.remove(forKey: key) }
+    }
+
+    private static func isValid(_ ledger: ScribeCredentialCleanupLedger) -> Bool {
+        ledger.schemaVersion == ScribeCredentialCleanupLedger.currentSchemaVersion
+            && ledger.revision >= 0
+            && ledger.references.count <= ScribeCredentialCleanupLedger.maximumEntries
+            && ledger.references.allSatisfy {
+                !$0.opaqueReference.rawValue.isEmpty
+                    && $0.opaqueReference.rawValue.utf8.count <= 256
+                    && !$0.opaqueReference.rawValue.unicodeScalars.contains(where: {
+                        $0.value < 0x20 || $0.value == 0x7F
+                    })
+            }
+    }
+}
+
+protocol ScribeCleanupLedgerBytesPersisting: AnyObject {
+    func data(forKey key: String) -> Data?
+    func set(_ data: Data, forKey key: String) throws
+    func remove(forKey key: String) throws
+}
+
+private final class UserDefaultsScribeCleanupLedgerBytes: ScribeCleanupLedgerBytesPersisting {
+    private let defaults: UserDefaults
+    init(defaults: UserDefaults) { self.defaults = defaults }
+    func data(forKey key: String) -> Data? { defaults.data(forKey: key) }
+    func set(_ data: Data, forKey key: String) throws { defaults.set(data, forKey: key) }
+    func remove(forKey key: String) throws { defaults.removeObject(forKey: key) }
+}

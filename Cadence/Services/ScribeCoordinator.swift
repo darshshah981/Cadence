@@ -99,7 +99,7 @@ final class ScribeCoordinator {
 
     private let audioCaptureService: AudioCaptureServing
     private let transcriptionEngine: TranscriptionEngine
-    private let providerActionResolver: () throws -> ScribeProviderActionSnapshot
+    private let providerActionResolver: @MainActor () async throws -> ScribeProviderActionSnapshot
     private let contextService: ScribeContextServing
     private let sessionArbiter: VoiceSessionArbiter
     private let personalizationStore: PersonalizationStore
@@ -108,7 +108,7 @@ final class ScribeCoordinator {
     private let environmentRecognizer: WritingEnvironmentRecognizer
     private let writingEnvironmentPreferences: () -> WritingEnvironmentPreferenceLoadResult
     private let adaptationEnabled: () -> Bool
-    private let providerDispatchAuthorization: @MainActor () -> Bool
+    private let providerDispatchAuthorization: @MainActor (ScribeProviderActionSnapshot) async -> Bool
     private var localTextConfiguration: TranscriptionConfiguration
 
     private var activeIntent: ScribeIntent?
@@ -131,14 +131,14 @@ final class ScribeCoordinator {
         transcriptionEngine: TranscriptionEngine,
         provider: any ScribeProvider,
         providerResolver: (() throws -> any ScribeProvider)? = nil,
-        providerActionResolver: (() throws -> ScribeProviderActionSnapshot)? = nil,
+        providerActionResolver: (@MainActor () async throws -> ScribeProviderActionSnapshot)? = nil,
         contextService: ScribeContextServing,
         sessionArbiter: VoiceSessionArbiter,
         personalizationStore: PersonalizationStore = PersonalizationStore(),
         environmentRecognizer: WritingEnvironmentRecognizer = WritingEnvironmentRecognizer(),
         writingEnvironmentPreferences: @escaping () -> WritingEnvironmentPreferenceLoadResult = { .absent },
         adaptationEnabled: @escaping () -> Bool = { true },
-        providerDispatchAuthorization: @escaping @MainActor () -> Bool = { true },
+        providerDispatchAuthorization: @escaping @MainActor (ScribeProviderActionSnapshot) async -> Bool = { _ in true },
         transcriptionConfiguration: TranscriptionConfiguration = TranscriptionConfiguration(),
         generationTimeout: Duration = .seconds(30),
         generationSoftWait: Duration = .seconds(8)
@@ -177,6 +177,10 @@ final class ScribeCoordinator {
         activeProviderAction?.destination.providerKind
     }
 
+    var activeProviderActionIdentity: ScribeProviderActionIdentity? {
+        activeProviderAction?.actionIdentity
+    }
+
     func prepareTarget() throws {
         guard state == .idle || isTerminalState else {
             throw ScribeCoordinatorError.invalidState
@@ -184,9 +188,6 @@ final class ScribeCoordinator {
         resetTransientState()
         generation += 1
         do {
-            let action = try providerActionResolver()
-            try action.validateForAcquisition(intent: .compose)
-            activeProviderAction = action
             try contextService.prepareTarget()
             state = .choosingIntent
         } catch let error as ScribeContextError {
@@ -232,7 +233,12 @@ final class ScribeCoordinator {
         activeRequestID = requestID
         activeIntent = intent
 
-        let providerAction = try activeProviderAction ?? providerActionResolver()
+        let providerAction: ScribeProviderActionSnapshot
+        if let activeProviderAction {
+            providerAction = activeProviderAction
+        } else {
+            providerAction = try await providerActionResolver()
+        }
         try providerAction.validateForAcquisition(intent: intent)
         activeProviderAction = providerAction
 
@@ -520,7 +526,7 @@ final class ScribeCoordinator {
         providerAction: ScribeProviderActionSnapshot,
         generation expectedGeneration: Int
     ) async {
-        guard providerDispatchAuthorization() else {
+        guard await providerDispatchAuthorization(providerAction) else {
             await cancel()
             return
         }

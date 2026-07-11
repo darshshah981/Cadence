@@ -122,6 +122,7 @@ struct ScribeProviderSetupView: View {
     let onConnectDeepSeek: (String) async throws -> Void
     let onConnectAdvanced: (String, String, String) async throws -> Void
     let onGeneratePractice: () async throws -> String
+    let onSwitchProvider: (ScribeProviderKind) -> Void
     let onDismiss: () -> Void
 
     var body: some View {
@@ -183,12 +184,18 @@ struct ScribeProviderSetupView: View {
             providerCard(
                 title: "DeepSeek",
                 detail: "Release-tested DeepSeek V4 Flash profile at api.deepseek.com.",
-                action: { model.choose(.deepSeek) }
+                action: {
+                    onSwitchProvider(.deepSeek)
+                    model.choose(.deepSeek)
+                }
             )
             providerCard(
                 title: "Advanced OpenAI-compatible",
                 detail: "One HTTPS, bearer-authenticated, non-streaming Chat Completions endpoint.",
-                action: { model.choose(.advanced) }
+                action: {
+                    onSwitchProvider(.advanced)
+                    model.choose(.advanced)
+                }
             )
         }
     }

@@ -45,7 +45,10 @@ struct SettingsView: View {
             .sheet(item: $editingStyleProfile) { profile in
                 WritingStyleProfileEditor(profile: profile) { appModel.saveWritingStyleProfile($0) }
             }
-            .sheet(isPresented: $appModel.isScribeProviderSetupPresented) {
+            .sheet(
+                isPresented: $appModel.isScribeProviderSetupPresented,
+                onDismiss: appModel.dismissScribeProviderSetup
+            ) {
                 ScribeProviderSetupView(
                     onConnectDeepSeek: { try await appModel.connectDeepSeekForScribe(credential: $0) },
                     onConnectAdvanced: {
@@ -56,6 +59,7 @@ struct SettingsView: View {
                         )
                     },
                     onGeneratePractice: { try await appModel.generateScribePracticeDraft() },
+                    onSwitchProvider: appModel.switchScribeProviderSetup,
                     onDismiss: appModel.dismissScribeProviderSetup
                 )
             }

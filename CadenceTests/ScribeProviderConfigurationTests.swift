@@ -244,7 +244,7 @@ struct ScribeProviderControllerTests {
     }
 
     @Test
-    func controllerCleansOnlyProvablyUnreferencedCredentialsAtStartup() throws {
+    func legacyControllerDoesNotBroadSweepCredentialsAtStartup() throws {
         let activeReference = ScribeCredentialReference(rawValue: "active")
         let orphanReference = ScribeCredentialReference(rawValue: "orphan")
         let configuration = try ScribeProviderConfiguration.deepSeek(
@@ -264,7 +264,10 @@ struct ScribeProviderControllerTests {
         )
 
         #expect(controller.readiness == .ready(.deepSeek))
-        #expect(credentialStore.values == [activeReference: "working"])
+        #expect(credentialStore.values == [
+            activeReference: "working",
+            orphanReference: "staged-before-crash"
+        ])
     }
 
     @Test

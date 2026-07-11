@@ -10,8 +10,31 @@ enum ScribeModelSelectionState: Equatable, Sendable {
     case offlinePreserved(selectedModelID: String)
 }
 
+struct ScribeModelValidationProof: Equatable, Sendable {
+    fileprivate let id: UUID
+    let providerKind: ScribeProviderKind
+    let selectedModelID: String
+    let consentReceiptID: UUID
+    let setupRevision: Int
+
+    func matches(
+        _ candidate: ScribeProviderConnectionCandidate,
+        setupRevision: Int
+    ) -> Bool {
+        providerKind == candidate.kind
+            && selectedModelID == candidate.selectedModelID
+            && consentReceiptID == candidate.consentReceipt.id
+            && self.setupRevision == setupRevision
+    }
+}
+
+enum ScribeModelSetupValidationResult: Equatable, Sendable {
+    case ready(ScribeModelValidationProof)
+    case notReady(ScribeModelSelectionState)
+}
+
 actor ScribeModelCatalogService {
-    typealias CredentialLoader = @Sendable (ScribeProviderKind) throws -> String
+    typealias CredentialLoader = @Sendable (ScribeProviderKind) async throws -> String
 
     private struct OpenAIModels: Decodable { let data: [OpenAIModel] }
     private struct OpenAIModel: Decodable { let id: String }
@@ -49,6 +72,7 @@ actor ScribeModelCatalogService {
     private let bundledCatalog: ScribeBundledModelCatalog
     private var validatedSelections: [ScribeProviderKind: Set<String>] = [:]
     private var discoveredModels: [ScribeProviderKind: [ScribeSearchableModelEntry]] = [:]
+    private var unconsumedProofs: [UUID: ScribeModelValidationProof] = [:]
 
     init(
         transport: any ScribeHTTPTransporting = ScribeHTTPTransport(),
@@ -69,6 +93,55 @@ actor ScribeModelCatalogService {
             validatedSelections[selection.providerKind, default: []]
                 .insert(selection.selectedModelID)
         }
+    }
+
+    func validateNewSetup(
+        provider: ScribeProviderKind,
+        selectedModelID: String,
+        consentReceipt: ScribeProviderConsentReceipt,
+        setupRevision: Int
+    ) async -> ScribeModelSetupValidationResult {
+        let state: ScribeModelSelectionState
+        switch provider {
+        case .openAIDirect:
+            state = await refreshOpenAI(
+                selectedModelID: selectedModelID,
+                consentReceipt: consentReceipt
+            )
+        case .openRouter:
+            state = await refreshOpenRouter(
+                selectedModelID: selectedModelID,
+                consentReceipt: consentReceipt
+            )
+        case .deepSeek, .advanced, .legacyLocal:
+            return .notReady(.needsAttention(selectedModelID: selectedModelID))
+        }
+        guard state == .ready(selectedModelID: selectedModelID) else {
+            return .notReady(state)
+        }
+        let proof = ScribeModelValidationProof(
+            id: UUID(),
+            providerKind: provider,
+            selectedModelID: selectedModelID,
+            consentReceiptID: consentReceipt.id,
+            setupRevision: setupRevision
+        )
+        unconsumedProofs[proof.id] = proof
+        return .ready(proof)
+    }
+
+    func consume(
+        _ proof: ScribeModelValidationProof,
+        for candidate: ScribeProviderConnectionCandidate,
+        setupRevision: Int
+    ) -> Bool {
+        guard proof.matches(candidate, setupRevision: setupRevision),
+              unconsumedProofs.removeValue(forKey: proof.id) == proof else { return false }
+        return true
+    }
+
+    func discard(_ proof: ScribeModelValidationProof) {
+        unconsumedProofs.removeValue(forKey: proof.id)
     }
 
     func refreshOpenRouter(
@@ -117,10 +190,10 @@ actor ScribeModelCatalogService {
             guard model.rawValue == selectedModelID else {
                 return .needsAttention(selectedModelID: selectedModelID)
             }
-            let loadCredential = credentialLoader
+            let credential = try await credentialLoader(.openRouter)
             try await OpenRouterScribeProvider(
                 model: model,
-                credentialLoader: { try loadCredential(.openRouter) },
+                credentialLoader: { credential },
                 transport: transport
             ).validateConnection()
             validatedSelections[.openRouter, default: []].insert(selectedModelID)
@@ -188,10 +261,10 @@ actor ScribeModelCatalogService {
             guard model.rawValue == selectedModelID else {
                 return .needsAttention(selectedModelID: selectedModelID)
             }
-            let loadCredential = credentialLoader
+            let credential = try await credentialLoader(.openAIDirect)
             try await OpenAIDirectScribeProvider(
                 model: model,
-                credentialLoader: { try loadCredential(.openAIDirect) },
+                credentialLoader: { credential },
                 transport: transport
             ).validateConnection()
             validatedSelections[.openAIDirect, default: []].insert(selectedModelID)
@@ -278,7 +351,7 @@ actor ScribeModelCatalogService {
     }
 
     private func discoveryGET(_ url: URL, provider: ScribeProviderKind) async throws -> Data {
-        let key = try credentialLoader(provider)
+        let key = try await credentialLoader(provider)
         guard !key.isEmpty else {
             throw FixedOriginScribeProviderSupport.failure(.validation, .credentialRejected, .reconnect)
         }
