@@ -18,6 +18,240 @@ enum ScribeProviderKind: String, CaseIterable, Codable, Equatable, Sendable {
     }
 }
 
+enum ScribeProviderRoutingPolicy: String, Codable, Equatable, Sendable {
+    case directSingleModel
+    case zeroDataRetentionSingleModel
+}
+
+enum ScribeProviderRetentionPolicy: String, Codable, Equatable, Sendable {
+    case requestStorageDisabled
+    case zeroDataRetentionRequired
+}
+
+enum ScribeProviderDataPolicy: String, Codable, Equatable, Sendable {
+    case providerPolicyApplies
+    case collectionDenied
+}
+
+/// Material provider consent. Model identifiers are intentionally absent so an exact-model
+/// change under the same recipient and privacy contract does not invalidate consent.
+struct ScribeProviderConsentReceipt: Codable, Equatable, Sendable {
+    let id: UUID
+    let providerKind: ScribeProviderKind
+    let recipientOrigin: String
+    let routingPolicy: ScribeProviderRoutingPolicy
+    let retentionPolicy: ScribeProviderRetentionPolicy
+    let dataPolicy: ScribeProviderDataPolicy
+    let disclosureRevision: Int
+    let acceptedAt: Date
+
+    fileprivate init(
+        id: UUID,
+        providerKind: ScribeProviderKind,
+        recipientOrigin: String,
+        routingPolicy: ScribeProviderRoutingPolicy,
+        retentionPolicy: ScribeProviderRetentionPolicy,
+        dataPolicy: ScribeProviderDataPolicy,
+        disclosureRevision: Int,
+        acceptedAt: Date
+    ) {
+        self.id = id
+        self.providerKind = providerKind
+        self.recipientOrigin = recipientOrigin
+        self.routingPolicy = routingPolicy
+        self.retentionPolicy = retentionPolicy
+        self.dataPolicy = dataPolicy
+        self.disclosureRevision = disclosureRevision
+        self.acceptedAt = acceptedAt
+    }
+}
+
+/// U5's consent owner is the only production component that should issue and retain these
+/// values. Catalog use additionally requires its injected verifier to confirm the opaque ID.
+enum ScribeProviderConsentIssuer {
+    static func issue(
+        id: UUID = UUID(),
+        providerKind: ScribeProviderKind,
+        recipientOrigin: String,
+        routingPolicy: ScribeProviderRoutingPolicy,
+        retentionPolicy: ScribeProviderRetentionPolicy,
+        dataPolicy: ScribeProviderDataPolicy,
+        disclosureRevision: Int,
+        acceptedAt: Date
+    ) -> ScribeProviderConsentReceipt {
+        ScribeProviderConsentReceipt(
+            id: id,
+            providerKind: providerKind,
+            recipientOrigin: recipientOrigin,
+            routingPolicy: routingPolicy,
+            retentionPolicy: retentionPolicy,
+            dataPolicy: dataPolicy,
+            disclosureRevision: disclosureRevision,
+            acceptedAt: acceptedAt
+        )
+    }
+}
+
+struct ScribePriorValidatedModelSelection: Equatable, Sendable {
+    let providerKind: ScribeProviderKind
+    let selectedModelID: String
+    let lastValidatedAt: Date
+    let disclosureRevision: Int
+
+    private init(
+        providerKind: ScribeProviderKind,
+        selectedModelID: String,
+        lastValidatedAt: Date,
+        disclosureRevision: Int
+    ) {
+        self.providerKind = providerKind
+        self.selectedModelID = selectedModelID
+        self.lastValidatedAt = lastValidatedAt
+        self.disclosureRevision = disclosureRevision
+    }
+
+    init?(configuration: ScribeProviderLibraryConfiguration) {
+        guard configuration.isEnabled,
+              configuration.kind == .openAIDirect || configuration.kind == .openRouter,
+              ScribeProviderLibraryConfigurationValidator.isValid(configuration) else {
+            return nil
+        }
+        self.init(
+            providerKind: configuration.kind,
+            selectedModelID: configuration.selectedModelID,
+            lastValidatedAt: configuration.lastValidatedAt,
+            disclosureRevision: configuration.disclosureVersion
+        )
+    }
+}
+
+enum ScribeModelRecommendation: String, Equatable, Sendable {
+    case none
+    case recommended
+}
+
+enum ScribeModelCatalogSource: String, Equatable, Sendable {
+    case bundled
+    case live
+    case custom
+}
+
+enum ScribeModelCompatibility: String, Equatable, Sendable {
+    case requiresValidation
+    case liveVisible
+    case liveEligible
+}
+
+enum ScribeModelEligibilityFact: String, Equatable, Hashable, Sendable {
+    case authenticatedUserVisible
+    case textOutput
+    case zeroDataRetentionEndpoint
+}
+
+/// Privacy-safe chooser metadata. Deliberately not Codable so live account catalogs cannot
+/// be accidentally persisted through the application's envelope stores.
+struct ScribeSearchableModelEntry: Equatable, Identifiable, Sendable {
+    var id: String { "\(providerKind.rawValue):\(modelID)" }
+    let providerKind: ScribeProviderKind
+    let modelID: String
+    let displayName: String
+    let recommendation: ScribeModelRecommendation
+    let source: ScribeModelCatalogSource
+    let compatibility: ScribeModelCompatibility
+    let canonicalSlug: String?
+    let providerDisplayName: String
+    let searchTerms: [String]
+    let contextLength: Int?
+    let supportedParameters: [String]
+    let expiry: String?
+    let eligibilityFacts: Set<ScribeModelEligibilityFact>
+    let outputModalities: [String]
+
+    init(
+        providerKind: ScribeProviderKind,
+        modelID: String,
+        displayName: String,
+        recommendation: ScribeModelRecommendation,
+        source: ScribeModelCatalogSource,
+        compatibility: ScribeModelCompatibility,
+        canonicalSlug: String? = nil,
+        providerDisplayName: String? = nil,
+        searchTerms: [String] = [],
+        contextLength: Int? = nil,
+        supportedParameters: [String] = [],
+        expiry: String? = nil,
+        eligibilityFacts: Set<ScribeModelEligibilityFact> = [],
+        outputModalities: [String] = []
+    ) {
+        self.providerKind = providerKind
+        self.modelID = modelID
+        self.displayName = displayName
+        self.recommendation = recommendation
+        self.source = source
+        self.compatibility = compatibility
+        self.canonicalSlug = canonicalSlug
+        self.providerDisplayName = providerDisplayName ?? providerKind.displayName
+        self.searchTerms = searchTerms
+        self.contextLength = contextLength
+        self.supportedParameters = supportedParameters
+        self.expiry = expiry
+        self.eligibilityFacts = eligibilityFacts
+        self.outputModalities = outputModalities
+    }
+}
+
+enum ScribeBundledModelCatalogError: Error, Equatable, Sendable {
+    case unsupportedRevision
+    case duplicateModel
+    case invalidEntry
+}
+
+struct ScribeBundledModelCatalog: Equatable, Sendable {
+    let revision: Int
+    let entries: [ScribeSearchableModelEntry]
+
+    init(revision: Int, entries: [ScribeSearchableModelEntry]) throws {
+        guard revision == 1 else { throw ScribeBundledModelCatalogError.unsupportedRevision }
+        var identities: Set<String> = []
+        for entry in entries {
+            let identity = "\(entry.providerKind.rawValue):\(entry.modelID)"
+            guard identities.insert(identity).inserted else {
+                throw ScribeBundledModelCatalogError.duplicateModel
+            }
+            guard entry.source == .bundled,
+                  entry.compatibility == .requiresValidation,
+                  entry.eligibilityFacts.isEmpty,
+                  entry.outputModalities.count <= 16,
+                  entry.outputModalities.allSatisfy({ Self.isStable($0, maximumBytes: 64) }),
+                  Self.isStable(entry.modelID, maximumBytes: 256),
+                  (try? ScribeModelIdentifier(entry.modelID))?.rawValue == entry.modelID,
+                  Self.isStable(entry.displayName, maximumBytes: 128),
+                  Self.isStable(entry.providerDisplayName, maximumBytes: 128),
+                  entry.searchTerms.count <= 16,
+                  entry.searchTerms.allSatisfy({ Self.isStable($0, maximumBytes: 256) }),
+                  entry.supportedParameters.count <= 64,
+                  entry.supportedParameters.allSatisfy({ Self.isStable($0, maximumBytes: 128) }),
+                  entry.canonicalSlug.map({ Self.isStable($0, maximumBytes: 256) }) ?? true,
+                  entry.expiry.map({ Self.isStable($0, maximumBytes: 256) }) ?? true,
+                  entry.contextLength.map({ $0 > 0 }) ?? true else {
+                throw ScribeBundledModelCatalogError.invalidEntry
+            }
+        }
+        self.revision = revision
+        self.entries = entries.sorted {
+            ($0.providerKind.rawValue, $0.modelID) < ($1.providerKind.rawValue, $1.modelID)
+        }
+    }
+
+    private static func isStable(_ value: String, maximumBytes: Int) -> Bool {
+        !value.isEmpty && value.utf8.count <= maximumBytes
+            && value == value.trimmingCharacters(in: .whitespacesAndNewlines)
+            && !value.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F })
+    }
+
+    static let empty = try! ScribeBundledModelCatalog(revision: 1, entries: [])
+}
+
 enum ScribeProviderConfigurationError: String, Error, Equatable, Sendable {
     case invalidBaseURL
     case insecureBaseURL
@@ -355,6 +589,51 @@ struct ScribeProviderLibraryConfiguration: Codable, Equatable, Identifiable, Sen
             credentialReference: credentialReference,
             isEnabled: isEnabled ?? self.isEnabled
         )
+    }
+}
+
+enum ScribeProviderLibraryConfigurationValidator {
+    static func isValid(_ configuration: ScribeProviderLibraryConfiguration) -> Bool {
+        let value = configuration.normalized()
+        guard !value.displayName.isEmpty,
+              value.displayName.utf8.count <= 256,
+              !value.displayName.unicodeScalars.contains(where: isUnsupportedControl),
+              (try? ScribeModelIdentifier(value.selectedModelID)) != nil,
+              !value.credentialReference.rawValue.isEmpty,
+              value.credentialReference.rawValue.utf8.count <= 256,
+              !value.credentialReference.rawValue.unicodeScalars.contains(where: isUnsupportedControl),
+              value.disclosureVersion > 0,
+              value.acceptedAt <= value.lastValidatedAt else { return false }
+        if let catalogID = value.catalogID {
+            guard !catalogID.isEmpty,
+                  catalogID.utf8.count <= ScribeProviderLibraryConfiguration.maximumCatalogIDUTF8Bytes,
+                  !catalogID.unicodeScalars.contains(where: isUnsupportedControl) else { return false }
+        }
+        switch value.kind {
+        case .deepSeek:
+            return value.normalizedOrigin == "https://api.deepseek.com"
+                && value.baseURL.absoluteString == "https://api.deepseek.com"
+                && value.requestURL.absoluteString == "https://api.deepseek.com/chat/completions"
+        case .openAIDirect:
+            return value.normalizedOrigin == "https://api.openai.com"
+                && value.baseURL.absoluteString == "https://api.openai.com"
+                && value.requestURL.absoluteString == "https://api.openai.com/v1/responses"
+        case .openRouter:
+            return value.normalizedOrigin == "https://openrouter.ai"
+                && value.baseURL.absoluteString == "https://openrouter.ai"
+                && value.requestURL.absoluteString == "https://openrouter.ai/api/v1/chat/completions"
+        case .advanced:
+            guard let endpoint = try? AdvancedScribeEndpoint(value.baseURL.absoluteString) else { return false }
+            return endpoint.normalizedOrigin == value.normalizedOrigin
+                && endpoint.normalizedBaseURL == value.baseURL
+                && endpoint.requestURL == value.requestURL
+        case .legacyLocal:
+            return value.normalizedOrigin == "local://this-mac"
+        }
+    }
+
+    private static func isUnsupportedControl(_ scalar: UnicodeScalar) -> Bool {
+        scalar.value < 0x20 || scalar.value == 0x7F
     }
 }
 

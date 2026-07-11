@@ -4,6 +4,54 @@ import Testing
 
 struct ScribeDiagnosticsTests {
     @Test
+    func newProviderDiagnosticsRoundTripWithoutModelOrRecipientData() throws {
+        for provider in [ScribeDiagnosticProvider.openAIDirect, .openRouter] {
+            let event = ScribeDiagnosticEvent(
+                kind: .validationCompleted,
+                phase: .validation,
+                provider: provider,
+                outcome: .success
+            )
+            let data = try JSONEncoder().encode(event)
+            #expect(try JSONDecoder().decode(ScribeDiagnosticEvent.self, from: data) == event)
+            let encoded = String(decoding: data, as: UTF8.self)
+            #expect(!encoded.contains("gpt"))
+            #expect(!encoded.contains("openrouter.ai"))
+            #expect(!encoded.contains("api.openai.com"))
+        }
+    }
+
+    @Test
+    func providerDisclosuresNameExactRecipientAndMaterialRouting() {
+        #expect(ScribeProviderDisclosure.openAIDirect.contains("https://api.openai.com"))
+        #expect(ScribeProviderDisclosure.openAIDirect.contains("store to false"))
+        #expect(ScribeProviderDisclosure.openAIDirect.contains("does not use server-side conversation state"))
+        #expect(ScribeProviderDisclosure.openAIDirect.contains("not used for model training by default"))
+        #expect(ScribeProviderDisclosure.openAIDirect.contains("abuse-monitoring data may be retained"))
+        #expect(ScribeProviderDisclosure.openRouter.contains("https://openrouter.ai"))
+        #expect(ScribeProviderDisclosure.openRouter.contains("Zero Data Retention"))
+        #expect(ScribeProviderDisclosure.openRouter.contains("data collection to deny"))
+        #expect(ScribeProviderDisclosure.openRouter.contains("retain limited router metadata"))
+        for disclosure in [
+            ScribeProviderDisclosure.openAIDirect,
+            ScribeProviderDisclosure.openRouter
+        ] {
+            #expect(disclosure.contains("Processed dictation"))
+            #expect(disclosure.contains("compiled preset"))
+            #expect(disclosure.contains("optional normalized Custom guidance"))
+            #expect(disclosure.contains("literal metadata"))
+            #expect(disclosure.contains("exact protected terms and positions"))
+            #expect(disclosure.contains("does not send app identity"))
+            #expect(disclosure.contains("selected text"))
+            #expect(disclosure.contains("clipboard contents"))
+            #expect(disclosure.contains("window titles"))
+            #expect(disclosure.contains("screen content"))
+            #expect(disclosure.contains("files"))
+            #expect(disclosure.contains("prior turns"))
+            #expect(disclosure.contains("ambient context"))
+        }
+    }
+    @Test
     func ringRoundsTimeAndPrunesByAgeAndCount() async {
         let now = Date(timeIntervalSince1970: 1_800_000_123)
         let storage = InMemoryDiagnosticsStorage()

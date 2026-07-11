@@ -34,6 +34,8 @@ enum ScribeDiagnosticPhase: String, Codable, Equatable, Sendable {
 enum ScribeDiagnosticProvider: String, Codable, Equatable, Sendable {
     case none
     case deepSeek
+    case openAIDirect
+    case openRouter
     case advanced
     case legacyLocal
 }

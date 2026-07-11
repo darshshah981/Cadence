@@ -65,6 +65,20 @@ struct ScribeEgressDestination: Equatable, Sendable {
         isRemote: true
     )
 
+    static let openAIDirect = ScribeEgressDestination(
+        providerKind: .openAIDirect,
+        recipientOrigin: "https://api.openai.com",
+        disclosureVersion: ScribeProviderDisclosure.currentVersion,
+        isRemote: true
+    )
+
+    static let openRouter = ScribeEgressDestination(
+        providerKind: .openRouter,
+        recipientOrigin: "https://openrouter.ai",
+        disclosureVersion: ScribeProviderDisclosure.currentVersion,
+        isRemote: true
+    )
+
     static let legacyLocal = ScribeEgressDestination(
         providerKind: .legacyLocal,
         recipientOrigin: "local://this-mac",

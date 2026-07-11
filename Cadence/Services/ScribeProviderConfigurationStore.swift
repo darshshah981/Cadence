@@ -132,55 +132,8 @@ final class ScribeProviderLibraryStore {
             }
             guard active.isEnabled else { return .disabledActiveConfiguration }
         }
-        guard library.configurations.allSatisfy(isValid) else { return .invalidConfiguration }
+        guard library.configurations.allSatisfy(ScribeProviderLibraryConfigurationValidator.isValid)
+        else { return .invalidConfiguration }
         return nil
-    }
-
-    private static func isValid(_ configuration: ScribeProviderLibraryConfiguration) -> Bool {
-        let value = configuration.normalized()
-        guard !value.displayName.isEmpty,
-              value.displayName.utf8.count <= 256,
-              !value.displayName.unicodeScalars.contains(where: isUnsupportedControl),
-              (try? ScribeModelIdentifier(value.selectedModelID)) != nil,
-              !value.credentialReference.rawValue.isEmpty,
-              value.credentialReference.rawValue.utf8.count <= 256,
-              !value.credentialReference.rawValue.unicodeScalars.contains(where: isUnsupportedControl),
-              value.disclosureVersion > 0,
-              value.acceptedAt <= value.lastValidatedAt else {
-            return false
-        }
-        if let catalogID = value.catalogID {
-            guard !catalogID.isEmpty,
-                  catalogID.utf8.count <= ScribeProviderLibraryConfiguration.maximumCatalogIDUTF8Bytes,
-                  !catalogID.unicodeScalars.contains(where: isUnsupportedControl) else {
-                return false
-            }
-        }
-
-        switch value.kind {
-        case .deepSeek:
-            return value.normalizedOrigin == "https://api.deepseek.com"
-                && value.baseURL.absoluteString == "https://api.deepseek.com"
-                && value.requestURL.absoluteString == "https://api.deepseek.com/chat/completions"
-        case .openAIDirect:
-            return value.normalizedOrigin == "https://api.openai.com"
-                && value.baseURL.absoluteString == "https://api.openai.com"
-                && value.requestURL.absoluteString == "https://api.openai.com/v1/responses"
-        case .openRouter:
-            return value.normalizedOrigin == "https://openrouter.ai"
-                && value.baseURL.absoluteString == "https://openrouter.ai"
-                && value.requestURL.absoluteString == "https://openrouter.ai/api/v1/chat/completions"
-        case .advanced:
-            guard let endpoint = try? AdvancedScribeEndpoint(value.baseURL.absoluteString) else { return false }
-            return endpoint.normalizedOrigin == value.normalizedOrigin
-                && endpoint.normalizedBaseURL == value.baseURL
-                && endpoint.requestURL == value.requestURL
-        case .legacyLocal:
-            return value.normalizedOrigin == "local://this-mac"
-        }
-    }
-
-    private static func isUnsupportedControl(_ scalar: UnicodeScalar) -> Bool {
-        scalar.value < 0x20 || scalar.value == 0x7F
     }
 }
