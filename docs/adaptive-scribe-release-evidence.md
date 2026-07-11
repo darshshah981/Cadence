@@ -27,6 +27,10 @@ Run `scripts/collect_adaptive_scribe_evidence.sh` only from the clean candidate 
 - [ ] The recursive privacy-canary scan passes over xcresults, captured logs, defaults/app-support snapshots, diagnostics exports, and collected evidence.
 - [ ] Independent source review confirms no Scribe content enters analytics, OSLog, Dictation history, meeting stores, caches, or crash/support payloads.
 
+### Credential Accessibility Compatibility Decision
+
+Accepted for the compatibility release based on PR #34 commit `04391d3`: Scribe provider credentials remain in the data-protection Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` and synchronization disabled. This preserves existing credentials and behavior without introducing an unplanned credential migration. New provider credential paths must retain these exact attributes and their characterization coverage for this release line. Any move to `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` or another accessibility class requires a separately planned credential migration and security review.
+
 ## Signed Candidate and Distribution
 
 - [ ] Developer ID signature passes `codesign --verify --deep --strict`.
