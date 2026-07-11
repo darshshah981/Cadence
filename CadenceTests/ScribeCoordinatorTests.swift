@@ -5,6 +5,94 @@ import Testing
 @MainActor
 struct ScribeCoordinatorTests {
     @Test
+    func defaultsNotificationInvalidationCancelsActiveCoordinatorAndStopsProvider() async throws {
+        let runtime = try AdaptiveRuntimeFixture()
+        defer { runtime.cleanUp() }
+        let provider = CapturingScribeProvider(resultText: "Must not run")
+        let fixture = ScribeCoordinatorFixture(
+            provider: provider,
+            providerDispatchAuthorization: { runtime.monitor.authorizeProviderDispatch() }
+        )
+        var cancellation: Task<Void, Never>?
+        runtime.monitor.onInvalidation = {
+            fixture.coordinator.invalidateProviderWork()
+            cancellation = Task { @MainActor in await fixture.coordinator.cancel() }
+        }
+        runtime.monitor.start()
+        #expect(runtime.monitor.revalidate())
+        try await fixture.coordinator.begin(intent: .compose)
+
+        try runtime.gateStore.save(.allDisabled)
+        runtime.notificationCenter.post(
+            name: UserDefaults.didChangeNotification,
+            object: runtime.defaults
+        )
+        for _ in 0..<1_000 where cancellation == nil { await Task.yield() }
+        await cancellation?.value
+        await fixture.coordinator.finishRecording()
+
+        if case .cancelled = fixture.coordinator.state {
+            // Expected invalidation cleanup.
+        } else {
+            Issue.record("Expected notification-triggered cancellation")
+        }
+        #expect(await provider.requests.isEmpty)
+        #expect(fixture.arbiter.activeKind == nil)
+    }
+
+    @Test
+    func preDispatchCheckpointRejectsGateMutationWithoutWaitingForNotification() async throws {
+        let runtime = try AdaptiveRuntimeFixture()
+        defer { runtime.cleanUp() }
+        let provider = CapturingScribeProvider(resultText: "Must not run")
+        let fixture = ScribeCoordinatorFixture(
+            provider: provider,
+            providerDispatchAuthorization: { runtime.monitor.authorizeProviderDispatch() }
+        )
+        try await fixture.coordinator.begin(intent: .compose)
+        try runtime.gateStore.save(.allDisabled)
+
+        await fixture.coordinator.finishRecording()
+
+        #expect(await provider.requests.isEmpty)
+        if case .cancelled = fixture.coordinator.state {
+            // Checkpoint cancelled before provider dispatch.
+        } else {
+            Issue.record("Expected checkpoint cancellation")
+        }
+    }
+
+    @Test
+    func appModelGateInvalidationCancelsReachableCoordinatorBeforeRemoteWork() async throws {
+        let provider = CapturingScribeProvider(resultText: "Must not run")
+        let fixture = ScribeCoordinatorFixture(provider: provider)
+        try await fixture.coordinator.begin(intent: .compose)
+        var cancellation: Task<Void, Never>?
+        var setupPresented = false
+
+        let allowed = AppModel.enforceAdaptiveScribeEntry(
+            availability: .setupRequired,
+            cancelActiveCoordinator: {
+                cancellation = Task { @MainActor in
+                    await fixture.coordinator.cancel()
+                }
+            },
+            presentSetup: { setupPresented = true }
+        )
+        await cancellation?.value
+
+        #expect(!allowed)
+        #expect(setupPresented)
+        if case .cancelled = fixture.coordinator.state {
+            // Expected terminal cancellation before generation.
+        } else {
+            Issue.record("Expected coordinator cancellation")
+        }
+        #expect(await provider.requests.isEmpty)
+        #expect(fixture.arbiter.activeKind == nil)
+    }
+
+    @Test
     func voiceSessionArbiterRejectsOverlappingPipelines() throws {
         let arbiter = VoiceSessionArbiter()
         let dictation = try arbiter.acquire(for: .dictation)
@@ -402,6 +490,7 @@ private final class ScribeCoordinatorFixture {
         personalizationStore: PersonalizationStore = PersonalizationStore(),
         environmentRecognizer: WritingEnvironmentRecognizer = WritingEnvironmentRecognizer(),
         writingEnvironmentPreferences: @escaping () -> WritingEnvironmentPreferenceLoadResult = { .absent },
+        providerDispatchAuthorization: @escaping @MainActor () -> Bool = { true },
         engine: (any TranscriptionEngine)? = nil,
         generationTimeout: Duration = .seconds(5),
         generationSoftWait: Duration = .seconds(8)
@@ -422,9 +511,72 @@ private final class ScribeCoordinatorFixture {
             personalizationStore: personalizationStore,
             environmentRecognizer: environmentRecognizer,
             writingEnvironmentPreferences: writingEnvironmentPreferences,
+            providerDispatchAuthorization: providerDispatchAuthorization,
             generationTimeout: generationTimeout,
             generationSoftWait: generationSoftWait
         )
+    }
+}
+
+@MainActor
+private final class AdaptiveRuntimeFixture {
+    let suite: String
+    let defaults: UserDefaults
+    let notificationCenter = NotificationCenter()
+    let gateStore: AdaptiveScribeFeatureGateStore
+    let monitor: AdaptiveScribeReaderMonitor
+
+    init() throws {
+        suite = "CadenceTests.AdaptiveRuntime.\(UUID().uuidString)"
+        defaults = try #require(UserDefaults(suiteName: suite))
+        let providerStore = ScribeProviderLibraryStore(defaults: defaults, key: "provider")
+        let appStore = ApplicationConfigurationStore(defaults: defaults, key: "apps")
+        let presetStore = ScribePresetCatalogStateStore(defaults: defaults, key: "presets")
+        let settingsStore = SettingsPresentationStore(defaults: defaults, key: "settings")
+        gateStore = AdaptiveScribeFeatureGateStore(defaults: defaults, key: "gates")
+        let markers = AdaptiveScribeMigrationMarkerStore(defaults: defaults, keyPrefix: "markers")
+        let configuration = try ScribeProviderLibraryConfiguration(
+            id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+            kind: .openAIDirect,
+            displayName: "OpenAI",
+            normalizedOrigin: "https://api.openai.com",
+            baseURL: URL(string: "https://api.openai.com")!,
+            requestURL: URL(string: "https://api.openai.com/v1/responses")!,
+            selectedModelID: "gpt-test",
+            catalogID: nil,
+            disclosureVersion: 2,
+            acceptedAt: Date(timeIntervalSince1970: 10),
+            lastValidatedAt: Date(timeIntervalSince1970: 20),
+            credentialReference: .init(rawValue: "credential"),
+            isEnabled: true
+        )
+        try providerStore.save(.init(
+            revision: 1,
+            configurations: [configuration],
+            activeConfigurationID: configuration.id
+        ))
+        try appStore.save(.init(revision: 1, configurations: []))
+        try presetStore.save(.generalNeutral)
+        try settingsStore.save(.init(selectedCategory: .general, isAdvancedExpanded: false))
+        try gateStore.save(.allEnabled)
+        for domain in AdaptiveScribeMigrationDomain.allCases { try markers.markComplete(domain) }
+        monitor = AdaptiveScribeReaderMonitor(
+            defaults: defaults,
+            notificationCenter: notificationCenter,
+            readerService: AdaptiveScribeLiveReaderService(
+                providerStore: providerStore,
+                applicationStore: appStore,
+                presetStore: presetStore,
+                settingsStore: settingsStore,
+                featureGateStore: gateStore,
+                markerStore: markers,
+                polishedDictationRuntimeAvailable: true
+            )
+        )
+    }
+
+    func cleanUp() {
+        defaults.removePersistentDomain(forName: suite)
     }
 }
 

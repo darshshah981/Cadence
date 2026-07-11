@@ -35,6 +35,10 @@ struct AdaptiveScribeMigrationResult: Equatable, Sendable {
     let shouldShowLegacyProfileNotice: Bool
 }
 
+struct AdaptiveScribeV2MigrationResult: Equatable, Sendable {
+    let liveReaderState: AdaptiveScribeLiveReaderState
+}
+
 struct AdaptiveScribeMigrationService {
     static let ledgerKey = "Cadence.adaptiveScribeMigrationLedger"
     static let adaptationEnabledKey = "Cadence.adaptScribeToApp"
@@ -109,6 +113,148 @@ struct AdaptiveScribeMigrationService {
 
     func dismissLegacyProfileNotice() {
         defaults.set(false, forKey: Self.legacyNoticeKey)
+    }
+
+    func adaptationEnabled() -> Bool {
+        (defaults.object(forKey: Self.adaptationEnabledKey) as? Bool) ?? true
+    }
+
+    func restoreAdaptationEnabledForAllApps() {
+        defaults.set(true, forKey: Self.adaptationEnabledKey)
+    }
+
+    func resetApplicationConfiguration(
+        _ id: UUID,
+        store: ApplicationConfigurationStore
+    ) throws {
+        guard case let .valid(library) = store.load() else {
+            throw AdaptiveScribeMigrationError.destinationRejected
+        }
+        let remaining = library.configurations.filter { $0.id != id }
+        guard remaining.count != library.configurations.count else { return }
+        try store.save(.init(revision: library.revision + 1, configurations: remaining))
+    }
+
+    func resetAllApplicationSettings(store: ApplicationConfigurationStore) throws {
+        guard case let .valid(library) = store.load() else {
+            throw AdaptiveScribeMigrationError.destinationRejected
+        }
+        try store.save(.init(revision: library.revision + 1, configurations: []))
+        restoreAdaptationEnabledForAllApps()
+    }
+
+    func migrateV2Domains(
+        providerConfiguration: ScribeProviderConfigurationLoadResult,
+        writingEnvironmentPreferences: WritingEnvironmentPreferenceLoadResult
+    ) throws -> AdaptiveScribeV2MigrationResult {
+        // Deliberate no-test boundary: migration structurally owns only local defaults and strict stores.
+        // Network transport, Keychain cleanup, and application scanning are absent collaborators, so
+        // there is no injected side-effect mock to assert against here.
+        let markerStore = AdaptiveScribeMigrationMarkerStore(defaults: defaults)
+        let providerStore = ScribeProviderLibraryStore(defaults: defaults)
+        let applicationStore = ApplicationConfigurationStore(defaults: defaults)
+        let presetStore = ScribePresetCatalogStateStore(defaults: defaults)
+        let settingsStore = SettingsPresentationStore(defaults: defaults)
+        let featureGateStore = AdaptiveScribeFeatureGateStore(defaults: defaults)
+
+        _ = try ProviderLibraryMigrationService(
+            destinationStore: providerStore,
+            markerStore: markerStore
+        ).migrate(providerConfiguration)
+        _ = try ApplicationConfigurationMigrationService(
+            destinationStore: applicationStore,
+            markerStore: markerStore
+        ).migrate(writingEnvironmentPreferences)
+        try migratePresetCatalogState(store: presetStore, markerStore: markerStore)
+        try migrateSettingsPresentation(store: settingsStore, markerStore: markerStore)
+        try migrateFeatureGates(store: featureGateStore, markerStore: markerStore)
+
+        return AdaptiveScribeV2MigrationResult(liveReaderState: AdaptiveScribeLiveReaderService(
+            providerStore: providerStore,
+            applicationStore: applicationStore,
+            presetStore: presetStore,
+            settingsStore: settingsStore,
+            featureGateStore: featureGateStore,
+            markerStore: markerStore
+        ).load())
+    }
+
+    private func migratePresetCatalogState(
+        store: ScribePresetCatalogStateStore,
+        markerStore: AdaptiveScribeMigrationMarkerStore
+    ) throws {
+        switch store.load() {
+        case .absent:
+            try store.save(.generalNeutral)
+        case let .valid(state):
+            guard state == .generalNeutral else {
+                throw AdaptiveScribeMigrationError.destinationConflict
+            }
+        case .rejected:
+            throw AdaptiveScribeMigrationError.destinationConflict
+        }
+        guard store.load() == .valid(.generalNeutral) else {
+            throw AdaptiveScribeMigrationError.semanticReadbackFailed
+        }
+        switch markerStore.load(.presetCatalogState) {
+        case .valid:
+            break
+        case .absent:
+            try markerStore.markComplete(.presetCatalogState)
+        case .rejected:
+            throw AdaptiveScribeMigrationError.destinationRejected
+        }
+    }
+
+    private func migrateSettingsPresentation(
+        store: SettingsPresentationStore,
+        markerStore: AdaptiveScribeMigrationMarkerStore
+    ) throws {
+        let initial = SettingsPresentationState(selectedCategory: .general, isAdvancedExpanded: false)
+        switch store.load() {
+        case .absent:
+            try store.save(initial)
+        case .valid:
+            break
+        case .rejected:
+            throw AdaptiveScribeMigrationError.destinationRejected
+        }
+        guard case .valid = store.load() else {
+            throw AdaptiveScribeMigrationError.semanticReadbackFailed
+        }
+        switch markerStore.load(.settingsPresentation) {
+        case .valid:
+            break
+        case .absent:
+            try markerStore.markComplete(.settingsPresentation)
+        case .rejected:
+            throw AdaptiveScribeMigrationError.destinationRejected
+        }
+    }
+
+    private func migrateFeatureGates(
+        store: AdaptiveScribeFeatureGateStore,
+        markerStore: AdaptiveScribeMigrationMarkerStore
+    ) throws {
+        switch store.load() {
+        case .absent:
+            try store.save(.migrationBaseline)
+        case .valid:
+            break
+        case .rejected:
+            throw AdaptiveScribeMigrationError.destinationRejected
+        }
+        guard case .valid = store.load() else {
+            throw AdaptiveScribeMigrationError.semanticReadbackFailed
+        }
+        switch markerStore.load(.featureGates) {
+        case .valid:
+            break
+        case .absent:
+            try markerStore.markComplete(.featureGates)
+        case .rejected:
+            throw AdaptiveScribeMigrationError.destinationRejected
+        }
     }
 
     private func loadCurrentLedger() -> AdaptiveScribeMigrationLedger? {

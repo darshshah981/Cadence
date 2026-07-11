@@ -108,6 +108,7 @@ final class ScribeCoordinator {
     private let environmentRecognizer: WritingEnvironmentRecognizer
     private let writingEnvironmentPreferences: () -> WritingEnvironmentPreferenceLoadResult
     private let adaptationEnabled: () -> Bool
+    private let providerDispatchAuthorization: @MainActor () -> Bool
     private var localTextConfiguration: TranscriptionConfiguration
 
     private var activeIntent: ScribeIntent?
@@ -137,6 +138,7 @@ final class ScribeCoordinator {
         environmentRecognizer: WritingEnvironmentRecognizer = WritingEnvironmentRecognizer(),
         writingEnvironmentPreferences: @escaping () -> WritingEnvironmentPreferenceLoadResult = { .absent },
         adaptationEnabled: @escaping () -> Bool = { true },
+        providerDispatchAuthorization: @escaping @MainActor () -> Bool = { true },
         transcriptionConfiguration: TranscriptionConfiguration = TranscriptionConfiguration(),
         generationTimeout: Duration = .seconds(30),
         generationSoftWait: Duration = .seconds(8)
@@ -160,6 +162,7 @@ final class ScribeCoordinator {
         self.environmentRecognizer = environmentRecognizer
         self.writingEnvironmentPreferences = writingEnvironmentPreferences
         self.adaptationEnabled = adaptationEnabled
+        self.providerDispatchAuthorization = providerDispatchAuthorization
         self.localTextConfiguration = transcriptionConfiguration
         self.generationTimeout = generationTimeout
         self.generationSoftWait = generationSoftWait
@@ -517,6 +520,10 @@ final class ScribeCoordinator {
         providerAction: ScribeProviderActionSnapshot,
         generation expectedGeneration: Int
     ) async {
+        guard providerDispatchAuthorization() else {
+            await cancel()
+            return
+        }
         state = .generating(requestID: request.id)
         failure = nil
         providerFailure = nil

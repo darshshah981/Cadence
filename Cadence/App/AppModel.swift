@@ -112,6 +112,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var state: DictationSessionState = .idle
     @Published private(set) var scribeState: ScribeSessionState = .idle
     @Published private(set) var scribeProviderReadiness: ScribeProviderReadiness = .setupRequired
+    @Published private(set) var adaptiveScribeV2Availability: AdaptiveScribeAvailability = .setupRequired
     @Published private(set) var showsLegacyWritingProfileNotice = false
     @Published private(set) var scribeAppAdaptationEnabled = true
     @Published private(set) var writingEnvironmentPreferenceState: WritingEnvironmentPreferenceLoadResult = .absent
@@ -162,6 +163,8 @@ final class AppModel: ObservableObject {
     private let scribeCoordinator: ScribeCoordinator
     private let scribeTranscriptionEngine: TranscriptionEngine
     private let scribeProviderController: ScribeProviderController
+    private let adaptiveScribeLiveReaderService: AdaptiveScribeLiveReaderService
+    private let adaptiveScribeReaderMonitor: AdaptiveScribeReaderMonitor
     private let writingEnvironmentStore: WritingEnvironmentStore
     private let scribeDiagnosticsService: ScribeDiagnosticsService
     private let scribePanelWindowController = ScribePanelWindowController()
@@ -330,6 +333,18 @@ final class AppModel: ObservableObject {
             legacyProvider: legacyScribeProvider
         )
         let writingEnvironmentStore = WritingEnvironmentStore(defaults: defaults)
+        let adaptiveScribeLiveReaderService = AdaptiveScribeLiveReaderService(
+            providerStore: ScribeProviderLibraryStore(defaults: defaults),
+            applicationStore: ApplicationConfigurationStore(defaults: defaults),
+            presetStore: ScribePresetCatalogStateStore(defaults: defaults),
+            settingsStore: SettingsPresentationStore(defaults: defaults),
+            featureGateStore: AdaptiveScribeFeatureGateStore(defaults: defaults),
+            markerStore: AdaptiveScribeMigrationMarkerStore(defaults: defaults)
+        )
+        let adaptiveScribeReaderMonitor = AdaptiveScribeReaderMonitor(
+            defaults: defaults,
+            readerService: adaptiveScribeLiveReaderService
+        )
         let scribeDiagnosticsService = ScribeDiagnosticsService()
         let migrationResult = try? AdaptiveScribeMigrationService(
             defaults: defaults,
@@ -339,15 +354,26 @@ final class AppModel: ObservableObject {
             legacyLocalAvailable: legacyScribeProvider != nil,
             providerConfiguration: scribeConfigurationStore.load()
         )
+        let v2MigrationResult = try? AdaptiveScribeMigrationService(
+            defaults: defaults,
+            personalizationStore: personalizationStore
+        ).migrateV2Domains(
+            providerConfiguration: scribeConfigurationStore.load(),
+            writingEnvironmentPreferences: writingEnvironmentStore.load()
+        )
         let textInsertionService = TextInsertionService()
         let voiceSessionArbiter = VoiceSessionArbiter()
         self.voiceSessionArbiter = voiceSessionArbiter
         self.onboardingMicrophoneMonitor = OnboardingMicrophoneMonitor(sessionArbiter: voiceSessionArbiter)
         self.scribeTranscriptionEngine = scribeTranscriptionEngine
         self.scribeProviderController = scribeProviderController
+        self.adaptiveScribeLiveReaderService = adaptiveScribeLiveReaderService
+        self.adaptiveScribeReaderMonitor = adaptiveScribeReaderMonitor
         self.writingEnvironmentStore = writingEnvironmentStore
         self.scribeDiagnosticsService = scribeDiagnosticsService
         self.scribeProviderReadiness = scribeProviderController.readiness
+        self.adaptiveScribeV2Availability = v2MigrationResult?.liveReaderState.scribeAvailability
+            ?? .setupRequired
         self.showsLegacyWritingProfileNotice = migrationResult?.shouldShowLegacyProfileNotice ?? false
         self.scribeAppAdaptationEnabled = (
             defaults.object(forKey: AdaptiveScribeMigrationService.adaptationEnabledKey) as? Bool
@@ -390,9 +416,16 @@ final class AppModel: ObservableObject {
             adaptationEnabled: {
                 (defaults.object(forKey: AdaptiveScribeMigrationService.adaptationEnabledKey) as? Bool) ?? true
             },
+            providerDispatchAuthorization: {
+                adaptiveScribeReaderMonitor.authorizeProviderDispatch()
+            },
             transcriptionConfiguration: initialTranscriptionConfiguration
         )
 
+        adaptiveScribeReaderMonitor.onInvalidation = { [weak self] in
+            self?.invalidateAdaptiveScribeRuntime()
+        }
+        adaptiveScribeReaderMonitor.start()
         applyAppearancePreference()
         bindCoordinator()
         bindHUDVisibility()
@@ -2295,8 +2328,48 @@ final class AppModel: ObservableObject {
     }
 
     func restoreWritingEnvironmentDefaults() {
-        writingEnvironmentStore.clear()
-        writingEnvironmentPreferenceState = .absent
+        resetAllApplicationSettings()
+    }
+
+    func resetApplicationConfiguration(_ id: UUID) {
+        do {
+            try AdaptiveScribeMigrationService(
+                defaults: defaults,
+                personalizationStore: personalizationStore
+            ).resetApplicationConfiguration(
+                id,
+                store: ApplicationConfigurationStore(defaults: defaults)
+            )
+            adaptiveScribeV2Availability = adaptiveScribeLiveReaderService.load().scribeAvailability
+        } catch {
+            lastError = "Cadence could not reset this application setting."
+        }
+    }
+
+    func resetAllApplicationSettings() {
+        do {
+            try Self.performResetAllApplicationSettings(
+                defaults: defaults,
+                applicationStore: ApplicationConfigurationStore(defaults: defaults),
+                personalizationStore: personalizationStore
+            )
+            scribeAppAdaptationEnabled = true
+            adaptiveScribeV2Availability = adaptiveScribeLiveReaderService.load().scribeAvailability
+            lastError = nil
+        } catch {
+            lastError = "Cadence could not reset application settings."
+        }
+    }
+
+    static func performResetAllApplicationSettings(
+        defaults: UserDefaults,
+        applicationStore: ApplicationConfigurationStore,
+        personalizationStore: PersonalizationStore
+    ) throws {
+        try AdaptiveScribeMigrationService(
+            defaults: defaults,
+            personalizationStore: personalizationStore
+        ).resetAllApplicationSettings(store: applicationStore)
     }
 
     func dismissLegacyWritingProfileNotice() {
@@ -2380,6 +2453,7 @@ final class AppModel: ObservableObject {
     }
 
     func showScribe() {
+        guard revalidateAdaptiveScribeReaders() else { return }
         guard case .ready = scribeProviderReadiness else {
             presentScribeProviderSetup()
             return
@@ -2421,6 +2495,7 @@ final class AppModel: ObservableObject {
     }
 
     private func beginScribe(intent: ScribeIntent) {
+        guard revalidateAdaptiveScribeReaders() else { return }
         pendingScribeIntent = intent
         guard permissions.allRequiredGranted else {
             presentScribeStartFailure("Finish microphone, Accessibility, and Input Monitoring setup before using Scribe.")
@@ -2562,6 +2637,51 @@ final class AppModel: ObservableObject {
             self?.scribeState = .idle
             self?.scribePanelWindowController.close()
         }
+    }
+
+    @discardableResult
+    private func revalidateAdaptiveScribeReaders() -> Bool {
+        _ = adaptiveScribeReaderMonitor.revalidate()
+        let availability = adaptiveScribeReaderMonitor.state.scribeAvailability
+        adaptiveScribeV2Availability = availability
+        return Self.enforceAdaptiveScribeEntry(
+            availability: availability,
+            cancelActiveCoordinator: { [weak self] in
+                guard let self else { return }
+                self.pendingScribeIntent = nil
+                self.scribePanelWindowController.close()
+                Task { @MainActor [weak self] in
+                    await self?.scribeCoordinator.cancel()
+                }
+            },
+            presentSetup: { [weak self] in
+                self?.isScribeProviderSetupPresented = true
+                self?.showMainWindow()
+            }
+        )
+    }
+
+    private func invalidateAdaptiveScribeRuntime() {
+        adaptiveScribeV2Availability = .setupRequired
+        pendingScribeIntent = nil
+        scribePanelWindowController.close()
+        scribeCoordinator.invalidateProviderWork()
+        Task { @MainActor [weak self] in
+            await self?.scribeCoordinator.cancel()
+        }
+    }
+
+    static func enforceAdaptiveScribeEntry(
+        availability: AdaptiveScribeAvailability,
+        cancelActiveCoordinator: () -> Void,
+        presentSetup: () -> Void
+    ) -> Bool {
+        guard availability == .enabled else {
+            cancelActiveCoordinator()
+            presentSetup()
+            return false
+        }
+        return true
     }
 
     private func bindScribeProviderController() {
