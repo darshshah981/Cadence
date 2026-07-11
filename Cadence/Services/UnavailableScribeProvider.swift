@@ -3,7 +3,7 @@ import Foundation
 struct UnavailableScribeProvider: ScribeProvider {
     let capabilities: ScribeProviderCapabilities = []
 
-    func generate(_ request: ScribeRequest) async throws -> ScribeResult {
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
         throw ScribeProviderError.unavailable
     }
 }

@@ -18,6 +18,10 @@ final class ScribePanelViewModel: ObservableObject {
     @Published private(set) var literalTranscript: String?
     @Published private(set) var providerStatus = "Private preview"
     @Published private(set) var requestedIntentFocus: ScribeIntent?
+    @Published private(set) var environmentCue: String?
+    @Published private(set) var exactLiteralSummary: String?
+    @Published private(set) var selectedTextDisclosure = "Selected text is used only after you choose Respond or Edit."
+    @Published private(set) var canRetryGeneration = false
 
     var onChooseIntent: ((ScribeIntent) -> Void)?
     var onStop: (() -> Void)?
@@ -28,22 +32,38 @@ final class ScribePanelViewModel: ObservableObject {
     var onCopy: (() -> Void)?
     var onClose: (() -> Void)?
 
-    func presentPicker(providerStatus: String, initialFocus: ScribeIntent) {
+    func presentPicker(
+        providerStatus: String,
+        selectedTextDisclosure: String = "Selected text is used only after you choose Respond or Edit.",
+        initialFocus: ScribeIntent
+    ) {
         self.providerStatus = providerStatus
+        self.selectedTextDisclosure = selectedTextDisclosure
         requestedIntentFocus = initialFocus
         failureMessage = nil
         literalTranscript = nil
+        environmentCue = nil
+        exactLiteralSummary = nil
+        canRetryGeneration = false
         state = .choosingIntent
     }
 
     func apply(
         state: ScribeSessionState,
         failureMessage: String?,
-        literalTranscript: String?
+        literalTranscript: String?,
+        environmentCue: String?,
+        exactLiterals: [ScribeExactLiteral],
+        canRetryGeneration: Bool
     ) {
         self.state = state
         self.failureMessage = failureMessage
         self.literalTranscript = literalTranscript
+        self.environmentCue = environmentCue
+        self.exactLiteralSummary = exactLiterals.isEmpty
+            ? nil
+            : "Exact literals: " + exactLiterals.map { "`\($0.value)`" }.joined(separator: ", ")
+        self.canRetryGeneration = canRetryGeneration
     }
 }
 
@@ -77,11 +97,19 @@ struct ScribePanelView: View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Scribe")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.headline)
                     .foregroundStyle(FlowTheme.textPrimary)
                 Text(model.providerStatus)
-                    .font(.system(size: 11))
+                    .font(.caption)
                     .foregroundStyle(FlowTheme.textTertiary)
+                if showsEnvironmentCue, let environmentCue = model.environmentCue {
+                    Text(environmentCue)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .accessibilityLabel("Writing environment")
+                        .accessibilityValue(environmentCue)
+                        .accessibilityIdentifier("scribe-environment-cue")
+                }
             }
             Spacer()
             Button {
@@ -103,11 +131,27 @@ struct ScribePanelView: View {
         case let .listening(_, intent):
             listening(intent: intent)
         case .transcribing:
-            statusView(icon: "waveform", title: "Transcribing request…", detail: "Your speech stays on this Mac.")
+            cancellableStatus(
+                icon: "waveform",
+                title: "Transcribing request…",
+                detail: "Your speech stays on this Mac."
+            )
         case .generating:
-            statusView(icon: "sparkles", title: "Drafting…", detail: "You can cancel generation at any time.")
+            cancellableStatus(
+                icon: "sparkles",
+                title: "Drafting…",
+                detail: "You can cancel generation at any time."
+            )
+        case .generatingSlow:
+            cancellableStatus(
+                icon: "clock.arrow.circlepath",
+                title: "Still drafting…",
+                detail: "The provider is taking longer than usual. You can keep waiting or cancel safely."
+            )
         case let .reviewing(result):
             review(result)
+        case let .insertionRecovery(result):
+            insertionRecovery(result)
         case .inserting:
             statusView(icon: "keyboard", title: "Inserting draft…", detail: "Cadence is writing into the original app.")
         case .succeeded:
@@ -122,10 +166,10 @@ struct ScribePanelView: View {
     private var intentPicker: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("How should Scribe help?")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.title3.weight(.semibold))
                 .foregroundStyle(FlowTheme.textPrimary)
-            Text("Selected text is read only after you choose Respond or Edit.")
-                .font(.system(size: 12))
+            Text(model.selectedTextDisclosure)
+                .font(.body)
                 .foregroundStyle(FlowTheme.textSecondary)
 
             ForEach(ScribeIntent.allCases) { intent in
@@ -137,9 +181,9 @@ struct ScribePanelView: View {
                             .frame(width: 18)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(intent.displayName)
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.headline)
                             Text(intent.shortDescription)
-                                .font(.system(size: 11))
+                                .font(.caption)
                                 .foregroundStyle(FlowTheme.textSecondary)
                         }
                         Spacer()
@@ -164,12 +208,11 @@ struct ScribePanelView: View {
                 detail: intent.requiresSelectedText ? "Using the selected text for this request." : "No app text is being read."
             )
             HStack {
-                Button("Cancel request") { model.onCancel?() }
-                    .buttonStyle(.bordered)
+                CadenceActionButton(title: "Cancel request", role: .destructive) { model.onCancel?() }
                 Spacer()
-                Button("Stop and draft") { model.onStop?() }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.return, modifiers: [])
+                CadenceActionButton(title: "Stop and draft", role: .primary, isDefault: true) {
+                    model.onStop?()
+                }
             }
         }
     }
@@ -177,15 +220,21 @@ struct ScribePanelView: View {
     private func review(_ result: ScribeResult) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Draft ready")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.headline)
                 .foregroundStyle(FlowTheme.textPrimary)
             Text("Review the result before it affects the original app.")
-                .font(.system(size: 11))
+                .font(.caption)
                 .foregroundStyle(FlowTheme.textSecondary)
+            if let exactLiteralSummary = model.exactLiteralSummary {
+                Text(exactLiteralSummary)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .accessibilityLabel(exactLiteralSummary)
+            }
 
             ScrollView {
                 Text(result.text)
-                    .font(.system(size: 13))
+                    .font(.body)
                     .foregroundStyle(FlowTheme.textPrimary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -195,16 +244,45 @@ struct ScribePanelView: View {
             .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             HStack(spacing: 8) {
-                Button("Discard draft", role: .destructive) { model.onCancel?() }
-                    .buttonStyle(.bordered)
-                Button("Try again") { model.onRetry?() }
-                    .buttonStyle(.bordered)
-                Button("Copy draft") { model.onCopy?() }
-                    .buttonStyle(.bordered)
+                CadenceActionButton(title: "Discard draft", role: .destructive) { model.onCancel?() }
+                CadenceActionButton(title: "Draft again", role: .secondary) { model.onRetry?() }
+                CadenceActionButton(title: "Copy draft", role: .quiet) { model.onCopy?() }
                 Spacer()
-                Button("Insert into original app") { model.onInsert?() }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.return, modifiers: [])
+                CadenceActionButton(
+                    title: "Insert into original app",
+                    role: .primary,
+                    isDefault: true
+                ) { model.onInsert?() }
+            }
+        }
+    }
+
+    private func insertionRecovery(_ result: ScribeResult) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            statusView(
+                icon: "arrow.uturn.backward.circle",
+                title: "Draft not inserted",
+                detail: model.failureMessage ?? "Return to the original app and insertion point. Your draft is still here."
+            )
+            .accessibilityIdentifier("scribe-insertion-recovery-status")
+            ScrollView {
+                Text(result.text)
+                    .font(.body)
+                    .foregroundStyle(FlowTheme.textPrimary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(12)
+            }
+            .frame(minHeight: 100, maxHeight: 200)
+            .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            HStack(spacing: 8) {
+                CadenceActionButton(title: "Discard draft", role: .destructive) { model.onCancel?() }
+                CadenceActionButton(title: "Copy draft", role: .quiet) { model.onCopy?() }
+                Spacer()
+                CadenceActionButton(title: "Return and insert", role: .primary, isDefault: true) {
+                    model.onInsert?()
+                }
             }
         }
     }
@@ -217,15 +295,16 @@ struct ScribePanelView: View {
                 detail: model.failureMessage ?? "Scribe could not finish this request."
             )
             HStack(spacing: 8) {
-                Button("Discard request", role: .destructive) { model.onCancel?() }
-                    .buttonStyle(.bordered)
+                CadenceActionButton(title: "Discard request", role: .destructive) { model.onCancel?() }
                 if model.literalTranscript?.isEmpty == false {
-                    Button("Use spoken words") { model.onUseLiteral?() }
-                        .buttonStyle(.bordered)
+                    CadenceActionButton(title: "Use spoken words", role: .quiet) { model.onUseLiteral?() }
                 }
                 Spacer()
-                Button("Try Scribe again") { model.onRetry?() }
-                    .buttonStyle(.borderedProminent)
+                CadenceActionButton(
+                    title: model.canRetryGeneration ? "Try Scribe again" : "Record request again",
+                    role: .primary,
+                    isDefault: true
+                ) { model.onRetry?() }
             }
         }
     }
@@ -238,12 +317,10 @@ struct ScribePanelView: View {
                 detail: "Cadence updated the pinned text field atomically. Copy the draft here if the app did not display it."
             )
             HStack {
-                Button("Copy draft") { model.onCopy?() }
-                    .buttonStyle(.bordered)
                 Spacer()
-                Button("Done") { model.onClose?() }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
+                CadenceActionButton(title: "Done", role: .primary, isDefault: true) {
+                    model.onClose?()
+                }
             }
         }
     }
@@ -254,16 +331,27 @@ struct ScribePanelView: View {
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(FlowTheme.accent)
                 .frame(width: 22)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.headline)
                     .foregroundStyle(FlowTheme.textPrimary)
                 Text(detail)
-                    .font(.system(size: 11))
+                    .font(.caption)
                     .foregroundStyle(FlowTheme.textSecondary)
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private func cancellableStatus(icon: String, title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            statusView(icon: icon, title: title, detail: detail)
+            HStack {
+                Spacer()
+                CadenceActionButton(title: "Cancel request", role: .quiet) { model.onCancel?() }
+            }
+        }
     }
 
     private func intentIcon(_ intent: ScribeIntent) -> String {
@@ -272,6 +360,11 @@ struct ScribePanelView: View {
         case .respond: return "arrowshape.turn.up.left"
         case .edit: return "text.cursor"
         }
+    }
+
+    private var showsEnvironmentCue: Bool {
+        if case .reviewing = model.state { return true }
+        return false
     }
 
     private func focusFirstIntentIfNeeded() {
@@ -298,19 +391,41 @@ final class ScribePanelWindowController {
     let viewModel = ScribePanelViewModel()
     private var panel: NSPanel?
 
-    func presentIntentPicker(providerStatus: String, initialFocus: ScribeIntent = .compose) {
-        viewModel.presentPicker(providerStatus: providerStatus, initialFocus: initialFocus)
+    func presentIntentPicker(
+        providerStatus: String,
+        selectedTextDisclosure: String,
+        initialFocus: ScribeIntent = .compose
+    ) {
+        viewModel.presentPicker(
+            providerStatus: providerStatus,
+            selectedTextDisclosure: selectedTextDisclosure,
+            initialFocus: initialFocus
+        )
         show(size: Metrics.picker)
     }
 
-    func update(state: ScribeSessionState, failureMessage: String?, literalTranscript: String?) {
-        viewModel.apply(state: state, failureMessage: failureMessage, literalTranscript: literalTranscript)
+    func update(
+        state: ScribeSessionState,
+        failureMessage: String?,
+        literalTranscript: String?,
+        environmentCue: String? = nil,
+        exactLiterals: [ScribeExactLiteral] = [],
+        canRetryGeneration: Bool = false
+    ) {
+        viewModel.apply(
+            state: state,
+            failureMessage: failureMessage,
+            literalTranscript: literalTranscript,
+            environmentCue: environmentCue,
+            exactLiterals: exactLiterals,
+            canRetryGeneration: canRetryGeneration
+        )
         switch state {
         case .idle:
             panel?.orderOut(nil)
         case .choosingIntent:
             show(size: Metrics.picker)
-        case .reviewing:
+        case .reviewing, .insertionRecovery:
             show(size: Metrics.review)
         default:
             show(size: Metrics.status)
@@ -320,6 +435,31 @@ final class ScribePanelWindowController {
     func close() {
         panel?.orderOut(nil)
     }
+
+    #if DEBUG
+    func presentFixture(
+        state: ScribeSessionState,
+        failureMessage: String? = nil,
+        literalTranscript: String? = nil,
+        environmentCue: String? = nil,
+        exactLiterals: [ScribeExactLiteral] = [],
+        canRetryGeneration: Bool = false,
+        width: CGFloat? = nil
+    ) {
+        viewModel.apply(
+            state: state,
+            failureMessage: failureMessage,
+            literalTranscript: literalTranscript,
+            environmentCue: environmentCue,
+            exactLiterals: exactLiterals,
+            canRetryGeneration: canRetryGeneration
+        )
+        show(size: NSSize(
+            width: width ?? Metrics.review.width,
+            height: Metrics.review.height
+        ))
+    }
+    #endif
 
     private func show(size: NSSize) {
         let panel = makePanelIfNeeded(size: size)

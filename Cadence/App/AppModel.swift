@@ -98,6 +98,11 @@ final class AppModel: ObservableObject {
     @Published private(set) var permissions: PermissionsSnapshot
     @Published private(set) var state: DictationSessionState = .idle
     @Published private(set) var scribeState: ScribeSessionState = .idle
+    @Published private(set) var scribeProviderReadiness: ScribeProviderReadiness = .setupRequired
+    @Published private(set) var showsLegacyWritingProfileNotice = false
+    @Published private(set) var scribeAppAdaptationEnabled = true
+    @Published private(set) var writingEnvironmentPreferenceState: WritingEnvironmentPreferenceLoadResult = .absent
+    @Published var isScribeProviderSetupPresented = false
     @Published private(set) var hudState = HUDState.idle
     @Published private(set) var lastTranscript = ""
     @Published private(set) var transcriptHistory: [TranscriptHistoryItem]
@@ -143,7 +148,9 @@ final class AppModel: ObservableObject {
     private let coordinator: DictationCoordinator
     private let scribeCoordinator: ScribeCoordinator
     private let scribeTranscriptionEngine: TranscriptionEngine
-    private let scribeProviderCapabilities: ScribeProviderCapabilities
+    private let scribeProviderController: ScribeProviderController
+    private let writingEnvironmentStore: WritingEnvironmentStore
+    private let scribeDiagnosticsService: ScribeDiagnosticsService
     private let scribePanelWindowController = ScribePanelWindowController()
     private let voiceSessionArbiter: VoiceSessionArbiter
     let onboardingMicrophoneMonitor: OnboardingMicrophoneMonitor
@@ -186,7 +193,14 @@ final class AppModel: ObservableObject {
     private var pendingScribeIntent: ScribeIntent?
 
     init() {
+        #if DEBUG
+        let defaults = ScribeLaunchFixtures.runtimeDefaults()
+        #else
         let defaults = UserDefaults.standard
+        #endif
+        #if DEBUG
+        ScribeLaunchFixtures.apply(to: defaults)
+        #endif
         let hudVisibilityController = HUDVisibilityController(
             store: HUDVisibilityStore(defaults: defaults)
         )
@@ -197,7 +211,8 @@ final class AppModel: ObservableObject {
         self.hudVisibilityController = hudVisibilityController
         self.hudVisibility = hudVisibilityController.state
         self.selectionCaptureService = SelectionCaptureService()
-        self.transcriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
+        let initialTranscriptionConfiguration = AppModel.loadConfiguration(defaults: defaults)
+        self.transcriptionConfiguration = initialTranscriptionConfiguration
         let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
         let showsShortcutDock = (defaults.object(forKey: PreferenceKey.showsShortcutDock) as? Bool) ?? true
         let dictationSoundFeedbackEnabled = DictationSoundFeedbackPreference.load(from: defaults)
@@ -280,12 +295,51 @@ final class AppModel: ObservableObject {
         let audioCaptureService = AudioCaptureService()
         let scribeAudioCaptureService = AudioCaptureService()
         let scribeProvider = Self.makeScribeProvider()
+        let legacyScribeProvider: (any ScribeProvider)?
+        #if DEBUG
+        legacyScribeProvider = ScribeLaunchFixtures.disablesLegacyProvider
+            ? nil
+            : (scribeProvider.capabilities.contains(.semanticGeneration) ? scribeProvider : nil)
+        #else
+        legacyScribeProvider = scribeProvider.capabilities.contains(.semanticGeneration)
+            ? scribeProvider
+            : nil
+        #endif
+        let scribeConfigurationStore = ScribeProviderConfigurationStore(defaults: defaults)
+        #if DEBUG
+        let scribeCredentialStore = ScribeLaunchFixtures.credentialStore()
+        #else
+        let scribeCredentialStore = KeychainScribeCredentialStore()
+        #endif
+        let scribeProviderController = ScribeProviderController(
+            configurationStore: scribeConfigurationStore,
+            credentialStore: scribeCredentialStore,
+            legacyProvider: legacyScribeProvider
+        )
+        let writingEnvironmentStore = WritingEnvironmentStore(defaults: defaults)
+        let scribeDiagnosticsService = ScribeDiagnosticsService()
+        let migrationResult = try? AdaptiveScribeMigrationService(
+            defaults: defaults,
+            personalizationStore: personalizationStore
+        ).migrate(
+            scribeEnabled: initialScribeBinding.isEnabled,
+            legacyLocalAvailable: legacyScribeProvider != nil,
+            providerConfiguration: scribeConfigurationStore.load()
+        )
         let textInsertionService = TextInsertionService()
         let voiceSessionArbiter = VoiceSessionArbiter()
         self.voiceSessionArbiter = voiceSessionArbiter
         self.onboardingMicrophoneMonitor = OnboardingMicrophoneMonitor(sessionArbiter: voiceSessionArbiter)
         self.scribeTranscriptionEngine = scribeTranscriptionEngine
-        self.scribeProviderCapabilities = scribeProvider.capabilities
+        self.scribeProviderController = scribeProviderController
+        self.writingEnvironmentStore = writingEnvironmentStore
+        self.scribeDiagnosticsService = scribeDiagnosticsService
+        self.scribeProviderReadiness = scribeProviderController.readiness
+        self.showsLegacyWritingProfileNotice = migrationResult?.shouldShowLegacyProfileNotice ?? false
+        self.scribeAppAdaptationEnabled = (
+            defaults.object(forKey: AdaptiveScribeMigrationService.adaptationEnabledKey) as? Bool
+        ) ?? true
+        self.writingEnvironmentPreferenceState = writingEnvironmentStore.load()
         let hotkeyService = HotkeyService(
             bindings: Self.currentHotkeyBindings(
                 hold: initialHoldBinding,
@@ -315,22 +369,33 @@ final class AppModel: ObservableObject {
             audioCaptureService: scribeAudioCaptureService,
             transcriptionEngine: scribeTranscriptionEngine,
             provider: scribeProvider,
+            providerActionResolver: { try scribeProviderController.actionForNewRequest() },
             contextService: ScribeContextService(),
             sessionArbiter: voiceSessionArbiter,
-            personalizationStore: personalizationStore
+            personalizationStore: personalizationStore,
+            writingEnvironmentPreferences: { writingEnvironmentStore.load() },
+            adaptationEnabled: {
+                (defaults.object(forKey: AdaptiveScribeMigrationService.adaptationEnabledKey) as? Bool) ?? true
+            },
+            transcriptionConfiguration: initialTranscriptionConfiguration
         )
 
         applyAppearancePreference()
         bindCoordinator()
         bindHUDVisibility()
         bindScribeCoordinator()
+        bindScribeProviderController()
         bindHotkeyDiagnostics()
         bindPermissionRefresh()
         AppDelegate.openMainWindow = { [weak self] in
             self?.showMainWindow()
         }
         showMainWindow()
+        #if DEBUG
+        presentScribeLaunchFixtureIfNeeded()
+        #endif
         Task {
+            await scribeDiagnosticsService.load()
             await refreshPermissions()
             await applyTranscriptionConfiguration(prewarm: false)
             await warmBackend()
@@ -385,19 +450,19 @@ final class AppModel: ObservableObject {
     }
 
     var scribeProviderStatus: String {
-        #if DEBUG
-        return "Local preview provider · no network"
-        #else
-        return scribeProviderCapabilities.contains(.semanticGeneration)
-            ? "On-device Apple Intelligence · no network"
-            : "On-device drafting unavailable · literal fallback only"
-        #endif
+        scribeProviderController.statusText
     }
 
     var scribeReadiness: ScribeReadiness {
-        ScribeReadiness(
+        let capabilities: ScribeProviderCapabilities
+        if case .ready = scribeProviderReadiness {
+            capabilities = [.semanticGeneration, .selectedTextContext, .cancellation]
+        } else {
+            capabilities = []
+        }
+        return ScribeReadiness(
             privacyMode: Self.scribePrivacyMode,
-            providerCapabilities: scribeProviderCapabilities,
+            providerCapabilities: capabilities,
             permissionsGranted: permissions.allRequiredGranted
         )
     }
@@ -2019,7 +2084,293 @@ final class AppModel: ObservableObject {
         coordinator.updateHotkeyBindings(sanitizedHotkeyBindings())
     }
 
+    var configuredScribeProviderKind: ScribeProviderKind? {
+        scribeProviderController.configuredKind
+    }
+
+    var configuredScribeProviderIsEnabled: Bool {
+        scribeProviderController.configuredProviderIsEnabled
+    }
+
+    var configuredScribeRecipient: String? {
+        scribeProviderController.configuredRecipient
+    }
+
+    func presentScribeProviderSetup() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.scribeCoordinator.cancel()
+            self.pendingScribeIntent = nil
+            self.scribePanelWindowController.close()
+            self.isScribeProviderSetupPresented = true
+            self.showMainWindow()
+        }
+    }
+
+    func dismissScribeProviderSetup() {
+        isScribeProviderSetupPresented = false
+    }
+
+    func connectDeepSeekForScribe(credential: String) async throws {
+        await recordScribeDiagnostic(
+            kind: .validationStarted,
+            phase: .validation,
+            provider: .deepSeek,
+            outcome: .success
+        )
+        do {
+            try await scribeProviderController.connectDeepSeek(credential: credential)
+            scribeProviderReadiness = scribeProviderController.readiness
+            await recordScribeDiagnostic(
+                kind: .validationCompleted,
+                phase: .validation,
+                provider: .deepSeek,
+                outcome: .success
+            )
+        } catch {
+            await recordScribeDiagnostic(
+                kind: .validationCompleted,
+                phase: .validation,
+                provider: .deepSeek,
+                outcome: Self.diagnosticOutcome(for: error)
+            )
+            throw error
+        }
+    }
+
+    func connectAdvancedScribeProvider(
+        baseURL: String,
+        model: String,
+        credential: String
+    ) async throws {
+        await recordScribeDiagnostic(
+            kind: .validationStarted,
+            phase: .validation,
+            provider: .advanced,
+            outcome: .success
+        )
+        do {
+            try await scribeProviderController.connectAdvanced(
+                baseURL: baseURL,
+                model: model,
+                credential: credential
+            )
+            scribeProviderReadiness = scribeProviderController.readiness
+            await recordScribeDiagnostic(
+                kind: .validationCompleted,
+                phase: .validation,
+                provider: .advanced,
+                outcome: .success
+            )
+        } catch {
+            await recordScribeDiagnostic(
+                kind: .validationCompleted,
+                phase: .validation,
+                provider: .advanced,
+                outcome: Self.diagnosticOutcome(for: error)
+            )
+            throw error
+        }
+    }
+
+    func generateScribePracticeDraft() async throws -> String {
+        let action = try scribeProviderController.actionForNewRequest()
+        try action.validateForAcquisition(intent: .compose)
+        let environment = WritingEnvironmentResolver.resolve(
+            recognizedEnvironmentID: .global,
+            adaptationEnabled: true,
+            preferenceLoadResult: .absent
+        )
+        let request = ScribeRequest(
+            intent: .compose,
+            spokenTranscript: "Write one short update confirming that the Cadence Scribe practice check is complete.",
+            resolvedEnvironment: environment
+        )
+        let providerRequest = ScribeProviderRequest(
+            id: request.id,
+            input: try ScribeRequestPolicy.providerSafeInput(
+                for: request,
+                destination: action.destination
+            )
+        )
+        let result = try await action.provider.generate(providerRequest)
+        guard result.requestID == request.id else { throw ScribeProviderError.invalidResult }
+        return try ScribeRequestPolicy.validateOutput(
+            result.text,
+            requiredLiterals: [],
+            spokenRequest: request.spokenTranscript
+        )
+    }
+
+    func setConfiguredScribeProviderEnabled(_ enabled: Bool) {
+        do {
+            try scribeProviderController.setEnabled(enabled)
+            scribeProviderReadiness = scribeProviderController.readiness
+        } catch {
+            lastError = "Cadence could not update the Scribe provider state."
+        }
+    }
+
+    func removeConfiguredScribeProvider() {
+        do {
+            try scribeProviderController.removeProvider()
+            scribeProviderReadiness = scribeProviderController.readiness
+            Task { [scribeDiagnosticsService] in
+                await scribeDiagnosticsService.record(ScribeDiagnosticEvent(
+                    kind: .providerRemoved,
+                    phase: .readiness,
+                    provider: .none,
+                    outcome: .success
+                ))
+            }
+        } catch {
+            lastError = "Cadence could not remove the Scribe provider from this Mac."
+        }
+    }
+
+    func setScribeAppAdaptationEnabled(_ enabled: Bool) {
+        scribeAppAdaptationEnabled = enabled
+        defaults.set(enabled, forKey: AdaptiveScribeMigrationService.adaptationEnabledKey)
+    }
+
+    func setWritingEnvironmentBehavior(
+        _ behaviorID: WritingBehaviorID,
+        for environmentID: WritingEnvironmentID
+    ) {
+        guard environmentID != .global,
+              let definition = WritingEnvironmentCatalog.releaseOne.environment(id: environmentID),
+              definition.supportedBehaviorIDs.contains(behaviorID) else { return }
+        guard case let .valid(existing) = normalizedWritingEnvironmentPreferences() else {
+            lastError = "Restore writing environment defaults before changing this setting."
+            return
+        }
+        var preferences = existing.filter { $0.environmentID != environmentID }
+        let current = existing.first { $0.environmentID == environmentID }
+        preferences.append(WritingEnvironmentPreference(
+            environmentID: environmentID,
+            isEnabled: current?.isEnabled ?? true,
+            selectedBehaviorID: behaviorID,
+            definitionVersion: definition.definitionVersion
+        ))
+        saveWritingEnvironmentPreferences(preferences)
+    }
+
+    func setWritingEnvironmentEnabled(
+        _ enabled: Bool,
+        for environmentID: WritingEnvironmentID
+    ) {
+        guard environmentID != .global,
+              let definition = WritingEnvironmentCatalog.releaseOne.environment(id: environmentID) else { return }
+        guard case let .valid(existing) = normalizedWritingEnvironmentPreferences() else {
+            lastError = "Restore writing environment defaults before changing this setting."
+            return
+        }
+        var preferences = existing.filter { $0.environmentID != environmentID }
+        let current = existing.first { $0.environmentID == environmentID }
+        preferences.append(WritingEnvironmentPreference(
+            environmentID: environmentID,
+            isEnabled: enabled,
+            selectedBehaviorID: current?.selectedBehaviorID ?? definition.defaultBehaviorID,
+            definitionVersion: definition.definitionVersion
+        ))
+        saveWritingEnvironmentPreferences(preferences)
+    }
+
+    func resetWritingEnvironment(_ environmentID: WritingEnvironmentID) {
+        guard case let .valid(existing) = normalizedWritingEnvironmentPreferences() else { return }
+        saveWritingEnvironmentPreferences(existing.filter { $0.environmentID != environmentID })
+    }
+
+    func restoreWritingEnvironmentDefaults() {
+        writingEnvironmentStore.clear()
+        writingEnvironmentPreferenceState = .absent
+    }
+
+    func dismissLegacyWritingProfileNotice() {
+        AdaptiveScribeMigrationService(
+            defaults: defaults,
+            personalizationStore: personalizationStore
+        ).dismissLegacyProfileNotice()
+        showsLegacyWritingProfileNotice = false
+    }
+
+    func removeLegacyWritingProfiles() {
+        personalizationLibrary.styleProfiles = []
+        persistPersonalizationLibrary()
+        dismissLegacyWritingProfileNotice()
+    }
+
+    func clearScribeDiagnostics() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.scribeDiagnosticsService.clear()
+            self.lastError = nil
+        }
+    }
+
+    func exportScribeDiagnostics() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let data: Data
+            do {
+                data = try await ScribeDiagnosticsExportService.makeExport(
+                    events: await self.scribeDiagnosticsService.events(),
+                    generatedAt: Date(),
+                    appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
+                    build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
+                    macOSMajorVersion: ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
+                    readiness: Self.diagnosticReadiness(self.scribeProviderReadiness),
+                    permissions: ScribeDiagnosticPermissionSnapshot(
+                        microphone: self.permissions.microphoneGranted,
+                        accessibility: self.permissions.accessibilityGranted,
+                        inputMonitoring: self.permissions.inputMonitoringGranted
+                    ),
+                    provider: self.diagnosticProvider,
+                    appAdaptationEnabled: self.scribeAppAdaptationEnabled
+                )
+            } catch {
+                self.lastError = "Cadence could not prepare the Scribe diagnostics export."
+                return
+            }
+
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.json]
+            panel.nameFieldStringValue = "Cadence-Scribe-Diagnostics.json"
+            panel.message = "This content-free export is saved only where you choose. Cadence does not upload it."
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            do {
+                try data.write(to: url, options: .atomic)
+                self.lastError = nil
+            } catch {
+                self.lastError = "Cadence could not save the Scribe diagnostics export."
+            }
+        }
+    }
+
+    private func normalizedWritingEnvironmentPreferences() -> WritingEnvironmentPreferenceLoadResult {
+        switch writingEnvironmentPreferenceState {
+        case .absent:
+            return .valid([])
+        case .valid, .rejected:
+            return writingEnvironmentPreferenceState
+        }
+    }
+
+    private func saveWritingEnvironmentPreferences(_ preferences: [WritingEnvironmentPreference]) {
+        do {
+            try writingEnvironmentStore.save(preferences)
+            writingEnvironmentPreferenceState = .valid(preferences)
+            lastError = nil
+        } catch {
+            lastError = "Cadence could not save writing environment settings."
+        }
+    }
+
     func showScribe() {
+        guard case .ready = scribeProviderReadiness else {
+            presentScribeProviderSetup()
+            return
+        }
         switch scribeState {
         case .idle, .succeeded, .cancelled, .failed:
             do {
@@ -2029,12 +2380,16 @@ final class AppModel: ObservableObject {
                         scribeState = .choosingIntent
                         scribePanelWindowController.presentIntentPicker(
                             providerStatus: scribeProviderStatus,
+                            selectedTextDisclosure: scribeCoordinator.selectedTextDisclosure,
                             initialFocus: initialFocus
                         )
                     }
                 )
             } catch let error as ScribeContextError {
                 presentScribeStartFailure(error.userMessage)
+                return
+            } catch is ScribeProviderFailure {
+                presentScribeProviderSetup()
                 return
             } catch {
                 presentScribeStartFailure("Cadence could not identify where to write. Return to the original app and try again.")
@@ -2044,7 +2399,10 @@ final class AppModel: ObservableObject {
             scribePanelWindowController.update(
                 state: scribeState,
                 failureMessage: scribeFailureMessage,
-                literalTranscript: scribeCoordinator.literalTranscript
+                literalTranscript: scribeCoordinator.literalTranscript,
+                environmentCue: scribeCoordinator.resolvedEnvironment?.cue,
+                exactLiterals: scribeCoordinator.exactLiterals,
+                canRetryGeneration: scribeCoordinator.canRetryGeneration
             )
         }
     }
@@ -2134,7 +2492,7 @@ final class AppModel: ObservableObject {
     }
 
     private func copyScribeResult() {
-        guard let text = scribeCoordinator.reviewedResult?.text else { return }
+        guard let text = scribeCoordinator.takeReviewedDraftForCopy() else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }
@@ -2147,8 +2505,12 @@ final class AppModel: ObservableObject {
             return error.userMessage
         case let .voiceSessionBusy(kind):
             return "Stop the active \(kind.rawValue) session before starting Scribe."
+        case .transcriptionEmpty:
+            return "Cadence did not hear a request. Record the request again or use Dictation."
         case .transcription:
             return "Cadence could not transcribe that request. Try again or use Dictation."
+        case .literalRepair:
+            return "Cadence could not resolve an exact literal. Use the spoken words, record the request again, or cancel Scribe."
         case nil:
             return nil
         }
@@ -2164,8 +2526,14 @@ final class AppModel: ObservableObject {
             self.scribePanelWindowController.update(
                 state: state,
                 failureMessage: self.scribeFailureMessage,
-                literalTranscript: self.scribeCoordinator.literalTranscript
+                literalTranscript: self.scribeCoordinator.literalTranscript,
+                environmentCue: self.scribeCoordinator.resolvedEnvironment?.cue,
+                exactLiterals: self.scribeCoordinator.exactLiterals,
+                canRetryGeneration: self.scribeCoordinator.canRetryGeneration
             )
+            Task { @MainActor [weak self] in
+                await self?.recordScribeState(state)
+            }
         }
 
         let viewModel = scribePanelWindowController.viewModel
@@ -2182,6 +2550,211 @@ final class AppModel: ObservableObject {
             self?.scribePanelWindowController.close()
         }
     }
+
+    private func bindScribeProviderController() {
+        scribeProviderController.onReadinessChange = { [weak self] readiness in
+            self?.scribeProviderReadiness = readiness
+        }
+        scribeProviderController.onProviderRemoved = { [weak self] in
+            guard let self else { return }
+            self.scribeCoordinator.invalidateProviderWork()
+            Task { @MainActor in
+                await self.scribeCoordinator.cancel()
+            }
+        }
+    }
+
+    private func recordScribeState(_ state: ScribeSessionState) async {
+        let event: ScribeDiagnosticEvent?
+        switch state {
+        case let .listening(_, intent):
+            event = ScribeDiagnosticEvent(
+                kind: .captureCompleted,
+                phase: .capture,
+                provider: diagnosticProvider,
+                outcome: .success,
+                appAdaptationEnabled: scribeAppAdaptationEnabled,
+                selectedTextIntent: intent.requiresSelectedText
+            )
+        case .transcribing:
+            event = ScribeDiagnosticEvent(
+                kind: .transcriptionStarted,
+                phase: .transcription,
+                provider: diagnosticProvider,
+                outcome: .success
+            )
+        case .generating:
+            event = ScribeDiagnosticEvent(
+                kind: .generationStarted,
+                phase: .generation,
+                provider: diagnosticProvider,
+                outcome: .success,
+                attempt: .first,
+                appAdaptationEnabled: scribeAppAdaptationEnabled
+            )
+        case .generatingSlow:
+            event = nil
+        case .reviewing:
+            event = ScribeDiagnosticEvent(
+                kind: .generationCompleted,
+                phase: .generation,
+                provider: diagnosticProvider,
+                outcome: .success,
+                attempt: .first
+            )
+        case .insertionRecovery:
+            event = ScribeDiagnosticEvent(
+                kind: .insertionVerificationCompleted,
+                phase: .insertion,
+                provider: diagnosticProvider,
+                outcome: .targetChanged
+            )
+        case .succeeded:
+            event = ScribeDiagnosticEvent(
+                kind: .insertionVerificationCompleted,
+                phase: .insertion,
+                provider: diagnosticProvider,
+                outcome: .success
+            )
+        case .cancelled:
+            event = ScribeDiagnosticEvent(
+                kind: .reviewFallbackChosen,
+                phase: .review,
+                provider: diagnosticProvider,
+                outcome: .cancelled
+            )
+        case .failed:
+            event = ScribeDiagnosticEvent(
+                kind: .generationCompleted,
+                phase: .generation,
+                provider: diagnosticProvider,
+                outcome: Self.diagnosticOutcome(
+                    for: scribeCoordinator.providerFailure,
+                    fallback: scribeCoordinator.failure
+                )
+            )
+        case .idle, .choosingIntent, .inserting:
+            event = nil
+        }
+        if let event { await scribeDiagnosticsService.record(event) }
+    }
+
+    private func recordScribeDiagnostic(
+        kind: ScribeDiagnosticKind,
+        phase: ScribeDiagnosticPhase,
+        provider: ScribeDiagnosticProvider,
+        outcome: ScribeDiagnosticOutcome
+    ) async {
+        await scribeDiagnosticsService.record(ScribeDiagnosticEvent(
+            kind: kind,
+            phase: phase,
+            provider: provider,
+            outcome: outcome
+        ))
+    }
+
+    private var diagnosticProvider: ScribeDiagnosticProvider {
+        switch configuredScribeProviderKind {
+        case .deepSeek: return .deepSeek
+        case .advanced: return .advanced
+        case .legacyLocal: return .legacyLocal
+        case nil:
+            if case .ready(.legacyLocal) = scribeProviderReadiness { return .legacyLocal }
+            return .none
+        }
+    }
+
+    private static func diagnosticOutcome(for error: Error) -> ScribeDiagnosticOutcome {
+        if let failure = error as? ScribeProviderFailure {
+            return diagnosticOutcome(for: failure, fallback: nil)
+        }
+        if error is CancellationError { return .cancelled }
+        if error is ScribeProviderConfigurationError { return .configurationInvalid }
+        return .otherSafeCategory
+    }
+
+    private static func diagnosticOutcome(
+        for failure: ScribeProviderFailure?,
+        fallback: ScribeSessionFailure?
+    ) -> ScribeDiagnosticOutcome {
+        if let failure {
+            switch failure.category {
+            case .setupRequired: return .setupRequired
+            case .configurationInvalid: return .configurationInvalid
+            case .credentialRejected: return .credentialRejected
+            case .balanceRequired: return .balanceRequired
+            case .rateLimited: return .rateLimited
+            case .transportUnavailable, .unsafeConnection: return .transportUnavailable
+            case .timedOut: return .timedOut
+            case .providerUnavailable: return .providerUnavailable
+            case .providerRejected, .incompatibleRequest, .endpointNotFound: return .providerRejected
+            case .invalidResponse: return .invalidResponse
+            case .cancelled: return .cancelled
+            }
+        }
+        switch fallback {
+        case .transcriptionEmpty: return .transcriptionEmpty
+        case .transcription: return .transcriptionFailed
+        case .context(.targetChanged): return .targetChanged
+        case .context: return .insertionFailed
+        case .provider(.offline): return .transportUnavailable
+        case .provider(.timedOut): return .timedOut
+        case .provider(.cancelled): return .cancelled
+        case .provider: return .providerUnavailable
+        case .voiceSessionBusy, .literalRepair, nil: return .otherSafeCategory
+        }
+    }
+
+    private static func diagnosticReadiness(
+        _ readiness: ScribeProviderReadiness
+    ) -> ScribeDiagnosticReadiness {
+        switch readiness {
+        case .disabled: return .disabled
+        case .setupRequired: return .setupRequired
+        case .validating: return .validating
+        case .ready: return .ready
+        case .temporarilyUnavailable: return .temporarilyUnavailable
+        case .configurationInvalid: return .configurationInvalid
+        case .needsAttention: return .needsAttention
+        case .deprecated: return .deprecated
+        case .removed: return .removed
+        }
+    }
+
+    #if DEBUG
+    private func presentScribeLaunchFixtureIfNeeded() {
+        guard let fixture = ScribeLaunchFixtures.current else { return }
+        let result = ScribeResult(
+            requestID: UUID(),
+            text: "Update `parseID` after reviewing this synthetic fixture draft."
+        )
+        switch fixture {
+        case .slackReview:
+            scribeState = .reviewing(result)
+            scribePanelWindowController.presentFixture(
+                state: .reviewing(result),
+                environmentCue: "Slack · Neutral",
+                exactLiterals: [ScribeExactLiteral(
+                    id: 1,
+                    value: "parseID",
+                    source: .explicitGrammar
+                )],
+                canRetryGeneration: true,
+                width: ScribeLaunchFixtures.panelWidth
+            )
+        case .insertionRecovery:
+            scribeState = .insertionRecovery(result)
+            scribePanelWindowController.presentFixture(
+                state: .insertionRecovery(result),
+                failureMessage: "Return to the original app and insertion point. Your draft is still here.",
+                literalTranscript: "Synthetic spoken request",
+                width: ScribeLaunchFixtures.panelWidth
+            )
+        case .setup, .settings:
+            break
+        }
+    }
+    #endif
 
     private func releaseMeetingVoiceSessionLease() {
         guard let meetingVoiceSessionLease else { return }
@@ -2697,6 +3270,7 @@ final class AppModel: ObservableObject {
 
         let shouldPrewarm = next.model != transcriptionConfiguration.model
         transcriptionConfiguration = next
+        scribeCoordinator.updateLocalTextConfiguration(next)
         persist(configuration: next)
         lastError = nil
 

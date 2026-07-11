@@ -37,11 +37,7 @@ struct ScribeTests {
         let provider = MockScribeProvider(
             responses: [.success("A concise response.")]
         )
-        let request = ScribeRequest(
-            intent: .respond,
-            spokenTranscript: "Decline politely",
-            context: ScribeRequestContext(selectedText: "Can you attend tomorrow?")
-        )
+        let request = Self.providerRequest()
 
         let first = try await provider.generate(request)
         let duplicate = try await provider.generate(request)
@@ -56,7 +52,7 @@ struct ScribeTests {
     @Test
     func mockProviderRejectsEmptyOutput() async {
         let provider = MockScribeProvider(responses: [.success("   \n")])
-        let request = ScribeRequest(intent: .compose, spokenTranscript: "Write an update")
+        let request = Self.providerRequest()
 
         await #expect(throws: ScribeProviderError.emptyResult) {
             try await provider.generate(request)
@@ -69,7 +65,7 @@ struct ScribeTests {
         let oversized = MockScribeProvider(
             responses: [.success(String(repeating: "a", count: ScribeOutputPolicy.maximumUTF8Bytes + 1))]
         )
-        let request = ScribeRequest(intent: .compose, spokenTranscript: "Write an update")
+        let request = Self.providerRequest()
 
         await #expect(throws: ScribeProviderError.invalidResult) {
             try await malformed.generate(request)
@@ -84,7 +80,7 @@ struct ScribeTests {
         let provider = MockScribeProvider(
             responses: [.delayedSuccess("Late result", .seconds(10))]
         )
-        let request = ScribeRequest(intent: .compose, spokenTranscript: "Write an update")
+        let request = Self.providerRequest()
         let task = Task { try await provider.generate(request) }
 
         task.cancel()
@@ -102,7 +98,7 @@ struct ScribeTests {
             ScribeProviderError.cancelled
         ] {
             let provider = MockScribeProvider(responses: [.failure(failure)])
-            let request = ScribeRequest(intent: .compose, spokenTranscript: "Write an update")
+            let request = Self.providerRequest()
 
             await #expect(throws: failure) {
                 try await provider.generate(request)
@@ -117,7 +113,18 @@ struct ScribeTests {
 
         #expect(ScribeSessionState.listening(requestID: requestID, intent: .compose).requestID == requestID)
         #expect(ScribeSessionState.generating(requestID: requestID).requestID == requestID)
+        #expect(ScribeSessionState.generatingSlow(requestID: requestID).requestID == requestID)
         #expect(ScribeSessionState.reviewing(result).requestID == requestID)
         #expect(ScribeSessionState.idle.requestID == nil)
+    }
+
+    private static func providerRequest(id: UUID = UUID()) -> ScribeProviderRequest {
+        ScribeProviderRequest(
+            id: id,
+            input: ProviderSafeScribeInput(
+                systemMessage: "Fixture system message",
+                userMessage: "Fixture user message"
+            )
+        )
     }
 }

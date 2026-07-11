@@ -11,7 +11,8 @@ struct ScribeContextServiceTests {
                 target: .init(processIdentifier: 42, bundleIdentifier: "com.apple.TextEdit"),
                 verificationToken: "window-a",
                 selectedText: "should not be read",
-                isSecureField: false
+                isSecureField: false,
+                selectionIdentity: .init(location: 7, length: 0)
             )
         )
         let service = ScribeContextService(reader: reader)
@@ -20,8 +21,10 @@ struct ScribeContextServiceTests {
 
         #expect(capture.scope == .none)
         #expect(capture.selectedText.isEmpty)
+        #expect(capture.selectionIdentity == .init(location: 7, length: 0))
         #expect(reader.selectionReadRequests == [false])
         #expect(try service.verifyTarget(for: capture))
+        #expect(reader.currentFocusReadRequests == [false])
     }
 
     @Test
@@ -120,13 +123,51 @@ struct ScribeContextServiceTests {
             try service.verifyTarget(for: capture)
         }
     }
+
+    @Test
+    func verificationUsesFreshSystemFocusAndRejectsMovedComposeCaret() throws {
+        let target = ScribeTargetIdentity(processIdentifier: 42, bundleIdentifier: "com.apple.TextEdit")
+        let signature = TargetRecognitionSignature(
+            role: "AXTextArea",
+            subrole: nil,
+            identifierAncestry: ["editor"]
+        )
+        let reader = StubScribeAccessibilityReader(
+            snapshot: .init(
+                target: target,
+                verificationToken: "window-a",
+                selectedText: nil,
+                isSecureField: false,
+                selectionIdentity: .init(location: 3, length: 0),
+                recognitionSignature: signature
+            )
+        )
+        let service = ScribeContextService(reader: reader)
+        let capture = try service.capture(for: .compose)
+
+        reader.currentSnapshot = .init(
+            target: target,
+            verificationToken: "window-a",
+            selectedText: nil,
+            isSecureField: false,
+            selectionIdentity: .init(location: 9, length: 0),
+            recognitionSignature: signature
+        )
+
+        #expect(throws: ScribeContextError.targetChanged) {
+            try service.verifyTarget(for: capture)
+        }
+        #expect(reader.currentFocusReadRequests == [false])
+    }
 }
 
 @MainActor
 private final class StubScribeAccessibilityReader: ScribeAccessibilityReading {
     var snapshot: ScribeAccessibilityReadSnapshot
+    var currentSnapshot: ScribeAccessibilityReadSnapshot?
     var isTrusted: Bool
     private(set) var selectionReadRequests: [Bool] = []
+    private(set) var currentFocusReadRequests: [Bool] = []
 
     init(snapshot: ScribeAccessibilityReadSnapshot, isTrusted: Bool = true) {
         self.snapshot = snapshot
@@ -138,6 +179,11 @@ private final class StubScribeAccessibilityReader: ScribeAccessibilityReading {
     func readPinnedSnapshot(includeSelection: Bool) throws -> ScribeAccessibilityReadSnapshot {
         selectionReadRequests.append(includeSelection)
         return snapshot
+    }
+
+    func readCurrentFocusSnapshot(includeSelection: Bool) throws -> ScribeAccessibilityReadSnapshot {
+        currentFocusReadRequests.append(includeSelection)
+        return currentSnapshot ?? snapshot
     }
 
     func replacePinnedSelection(with text: String) throws -> Bool { true }

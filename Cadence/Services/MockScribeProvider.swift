@@ -21,7 +21,7 @@ actor MockScribeProvider: ScribeProvider {
         self.responses = responses
     }
 
-    func generate(_ request: ScribeRequest) async throws -> ScribeResult {
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
         try Task.checkCancellation()
 
         if let existing = completedRequests[request.id] {

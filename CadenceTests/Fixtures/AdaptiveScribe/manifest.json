@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "corpusFile": "quality-corpus.json",
+  "caseCount": 24,
+  "environments": ["slack", "claude-code"],
+  "intents": ["compose", "respond", "edit"],
+  "syntheticOnly": true,
+  "releaseScoringRunsPerCase": 3,
+  "criticalInvariantPassRequired": true,
+  "readyUnchangedThreshold": 0.8,
+  "readyOrLightEditThreshold": 0.95
+}

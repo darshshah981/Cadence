@@ -31,5 +31,48 @@ enum ScribeProviderError: String, Error, Equatable, Sendable {
 
 protocol ScribeProvider: Sendable {
     var capabilities: ScribeProviderCapabilities { get }
-    func generate(_ request: ScribeRequest) async throws -> ScribeResult
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult
+}
+
+struct ScribeProviderActionSnapshot: Sendable {
+    let provider: any ScribeProvider
+    let destination: ScribeEgressDestination
+
+    func validateForAcquisition(intent: ScribeIntent) throws {
+        guard destination.disclosureVersion == ScribeProviderDisclosure.currentVersion,
+              !destination.recipientOrigin.isEmpty,
+              provider.capabilities.contains(.semanticGeneration),
+              !intent.requiresSelectedText || provider.capabilities.contains(.selectedTextContext) else {
+            throw ScribeProviderFailure(
+                phase: .generation,
+                category: .configurationInvalid,
+                retryDisposition: .reconnect
+            )
+        }
+    }
+
+    func contextAuthorization(for capture: ScribeContextSnapshot) -> ScribeContextAuthorization {
+        ScribeContextAuthorization(
+            scope: capture.scope,
+            providerKind: destination.providerKind,
+            recipientOrigin: destination.recipientOrigin,
+            disclosureVersion: destination.disclosureVersion,
+            captureID: capture.id,
+            target: capture.target,
+            verificationToken: capture.verificationToken
+        )
+    }
+
+    var selectedTextDisclosure: String {
+        switch destination.providerKind {
+        case .deepSeek:
+            return ScribeProviderDisclosure.selectedTextRecipient("DeepSeek")
+        case .advanced:
+            let recipient = URL(string: destination.recipientOrigin)?.host
+                ?? destination.recipientOrigin
+            return ScribeProviderDisclosure.selectedTextRecipient(recipient)
+        case .legacyLocal:
+            return "Selected text stays on this Mac and is used only after you choose Respond or Edit."
+        }
+    }
 }

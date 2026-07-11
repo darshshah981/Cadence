@@ -50,13 +50,13 @@ struct ScribeCoordinatorTests {
             await fixture.coordinator.finishRecording()
 
             let request = await provider.requests.first
-            #expect(request?.intent == intent)
-            #expect(request?.context?.selectedText == "Selected context")
+            #expect(request?.input.userMessage.contains("Selected context") == true)
+            #expect(request?.input.userMessage.contains("com.apple.TextEdit") == false)
         }
     }
 
     @Test
-    func requestAppliesLocalShortcutAndStyleWithoutSendingAppIdentity() async throws {
+    func requestAppliesLocalShortcutButDoesNotMapLegacyStyleIntoEnvironment() async throws {
         let suiteName = "ScribePersonalization.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -79,16 +79,9 @@ struct ScribeCoordinatorTests {
         await fixture.coordinator.finishRecording()
 
         let request = await provider.requests.first
-        #expect(request?.spokenTranscript == "Expanded locally")
-        #expect(request?.style == ScribeStyleInstructions(
-            profile: WritingStyleProfile(
-                name: "Ignored at provider boundary",
-                tone: .direct,
-                length: .concise,
-                punctuation: .minimal,
-                formatting: .plainText
-            )
-        ))
+        #expect(request?.input.userMessage.contains("Expanded locally") == true)
+        #expect(request?.input.userMessage.contains("Write a clear, concise draft") == true)
+        #expect(request?.input.userMessage.contains("TextEdit profile") == false)
     }
 
     @Test
@@ -106,9 +99,96 @@ struct ScribeCoordinatorTests {
 
         #expect(fixture.coordinator.literalTranscript == "Spoken request")
         #expect(fixture.coordinator.failure == .provider(.timedOut))
+        let timedOutAttempt = fixture.coordinator.activeAttemptID
 
         await fixture.coordinator.retryGeneration()
         #expect(fixture.coordinator.reviewedResult?.text == "Recovered draft")
+        #expect(fixture.coordinator.activeAttemptID != timedOutAttempt)
+    }
+
+    @Test
+    func providerAuthorizationPrecedesSelectionCapture() async {
+        let fixture = ScribeCoordinatorFixture(
+            providerActionResolver: {
+                throw ScribeProviderFailure(
+                    phase: .generation,
+                    category: .configurationInvalid,
+                    retryDisposition: .reconnect
+                )
+            }
+        )
+
+        await #expect(throws: ScribeProviderFailure.self) {
+            try await fixture.coordinator.begin(intent: .respond)
+        }
+        #expect(fixture.context.captureCount == 0)
+    }
+
+    @Test
+    func preparedActionPinsRecipientAndProviderUntilTheSessionEnds() async throws {
+        let firstProvider = CapturingScribeProvider(resultText: "First result")
+        let replacementProvider = CapturingScribeProvider(resultText: "Replacement result")
+        var selectedAction = ScribeProviderActionSnapshot(
+            provider: firstProvider,
+            destination: .deepSeek
+        )
+        let fixture = ScribeCoordinatorFixture(
+            provider: firstProvider,
+            providerActionResolver: { selectedAction }
+        )
+
+        try fixture.coordinator.prepareTarget()
+        selectedAction = ScribeProviderActionSnapshot(
+            provider: replacementProvider,
+            destination: .advanced(
+                origin: "https://replacement.example",
+                disclosureVersion: ScribeProviderDisclosure.currentVersion
+            )
+        )
+        try await fixture.coordinator.begin(intent: .respond)
+        await fixture.coordinator.finishRecording()
+
+        #expect(await firstProvider.requests.count == 1)
+        #expect(await replacementProvider.requests.isEmpty)
+        #expect(fixture.coordinator.reviewedResult?.text == "First result")
+    }
+
+    @Test
+    func targetChangeBeforeEgressMakesZeroProviderCalls() async throws {
+        let provider = CapturingScribeProvider(resultText: "Must not run")
+        let fixture = ScribeCoordinatorFixture(provider: provider)
+        try await fixture.coordinator.begin(intent: .edit)
+        fixture.context.shouldVerify = false
+
+        await fixture.coordinator.finishRecording()
+
+        #expect(await provider.requests.isEmpty)
+        #expect(fixture.coordinator.failure == .context(.targetChanged))
+        #expect(fixture.coordinator.literalTranscript == "Spoken request")
+    }
+
+    @Test
+    func slowGenerationMovesToCalmSoftWaitBeforeTheHardDeadline() async throws {
+        let fixture = ScribeCoordinatorFixture(
+            providerResponses: [.delayedSuccess("Draft", .milliseconds(100))],
+            generationTimeout: .seconds(1),
+            generationSoftWait: .milliseconds(5)
+        )
+        try await fixture.coordinator.begin(intent: .compose)
+
+        let finishing = Task { await fixture.coordinator.finishRecording() }
+        for _ in 0..<1_000 {
+            if case .generatingSlow = fixture.coordinator.state { break }
+            await Task.yield()
+        }
+
+        if case .generatingSlow = fixture.coordinator.state {
+            // Expected calm soft-wait state.
+        } else {
+            Issue.record("Expected generation to enter the soft-wait state")
+        }
+        await finishing.value
+        #expect(fixture.coordinator.reviewedResult?.text == "Draft")
     }
 
     @Test
@@ -124,6 +204,117 @@ struct ScribeCoordinatorTests {
 
         #expect(fixture.context.insertedTexts.isEmpty)
         #expect(fixture.coordinator.reviewedResult?.text == "Draft")
+        #expect(fixture.coordinator.state == .insertionRecovery(
+            ScribeResult(requestID: fixture.coordinator.activeRequestID!, text: "Draft")
+        ))
+    }
+
+    @Test
+    func requestCarriesImmutableResolvedEnvironmentAndProtectedLiterals() async throws {
+        let casual = WritingEnvironmentPreference(
+            environmentID: .slack,
+            isEnabled: true,
+            selectedBehaviorID: .casual,
+            definitionVersion: 1
+        )
+        let provider = CapturingScribeProvider(resultText: "Update `parseID`.")
+        let fixture = ScribeCoordinatorFixture(
+            provider: provider,
+            bundleIdentifier: "com.tinyspeck.slackmacgap",
+            writingEnvironmentPreferences: { .valid([casual]) },
+            engine: StubScribeTranscriptionEngine(
+                text: "literal camel case parse capital I capital D end literal"
+            )
+        )
+
+        try await fixture.coordinator.begin(intent: .compose)
+        await fixture.coordinator.finishRecording()
+
+        let request = try #require(await provider.requests.first)
+        #expect(request.input.userMessage.contains("Use relaxed, direct wording") == true)
+        #expect(request.input.userMessage.contains("parseID") == true)
+        #expect(request.input.userMessage.contains("Slack · Casual") == false)
+    }
+
+    @Test
+    func malformedLiteralStopsBeforeProviderDispatch() async throws {
+        let provider = CapturingScribeProvider(resultText: "Should not run")
+        let fixture = ScribeCoordinatorFixture(
+            provider: provider,
+            engine: StubScribeTranscriptionEngine(text: "literal camel case parse I D")
+        )
+
+        try await fixture.coordinator.begin(intent: .compose)
+        await fixture.coordinator.finishRecording()
+
+        #expect(fixture.coordinator.failure == .literalRepair)
+        #expect(await provider.requests.isEmpty)
+    }
+
+    @Test
+    func coordinatorRejectsWrongRemoteAuthorityAndUnexpectedCancellation() async throws {
+        let wrongIdentity = ScribeCoordinatorFixture(provider: WrongIdentityScribeProvider())
+        try await wrongIdentity.coordinator.begin(intent: .compose)
+        await wrongIdentity.coordinator.finishRecording()
+        #expect(wrongIdentity.coordinator.failure == .provider(.invalidResult))
+
+        let unexpectedCancellation = ScribeCoordinatorFixture(
+            provider: UnexpectedCancellationScribeProvider()
+        )
+        try await unexpectedCancellation.coordinator.begin(intent: .compose)
+        await unexpectedCancellation.coordinator.finishRecording()
+        #expect(unexpectedCancellation.coordinator.providerFailure?.category == .transportUnavailable)
+        #expect(unexpectedCancellation.coordinator.failure == .provider(.offline))
+    }
+
+    @Test
+    func hardDeadlineReturnsEvenWhenProviderIgnoresCancellation() async throws {
+        let fixture = ScribeCoordinatorFixture(
+            provider: NonCooperativeScribeProvider(),
+            generationTimeout: .milliseconds(10)
+        )
+
+        try await fixture.coordinator.begin(intent: .compose)
+        await fixture.coordinator.finishRecording()
+
+        #expect(fixture.coordinator.failure == .provider(.timedOut))
+        #expect(fixture.coordinator.state == .failed(
+            requestID: fixture.coordinator.activeRequestID,
+            error: .timedOut
+        ))
+    }
+
+    @Test
+    func confirmedInsertionClearsAllSessionContent() async throws {
+        let fixture = ScribeCoordinatorFixture(providerResponses: [.success("Draft")])
+        try await fixture.coordinator.begin(intent: .compose)
+        await fixture.coordinator.finishRecording()
+        try await fixture.coordinator.insertReviewedResult()
+
+        #expect(fixture.coordinator.reviewedResult == nil)
+        #expect(fixture.coordinator.literalTranscript == nil)
+        #expect(fixture.coordinator.activeRequestID == nil)
+        #expect(fixture.coordinator.resolvedEnvironment == nil)
+        #expect(fixture.coordinator.exactLiterals.isEmpty)
+    }
+
+    @Test
+    func fiftyInjectedProviderCyclesLeaveNoContentBearingSessionState() async throws {
+        let fixture = ScribeCoordinatorFixture()
+
+        for _ in 0..<50 {
+            try await fixture.coordinator.begin(intent: .compose)
+            await fixture.coordinator.finishRecording()
+            try await fixture.coordinator.insertReviewedResult()
+
+            #expect(fixture.coordinator.activeRequestID == nil)
+            #expect(fixture.coordinator.reviewedResult == nil)
+            #expect(fixture.coordinator.literalTranscript == nil)
+            #expect(fixture.coordinator.exactLiterals.isEmpty)
+        }
+
+        #expect(fixture.context.clearedCaptureIDs.count == 50)
+        #expect(fixture.arbiter.activeKind == nil)
     }
 
     @Test
@@ -204,21 +395,35 @@ private final class ScribeCoordinatorFixture {
     init(
         providerResponses: [MockScribeProvider.Response] = [.success("Draft")],
         provider: (any ScribeProvider)? = nil,
+        providerActionResolver: (() throws -> ScribeProviderActionSnapshot)? = nil,
         selectedText: String = "Selected context",
+        bundleIdentifier: String = "com.apple.TextEdit",
+        recognitionSignature: TargetRecognitionSignature? = nil,
         personalizationStore: PersonalizationStore = PersonalizationStore(),
+        environmentRecognizer: WritingEnvironmentRecognizer = WritingEnvironmentRecognizer(),
+        writingEnvironmentPreferences: @escaping () -> WritingEnvironmentPreferenceLoadResult = { .absent },
         engine: (any TranscriptionEngine)? = nil,
-        generationTimeout: Duration = .seconds(5)
+        generationTimeout: Duration = .seconds(5),
+        generationSoftWait: Duration = .seconds(8)
     ) {
-        context = StubScribeContextService(selectedText: selectedText)
+        context = StubScribeContextService(
+            selectedText: selectedText,
+            bundleIdentifier: bundleIdentifier,
+            recognitionSignature: recognitionSignature
+        )
         self.engine = engine ?? StubScribeTranscriptionEngine(text: "Spoken request")
         coordinator = ScribeCoordinator(
             audioCaptureService: audio,
             transcriptionEngine: self.engine,
             provider: provider ?? MockScribeProvider(responses: providerResponses),
+            providerActionResolver: providerActionResolver,
             contextService: context,
             sessionArbiter: arbiter,
             personalizationStore: personalizationStore,
-            generationTimeout: generationTimeout
+            environmentRecognizer: environmentRecognizer,
+            writingEnvironmentPreferences: writingEnvironmentPreferences,
+            generationTimeout: generationTimeout,
+            generationSoftWait: generationSoftWait
         )
     }
 }
@@ -279,27 +484,40 @@ private actor ControllableScribeEngine: TranscriptionEngine {
 @MainActor
 private final class StubScribeContextService: ScribeContextServing {
     private let selectedText: String
+    private let bundleIdentifier: String
+    private let recognitionSignature: TargetRecognitionSignature?
     var shouldVerify = true
     private(set) var clearedCaptureIDs: [UUID] = []
     private(set) var insertedTexts: [String] = []
     private(set) var discardPreparedTargetCount = 0
+    private(set) var captureCount = 0
+    private(set) var verificationCount = 0
 
-    init(selectedText: String) {
+    init(
+        selectedText: String,
+        bundleIdentifier: String,
+        recognitionSignature: TargetRecognitionSignature?
+    ) {
         self.selectedText = selectedText
+        self.bundleIdentifier = bundleIdentifier
+        self.recognitionSignature = recognitionSignature
     }
 
     func prepareTarget() throws {}
 
     func capture(for intent: ScribeIntent) throws -> ScribeContextSnapshot {
-        ScribeContextSnapshot(
-            target: ScribeTargetIdentity(processIdentifier: 42, bundleIdentifier: "com.apple.TextEdit"),
+        captureCount += 1
+        return ScribeContextSnapshot(
+            target: ScribeTargetIdentity(processIdentifier: 42, bundleIdentifier: bundleIdentifier),
             scope: intent.contextScope,
             selectedText: intent.requiresSelectedText ? selectedText : "",
-            verificationToken: "window-a"
+            verificationToken: "window-a",
+            recognitionSignature: recognitionSignature
         )
     }
 
     func verifyTarget(for capture: ScribeContextSnapshot) throws -> Bool {
+        verificationCount += 1
         guard shouldVerify else { throw ScribeContextError.targetChanged }
         return true
     }
@@ -357,13 +575,44 @@ private actor StubScribeTranscriptionEngine: TranscriptionEngine {
 
 private actor CapturingScribeProvider: ScribeProvider {
     nonisolated let capabilities = ScribeProviderCapabilities.mock
-    private(set) var requests: [ScribeRequest] = []
+    private(set) var requests: [ScribeProviderRequest] = []
     let resultText: String
 
     init(resultText: String) { self.resultText = resultText }
 
-    func generate(_ request: ScribeRequest) async throws -> ScribeResult {
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
         requests.append(request)
         return ScribeResult(requestID: request.id, text: resultText)
+    }
+}
+
+private struct WrongIdentityScribeProvider: ScribeProvider {
+    let capabilities = ScribeProviderCapabilities.mock
+
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
+        ScribeResult(requestID: UUID(), text: "Wrong authority")
+    }
+}
+
+private struct UnexpectedCancellationScribeProvider: ScribeProvider {
+    let capabilities = ScribeProviderCapabilities.mock
+
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
+        throw CancellationError()
+    }
+}
+
+private struct NonCooperativeScribeProvider: ScribeProvider {
+    let capabilities = ScribeProviderCapabilities.mock
+
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+                continuation.resume(returning: ScribeResult(
+                    requestID: request.id,
+                    text: "Late ignored result"
+                ))
+            }
+        }
     }
 }

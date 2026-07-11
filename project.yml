@@ -69,3 +69,20 @@ targets:
           TEST_HOST: $(BUILT_PRODUCTS_DIR)/Cadence Debug.app/Contents/MacOS/Cadence Debug
         Release:
           TEST_HOST: $(BUILT_PRODUCTS_DIR)/Cadence.app/Contents/MacOS/Cadence
+  CadenceUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: CadenceUITests
+    dependencies:
+      - target: Cadence
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Cadence
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.darshshah.CadenceUITests
+    scheme:
+      testTargets:
+        - CadenceUITests

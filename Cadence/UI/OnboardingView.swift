@@ -109,8 +109,9 @@ struct OnboardingView: View {
             ])
         case .privacy:
             featureRows([
-                ("lock.shield", "Local by default", "Audio, transcripts, custom words, and shortcuts remain on this Mac."),
-                ("eye.slash", "Explicit context", "Scribe reads selected text only after you choose Respond or Edit."),
+                ("lock.shield", "Local transcription", "Cadence transcribes microphone audio on this Mac and never sends audio to a Scribe provider."),
+                ("network", "Optional cloud drafting", "Cloud Scribe sends current-session text only after you choose and validate a provider."),
+                ("eye.slash", "Explicit context", "Scribe reads and sends selected text only after you choose Respond or Edit."),
                 ("checkmark.circle", "Review before insert", "Generated drafts never replace text until you approve them.")
             ])
         case .permissions:
@@ -161,6 +162,10 @@ struct OnboardingView: View {
                 Text(appModel.scribeProviderStatus)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(FlowTheme.textTertiary)
+                if !appModel.scribeReadiness.canGenerate {
+                    Button("Set up Scribe provider") { appModel.presentScribeProviderSetup() }
+                        .buttonStyle(.borderedProminent)
+                }
             }
         case .personalization:
             featureRows([

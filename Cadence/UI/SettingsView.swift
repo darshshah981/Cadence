@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 struct SettingsView: View {
+    private static let writingEnvironmentsScrollID = "settings-writing-environments"
+
     @ObservedObject var appModel: AppModel
     var maxContentWidth: CGFloat?
     var contentPadding = EdgeInsets()
@@ -11,29 +13,52 @@ struct SettingsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                setupSection
-                startStopSection
-                scribeSection
-                personalizationSection
-                captureSection
-                writingStyleSection
-                privacySection
-                advancedSection
-                versionFooter
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    setupSection
+                    startStopSection
+                    scribeSection
+                    personalizationSection
+                    captureSection
+                    writingStyleSection
+                    privacySection
+                    advancedSection
+                    versionFooter
+                }
+                .frame(maxWidth: maxContentWidth, alignment: .topLeading)
+                .padding(contentPadding)
+                .padding(.bottom, 2)
             }
-            .frame(maxWidth: maxContentWidth, alignment: .topLeading)
-            .padding(contentPadding)
-            .padding(.bottom, 2)
-        }
-        .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: isAdvancedExpanded)
-        .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: appModel.dictationQualityPreset)
-        .sheet(item: $editingShortcut) { shortcut in
-            PersonalShortcutEditor(shortcut: shortcut) { appModel.savePersonalShortcut($0) }
-        }
-        .sheet(item: $editingStyleProfile) { profile in
-            WritingStyleProfileEditor(profile: profile) { appModel.saveWritingStyleProfile($0) }
+            .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: isAdvancedExpanded)
+            .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: appModel.dictationQualityPreset)
+            .onAppear {
+                #if DEBUG
+                if ScribeLaunchFixtures.current == .settings {
+                    scrollProxy.scrollTo(Self.writingEnvironmentsScrollID, anchor: .top)
+                }
+                #endif
+            }
+            .sheet(item: $editingShortcut) { shortcut in
+                PersonalShortcutEditor(shortcut: shortcut) { appModel.savePersonalShortcut($0) }
+            }
+            .sheet(item: $editingStyleProfile) { profile in
+                WritingStyleProfileEditor(profile: profile) { appModel.saveWritingStyleProfile($0) }
+            }
+            .sheet(isPresented: $appModel.isScribeProviderSetupPresented) {
+                ScribeProviderSetupView(
+                    onConnectDeepSeek: { try await appModel.connectDeepSeekForScribe(credential: $0) },
+                    onConnectAdvanced: {
+                        try await appModel.connectAdvancedScribeProvider(
+                            baseURL: $0,
+                            model: $1,
+                            credential: $2
+                        )
+                    },
+                    onGeneratePractice: { try await appModel.generateScribePracticeDraft() },
+                    onDismiss: appModel.dismissScribeProviderSetup
+                )
+            }
         }
     }
 
@@ -108,6 +133,13 @@ struct SettingsView: View {
                         .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .padding(12)
+                insetDivider
+                ScribeProviderManagementView(appModel: appModel)
+                    .padding(12)
+                insetDivider
+                WritingEnvironmentsView(appModel: appModel)
+                    .id(Self.writingEnvironmentsScrollID)
+                    .padding(12)
             }
         }
     }
