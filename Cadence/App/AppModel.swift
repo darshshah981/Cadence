@@ -11,6 +11,14 @@ private let preferencesLogger = Logger(
     category: "Preferences"
 )
 
+enum CadenceDurablePreferenceKeys {
+    static let providerLibrary = "Cadence.scribeProviderLibrary.v2"
+    static let applicationConfigurations = "Cadence.applicationConfigurationLibrary.v1"
+    static let presetCatalogState = "Cadence.scribePresetCatalogState.v1"
+    static let settingsPresentation = "Cadence.settingsPresentation.v1"
+    static let featureGates = "Cadence.adaptiveScribeFeatureGates.v2"
+}
+
 enum MenuScreen: Equatable {
     case home
     case settings
@@ -37,6 +45,11 @@ struct ModelReadinessSummary {
 @MainActor
 final class AppModel: ObservableObject {
     private enum PreferenceKey {
+        static let scribeProviderLibrary = CadenceDurablePreferenceKeys.providerLibrary
+        static let applicationConfigurations = CadenceDurablePreferenceKeys.applicationConfigurations
+        static let scribePresetCatalogState = CadenceDurablePreferenceKeys.presetCatalogState
+        static let settingsPresentation = CadenceDurablePreferenceKeys.settingsPresentation
+        static let adaptiveScribeFeatureGates = CadenceDurablePreferenceKeys.featureGates
         static let whisperModel = "FlowState.whisperModel"
         static let decodingMode = "FlowState.decodingMode"
         static let fillerWordPolicy = "FlowState.fillerWordPolicy"
@@ -2655,6 +2668,7 @@ final class AppModel: ObservableObject {
 
     private var diagnosticProvider: ScribeDiagnosticProvider {
         switch configuredScribeProviderKind {
+        case .openAIDirect, .openRouter: return .none
         case .deepSeek: return .deepSeek
         case .advanced: return .advanced
         case .legacyLocal: return .legacyLocal

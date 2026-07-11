@@ -2,12 +2,16 @@ import Foundation
 
 enum ScribeProviderKind: String, CaseIterable, Codable, Equatable, Sendable {
     case deepSeek
+    case openAIDirect
+    case openRouter
     case advanced
     case legacyLocal
 
     var displayName: String {
         switch self {
         case .deepSeek: return "DeepSeek"
+        case .openAIDirect: return "OpenAI"
+        case .openRouter: return "OpenRouter"
         case .advanced: return "Advanced provider"
         case .legacyLocal: return "On-device provider"
         }
@@ -251,6 +255,164 @@ struct ScribeProviderConfigurationEnvelope: Codable, Equatable, Sendable {
         self.schemaVersion = schemaVersion
         self.configuration = configuration
     }
+}
+
+struct ScribeProviderLibraryConfiguration: Codable, Equatable, Identifiable, Sendable {
+    /// Catalog identifiers are release-owned metadata and share the model-ID storage bound.
+    static let maximumCatalogIDUTF8Bytes = 256
+
+    let id: UUID
+    let kind: ScribeProviderKind
+    let displayName: String
+    let normalizedOrigin: String
+    let baseURL: URL
+    let requestURL: URL
+    let selectedModelID: String
+    let catalogID: String?
+    let disclosureVersion: Int
+    let acceptedAt: Date
+    let lastValidatedAt: Date
+    let credentialReference: ScribeCredentialReference
+    let isEnabled: Bool
+
+    init(
+        id: UUID = UUID(),
+        kind: ScribeProviderKind,
+        displayName: String,
+        normalizedOrigin: String,
+        baseURL: URL,
+        requestURL: URL,
+        selectedModelID: String,
+        catalogID: String?,
+        disclosureVersion: Int,
+        acceptedAt: Date,
+        lastValidatedAt: Date,
+        credentialReference: ScribeCredentialReference,
+        isEnabled: Bool
+    ) throws {
+        self.id = id
+        self.kind = kind
+        self.displayName = displayName
+        self.normalizedOrigin = normalizedOrigin
+        self.baseURL = baseURL
+        self.requestURL = requestURL
+        self.selectedModelID = selectedModelID
+        self.catalogID = catalogID
+        self.disclosureVersion = disclosureVersion
+        self.acceptedAt = acceptedAt
+        self.lastValidatedAt = lastValidatedAt
+        self.credentialReference = credentialReference
+        self.isEnabled = isEnabled
+    }
+
+    func normalized() -> ScribeProviderLibraryConfiguration {
+        let normalizedCatalogID = catalogID?
+            .precomposedStringWithCanonicalMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return try! ScribeProviderLibraryConfiguration(
+            id: id,
+            kind: kind,
+            displayName: displayName.precomposedStringWithCanonicalMapping
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            normalizedOrigin: normalizedOrigin.trimmingCharacters(in: .whitespacesAndNewlines),
+            baseURL: baseURL,
+            requestURL: requestURL,
+            selectedModelID: selectedModelID.precomposedStringWithCanonicalMapping
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            catalogID: normalizedCatalogID?.isEmpty == true ? nil : normalizedCatalogID,
+            disclosureVersion: disclosureVersion,
+            acceptedAt: acceptedAt,
+            lastValidatedAt: lastValidatedAt,
+            credentialReference: credentialReference,
+            isEnabled: isEnabled
+        )
+    }
+
+    func withEnabled(_ isEnabled: Bool) -> ScribeProviderLibraryConfiguration {
+        replacing(isEnabled: isEnabled)
+    }
+
+    func withOrigin(_ normalizedOrigin: String) -> ScribeProviderLibraryConfiguration {
+        replacing(normalizedOrigin: normalizedOrigin)
+    }
+
+    private func replacing(
+        normalizedOrigin: String? = nil,
+        isEnabled: Bool? = nil
+    ) -> ScribeProviderLibraryConfiguration {
+        try! ScribeProviderLibraryConfiguration(
+            id: id,
+            kind: kind,
+            displayName: displayName,
+            normalizedOrigin: normalizedOrigin ?? self.normalizedOrigin,
+            baseURL: baseURL,
+            requestURL: requestURL,
+            selectedModelID: selectedModelID,
+            catalogID: catalogID,
+            disclosureVersion: disclosureVersion,
+            acceptedAt: acceptedAt,
+            lastValidatedAt: lastValidatedAt,
+            credentialReference: credentialReference,
+            isEnabled: isEnabled ?? self.isEnabled
+        )
+    }
+}
+
+struct ScribeProviderLibrary: Codable, Equatable, Sendable {
+    let revision: Int
+    let configurations: [ScribeProviderLibraryConfiguration]
+    let activeConfigurationID: UUID?
+
+    func normalized() -> ScribeProviderLibrary {
+        ScribeProviderLibrary(
+            revision: revision,
+            configurations: configurations
+                .map { $0.normalized() }
+                .sorted { $0.id.uuidString < $1.id.uuidString },
+            activeConfigurationID: activeConfigurationID
+        )
+    }
+
+    func semanticallyEquals(_ other: ScribeProviderLibrary) -> Bool {
+        normalized() == other.normalized()
+    }
+}
+
+struct ScribeProviderLibraryEnvelope: Codable, Equatable, Sendable {
+    static let currentSchemaVersion = 2
+
+    let schemaVersion: Int
+    let library: ScribeProviderLibrary
+
+    init(
+        schemaVersion: Int = ScribeProviderLibraryEnvelope.currentSchemaVersion,
+        library: ScribeProviderLibrary
+    ) {
+        self.schemaVersion = schemaVersion
+        self.library = library
+    }
+}
+
+enum ScribeProviderLibraryRejection: Equatable, Sendable {
+    case malformed
+    case futureSchema
+    case duplicateConfigurationID
+    case duplicateProviderKind
+    case duplicateCredentialReference
+    case invalidActiveConfigurationID
+    case disabledActiveConfiguration
+    case invalidConfiguration
+}
+
+enum ScribeProviderLibraryLoadResult: Equatable, Sendable {
+    case absent
+    case valid(ScribeProviderLibrary)
+    case rejected(ScribeProviderLibraryRejection)
+}
+
+enum ScribeCredentialReferenceSet: Equatable, Sendable {
+    case available(Set<ScribeCredentialReference>)
+    case unavailable
 }
 
 enum ScribeProviderReadiness: Equatable, Sendable {

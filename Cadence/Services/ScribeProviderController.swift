@@ -105,6 +105,12 @@ final class ScribeProviderController {
                 )
             }
             switch configuration.kind {
+            case .openAIDirect, .openRouter:
+                throw ScribeProviderFailure(
+                    phase: .generation,
+                    category: .configurationInvalid,
+                    retryDisposition: .updateCadence
+                )
             case .deepSeek:
                 return ScribeProviderActionSnapshot(
                     provider: DeepSeekScribeProvider(
@@ -252,6 +258,8 @@ final class ScribeProviderController {
                 credential: credential
             ) { [transport] candidate, candidateCredential in
                 switch candidate.kind {
+                case .openAIDirect, .openRouter:
+                    throw ScribeProviderConnectionError.validationFailed
                 case .deepSeek:
                     try await DeepSeekScribeProvider(
                         credentialLoader: { candidateCredential },
@@ -280,6 +288,8 @@ final class ScribeProviderController {
             return false
         }
         switch configuration.kind {
+        case .openAIDirect, .openRouter:
+            return false
         case .deepSeek:
             guard let entry = ScribeProviderCatalog.releaseOne.deepSeekEntries.first else { return false }
             return configuration.catalogID == entry.catalogID
