@@ -2851,6 +2851,7 @@ final class AppModel: ObservableObject {
                 failureMessage: scribeFailureMessage,
                 literalTranscript: scribeCoordinator.literalTranscript,
                 environmentCue: scribeCoordinator.resolvedEnvironment?.cue,
+                targetDisplayName: scribeCoordinator.targetDisplayName,
                 exactLiterals: scribeCoordinator.exactLiterals,
                 canRetryGeneration: scribeCoordinator.canRetryGeneration
             )
@@ -2934,7 +2935,11 @@ final class AppModel: ObservableObject {
                 self.scribePanelWindowController.update(
                     state: self.scribeState,
                     failureMessage: error.userMessage,
-                    literalTranscript: self.scribeCoordinator.literalTranscript
+                    literalTranscript: self.scribeCoordinator.literalTranscript,
+                    environmentCue: self.scribeCoordinator.resolvedEnvironment?.cue,
+                    targetDisplayName: self.scribeCoordinator.targetDisplayName,
+                    exactLiterals: self.scribeCoordinator.exactLiterals,
+                    canRetryGeneration: self.scribeCoordinator.canRetryGeneration
                 )
             } catch {
                 self.lastError = "Cadence could not safely insert that draft. Copy it instead."
@@ -2979,6 +2984,7 @@ final class AppModel: ObservableObject {
                 failureMessage: self.scribeFailureMessage,
                 literalTranscript: self.scribeCoordinator.literalTranscript,
                 environmentCue: self.scribeCoordinator.resolvedEnvironment?.cue,
+                targetDisplayName: self.scribeCoordinator.targetDisplayName,
                 exactLiterals: self.scribeCoordinator.exactLiterals,
                 canRetryGeneration: self.scribeCoordinator.canRetryGeneration
             )
@@ -3215,19 +3221,73 @@ final class AppModel: ObservableObject {
             requestID: UUID(),
             text: "Update `parseID` after reviewing this synthetic fixture draft."
         )
+        let width = ScribeLaunchFixtures.panelWidth
         switch fixture {
+        case .intent:
+            scribeState = .choosingIntent
+            scribePanelWindowController.presentFixture(
+                state: .choosingIntent,
+                fixtureIdentifier: "scribe-fixture-intent",
+                width: width
+            )
+        case .listening:
+            scribeState = .listening(requestID: result.requestID, intent: .compose)
+            scribePanelWindowController.presentFixture(
+                state: scribeState,
+                targetDisplayName: "Slack",
+                fixtureIdentifier: "scribe-fixture-listening",
+                width: width
+            )
+        case .transcribing:
+            scribeState = .transcribing(requestID: result.requestID)
+            scribePanelWindowController.presentFixture(
+                state: scribeState,
+                fixtureIdentifier: "scribe-fixture-transcribing",
+                width: width
+            )
+        case .generating:
+            scribeState = .generating(requestID: result.requestID)
+            scribePanelWindowController.presentFixture(
+                state: scribeState,
+                fixtureIdentifier: "scribe-fixture-generating",
+                width: width
+            )
+        case .generatingSlow:
+            scribeState = .generatingSlow(requestID: result.requestID)
+            scribePanelWindowController.presentFixture(
+                state: scribeState,
+                fixtureIdentifier: "scribe-fixture-generating-slow",
+                width: width
+            )
         case .slackReview:
             scribeState = .reviewing(result)
             scribePanelWindowController.presentFixture(
                 state: .reviewing(result),
                 environmentCue: "Slack · Neutral",
+                targetDisplayName: "Slack",
                 exactLiterals: [ScribeExactLiteral(
                     id: 1,
                     value: "parseID",
                     source: .explicitGrammar
                 )],
                 canRetryGeneration: true,
-                width: ScribeLaunchFixtures.panelWidth
+                fixtureIdentifier: "scribe-fixture-slack-review",
+                width: width
+            )
+        case .claudeReview:
+            scribeState = .reviewing(result)
+            scribePanelWindowController.presentFixture(
+                state: .reviewing(result),
+                environmentCue: "Claude · Coding",
+                targetDisplayName: "Claude",
+                exactLiterals: [ScribeExactLiteral(
+                    id: 1,
+                    value: "parseID",
+                    source: .explicitGrammar
+                )],
+                canRetryGeneration: true,
+                fixtureIdentifier: "scribe-fixture-claude-review",
+                width: width
             )
         case .insertionRecovery:
             scribeState = .insertionRecovery(result)
@@ -3235,7 +3295,64 @@ final class AppModel: ObservableObject {
                 state: .insertionRecovery(result),
                 failureMessage: "Return to the original app and insertion point. Your draft is still here.",
                 literalTranscript: "Synthetic spoken request",
-                width: ScribeLaunchFixtures.panelWidth
+                environmentCue: "Claude · Coding",
+                targetDisplayName: "Claude",
+                exactLiterals: [ScribeExactLiteral(
+                    id: 1,
+                    value: "parseID",
+                    source: .explicitGrammar
+                )],
+                canRetryGeneration: true,
+                fixtureIdentifier: "scribe-fixture-insertion-recovery",
+                width: width
+            )
+        case .literalFailure:
+            scribeState = .failed(requestID: result.requestID, error: .invalidResult)
+            scribePanelWindowController.presentFixture(
+                state: scribeState,
+                failureMessage: "Cadence could not resolve the exact literal `parseID`.",
+                literalTranscript: "Update parse I D",
+                exactLiterals: [ScribeExactLiteral(
+                    id: 1,
+                    value: "parseID",
+                    source: .explicitGrammar
+                )],
+                fixtureIdentifier: "scribe-fixture-literal-failure",
+                width: width
+            )
+        case .retryableFailure:
+            scribeState = .failed(requestID: result.requestID, error: .offline)
+            scribePanelWindowController.presentFixture(
+                state: scribeState,
+                failureMessage: "The provider is temporarily offline.",
+                literalTranscript: "Synthetic spoken request",
+                canRetryGeneration: true,
+                fixtureIdentifier: "scribe-fixture-retryable-failure",
+                width: width
+            )
+        case .nonRetryableFailure:
+            scribeState = .failed(requestID: result.requestID, error: .invalidResult)
+            scribePanelWindowController.presentFixture(
+                state: scribeState,
+                failureMessage: "This request cannot be retried safely.",
+                literalTranscript: "Synthetic spoken request",
+                canRetryGeneration: false,
+                fixtureIdentifier: "scribe-fixture-nonretryable-failure",
+                width: width
+            )
+        case .success:
+            scribeState = .succeeded(requestID: result.requestID)
+            scribePanelWindowController.presentFixture(
+                state: scribeState,
+                fixtureIdentifier: "scribe-fixture-success",
+                width: width
+            )
+        case .controlSemantics:
+            scribeState = .choosingIntent
+            scribePanelWindowController.presentFixture(
+                state: .choosingIntent,
+                fixtureIdentifier: "scribe-fixture-control-semantics",
+                width: width
             )
         case .setup, .settings:
             break

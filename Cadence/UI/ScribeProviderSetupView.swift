@@ -204,12 +204,18 @@ struct ScribeProviderSetupView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Enter an API base URL and model. Cadence derives one /chat/completions endpoint; it does not discover models or contact the server yet.")
                 .foregroundStyle(FlowTheme.textSecondary)
-            TextField("API base URL", text: $model.advancedBaseURL)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("scribe-advanced-base-url")
-            TextField("Model identifier", text: $model.advancedModel)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("scribe-advanced-model")
+            CadenceFieldRow(
+                title: "API base URL",
+                placeholder: "https://provider.example/v1",
+                text: $model.advancedBaseURL,
+                accessibilityIdentifier: "scribe-advanced-base-url"
+            )
+            CadenceFieldRow(
+                title: "Model identifier",
+                placeholder: "Provider model ID",
+                text: $model.advancedModel,
+                accessibilityIdentifier: "scribe-advanced-model"
+            )
             if let failureMessage = model.failureMessage {
                 setupError(failureMessage)
             }
@@ -255,9 +261,12 @@ struct ScribeProviderSetupView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("The candidate key stays in memory until the synthetic compatibility check succeeds. Cadence then stores it in this Mac's non-synchronizing Keychain.")
                 .foregroundStyle(FlowTheme.textSecondary)
-            SecureField("API key", text: $model.credential)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("scribe-provider-api-key")
+            CadenceSecureFieldRow(
+                title: "API key",
+                placeholder: "API key",
+                text: $model.credential,
+                accessibilityIdentifier: "scribe-provider-api-key"
+            )
             Text("Validation sends only “Return only OK.” and “Cadence provider compatibility check.”")
                 .font(.caption)
                 .foregroundStyle(FlowTheme.textTertiary)
@@ -268,18 +277,11 @@ struct ScribeProviderSetupView: View {
     }
 
     private var validating: some View {
-        HStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.small)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Validating compatibility…")
-                    .font(.headline)
-                Text("Cadence will stop safely after 15 seconds and will not retry automatically.")
-                    .font(.caption)
-                    .foregroundStyle(FlowTheme.textSecondary)
-            }
-        }
-        .accessibilityElement(children: .combine)
+        CadenceLoadingRow(
+            title: "Validating compatibility…",
+            detail: "Cadence will stop safely after 15 seconds and will not retry automatically.",
+            accessibilityIdentifier: "scribe-provider-loading"
+        )
     }
 
     private var ready: some View {
@@ -296,18 +298,11 @@ struct ScribeProviderSetupView: View {
     }
 
     private var practicing: some View {
-        HStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.small)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Drafting a synthetic practice update…")
-                    .font(.headline)
-                Text("This sends no selected app text and never inserts the result.")
-                    .font(.caption)
-                    .foregroundStyle(FlowTheme.textSecondary)
-            }
-        }
-        .accessibilityElement(children: .combine)
+        CadenceLoadingRow(
+            title: "Drafting a synthetic practice update…",
+            detail: "This sends no selected app text and never inserts the result.",
+            accessibilityIdentifier: "scribe-practice-loading"
+        )
     }
 
     private var practice: some View {

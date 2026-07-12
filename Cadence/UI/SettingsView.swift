@@ -311,12 +311,18 @@ struct SettingsView: View {
                 description: appModel.dictationQualityPreset.description
             )
 
-            QualityPresetSegmentedControl(
+            CadenceDiscretePicker(
+                title: "Quality",
                 selection: Binding(
                     get: { appModel.dictationQualityPreset },
                     set: { appModel.setDictationQualityPreset($0) }
                 )
-            )
+            ) {
+                ForEach(DictationQualityPreset.allCases) { preset in
+                    Text(preset.displayName).tag(preset)
+                }
+            }
+            .accessibilityIdentifier("settings-quality-menu")
 
             ModelReadinessInlineView(summary: appModel.modelReadinessSummary)
         }
@@ -361,6 +367,9 @@ struct SettingsView: View {
                             .foregroundStyle(FlowTheme.textSecondary)
                     }
                 }
+                .disclosureGroupStyle(CadenceDisclosureGroupStyle(
+                    accessibilityIdentifier: "settings-advanced-disclosure"
+                ))
                 .padding(12)
                 insetDivider
                 SettingsActionRow(
@@ -391,28 +400,37 @@ struct SettingsView: View {
                 description: "Change this only when testing speed, size, or accuracy."
             )
 
-            VStack(spacing: 8) {
+            CadenceDiscretePicker(
+                title: "Recognition model",
+                selection: Binding(
+                    get: { appModel.transcriptionConfiguration.model },
+                    set: { appModel.setWhisperModel($0) }
+                )
+            ) {
                 ForEach(WhisperModelOption.allCases) { model in
-                    ModelOptionRow(
-                        model: model,
-                        isSelected: appModel.transcriptionConfiguration.model == model
-                    ) {
-                        appModel.setWhisperModel(model)
-                    }
+                    Text("\(model.displayName.replacingOccurrences(of: " English", with: "")) · \(model.approximateSize)")
+                        .tag(model)
                 }
             }
+            .accessibilityIdentifier("settings-recognition-model-menu")
 
             SettingsLabelRow(
                 title: "Search depth",
                 description: "Fast responds sooner; Accurate works harder on difficult audio."
             )
 
-            DecodingSegmentedControl(
+            CadenceDiscretePicker(
+                title: "Search depth",
                 selection: Binding(
                     get: { appModel.transcriptionConfiguration.decodingMode },
                     set: { appModel.setDecodingMode($0) }
                 )
-            )
+            ) {
+                ForEach(WhisperDecodingMode.allCases) { mode in
+                    Text(mode.productLabel).tag(mode)
+                }
+            }
+            .accessibilityIdentifier("settings-search-depth-menu")
         }
         .padding(12)
     }
@@ -424,7 +442,15 @@ struct SettingsView: View {
                 description: appModel.transcriptionConfiguration.fillerWordPolicy.description
             )
 
-            FillerWordSegmentedControl(selection: fillerWordPolicyBinding)
+            CadenceDiscretePicker(
+                title: "Filler words",
+                selection: fillerWordPolicyBinding
+            ) {
+                ForEach(FillerWordPolicy.allCases) { policy in
+                    Text(policy.displayName).tag(policy)
+                }
+            }
+            .accessibilityIdentifier("settings-filler-words-menu")
         }
         .padding(12)
     }
@@ -466,27 +492,12 @@ struct SettingsView: View {
     }
 
     private var vocabularyControls: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Words Cadence should remember")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(FlowTheme.textPrimary)
-
-            Text("Add names, companies, and phrases that should be spelled correctly.")
-                .font(.system(size: 12))
-                .foregroundStyle(FlowTheme.textSecondary)
-
-            TextEditor(text: vocabularyBinding)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(FlowTheme.textPrimary)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 88)
-                .padding(8)
-                .background(FlowTheme.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(FlowTheme.border, lineWidth: 1)
-                )
-        }
+        CadenceTextEditorRow(
+            title: "Words Cadence should remember",
+            detail: "Add names, companies, and phrases that should be spelled correctly.",
+            text: vocabularyBinding,
+            accessibilityIdentifier: "settings-vocabulary-editor"
+        )
         .padding(12)
     }
 
@@ -1009,30 +1020,6 @@ private struct TriggerModeSegmentedControl: View {
     }
 }
 
-private struct QualityPresetSegmentedControl: View {
-    @Binding var selection: DictationQualityPreset
-
-    var body: some View {
-        FlowSegmentedControl(
-            options: Array(DictationQualityPreset.allCases),
-            selection: $selection,
-            title: \.displayName
-        )
-    }
-}
-
-private struct FillerWordSegmentedControl: View {
-    @Binding var selection: FillerWordPolicy
-
-    var body: some View {
-        FlowSegmentedControl(
-            options: Array(FillerWordPolicy.allCases),
-            selection: $selection,
-            title: \.displayName
-        )
-    }
-}
-
 private struct FlowSegmentedControl<Option: Identifiable & Equatable>: View {
     let options: [Option]
     @Binding var selection: Option
@@ -1108,7 +1095,7 @@ private struct SettingsToggleRow: View {
 
             Toggle("", isOn: $isOn)
                 .labelsHidden()
-                .toggleStyle(FlowToggleStyle())
+                .toggleStyle(.switch)
         }
         .padding(12)
     }
@@ -1131,19 +1118,20 @@ private struct WaveformSensitivityRow: View {
                     .font(.system(size: 12, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(FlowTheme.textSecondary)
+                    .accessibilityLabel("Waveform sensitivity value")
+                    .accessibilityValue("\(Int((value * 100).rounded()))%")
+                    .accessibilityIdentifier("settings-waveform-sensitivity-value")
             }
 
-            HStack(spacing: 10) {
-                Text("Calm")
-                    .font(.system(size: 11))
-                    .foregroundStyle(FlowTheme.textTertiary)
-
-                Slider(value: $value, in: 0.1...1.6, step: 0.1)
-
-                Text("Lively")
-                    .font(.system(size: 11))
-                    .foregroundStyle(FlowTheme.textTertiary)
-            }
+            CadenceSensitivitySlider(
+                title: "Waveform sensitivity",
+                value: $value,
+                range: 0.1...1.6,
+                step: 0.1,
+                minimumLabel: "Calm",
+                maximumLabel: "Lively",
+                accessibilityIdentifier: "settings-waveform-sensitivity-slider"
+            )
         }
         .padding(12)
     }
@@ -1207,59 +1195,6 @@ private struct PermissionBadge: View {
             .foregroundStyle(isGranted ? FlowTheme.success : FlowTheme.error)
             .frame(width: 18, height: 18)
             .accessibilityLabel(isGranted ? "Granted" : "Not granted")
-    }
-}
-
-private struct ModelOptionRow: View {
-    let model: WhisperModelOption
-    let isSelected: Bool
-    let action: () -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        Button {
-            withAnimation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion)) {
-                action()
-            }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 13))
-                    .foregroundStyle(isSelected ? FlowTheme.accent : FlowTheme.textTertiary)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(model.displayName.replacingOccurrences(of: " English", with: ""))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(FlowTheme.textPrimary)
-
-                    Text("\(model.approximateSize) • \(model.qualityDescriptor)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(FlowTheme.textSecondary)
-                }
-
-                Spacer()
-            }
-            .padding(10)
-            .background(isSelected ? FlowTheme.subtle : FlowTheme.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isSelected ? FlowTheme.borderStrong : FlowTheme.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: isSelected)
-    }
-}
-
-private struct DecodingSegmentedControl: View {
-    @Binding var selection: WhisperDecodingMode
-
-    var body: some View {
-        FlowSegmentedControl(
-            options: Array(WhisperDecodingMode.allCases),
-            selection: $selection,
-            title: \.productLabel
-        )
     }
 }
 

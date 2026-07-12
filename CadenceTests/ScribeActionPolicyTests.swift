@@ -40,7 +40,9 @@ struct ScribeActionPolicyTests {
             canRetryGeneration: true
         )
 
-        #expect(actions.map(\.title) == ["Discard draft", "Copy draft", "Return and insert"])
+        #expect(actions.map(\.title) == [
+            "Discard draft", "Copy draft", "Return to original app and insert"
+        ])
         #expect(!actions.contains { $0.title.localizedCaseInsensitiveContains("again") })
     }
 }

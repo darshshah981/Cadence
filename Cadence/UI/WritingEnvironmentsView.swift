@@ -5,15 +5,14 @@ struct WritingEnvironmentsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Toggle(
-                "Adapt Scribe to the app",
+            CadenceToggle(
+                title: "Adapt Scribe to the app",
                 isOn: Binding(
                     get: { appModel.scribeAppAdaptationEnabled },
                     set: { appModel.setScribeAppAdaptationEnabled($0) }
-                )
+                ),
+                accessibilityIdentifier: "scribe-adaptation-toggle"
             )
-            .toggleStyle(.switch)
-            .accessibilityIdentifier("scribe-adaptation-toggle")
             Text("Recognition stays on this Mac. A new action snapshots one behavior; changing Settings never mutates a request already in progress.")
                 .font(.caption)
                 .foregroundStyle(FlowTheme.textSecondary)
@@ -62,31 +61,31 @@ struct WritingEnvironmentsView: View {
                 }
                 Spacer()
                 if id != .global {
-                    Toggle(
-                        "Enable \(definition.displayName)",
+                    CadenceToggle(
+                        title: "Enable \(definition.displayName)",
                         isOn: Binding(
                             get: { enabled },
                             set: { appModel.setWritingEnvironmentEnabled($0, for: id) }
-                        )
+                        ),
+                        accessibilityIdentifier: "scribe-environment-enabled-\(id.rawValue)"
                     )
                     .labelsHidden()
-                    .toggleStyle(.switch)
                 }
             }
 
             if definition.supportedBehaviorIDs.count > 1 {
-                Picker(
-                    "Writing behavior",
+                CadenceDropdownRow(
+                    title: "Writing behavior",
                     selection: Binding(
                         get: { preference(for: id)?.selectedBehaviorID ?? definition.defaultBehaviorID },
                         set: { appModel.setWritingEnvironmentBehavior($0, for: id) }
-                    )
+                    ),
+                    accessibilityIdentifier: "scribe-environment-behavior-\(id.rawValue)"
                 ) {
                     ForEach(definition.supportedBehaviorIDs) { behavior in
                         Text(behavior.displayName).tag(behavior)
                     }
                 }
-                .pickerStyle(.segmented)
                 .disabled(!enabled)
             } else {
                 Text(definition.defaultBehaviorID.displayName)

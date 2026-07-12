@@ -96,6 +96,7 @@ final class ScribeCoordinator {
     private(set) var resolvedEnvironment: ResolvedWritingEnvironment?
     private(set) var exactLiterals: [ScribeExactLiteral] = []
     var canRetryGeneration: Bool { activeRequest != nil }
+    var targetDisplayName: String? { activeCapture?.applicationTarget.displayName }
 
     private let audioCaptureService: AudioCaptureServing
     private let transcriptionEngine: TranscriptionEngine

@@ -4,11 +4,24 @@ import Foundation
 enum ScribeLaunchFixture: String {
     case setup
     case settings
+    case intent
+    case listening
+    case transcribing
+    case generating
+    case generatingSlow = "generating-slow"
     case slackReview
+    case claudeReview = "claude-review"
     case insertionRecovery
+    case literalFailure = "literal-failure"
+    case retryableFailure = "retryable-failure"
+    case nonRetryableFailure = "nonretryable-failure"
+    case success
+    case controlSemantics = "control-semantics"
 }
 
 enum ScribeLaunchFixtures {
+    static let supportedPanelWidths: [CGFloat] = [520, 559, 560, 720]
+
     static var current: ScribeLaunchFixture? {
         let arguments = ProcessInfo.processInfo.arguments
         guard let index = arguments.firstIndex(of: "--scribe-fixture"),
@@ -48,10 +61,29 @@ enum ScribeLaunchFixtures {
         guard let index = arguments.firstIndex(of: "--scribe-fixture-width"),
               arguments.indices.contains(index + 1),
               let width = Double(arguments[index + 1]),
-              (520...720).contains(width) else {
+              supportedPanelWidths.contains(CGFloat(width)) else {
             return nil
         }
         return CGFloat(width)
+    }
+
+    static var accessibilityOverride: CadenceAccessibilityPreferences? {
+        let arguments = Set(ProcessInfo.processInfo.arguments)
+        let preferences = CadenceAccessibilityPreferences(
+            reduceMotion: arguments.contains("--scribe-fixture-reduce-motion"),
+            reduceTransparency: arguments.contains("--scribe-fixture-reduce-transparency"),
+            differentiateWithoutColor: arguments.contains("--scribe-fixture-differentiate-without-color"),
+            increasedContrast: arguments.contains("--scribe-fixture-increased-contrast")
+        )
+        return preferences == .standard ? nil : preferences
+    }
+
+    static var usesLargeText: Bool {
+        ProcessInfo.processInfo.arguments.contains("--scribe-fixture-large-text")
+    }
+
+    static var showsActionFocusProbe: Bool {
+        ProcessInfo.processInfo.arguments.contains("--scribe-fixture-focus-probe")
     }
 
     static func apply(to defaults: UserDefaults) {
