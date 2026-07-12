@@ -1015,6 +1015,7 @@ final class HUDViewModel: ObservableObject {
     @Published var dictionaryFeedback: DictionaryFeedback = .idle
     @Published private(set) var morphProgress = 1.0
     @Published private(set) var previousPresentation: HUDPresentation?
+    @Published private(set) var applicationPresentation: HUDApplicationPresentation = .cadence
 
     var onLogoInteraction: ((HUDLogoInteractionEvent) -> Void)?
     var onExpandToggle: ((Bool) -> Void)?
@@ -1045,6 +1046,10 @@ final class HUDViewModel: ObservableObject {
             displayBars = targetBars
         }
         onReducedMotionChanged?(reducedMotion)
+    }
+
+    func applyApplicationPresentation(_ presentation: HUDApplicationPresentation) {
+        applicationPresentation = presentation
     }
 
     var isReducedMotionEnabled: Bool {

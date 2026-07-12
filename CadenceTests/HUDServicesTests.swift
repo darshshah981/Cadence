@@ -904,6 +904,70 @@ struct HUDReleaseHardeningTests {
 }
 
 @MainActor
+struct HUDApplicationPresentationTests {
+    @Test
+    func viewModelDistinguishesCadenceFromKnownApplicationPlaceholder() {
+        let model = HUDViewModel()
+        #expect(model.applicationPresentation.kind == .cadence)
+        let identity = ApplicationProcessIdentity(
+            processIdentifier: 7, bundleIdentifier: "com.openai.codex",
+            bundleURL: URL(fileURLWithPath: "/Applications/Codex.app"), incarnation: UUID()
+        )
+        model.applyApplicationPresentation(.init(
+            identity: identity, displayName: "Codex", icon: nil,
+            iconSource: .genericApplication, kind: .knownApplication,
+            presentationRevision: 1, pinID: UUID()
+        ))
+
+        #expect(model.applicationPresentation.kind == .knownApplication)
+        #expect(model.applicationPresentation.displayName == "Codex")
+        #expect(model.applicationPresentation.icon == nil)
+    }
+
+    @Test
+    func accessibilityLabelsRemainAppAwareAcrossActiveAndTerminalStates() {
+        let identity = ApplicationProcessIdentity(
+            processIdentifier: 8,
+            bundleIdentifier: "com.openai.codex",
+            bundleURL: URL(fileURLWithPath: "/Applications/Codex.app"),
+            incarnation: UUID(),
+            launchDate: Date(timeIntervalSince1970: 1)
+        )
+        let application = HUDApplicationPresentation(
+            identity: identity,
+            displayName: "Codex",
+            icon: nil,
+            iconSource: .genericApplication,
+            kind: .knownApplication,
+            presentationRevision: 1,
+            pinID: UUID()
+        )
+        let states: [HUDVisualState] = [
+            .idle,
+            .recording(triggerMode: .tapToStartStop, showsHint: false),
+            .recording(triggerMode: .holdToTalk, showsHint: true),
+            .preparingModel,
+            .transcribing,
+            .inserting,
+            .success,
+            .cancelled,
+            .error(message: "Insertion failed")
+        ]
+
+        for state in states {
+            #expect(HUDAccessibilityLabelResolver.label(
+                visualState: state,
+                application: application
+            ).contains("Codex"))
+        }
+        #expect(HUDAccessibilityLabelResolver.label(
+            visualState: .transcribing,
+            application: .cadence
+        ) == "Transcribing dictation")
+    }
+}
+
+@MainActor
 private final class HardeningCapturingFeedbackService: FeedbackServing {
     var isEnabled = true
     private(set) var activationCount = 0

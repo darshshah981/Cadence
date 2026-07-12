@@ -183,6 +183,11 @@ final class AppModel: ObservableObject {
     let onboardingMicrophoneMonitor: OnboardingMicrophoneMonitor
     private let hudController: HUDWindowController
     private let hudVisibilityController: HUDVisibilityController
+    private let focusedApplicationSource: WorkspaceFocusedApplicationSource
+    private let focusedApplicationMonitor: FocusedApplicationMonitor
+    private let applicationTargetAuthority: ApplicationTargetAuthority
+    private let applicationIconResolver: ApplicationIconResolver
+    private let applicationPresentationArbiter: ApplicationPresentationArbiter
     private let selectionCaptureService: SelectionCaptureService
     private let feedbackService: SoundFeedbackService
     private let analytics: AnalyticsService
@@ -202,7 +207,7 @@ final class AppModel: ObservableObject {
     private let personalizationStore: PersonalizationStore
     private let onboardingProgressStore: OnboardingProgressStore
     private var cancellables = Set<AnyCancellable>()
-    private var lastExternalApplication: NSRunningApplication?
+    private var installedApplicationIconSnapshot = InstalledApplicationCatalogSnapshot.empty
     private var transcriptionConfigurationTask: Task<Void, Never>?
     private var lastTrackedCorrectionTranscriptID: UUID?
     private var lastTrackedCorrectionSessionID: String?
@@ -317,6 +322,21 @@ final class AppModel: ObservableObject {
 
         let hudController = HUDWindowController()
         self.hudController = hudController
+        let focusedApplicationSource = WorkspaceFocusedApplicationSource()
+        let focusedApplicationMonitor = FocusedApplicationMonitor(
+            source: focusedApplicationSource,
+            cadenceBundleIdentifiers: ["com.darshshah.Cadence", "com.darshshah.Cadence.debug"]
+        )
+        let applicationTargetAuthority = ApplicationTargetAuthority(monitor: focusedApplicationMonitor)
+        let applicationIconResolver = ApplicationIconResolver()
+        let applicationPresentationArbiter = ApplicationPresentationArbiter(
+            resolver: applicationIconResolver
+        )
+        self.focusedApplicationSource = focusedApplicationSource
+        self.focusedApplicationMonitor = focusedApplicationMonitor
+        self.applicationTargetAuthority = applicationTargetAuthority
+        self.applicationIconResolver = applicationIconResolver
+        self.applicationPresentationArbiter = applicationPresentationArbiter
         let transcriptionEngine = WhisperKitTranscriptionEngine()
         let scribeTranscriptionEngine = WhisperKitTranscriptionEngine()
         let audioCaptureService = AudioCaptureService()
@@ -443,6 +463,7 @@ final class AppModel: ObservableObject {
             analytics: analytics,
             feedbackService: feedbackService,
             sessionArbiter: voiceSessionArbiter,
+            targetAuthority: applicationTargetAuthority,
             personalizationStore: personalizationStore,
             waveformSensitivity: waveformSensitivity
         )
@@ -451,7 +472,7 @@ final class AppModel: ObservableObject {
             transcriptionEngine: scribeTranscriptionEngine,
             provider: scribeProvider,
             providerActionResolver: { try await scribeProviderV2Controller.actionForNewRequest() },
-            contextService: ScribeContextService(),
+            contextService: ScribeContextService(targetAuthority: applicationTargetAuthority),
             sessionArbiter: voiceSessionArbiter,
             personalizationStore: personalizationStore,
             writingEnvironmentPreferences: { writingEnvironmentStore.load() },
@@ -465,10 +486,52 @@ final class AppModel: ObservableObject {
             transcriptionConfiguration: initialTranscriptionConfiguration
         )
 
+        focusedApplicationMonitor.onChange = { identity in
+            applicationPresentationArbiter.updateLive(identity)
+        }
+        focusedApplicationMonitor.onLaunch = { processIdentifier, bundleURL in
+            applicationIconResolver.invalidate(
+                processIdentifier: processIdentifier,
+                bundleURL: bundleURL
+            )
+        }
+        focusedApplicationMonitor.onTermination = { identity, processIdentifier, bundleURL, launchDate in
+            if let identity {
+                applicationIconResolver.invalidate(identity: identity)
+            } else {
+                applicationIconResolver.invalidate(
+                    processIdentifier: processIdentifier,
+                    bundleURL: bundleURL
+                )
+            }
+            applicationPresentationArbiter.markTerminated(
+                identity: identity,
+                processIdentifier: processIdentifier,
+                bundleURL: bundleURL,
+                launchDate: launchDate
+            )
+        }
+        applicationPresentationArbiter.onChange = { presentation in
+            hudController.viewModel.applyApplicationPresentation(presentation)
+        }
+        coordinator.onTargetPin = { capture, name in
+            applicationPresentationArbiter.pin(capture, displayName: name)
+        }
+        coordinator.onTargetClear = { id in
+            applicationPresentationArbiter.clearPin(id)
+        }
+        scribeCoordinator.onTargetPin = { capture, name in
+            applicationPresentationArbiter.pin(capture, displayName: name)
+        }
+        scribeCoordinator.onTargetClear = { id in
+            applicationPresentationArbiter.clearPin(id)
+        }
+
         adaptiveScribeReaderMonitor.onInvalidation = { [weak self] in
             self?.invalidateAdaptiveScribeRuntime()
         }
         adaptiveScribeReaderMonitor.start()
+        focusedApplicationMonitor.start()
         installedApplicationSnapshotStore.onPublish = { [weak self] snapshot in
             self?.handleInstalledApplicationSnapshot(snapshot)
         }
@@ -483,6 +546,8 @@ final class AppModel: ObservableObject {
         }
         AppDelegate.shutdownApplicationServices = {
             installedApplicationLifecycleSource.stop()
+            focusedApplicationMonitor.stop()
+            applicationPresentationArbiter.stop()
             Task { await installedApplicationCatalogService.stop() }
         }
         showMainWindow()
@@ -1655,8 +1720,7 @@ final class AppModel: ObservableObject {
     func startStopDemoInsert() {
         Task {
             do {
-                if let lastExternalApplication {
-                    _ = lastExternalApplication.activate(options: [.activateIgnoringOtherApps])
+                if focusedApplicationMonitor.activateMostRecentValidatedExternal() {
                     try? await Task.sleep(for: .milliseconds(180))
                 }
                 try await coordinator.insertPreviewText()
@@ -2120,19 +2184,6 @@ final class AppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didActivateApplicationNotification)
-            .receive(on: RunLoop.main)
-            .sink { [weak self] notification in
-                guard
-                    let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                    application.bundleIdentifier != Bundle.main.bundleIdentifier
-                else {
-                    return
-                }
-
-                self?.lastExternalApplication = application
-            }
-            .store(in: &cancellables)
     }
 
     private func schedulePermissionRefreshBurst() {
@@ -2644,6 +2695,12 @@ final class AppModel: ObservableObject {
     }
 
     private func handleInstalledApplicationSnapshot(_ snapshot: InstalledApplicationCatalogSnapshot) {
+        let affectedIconURLs = InstalledApplicationIconInvalidation.affectedBundleURLs(
+            previous: installedApplicationIconSnapshot,
+            next: snapshot
+        )
+        installedApplicationIconSnapshot = snapshot
+        applicationIconResolver.invalidate(bundleURLs: affectedIconURLs)
         installedApplications = snapshot.applications
         guard case let .valid(library) = applicationConfigurationStore.load() else { return }
         let configurationIDs = library.configurations.map(\.id)
@@ -2950,9 +3007,12 @@ final class AppModel: ObservableObject {
         viewModel.onInsert = { [weak self] in self?.insertScribeResult() }
         viewModel.onCopy = { [weak self] in self?.copyScribeResult() }
         viewModel.onClose = { [weak self] in
-            self?.pendingScribeIntent = nil
-            self?.scribeState = .idle
-            self?.scribePanelWindowController.close()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.scribeCoordinator.dismissPanel()
+                self.pendingScribeIntent = nil
+                self.scribePanelWindowController.close()
+            }
         }
     }
 

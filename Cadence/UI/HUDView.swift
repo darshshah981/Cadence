@@ -85,7 +85,10 @@ struct HUDView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: attachment.alignment)
         .clipped()
-        .modifier(HUDRootAccessibilityModifier(presentation: model.presentation))
+        .modifier(HUDRootAccessibilityModifier(
+            presentation: model.presentation,
+            application: model.applicationPresentation
+        ))
         .onAppear { model.setReducedMotion(reduceMotion) }
         .onChange(of: reduceMotion) { _, reduced in model.setReducedMotion(reduced) }
     }
@@ -119,16 +122,36 @@ struct HUDView: View {
     private var logoBadge: some View {
         ZStack(alignment: attachment.alignment) {
             Color.clear
-            Image("HUDLogo")
-                .resizable()
-                .interpolation(.high)
-                .frame(width: HUDMetrics.idleMarkSize.width, height: HUDMetrics.idleMarkSize.height)
-                .clipShape(HUDAdaptiveShape(position: model.position))
+            applicationMark(size: HUDMetrics.idleMarkSize)
         }
             .frame(width: HUDMetrics.idleHitSize.width, height: HUDMetrics.idleHitSize.height)
             .overlay {
                 HUDLogoInteractionSurface(model: model)
             }
+    }
+
+    @ViewBuilder
+    private func applicationMark(size: NSSize) -> some View {
+        let presentation = model.applicationPresentation
+        Group {
+            if presentation.kind == .cadence {
+                Image("HUDLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .accessibilityLabel("Cadence")
+            } else if let icon = presentation.icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .accessibilityLabel(presentation.displayName)
+            } else {
+                Image(systemName: "app.fill")
+                    .resizable()
+                    .accessibilityLabel("\(presentation.displayName) application")
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(HUDAdaptiveShape(position: model.position))
     }
 
     private var attachment: HUDContentAttachment {
@@ -137,6 +160,8 @@ struct HUDView: View {
 
     private func recordingPill(triggerMode: DictationTriggerMode, showsHint: Bool) -> some View {
         HStack(spacing: 10) {
+            applicationCue
+
             if triggerMode.showsLockIndicator {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 11, weight: .semibold))
@@ -163,6 +188,8 @@ struct HUDView: View {
 
     private func statusPill(icon: StatusIcon, text: String) -> some View {
         HStack(spacing: 8) {
+            applicationCue
+
             switch icon {
             case .spinner:
                 HUDSpinnerView()
@@ -221,10 +248,23 @@ struct HUDView: View {
         case cancelled
     }
 
+    private var applicationCue: some View {
+        HStack(spacing: 5) {
+            applicationMark(size: NSSize(width: 16, height: 16))
+            Text(model.applicationPresentation.displayName)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(FlowTheme.textTertiary)
+                .lineLimit(1)
+                .frame(maxWidth: 72, alignment: .leading)
+        }
+        .accessibilityHidden(true)
+    }
+
 }
 
 private struct HUDRootAccessibilityModifier: ViewModifier {
     let presentation: HUDPresentation
+    let application: HUDApplicationPresentation
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -233,8 +273,27 @@ private struct HUDRootAccessibilityModifier: ViewModifier {
         } else {
             content
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(presentation.visualState.accessibilityLabel)
+                .accessibilityLabel(HUDAccessibilityLabelResolver.label(
+                    visualState: presentation.visualState,
+                    application: application
+                ))
                 .accessibilityHint(presentation.visualState.accessibilityHint ?? "")
+        }
+    }
+}
+
+enum HUDAccessibilityLabelResolver {
+    static func label(
+        visualState: HUDVisualState,
+        application: HUDApplicationPresentation
+    ) -> String {
+        let base = visualState.accessibilityLabel
+        guard application.kind != .cadence else { return base }
+        switch visualState {
+        case .idle:
+            return "\(base) for \(application.displayName)"
+        default:
+            return "\(base) in \(application.displayName)"
         }
     }
 }

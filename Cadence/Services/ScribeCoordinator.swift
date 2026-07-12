@@ -125,6 +125,8 @@ final class ScribeCoordinator {
     private var audioContinuation: AsyncStream<ScribeCapturedAudio>.Continuation?
     private var audioIngestionTask: Task<Void, Never>?
     private var isStarting = false
+    var onTargetPin: ((ApplicationTargetCapture, String?) -> Void)?
+    var onTargetClear: ((UUID) -> Void)?
 
     init(
         audioCaptureService: AudioCaptureServing,
@@ -254,6 +256,8 @@ final class ScribeCoordinator {
         do {
             let capture = try contextService.capture(for: intent)
             activeCapture = capture
+            let applicationTarget = capture.applicationTarget
+            onTargetPin?(applicationTarget, applicationTarget.displayName)
             let recognizedEnvironmentID = environmentRecognizer.recognize(
                 target: capture.target,
                 signature: capture.recognitionSignature
@@ -520,6 +524,11 @@ final class ScribeCoordinator {
         state = .cancelled(requestID: cancelledRequestID)
     }
 
+    func dismissPanel() async {
+        await cancel()
+        state = .idle
+    }
+
     private func startGeneration(
         _ request: ScribeRequest,
         providerRequest: ScribeProviderRequest,
@@ -686,6 +695,7 @@ final class ScribeCoordinator {
     private func clearContext() {
         guard let activeCapture else { return }
         contextService.clear(activeCapture)
+        onTargetClear?(activeCapture.applicationTarget.id)
         self.activeCapture = nil
     }
 

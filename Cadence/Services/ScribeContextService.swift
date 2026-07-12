@@ -93,14 +93,34 @@ final class ScribeContextService: ScribeContextServing {
     nonisolated static let maximumContextUTF8Bytes = 32 * 1_024
 
     private let reader: ScribeAccessibilityReading
+    private let processAuthority: any RuntimeApplicationProcessAuthorizing
+    private let targetAuthority: (any ApplicationTargetAuthorizing)?
     private var activeCaptures: [UUID: String] = [:]
 
     convenience init() {
-        self.init(reader: SystemScribeAccessibilityReader())
+        self.init(
+            reader: SystemScribeAccessibilityReader(),
+            processAuthority: RuntimeApplicationProcessAuthority(),
+            targetAuthority: nil
+        )
     }
 
-    init(reader: ScribeAccessibilityReading) {
+    convenience init(targetAuthority: any ApplicationTargetAuthorizing) {
+        self.init(
+            reader: SystemScribeAccessibilityReader(),
+            processAuthority: RuntimeApplicationProcessAuthority(),
+            targetAuthority: targetAuthority
+        )
+    }
+
+    init(
+        reader: ScribeAccessibilityReading,
+        processAuthority: any RuntimeApplicationProcessAuthorizing,
+        targetAuthority: (any ApplicationTargetAuthorizing)? = nil
+    ) {
         self.reader = reader
+        self.processAuthority = processAuthority
+        self.targetAuthority = targetAuthority
     }
 
     func prepareTarget() throws {
@@ -127,13 +147,39 @@ final class ScribeContextService: ScribeContextServing {
             selectedText = ""
         }
 
+        let captureID = UUID()
+        let resolved = try processAuthority.capture(
+            processIdentifier: raw.target.processIdentifier,
+            expectedBundleIdentifier: raw.target.bundleIdentifier
+        )
+        let monitorTarget = targetAuthority?.enrichCapture(
+            id: captureID,
+            processIdentifier: raw.target.processIdentifier,
+            bundleIdentifier: raw.target.bundleIdentifier
+        )
+        let monitorIsExact = monitorTarget.map {
+            $0.process.processIdentifier == resolved.identity.processIdentifier
+                && $0.process.bundleIdentifier == resolved.identity.bundleIdentifier
+                && $0.process.bundleURL == resolved.identity.bundleURL
+                && $0.process.launchDate == resolved.identity.launchDate
+        } == true
+        let applicationTarget = ApplicationTargetCapture(
+            id: captureID,
+            process: resolved.identity,
+            identityRevision: monitorIsExact ? monitorTarget!.identityRevision : 0,
+            captureRevision: monitorIsExact ? monitorTarget!.captureRevision : 0,
+            source: .scribeAccessibility,
+            displayName: monitorIsExact ? monitorTarget!.displayName : resolved.displayName
+        )
         let capture = ScribeContextSnapshot(
+            id: captureID,
             target: raw.target,
             scope: intent.contextScope,
             selectedText: selectedText,
             verificationToken: raw.verificationToken,
             selectionIdentity: raw.selectionIdentity,
-            recognitionSignature: raw.recognitionSignature
+            recognitionSignature: raw.recognitionSignature,
+            applicationTarget: applicationTarget
         )
         activeCaptures[capture.id] = raw.verificationToken
         return capture
@@ -152,6 +198,9 @@ final class ScribeContextService: ScribeContextServing {
               current.verificationToken == capture.verificationToken,
               current.selectionIdentity == capture.selectionIdentity,
               current.recognitionSignature == capture.recognitionSignature else {
+            throw ScribeContextError.targetChanged
+        }
+        if !processAuthority.verify(capture.applicationTarget.process) {
             throw ScribeContextError.targetChanged
         }
         if capture.scope == .selectedText {

@@ -529,6 +529,56 @@ struct ScribeCoordinatorTests {
 
         #expect(fixture.context.discardPreparedTargetCount == 1)
     }
+
+    @Test
+    func runtimeTargetPinsOnCaptureAndCancelClearsExactCaptureToken() async throws {
+        let process = ApplicationProcessIdentity(
+            processIdentifier: 42, bundleIdentifier: "com.openai.codex",
+            bundleURL: URL(fileURLWithPath: "/Applications/Codex.app"), incarnation: UUID()
+        )
+        let target = ApplicationTargetCapture(
+            process: process, identityRevision: 1, captureRevision: 1,
+            source: .scribeAccessibility, displayName: "Codex"
+        )
+        let fixture = ScribeCoordinatorFixture(applicationTarget: target)
+        var pins: [UUID] = []
+        var clears: [UUID] = []
+        fixture.coordinator.onTargetPin = { capture, _ in pins.append(capture.id) }
+        fixture.coordinator.onTargetClear = { clears.append($0) }
+
+        try await fixture.coordinator.begin(intent: .compose)
+        #expect(pins == [target.id])
+        await fixture.coordinator.cancel()
+        #expect(clears == [target.id])
+    }
+
+    @Test
+    func panelCloseAwaitsCoordinatorCleanupBeforeReturningToIdle() async throws {
+        let process = ApplicationProcessIdentity(
+            processIdentifier: 43,
+            bundleIdentifier: "com.openai.codex",
+            bundleURL: URL(fileURLWithPath: "/Applications/Codex.app"),
+            incarnation: UUID(),
+            launchDate: Date(timeIntervalSince1970: 2)
+        )
+        let target = ApplicationTargetCapture(
+            process: process,
+            identityRevision: 1,
+            captureRevision: 1,
+            source: .scribeAccessibility,
+            displayName: "Codex"
+        )
+        let fixture = ScribeCoordinatorFixture(applicationTarget: target)
+        var clears: [UUID] = []
+        fixture.coordinator.onTargetClear = { clears.append($0) }
+        try await fixture.coordinator.begin(intent: .compose)
+
+        await fixture.coordinator.dismissPanel()
+
+        #expect(fixture.coordinator.state == .idle)
+        #expect(clears == [target.id])
+        #expect(fixture.context.clearedCaptureIDs.count == 1)
+    }
 }
 
 @MainActor
@@ -552,12 +602,14 @@ private final class ScribeCoordinatorFixture {
         providerDispatchAuthorization: @escaping @MainActor (ScribeProviderActionSnapshot) async -> Bool = { _ in true },
         engine: (any TranscriptionEngine)? = nil,
         generationTimeout: Duration = .seconds(5),
-        generationSoftWait: Duration = .seconds(8)
+        generationSoftWait: Duration = .seconds(8),
+        applicationTarget: ApplicationTargetCapture? = nil
     ) {
         context = StubScribeContextService(
             selectedText: selectedText,
             bundleIdentifier: bundleIdentifier,
-            recognitionSignature: recognitionSignature
+            recognitionSignature: recognitionSignature,
+            applicationTarget: applicationTarget
         )
         self.engine = engine ?? StubScribeTranscriptionEngine(text: "Spoken request")
         coordinator = ScribeCoordinator(
@@ -697,6 +749,7 @@ private final class StubScribeContextService: ScribeContextServing {
     private let selectedText: String
     private let bundleIdentifier: String
     private let recognitionSignature: TargetRecognitionSignature?
+    private let applicationTarget: ApplicationTargetCapture
     var shouldVerify = true
     private(set) var clearedCaptureIDs: [UUID] = []
     private(set) var insertedTexts: [String] = []
@@ -707,11 +760,25 @@ private final class StubScribeContextService: ScribeContextServing {
     init(
         selectedText: String,
         bundleIdentifier: String,
-        recognitionSignature: TargetRecognitionSignature?
+        recognitionSignature: TargetRecognitionSignature?,
+        applicationTarget: ApplicationTargetCapture? = nil
     ) {
         self.selectedText = selectedText
         self.bundleIdentifier = bundleIdentifier
         self.recognitionSignature = recognitionSignature
+        self.applicationTarget = applicationTarget ?? ApplicationTargetCapture(
+            process: ApplicationProcessIdentity(
+                processIdentifier: 42,
+                bundleIdentifier: bundleIdentifier,
+                bundleURL: URL(fileURLWithPath: "/Applications/Test.app"),
+                incarnation: UUID(),
+                launchDate: Date(timeIntervalSince1970: 1)
+            ),
+            identityRevision: 1,
+            captureRevision: 1,
+            source: .scribeAccessibility,
+            displayName: "Test"
+        )
     }
 
     func prepareTarget() throws {}
@@ -723,7 +790,8 @@ private final class StubScribeContextService: ScribeContextServing {
             scope: intent.contextScope,
             selectedText: intent.requiresSelectedText ? selectedText : "",
             verificationToken: "window-a",
-            recognitionSignature: recognitionSignature
+            recognitionSignature: recognitionSignature,
+            applicationTarget: applicationTarget
         )
     }
 

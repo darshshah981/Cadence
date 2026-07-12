@@ -715,8 +715,8 @@ enum HUDMetrics {
     static let idleMarkSize = NSSize(width: 31, height: 31)
     static let expandedTraySize = NSSize(width: 240, height: 38)
     static let pillHeight: CGFloat = 38
-    static let compactWidth: CGFloat = 176
-    static let holdHintWidth: CGFloat = 260
+    static let compactWidth: CGFloat = 236
+    static let holdHintWidth: CGFloat = 320
     static let statusWidth: CGFloat = 236
     static let subtitleSize = NSSize(width: 320, height: 36)
     static let subtitleGap: CGFloat = 8

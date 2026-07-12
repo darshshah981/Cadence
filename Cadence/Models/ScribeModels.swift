@@ -128,6 +128,7 @@ struct ScribeContextSnapshot: Equatable, Sendable {
     let verificationToken: String
     let selectionIdentity: ScribeSelectionIdentity?
     let recognitionSignature: TargetRecognitionSignature?
+    let applicationTarget: ApplicationTargetCapture
 
     init(
         id: UUID = UUID(),
@@ -136,7 +137,8 @@ struct ScribeContextSnapshot: Equatable, Sendable {
         selectedText: String,
         verificationToken: String = UUID().uuidString,
         selectionIdentity: ScribeSelectionIdentity? = nil,
-        recognitionSignature: TargetRecognitionSignature? = nil
+        recognitionSignature: TargetRecognitionSignature? = nil,
+        applicationTarget: ApplicationTargetCapture
     ) {
         self.id = id
         self.target = target
@@ -145,6 +147,7 @@ struct ScribeContextSnapshot: Equatable, Sendable {
         self.verificationToken = verificationToken
         self.selectionIdentity = selectionIdentity
         self.recognitionSignature = recognitionSignature
+        self.applicationTarget = applicationTarget
     }
 
     var disclosure: String {
