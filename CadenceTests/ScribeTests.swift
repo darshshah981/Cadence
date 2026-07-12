@@ -4,19 +4,12 @@ import Testing
 
 struct ScribeTests {
     @Test
-    func intentsRoundTripAndDeclareContextNeeds() throws {
-        let encoded = try JSONEncoder().encode(ScribeIntent.allCases)
-        let decoded = try JSONDecoder().decode([ScribeIntent].self, from: encoded)
-
-        #expect(decoded == ScribeIntent.allCases)
-        #expect(!ScribeIntent.compose.requiresSelectedText)
-        #expect(ScribeIntent.respond.requiresSelectedText)
-        #expect(ScribeIntent.edit.requiresSelectedText)
+    func directDictationContractHasNoSelectedTextInput() {
+        #expect(ScribeIntent.compose.requiresSelectedText == false)
         #expect(ScribeIntent.compose.contextScope == .none)
-        #expect(ScribeIntent.respond.contextScope == .selectedText)
-        #expect(ScribeIntent.edit.contextScope == .selectedText)
-        #expect(ScribeIntentPickerResult.cancelled.intent == nil)
-        #expect(ScribeIntentPickerResult.selected(.edit).intent == .edit)
+
+        let request = ScribeRequest(intent: .compose, spokenTranscript: "Synthetic dictation")
+        #expect(request.context == nil)
     }
 
     @Test
@@ -111,7 +104,7 @@ struct ScribeTests {
         let requestID = UUID()
         let result = ScribeResult(requestID: requestID, text: "Draft")
 
-        #expect(ScribeSessionState.listening(requestID: requestID, intent: .compose).requestID == requestID)
+        #expect(ScribeSessionState.listening(requestID: requestID).requestID == requestID)
         #expect(ScribeSessionState.generating(requestID: requestID).requestID == requestID)
         #expect(ScribeSessionState.generatingSlow(requestID: requestID).requestID == requestID)
         #expect(ScribeSessionState.reviewing(result).requestID == requestID)

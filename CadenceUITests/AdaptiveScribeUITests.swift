@@ -1,6 +1,30 @@
 import XCTest
 
 final class AdaptiveScribeUITests: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        // The fixture suite launches different app processes and windows. A
+        // previous fixture can still be winding down when XCTest starts the
+        // next case, so begin from a known no-process state rather than
+        // allowing stale UI ownership to make settings navigation flaky.
+        terminateFixtureApplication()
+    }
+
+    override func tearDownWithError() throws {
+        terminateFixtureApplication()
+    }
+
+    private func terminateFixtureApplication() {
+        let app = XCUIApplication()
+        app.terminate()
+
+        let deadline = Date().addingTimeInterval(5)
+        while app.state != .notRunning, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTAssertEqual(app.state, .notRunning, "Fixture app must terminate before the next UI case")
+    }
+
     @MainActor
     func testConsentFirstDeepSeekSetupCanExitWithoutAKeyOrNetwork() throws {
         let app = XCUIApplication()
@@ -101,10 +125,12 @@ final class AdaptiveScribeUITests: XCTestCase {
         XCTAssertEqual(environmentCues.firstMatch.value as? String, "Slack · Neutral")
         XCTAssertEqual(app.buttons.matching(NSPredicate(
             format: "label == %@",
-            "Draft again"
+            "Record again"
         )).count, 1)
-        XCTAssertTrue(app.buttons["Insert into Slack"].exists)
-        XCTAssertTrue(app.buttons["Copy draft"].exists)
+        XCTAssertTrue(app.buttons["Insert polished into Slack"].exists)
+        XCTAssertTrue(app.buttons["Copy polished"].exists)
+        XCTAssertTrue(app.buttons["Retry polish"].exists)
+        XCTAssertTrue(app.buttons["Copy unpolished"].exists)
         XCTAssertTrue(app.buttons["Discard draft"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["scribe-exact-literal-summary"].exists)
         attachScreenshot(element: app.dialogs.firstMatch, name: "slack-review-520")
@@ -124,10 +150,11 @@ final class AdaptiveScribeUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)[
             "scribe-insertion-recovery-status"
         ].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons["Return to Claude and insert"].exists)
-        XCTAssertTrue(app.buttons["Copy draft"].exists)
+        XCTAssertTrue(app.buttons["Return to Claude and insert polished"].exists)
+        XCTAssertTrue(app.buttons["Copy polished"].exists)
+        XCTAssertTrue(app.buttons["Copy unpolished"].exists)
         XCTAssertTrue(app.buttons["Discard draft"].exists)
-        XCTAssertFalse(app.buttons["Draft again"].exists)
+        XCTAssertFalse(app.buttons["Record again"].exists)
         let cues = app.descendants(matching: .any).matching(identifier: "scribe-environment-cue")
         XCTAssertEqual(cues.count, 1)
         XCTAssertEqual(cues.firstMatch.value as? String, "Claude · Coding")
@@ -152,7 +179,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Discard draft"].exists)
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertFalse(app.staticTexts["Discard this draft?"].waitForExistence(timeout: 1))
-        XCTAssertTrue(app.buttons["Copy draft"].exists)
+        XCTAssertTrue(app.buttons["Copy polished"].exists)
     }
 
     @MainActor
@@ -171,12 +198,15 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(app.staticTexts["Discard this draft?"].waitForExistence(timeout: 3))
         app.typeKey(.escape, modifierFlags: [])
-        XCTAssertTrue(app.buttons["Use spoken words"].exists)
+        XCTAssertFalse(app.staticTexts["Discard this draft?"].waitForExistence(timeout: 1))
+        XCTAssertTrue(app.buttons["Copy unpolished"].exists)
+        XCTAssertTrue(app.buttons["Insert unpolished"].exists)
+        XCTAssertTrue(app.buttons["Try Scribe again"].exists)
     }
 
     @MainActor
     func testActionLayoutUsesExact560PointBreakpointAndStableOrder() throws {
-        for (width, expectedLayout) in [(520, "Vertical"), (559, "Vertical"), (560, "Horizontal"), (720, "Horizontal")] {
+        for (width, expectedLayout) in [(520, "Vertical"), (559, "Vertical"), (560, "Vertical"), (720, "Vertical")] {
             let app = XCUIApplication()
             app.launchArguments = [
                 "--scribe-fixture", "slackReview",
@@ -190,7 +220,7 @@ final class AdaptiveScribeUITests: XCTestCase {
             let group = app.descendants(matching: .any)["scribe-action-group"]
             XCTAssertTrue(group.waitForExistence(timeout: 8))
             app.activate()
-            let ordered = ["Discard draft", "Draft again", "Copy draft", "Insert into Slack"]
+            let ordered = ["Discard draft", "Record again", "Retry polish", "Copy unpolished", "Insert unpolished", "Copy polished", "Insert polished into Slack"]
                 .map { app.buttons[$0] }
             XCTAssertTrue(ordered.allSatisfy(\.isHittable))
             let ys = ordered.map { $0.frame.midY }
@@ -225,9 +255,12 @@ final class AdaptiveScribeUITests: XCTestCase {
     func testNativeTabTraversalFollowsActionSourceOrderAtCompactAndWideWidths() throws {
         let expected = [
             "scribe-action-discard-draft",
-            "scribe-action-draft-again",
-            "scribe-action-copy-draft",
-            "scribe-action-insert-draft"
+            "scribe-action-record-again",
+            "scribe-action-retry-polish",
+            "scribe-action-copy-unpolished",
+            "scribe-action-insert-unpolished",
+            "scribe-action-copy-polished",
+            "scribe-action-insert-polished"
         ]
 
         for width in [520, 560] {

@@ -22,15 +22,26 @@ struct AdaptiveScribeContractTests {
         let data = try Data(contentsOf: repositoryRoot.appendingPathComponent(
             "CadenceTests/Fixtures/AdaptiveScribe/quality-corpus.json"
         ))
+        let manifestData = try Data(contentsOf: repositoryRoot.appendingPathComponent(
+            "CadenceTests/Fixtures/AdaptiveScribe/quality-corpus-manifest.json"
+        ))
         let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let manifest = try #require(try JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
         let cases = try #require(object["cases"] as? [[String: Any]])
         let ids = cases.compactMap { $0["id"] as? String }
 
-        #expect(object["schemaVersion"] as? Int == 1)
+        #expect(object["schemaVersion"] as? Int == 2)
+        #expect(object["syntheticOnly"] as? Bool == true)
+        #expect(manifest["schemaVersion"] as? Int == 2)
+        #expect(manifest["syntheticOnly"] as? Bool == true)
+        #expect(manifest["dictationOnly"] as? Bool == true)
+        #expect(manifest["caseCount"] as? Int == 24)
         #expect(cases.count == 24)
         #expect(Set(ids).count == 24)
-        #expect(cases.filter { $0["environment"] as? String == "slack" }.count == 12)
-        #expect(cases.filter { $0["environment"] as? String == "claude-code" }.count == 12)
+        #expect(cases.filter { $0["family"] as? String == "general" }.count == 8)
+        #expect(cases.filter { $0["family"] as? String == "messaging" }.count == 8)
+        #expect(cases.filter { $0["family"] as? String == "coding" }.count == 8)
+        #expect(cases.allSatisfy { $0["selection"] == nil && $0["intent"] == nil })
         #expect(cases.allSatisfy { ($0["spoken"] as? String)?.contains("CANARY") != true })
     }
 

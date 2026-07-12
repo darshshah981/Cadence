@@ -1,5 +1,8 @@
 import Foundation
 
+/// Legacy source compatibility only. Scribe has one direct-dictation flow and
+/// never uses an intent or selected text at runtime.
+@available(*, deprecated, message: "Scribe is direct dictation only")
 enum ScribeIntent: String, CaseIterable, Codable, Identifiable, Sendable {
     case compose
     case respond
@@ -78,7 +81,6 @@ struct ScribeProviderCapabilities: OptionSet, Codable, Equatable, Sendable {
 
     static let mock: ScribeProviderCapabilities = [
         .semanticGeneration,
-        .selectedTextContext,
         .cancellation
     ]
 }
@@ -219,6 +221,13 @@ struct ScribeRequestContext: Equatable, Sendable {
 struct ScribeResult: Equatable, Sendable {
     let requestID: UUID
     let text: String
+    let binding: ScribeProviderResultBinding?
+
+    init(requestID: UUID, text: String, binding: ScribeProviderResultBinding? = nil) {
+        self.requestID = requestID
+        self.text = text
+        self.binding = binding
+    }
 }
 
 enum ScribeOutputPolicy {
@@ -245,8 +254,7 @@ enum ScribeOutputPolicy {
 
 enum ScribeSessionState: Equatable, Sendable {
     case idle
-    case choosingIntent
-    case listening(requestID: UUID, intent: ScribeIntent)
+    case listening(requestID: UUID)
     case transcribing(requestID: UUID)
     case generating(requestID: UUID)
     case generatingSlow(requestID: UUID)
@@ -259,9 +267,9 @@ enum ScribeSessionState: Equatable, Sendable {
 
     var requestID: UUID? {
         switch self {
-        case .idle, .choosingIntent:
+        case .idle:
             return nil
-        case let .listening(requestID, _),
+        case let .listening(requestID),
              let .transcribing(requestID),
              let .generating(requestID),
              let .generatingSlow(requestID),

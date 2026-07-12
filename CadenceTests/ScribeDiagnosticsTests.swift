@@ -73,7 +73,6 @@ struct ScribeDiagnosticsTests {
                 attempt: .thirdOrLater,
                 retry: .none,
                 appAdaptationEnabled: true,
-                selectedTextIntent: false,
                 fallbackUsed: false,
                 lateResultSuppressed: false
             ))
@@ -104,7 +103,6 @@ struct ScribeDiagnosticsTests {
             attempt: .second,
             retry: .changeConfiguration,
             appAdaptationEnabled: true,
-            selectedTextIntent: true,
             fallbackUsed: true,
             lateResultSuppressed: true
         ))

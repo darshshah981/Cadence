@@ -9,7 +9,7 @@ actor FoundationModelsScribeProvider: ScribeProvider {
     init() {
         switch SystemLanguageModel.default.availability {
         case .available:
-            capabilities = [.semanticGeneration, .selectedTextContext, .cancellation]
+            capabilities = [.semanticGeneration, .cancellation]
         case .unavailable:
             capabilities = []
         }
@@ -25,7 +25,8 @@ actor FoundationModelsScribeProvider: ScribeProvider {
             let response = try await session.respond(to: request.input.userMessage)
             return ScribeResult(
                 requestID: request.id,
-                text: try ScribeOutputPolicy.normalizedOutput(response.content)
+                text: try ScribeOutputPolicy.normalizedOutput(response.content),
+                binding: request.resultBinding
             )
         } catch is CancellationError {
             throw CancellationError()

@@ -4,7 +4,7 @@ struct OpenRouterScribeProvider: ScribeProvider {
     typealias CredentialLoader = @Sendable () throws -> String
 
     let capabilities: ScribeProviderCapabilities = [
-        .semanticGeneration, .selectedTextContext, .cancellation
+        .semanticGeneration, .cancellation
     ]
 
     private struct Routing: Encodable {
@@ -75,7 +75,7 @@ struct OpenRouterScribeProvider: ScribeProvider {
     func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
         ScribeResult(requestID: request.id, text: try await execute(
             input: request.input, phase: .generation, maxTokens: 1_024
-        ))
+        ), binding: request.resultBinding)
     }
 
     func validateConnection() async throws {

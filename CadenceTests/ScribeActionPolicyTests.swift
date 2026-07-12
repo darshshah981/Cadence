@@ -9,8 +9,8 @@ struct ScribeActionPolicyTests {
         let result = ScribeResult(requestID: requestID, text: "Draft")
         let states: [ScribeSessionState] = [
             .idle,
-            .choosingIntent,
-            .listening(requestID: requestID, intent: .compose),
+            .idle,
+            .listening(requestID: requestID),
             .transcribing(requestID: requestID),
             .generating(requestID: requestID),
             .reviewing(result),
@@ -41,7 +41,8 @@ struct ScribeActionPolicyTests {
         )
 
         #expect(actions.map(\.title) == [
-            "Discard draft", "Copy draft", "Return to original app and insert"
+            "Discard draft", "Copy unpolished", "Insert unpolished", "Copy polished",
+            "Return to original app and insert polished"
         ])
         #expect(!actions.contains { $0.title.localizedCaseInsensitiveContains("again") })
     }

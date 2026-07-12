@@ -3,7 +3,6 @@ import Foundation
 struct DeepSeekScribeProvider: ScribeProvider {
     let capabilities: ScribeProviderCapabilities = [
         .semanticGeneration,
-        .selectedTextContext,
         .cancellation
     ]
 
@@ -24,7 +23,7 @@ struct DeepSeekScribeProvider: ScribeProvider {
     }
 
     func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
-        ScribeResult(requestID: request.id, text: try await client.generate(request))
+        ScribeResult(requestID: request.id, text: try await client.generate(request), binding: request.resultBinding)
     }
 
     func validateConnection() async throws {

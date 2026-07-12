@@ -15,11 +15,14 @@ struct CadenceControlSemanticsTests {
 
         #expect(actions.map(\.id.rawValue) == [
             "scribe.discard-draft",
-            "scribe.draft-again",
-            "scribe.copy-draft",
-            "scribe.insert-draft"
+            "scribe.record-again",
+            "scribe.retry-polish",
+            "scribe.copy-unpolished",
+            "scribe.insert-unpolished",
+            "scribe.copy-polished",
+            "scribe.insert-polished"
         ])
-        #expect(actions.last?.title == "Insert into Slack")
+        #expect(actions.last?.title == "Insert polished into Slack")
         #expect(actions.last?.keyboardShortcut == .defaultAction)
         #expect(actions.filter { $0.keyboardShortcut == .defaultAction }.count == 1)
         #expect(!actions.contains {
@@ -40,11 +43,13 @@ struct CadenceControlSemanticsTests {
 
         #expect(actions.map(\.id.rawValue) == [
             "scribe.discard-draft",
-            "scribe.copy-draft",
-            "scribe.insert-draft"
+            "scribe.copy-unpolished",
+            "scribe.insert-unpolished",
+            "scribe.copy-polished",
+            "scribe.insert-polished"
         ])
-        #expect(actions.last?.title == "Return to Claude and insert")
-        #expect(!actions.contains { $0.id.rawValue == "scribe.draft-again" })
+        #expect(actions.last?.title == "Return to Claude and insert polished")
+        #expect(!actions.contains { $0.id.rawValue == "scribe.record-again" })
         #expect(ScribeActionPolicy.requiresDiscardConfirmation(
             for: .insertionRecovery(result),
             hasRecoverableContent: true
@@ -56,8 +61,8 @@ struct CadenceControlSemanticsTests {
         let requestID = UUID()
         let result = ScribeResult(requestID: requestID, text: "Draft")
         let states: [ScribeSessionState] = [
-            .choosingIntent,
-            .listening(requestID: requestID, intent: .compose),
+            .idle,
+            .listening(requestID: requestID),
             .transcribing(requestID: requestID),
             .generating(requestID: requestID),
             .generatingSlow(requestID: requestID),
@@ -117,9 +122,12 @@ struct CadenceControlSemanticsTests {
 
         #expect(actions.map { CadenceActionGroup.actionAccessibilityIdentifier($0.id) } == [
             "scribe-action-discard-draft",
-            "scribe-action-draft-again",
-            "scribe-action-copy-draft",
-            "scribe-action-insert-draft"
+            "scribe-action-record-again",
+            "scribe-action-retry-polish",
+            "scribe-action-copy-unpolished",
+            "scribe-action-insert-unpolished",
+            "scribe-action-copy-polished",
+            "scribe-action-insert-polished"
         ])
     }
 

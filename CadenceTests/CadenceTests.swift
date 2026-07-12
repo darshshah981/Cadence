@@ -307,21 +307,17 @@ struct CadenceTests {
 
     @Test
     @MainActor
-    func scribeLaunchPinsTargetBeforePresentingComposeFocus() throws {
-        var events: [String] = []
+    func scribePanelDirectLifecycleHasNoIntentPickerState() throws {
         let model = ScribePanelViewModel()
-
-        ScribePanelLaunchSequence.launch(
-            prepareTarget: { events.append("target-pinned") },
-            presentPicker: { initialFocus in
-                events.append("panel-presented-\(initialFocus.rawValue)")
-                model.presentPicker(providerStatus: "On-device", initialFocus: initialFocus)
-            }
+        model.apply(
+            state: .listening(requestID: UUID()),
+            failureMessage: nil,
+            literalTranscript: nil,
+            environmentCue: nil,
+            exactLiterals: [],
+            canRetryGeneration: false
         )
-
-        #expect(events == ["target-pinned", "panel-presented-compose"])
-        #expect(model.state == .choosingIntent)
-        #expect(model.requestedIntentFocus == .compose)
+        #expect(model.state.requestID != nil)
     }
 
     @Test

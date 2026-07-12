@@ -60,6 +60,31 @@ struct ScribeChatMessageWire: Encodable {
 struct ScribeProviderRequest: Equatable, Identifiable, Sendable {
     let id: UUID
     let input: ProviderSafeScribeInput
+    /// An opaque, per-attempt correlation value. It is generated locally and
+    /// is never serialized into the provider payload.
+    let resultBinding: ScribeProviderResultBinding?
+
+    init(
+        id: UUID,
+        input: ProviderSafeScribeInput,
+        resultBinding: ScribeProviderResultBinding? = nil
+    ) {
+        self.id = id
+        self.input = input
+        self.resultBinding = resultBinding
+    }
+}
+
+/// Binds a provider completion to exactly one immutable Scribe attempt.  This
+/// is deliberately transport-local: it prevents a stale/mock/provider result
+/// from winning without adding app, target, transcript, or credential data to
+/// egress.
+struct ScribeProviderResultBinding: Equatable, Sendable {
+    let requestID: UUID
+    let actionRevision: Int
+    let attemptRevision: Int
+    let providerKind: ScribeProviderKind
+    let modelID: String?
 }
 
 struct ScribeEgressDestination: Equatable, Sendable {

@@ -4,7 +4,7 @@ import Foundation
 enum ScribeLaunchFixture: String {
     case setup
     case settings
-    case intent
+    case directReady = "direct-ready"
     case listening
     case transcribing
     case generating

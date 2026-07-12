@@ -51,15 +51,15 @@ struct ScribeCoordinatorTests {
             }
         )
 
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         await authority.revoke(receipt.id)
         await fixture.coordinator.finishRecording()
 
         #expect(await transport.requests.isEmpty)
-        if case .cancelled = fixture.coordinator.state {
+        if case .failed = fixture.coordinator.state {
             // Expected exact V2 checkpoint rejection before transport.
         } else {
-            Issue.record("Expected cancellation after consent revocation")
+            Issue.record("Expected fail-closed recovery after consent revocation")
         }
     }
 
@@ -79,7 +79,7 @@ struct ScribeCoordinatorTests {
         }
         runtime.monitor.start()
         #expect(runtime.monitor.revalidate())
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
 
         try runtime.gateStore.save(.allDisabled)
         runtime.notificationCenter.post(
@@ -108,16 +108,16 @@ struct ScribeCoordinatorTests {
             provider: provider,
             providerDispatchAuthorization: { _ in runtime.monitor.authorizeProviderDispatch() }
         )
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         try runtime.gateStore.save(.allDisabled)
 
         await fixture.coordinator.finishRecording()
 
         #expect(await provider.requests.isEmpty)
-        if case .cancelled = fixture.coordinator.state {
+        if case .failed = fixture.coordinator.state {
             // Checkpoint cancelled before provider dispatch.
         } else {
-            Issue.record("Expected checkpoint cancellation")
+            Issue.record("Expected checkpoint recovery")
         }
     }
 
@@ -125,7 +125,7 @@ struct ScribeCoordinatorTests {
     func appModelGateInvalidationCancelsReachableCoordinatorBeforeRemoteWork() async throws {
         let provider = CapturingScribeProvider(resultText: "Must not run")
         let fixture = ScribeCoordinatorFixture(provider: provider)
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         var cancellation: Task<Void, Never>?
         var setupPresented = false
 
@@ -170,12 +170,10 @@ struct ScribeCoordinatorTests {
     func composeRunsThroughReviewAndInsertsExactlyOnce() async throws {
         let fixture = ScribeCoordinatorFixture(providerResponses: [.success("A polished update.")])
 
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         await fixture.coordinator.finishRecording()
 
-        #expect(fixture.coordinator.state == .reviewing(
-            ScribeResult(requestID: fixture.coordinator.activeRequestID!, text: "A polished update.")
-        ))
+        #expect(fixture.coordinator.reviewedResult?.text == "A polished update.")
         #expect(fixture.arbiter.activeKind == nil)
 
         try await fixture.coordinator.insertReviewedResult()
@@ -188,18 +186,41 @@ struct ScribeCoordinatorTests {
     }
 
     @Test
-    func respondAndEditSendOnlySelectedTextToProvider() async throws {
-        for intent in [ScribeIntent.respond, .edit] {
-            let provider = CapturingScribeProvider(resultText: "Result")
-            let fixture = ScribeCoordinatorFixture(provider: provider, selectedText: "Selected context")
+    func directDictationNeverReadsOrSendsSelectedText() async throws {
+        let provider = CapturingScribeProvider(resultText: "A reviewed draft")
+        let fixture = ScribeCoordinatorFixture(provider: provider, selectedText: "private selected content")
 
-            try await fixture.coordinator.begin(intent: intent)
-            await fixture.coordinator.finishRecording()
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
 
-            let request = await provider.requests.first
-            #expect(request?.input.userMessage.contains("Selected context") == true)
-            #expect(request?.input.userMessage.contains("com.apple.TextEdit") == false)
-        }
+        let request = try #require(await provider.requests.first)
+        #expect(!request.input.userMessage.contains("private selected content"))
+        #expect(!request.input.userMessage.contains("com.apple.TextEdit"))
+        #expect(request.resultBinding != nil)
+    }
+
+    @Test
+    func mismatchedAttemptBindingCannotReplaceReviewedDraft() async throws {
+        let fixture = ScribeCoordinatorFixture(provider: MismatchedBindingScribeProvider())
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+
+        #expect(fixture.coordinator.failure == .provider(.invalidResult))
+        #expect(fixture.coordinator.reviewedResult == nil)
+        #expect(fixture.coordinator.literalTranscript == "Spoken request")
+    }
+
+    @Test
+    func directDictationNeverSendsSelectedTextToProvider() async throws {
+        let provider = CapturingScribeProvider(resultText: "Result")
+        let fixture = ScribeCoordinatorFixture(provider: provider, selectedText: "Selected context")
+
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+
+        let request = await provider.requests.first
+        #expect(request?.input.userMessage.contains("Selected context") == false)
+        #expect(request?.input.userMessage.contains("com.apple.TextEdit") == false)
     }
 
     @Test
@@ -222,7 +243,7 @@ struct ScribeCoordinatorTests {
         let provider = CapturingScribeProvider(resultText: "Result")
         let fixture = ScribeCoordinatorFixture(provider: provider, personalizationStore: store)
 
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         await fixture.coordinator.finishRecording()
 
         let request = await provider.requests.first
@@ -241,7 +262,7 @@ struct ScribeCoordinatorTests {
             generationTimeout: .milliseconds(10)
         )
 
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         await fixture.coordinator.finishRecording()
 
         #expect(fixture.coordinator.literalTranscript == "Spoken request")
@@ -266,7 +287,7 @@ struct ScribeCoordinatorTests {
         )
 
         await #expect(throws: ScribeProviderFailure.self) {
-            try await fixture.coordinator.begin(intent: .respond)
+            try await fixture.coordinator.beginDirectDictation()
         }
         #expect(fixture.context.captureCount == 0)
     }
@@ -292,7 +313,7 @@ struct ScribeCoordinatorTests {
                 disclosureVersion: ScribeProviderDisclosure.currentVersion
             )
         )
-        try await fixture.coordinator.begin(intent: .respond)
+        try await fixture.coordinator.beginDirectDictation()
         await fixture.coordinator.finishRecording()
 
         #expect(await firstProvider.requests.isEmpty)
@@ -304,7 +325,7 @@ struct ScribeCoordinatorTests {
     func targetChangeBeforeEgressMakesZeroProviderCalls() async throws {
         let provider = CapturingScribeProvider(resultText: "Must not run")
         let fixture = ScribeCoordinatorFixture(provider: provider)
-        try await fixture.coordinator.begin(intent: .edit)
+        try await fixture.coordinator.beginDirectDictation()
         fixture.context.shouldVerify = false
 
         await fixture.coordinator.finishRecording()
@@ -321,7 +342,7 @@ struct ScribeCoordinatorTests {
             generationTimeout: .seconds(1),
             generationSoftWait: .milliseconds(5)
         )
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
 
         let finishing = Task { await fixture.coordinator.finishRecording() }
         for _ in 0..<1_000 {
@@ -341,7 +362,7 @@ struct ScribeCoordinatorTests {
     @Test
     func targetChangePreventsInsertionAndKeepsDraftAvailable() async throws {
         let fixture = ScribeCoordinatorFixture(providerResponses: [.success("Draft")])
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         await fixture.coordinator.finishRecording()
         fixture.context.shouldVerify = false
 
@@ -351,9 +372,57 @@ struct ScribeCoordinatorTests {
 
         #expect(fixture.context.insertedTexts.isEmpty)
         #expect(fixture.coordinator.reviewedResult?.text == "Draft")
-        #expect(fixture.coordinator.state == .insertionRecovery(
-            ScribeResult(requestID: fixture.coordinator.activeRequestID!, text: "Draft")
-        ))
+        #expect(fixture.coordinator.reviewedResult?.text == "Draft")
+    }
+
+    @Test
+    func unpolishedInsertionNeverOverwritesTheRetainedPolishedDraft() async throws {
+        let fixture = ScribeCoordinatorFixture(providerResponses: [.success("Polished draft")])
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+        fixture.context.shouldVerify = false
+
+        await #expect(throws: ScribeContextError.targetChanged) {
+            try await fixture.coordinator.insertUnpolishedResult()
+        }
+
+        #expect(fixture.coordinator.reviewedResult?.text == "Polished draft")
+        #expect(fixture.coordinator.literalTranscript == "Spoken request")
+        #expect(fixture.context.insertedTexts.isEmpty)
+    }
+
+    @Test
+    func copyRoutesReturnTheirOwnBytesAndClearOnlyAfterSelection() async throws {
+        let polished = ScribeCoordinatorFixture(providerResponses: [.success("Polished draft")])
+        try await polished.coordinator.beginDirectDictation()
+        await polished.coordinator.finishRecording()
+        #expect(polished.coordinator.takeReviewedDraftForCopy() == "Polished draft")
+        #expect(polished.coordinator.reviewedResult == nil)
+        #expect(polished.coordinator.literalTranscript == nil)
+
+        let unpolished = ScribeCoordinatorFixture(providerResponses: [.failure(.offline)])
+        try await unpolished.coordinator.beginDirectDictation()
+        await unpolished.coordinator.finishRecording()
+        #expect(unpolished.coordinator.takeUnpolishedDraftForCopy() == "Spoken request")
+        #expect(unpolished.coordinator.reviewedResult == nil)
+        #expect(unpolished.coordinator.literalTranscript == nil)
+    }
+
+    @Test
+    func failedRetryKeepsPriorPolishedDraftVisibleWithRetryAvailable() async throws {
+        let fixture = ScribeCoordinatorFixture(provider: FailingRetryScribeProvider())
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+        #expect(fixture.coordinator.reviewedResult?.text == "Initial polished draft")
+
+        await fixture.coordinator.retryGeneration()
+
+        #expect(fixture.coordinator.reviewedResult?.text == "Initial polished draft")
+        #expect(fixture.coordinator.failure == .provider(.offline))
+        #expect(fixture.coordinator.canRetryGeneration)
+        if case .reviewing = fixture.coordinator.state {} else {
+            Issue.record("A failed retry must retain a visible reviewing state")
+        }
     }
 
     @Test
@@ -374,7 +443,7 @@ struct ScribeCoordinatorTests {
             )
         )
 
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         await fixture.coordinator.finishRecording()
 
         let request = try #require(await provider.requests.first)
@@ -391,7 +460,7 @@ struct ScribeCoordinatorTests {
             engine: StubScribeTranscriptionEngine(text: "literal camel case parse I D")
         )
 
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         await fixture.coordinator.finishRecording()
 
         #expect(fixture.coordinator.failure == .literalRepair)
@@ -399,16 +468,46 @@ struct ScribeCoordinatorTests {
     }
 
     @Test
+    func targetChangeDuringSuspendedDispatchAuthorizationMakesZeroProviderCalls() async throws {
+        let provider = CapturingScribeProvider(resultText: "Must not run")
+        let authorization = SuspendedDispatchAuthorization()
+        var fixture: ScribeCoordinatorFixture!
+        fixture = ScribeCoordinatorFixture(
+            provider: provider,
+            providerDispatchAuthorization: { _ in
+                await authorization.authorize()
+            }
+        )
+        try await fixture.coordinator.beginDirectDictation()
+
+        let finish = Task { @MainActor in
+            await fixture.coordinator.finishRecording()
+        }
+        await authorization.waitUntilEntered()
+
+        // The authorization closure is an async egress boundary. A target
+        // mutation while it is suspended must be caught by the production
+        // checkpoint immediately after authorization resumes.
+        fixture.context.shouldVerify = false
+        await authorization.resume()
+        await finish.value
+
+        #expect(await provider.requests.isEmpty)
+        #expect(fixture.coordinator.failure == .context(.targetChanged))
+        #expect(fixture.coordinator.literalTranscript == "Spoken request")
+    }
+
+    @Test
     func coordinatorRejectsWrongRemoteAuthorityAndUnexpectedCancellation() async throws {
         let wrongIdentity = ScribeCoordinatorFixture(provider: WrongIdentityScribeProvider())
-        try await wrongIdentity.coordinator.begin(intent: .compose)
+        try await wrongIdentity.coordinator.beginDirectDictation()
         await wrongIdentity.coordinator.finishRecording()
         #expect(wrongIdentity.coordinator.failure == .provider(.invalidResult))
 
         let unexpectedCancellation = ScribeCoordinatorFixture(
             provider: UnexpectedCancellationScribeProvider()
         )
-        try await unexpectedCancellation.coordinator.begin(intent: .compose)
+        try await unexpectedCancellation.coordinator.beginDirectDictation()
         await unexpectedCancellation.coordinator.finishRecording()
         #expect(unexpectedCancellation.coordinator.providerFailure?.category == .transportUnavailable)
         #expect(unexpectedCancellation.coordinator.failure == .provider(.offline))
@@ -421,7 +520,7 @@ struct ScribeCoordinatorTests {
             generationTimeout: .milliseconds(10)
         )
 
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         await fixture.coordinator.finishRecording()
 
         #expect(fixture.coordinator.failure == .provider(.timedOut))
@@ -434,7 +533,7 @@ struct ScribeCoordinatorTests {
     @Test
     func confirmedInsertionClearsAllSessionContent() async throws {
         let fixture = ScribeCoordinatorFixture(providerResponses: [.success("Draft")])
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         await fixture.coordinator.finishRecording()
         try await fixture.coordinator.insertReviewedResult()
 
@@ -450,7 +549,7 @@ struct ScribeCoordinatorTests {
         let fixture = ScribeCoordinatorFixture()
 
         for _ in 0..<50 {
-            try await fixture.coordinator.begin(intent: .compose)
+            try await fixture.coordinator.beginDirectDictation()
             await fixture.coordinator.finishRecording()
             try await fixture.coordinator.insertReviewedResult()
 
@@ -470,7 +569,7 @@ struct ScribeCoordinatorTests {
             providerResponses: [.delayedSuccess("Late", .seconds(10))],
             generationTimeout: .seconds(20)
         )
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
 
         let finishing = Task { await fixture.coordinator.finishRecording() }
         await Task.yield()
@@ -488,14 +587,48 @@ struct ScribeCoordinatorTests {
     }
 
     @Test
+    func lateCompletionFromPriorActionCannotReplaceNewActionReview() async throws {
+        let provider = CrossActionLateCompletionProvider()
+        let fixture = ScribeCoordinatorFixture(
+            provider: provider,
+            generationTimeout: .seconds(20)
+        )
+
+        try await fixture.coordinator.beginDirectDictation()
+        let firstFinish = Task { @MainActor in
+            await fixture.coordinator.finishRecording()
+        }
+        await provider.waitForFirstRequest()
+
+        // Cancelling action N and recording action N+1 must create a fresh
+        // binding. A non-cooperative transport can still finish action N
+        // afterwards, but it has no authority over the new review state.
+        await fixture.coordinator.cancel()
+        await firstFinish.value
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+
+        #expect(fixture.coordinator.reviewedResult?.text == "New action draft")
+        await provider.completeFirstRequest()
+        for _ in 0..<20 { await Task.yield() }
+
+        #expect(fixture.coordinator.reviewedResult?.text == "New action draft")
+        if case let .reviewing(result) = fixture.coordinator.state {
+            #expect(result.text == "New action draft")
+        } else {
+            Issue.record("A late prior-action completion must not leave review")
+        }
+    }
+
+    @Test
     func concurrentBeginIsRejectedWhileEngineIsStarting() async throws {
         let engine = ControllableScribeEngine(suspendsStart: true)
         let fixture = ScribeCoordinatorFixture(engine: engine)
-        let firstBegin = Task { try await fixture.coordinator.begin(intent: .compose) }
+        let firstBegin = Task { try await fixture.coordinator.beginDirectDictation() }
         await engine.waitForStartCount(1)
 
         await #expect(throws: ScribeCoordinatorError.invalidState) {
-            try await fixture.coordinator.begin(intent: .edit)
+            try await fixture.coordinator.beginDirectDictation()
         }
 
         await engine.resumeStart()
@@ -508,7 +641,7 @@ struct ScribeCoordinatorTests {
     func repeatedStopRunsOnlyOneFinalTranscription() async throws {
         let engine = ControllableScribeEngine(suspendsFinish: true)
         let fixture = ScribeCoordinatorFixture(engine: engine)
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
 
         let firstStop = Task { await fixture.coordinator.finishRecording() }
         await engine.waitForFinishCount(1)
@@ -546,7 +679,7 @@ struct ScribeCoordinatorTests {
         fixture.coordinator.onTargetPin = { capture, _ in pins.append(capture.id) }
         fixture.coordinator.onTargetClear = { clears.append($0) }
 
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
         #expect(pins == [target.id])
         await fixture.coordinator.cancel()
         #expect(clears == [target.id])
@@ -571,7 +704,7 @@ struct ScribeCoordinatorTests {
         let fixture = ScribeCoordinatorFixture(applicationTarget: target)
         var clears: [UUID] = []
         fixture.coordinator.onTargetClear = { clears.append($0) }
-        try await fixture.coordinator.begin(intent: .compose)
+        try await fixture.coordinator.beginDirectDictation()
 
         await fixture.coordinator.dismissPanel()
 
@@ -783,12 +916,12 @@ private final class StubScribeContextService: ScribeContextServing {
 
     func prepareTarget() throws {}
 
-    func capture(for intent: ScribeIntent) throws -> ScribeContextSnapshot {
+    func capture() throws -> ScribeContextSnapshot {
         captureCount += 1
         return ScribeContextSnapshot(
             target: ScribeTargetIdentity(processIdentifier: 42, bundleIdentifier: bundleIdentifier),
-            scope: intent.contextScope,
-            selectedText: intent.requiresSelectedText ? selectedText : "",
+            scope: .none,
+            selectedText: "",
             verificationToken: "window-a",
             recognitionSignature: recognitionSignature,
             applicationTarget: applicationTarget
@@ -852,6 +985,31 @@ private actor StubScribeTranscriptionEngine: TranscriptionEngine {
     func statusSummary() async -> String { "Ready" }
 }
 
+private actor SuspendedDispatchAuthorization {
+    private var entered = false
+    private var entryWaiters: [CheckedContinuation<Void, Never>] = []
+    private var resumeContinuation: CheckedContinuation<Void, Never>?
+
+    func authorize() async -> Bool {
+        entered = true
+        let waiters = entryWaiters
+        entryWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+        await withCheckedContinuation { resumeContinuation = $0 }
+        return true
+    }
+
+    func waitUntilEntered() async {
+        guard !entered else { return }
+        await withCheckedContinuation { entryWaiters.append($0) }
+    }
+
+    func resume() {
+        resumeContinuation?.resume()
+        resumeContinuation = nil
+    }
+}
+
 private actor CapturingScribeProvider: ScribeProvider {
     nonisolated let capabilities = ScribeProviderCapabilities.mock
     private(set) var requests: [ScribeProviderRequest] = []
@@ -861,7 +1019,7 @@ private actor CapturingScribeProvider: ScribeProvider {
 
     func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
         requests.append(request)
-        return ScribeResult(requestID: request.id, text: resultText)
+        return ScribeResult(requestID: request.id, text: resultText, binding: request.resultBinding)
     }
 }
 
@@ -870,6 +1028,25 @@ private struct WrongIdentityScribeProvider: ScribeProvider {
 
     func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
         ScribeResult(requestID: UUID(), text: "Wrong authority")
+    }
+}
+
+private struct MismatchedBindingScribeProvider: ScribeProvider {
+    let capabilities = ScribeProviderCapabilities.mock
+
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
+        let expected = try #require(request.resultBinding)
+        return ScribeResult(
+            requestID: request.id,
+            text: "Wrong attempt",
+            binding: .init(
+                requestID: expected.requestID,
+                actionRevision: expected.actionRevision,
+                attemptRevision: expected.attemptRevision + 1,
+                providerKind: expected.providerKind,
+                modelID: expected.modelID
+            )
+        )
     }
 }
 
@@ -889,9 +1066,64 @@ private struct NonCooperativeScribeProvider: ScribeProvider {
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
                 continuation.resume(returning: ScribeResult(
                     requestID: request.id,
-                    text: "Late ignored result"
+                    text: "Late ignored result",
+                    binding: request.resultBinding
                 ))
             }
         }
+    }
+}
+
+private actor CrossActionLateCompletionProvider: ScribeProvider {
+    nonisolated let capabilities = ScribeProviderCapabilities.mock
+    private var requestCount = 0
+    private var firstRequestWaiters: [CheckedContinuation<Void, Never>] = []
+    private var firstResultContinuation: CheckedContinuation<ScribeResult, Never>?
+
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
+        requestCount += 1
+        guard requestCount == 1 else {
+            return ScribeResult(
+                requestID: request.id,
+                text: "New action draft",
+                binding: request.resultBinding
+            )
+        }
+
+        let waiters = firstRequestWaiters
+        firstRequestWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+        return await withCheckedContinuation { continuation in
+            firstResultContinuation = continuation
+        }
+    }
+
+    func waitForFirstRequest() async {
+        guard requestCount == 0 else { return }
+        await withCheckedContinuation { firstRequestWaiters.append($0) }
+    }
+
+    func completeFirstRequest() {
+        guard let firstResultContinuation else { return }
+        firstResultContinuation.resume(returning: ScribeResult(
+            requestID: UUID(),
+            text: "Late old action draft"
+        ))
+        self.firstResultContinuation = nil
+    }
+}
+
+private actor FailingRetryScribeProvider: ScribeProvider {
+    nonisolated let capabilities = ScribeProviderCapabilities.mock
+    private var attempts = 0
+
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
+        attempts += 1
+        guard attempts == 1 else { throw ScribeProviderError.offline }
+        return ScribeResult(
+            requestID: request.id,
+            text: "Initial polished draft",
+            binding: request.resultBinding
+        )
     }
 }

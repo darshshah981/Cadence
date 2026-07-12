@@ -112,7 +112,6 @@ final class ScribeCoordinator {
     private let providerDispatchAuthorization: @MainActor (ScribeProviderActionSnapshot) async -> Bool
     private var localTextConfiguration: TranscriptionConfiguration
 
-    private var activeIntent: ScribeIntent?
     private var activeCapture: ScribeContextSnapshot?
     private var activeRequest: ScribeRequest?
     private var activeProviderRequest: ScribeProviderRequest?
@@ -121,6 +120,10 @@ final class ScribeCoordinator {
     private var generationTask: Task<Void, Never>?
     private var softWaitTask: Task<Void, Never>?
     private var generation = 0
+    /// Monotonic local revisions make an action and each provider attempt
+    /// unambiguous even when a transport returns an old request ID.
+    private var actionRevision = 0
+    private var attemptRevision = 0
     private(set) var activeAttemptID: UUID?
     private var insertionCompleted = false
     private var audioContinuation: AsyncStream<ScribeCapturedAudio>.Continuation?
@@ -171,11 +174,6 @@ final class ScribeCoordinator {
         self.generationSoftWait = generationSoftWait
     }
 
-    var selectedTextDisclosure: String {
-        activeProviderAction?.selectedTextDisclosure
-            ?? "Selected text is used only after you choose Respond or Edit."
-    }
-
     var activeProviderKind: ScribeProviderKind? {
         activeProviderAction?.destination.providerKind
     }
@@ -192,7 +190,7 @@ final class ScribeCoordinator {
         generation += 1
         do {
             try contextService.prepareTarget()
-            state = .choosingIntent
+            state = .idle
         } catch let error as ScribeContextError {
             activeProviderAction = nil
             failure = .context(error)
@@ -204,12 +202,21 @@ final class ScribeCoordinator {
         }
     }
 
+    /// Starts the only supported Scribe acquisition flow: target-pinned direct
+    /// dictation. No selection or writing intent is captured or sent remotely.
+    func beginDirectDictation() async throws {
+        guard !isStarting else { throw ScribeCoordinatorError.invalidState }
+        try prepareTarget()
+        try await beginDirectDictationAfterPreparation()
+    }
+
     func updateLocalTextConfiguration(_ configuration: TranscriptionConfiguration) {
         localTextConfiguration = configuration
     }
 
     func invalidateProviderWork() {
         generation += 1
+        actionRevision &+= 1
         generationTask?.cancel()
         softWaitTask?.cancel()
         generationTask = nil
@@ -219,22 +226,20 @@ final class ScribeCoordinator {
         activeAttemptID = nil
     }
 
-    func begin(intent: ScribeIntent) async throws {
+    private func beginDirectDictationAfterPreparation() async throws {
         guard !isStarting,
-              state == .choosingIntent || state == .idle || isTerminalState else {
+              state == .idle || isTerminalState else {
             throw ScribeCoordinatorError.invalidState
         }
 
         isStarting = true
         defer { isStarting = false }
-        if state != .choosingIntent {
-            resetTransientState()
-        }
+        resetTransientState()
         generation += 1
+        actionRevision &+= 1
         let beginGeneration = generation
         let requestID = UUID()
         activeRequestID = requestID
-        activeIntent = intent
 
         let providerAction: ScribeProviderActionSnapshot
         if let activeProviderAction {
@@ -242,7 +247,7 @@ final class ScribeCoordinator {
         } else {
             providerAction = try await providerActionResolver()
         }
-        try providerAction.validateForAcquisition(intent: intent)
+        try providerAction.validateForAcquisition()
         activeProviderAction = providerAction
 
         do {
@@ -255,7 +260,7 @@ final class ScribeCoordinator {
         }
 
         do {
-            let capture = try contextService.capture(for: intent)
+            let capture = try contextService.capture()
             activeCapture = capture
             let applicationTarget = capture.applicationTarget
             onTargetPin?(applicationTarget, applicationTarget.displayName)
@@ -285,7 +290,7 @@ final class ScribeCoordinator {
             try audioCaptureService.startCapture { [continuation] chunk, level in
                 continuation.yield(ScribeCapturedAudio(chunk: chunk, level: level))
             }
-            state = .listening(requestID: requestID, intent: intent)
+            state = .listening(requestID: requestID)
         } catch {
             await finishAudioIngestion(cancel: true)
             await transcriptionEngine.cancelSession()
@@ -303,7 +308,6 @@ final class ScribeCoordinator {
 
     func finishRecording() async {
         guard case .listening = state,
-              let intent = activeIntent,
               let capture = activeCapture,
               let requestID = activeRequestID else { return }
 
@@ -362,49 +366,25 @@ final class ScribeCoordinator {
                     retryDisposition: .reconnect
                 )
             }
-            let context: ScribeRequestContext?
-            if capture.scope == .selectedText {
-                context = ScribeRequestContext(
-                    artifact: .explicitSelection(ScribeExplicitSelectionArtifact(
-                        captureID: capture.id,
-                        target: capture.target,
-                        verificationToken: capture.verificationToken,
-                        text: capture.selectedText
-                    )),
-                    authorization: providerAction.contextAuthorization(for: capture)
-                )
-            } else {
-                context = nil
-            }
             let request = ScribeRequest(
                 id: requestID,
-                intent: intent,
+                intent: .compose,
                 spokenTranscript: expandedTranscript,
-                context: context,
+                context: nil,
                 style: nil,
                 resolvedEnvironment: environment,
                 exactLiterals: normalized.exactLiterals
             )
-            let providerRequest = ScribeProviderRequest(
-                id: request.id,
-                input: try ScribeRequestPolicy.providerSafeInput(
-                    for: request,
-                    destination: providerAction.destination
-                )
-            )
             activeRequest = request
-            activeProviderRequest = providerRequest
             await startGeneration(
                 request,
-                providerRequest: providerRequest,
                 providerAction: providerAction,
                 generation: runGeneration
             )
         } catch let error as ScribeContextError {
             releaseVoiceLease()
             guard runGeneration == generation else { return }
-            failure = .context(error)
-            state = .failed(requestID: requestID, error: .unavailable)
+            retainReviewedDraftOrFail(.context(error), requestID: requestID)
         } catch let error as ScribeProviderFailure {
             releaseVoiceLease()
             guard runGeneration == generation else { return }
@@ -416,15 +396,13 @@ final class ScribeCoordinator {
         } catch {
             releaseVoiceLease()
             guard runGeneration == generation else { return }
-            failure = .transcription
-            state = .failed(requestID: requestID, error: .unavailable)
+            retainReviewedDraftOrFail(.transcription, requestID: requestID)
             scribeLogger.error("Scribe transcription failed category=transcription")
         }
     }
 
     func retryGeneration() async {
         guard let request = activeRequest,
-              let providerRequest = activeProviderRequest,
               let providerAction = activeProviderAction else { return }
         generation += 1
         let retryGeneration = generation
@@ -443,8 +421,7 @@ final class ScribeCoordinator {
                 destination: providerAction.destination
             )
         } catch let error as ScribeContextError {
-            failure = .context(error)
-            state = .failed(requestID: request.id, error: .unavailable)
+            retainReviewedDraftOrFail(.context(error), requestID: request.id)
             return
         } catch {
             setProviderFailure(.invalidResult, requestID: request.id)
@@ -452,7 +429,6 @@ final class ScribeCoordinator {
         }
         await startGeneration(
             request,
-            providerRequest: providerRequest,
             providerAction: providerAction,
             generation: retryGeneration
         )
@@ -461,7 +437,8 @@ final class ScribeCoordinator {
     func useLiteralTranscript() {
         guard let requestID = activeRequestID,
               let literalTranscript,
-              !literalTranscript.isEmpty else { return }
+              !literalTranscript.isEmpty,
+              reviewedResult == nil else { return }
         let result = ScribeResult(requestID: requestID, text: literalTranscript)
         reviewedResult = result
         failure = nil
@@ -469,15 +446,42 @@ final class ScribeCoordinator {
         state = .reviewing(result)
     }
 
+    /// Starts a new, independently pinned dictation action.  A retained draft
+    /// must never be reused as input to a new recording.
+    func reRecord() async throws {
+        await cancel()
+        try await beginDirectDictation()
+    }
+
     func insertReviewedResult() async throws {
         guard !insertionCompleted else {
             throw ScribeCoordinatorError.insertionAlreadyCompleted
         }
-        guard let result = reviewedResult,
-              let capture = activeCapture else {
+        guard let result = reviewedResult else {
+            throw ScribeCoordinatorError.invalidState
+        }
+        try await insert(result, source: .polished)
+    }
+
+    func insertUnpolishedResult() async throws {
+        guard let requestID = activeRequestID,
+              let literalTranscript,
+              !literalTranscript.isEmpty else {
+            throw ScribeCoordinatorError.invalidState
+        }
+        try await insert(ScribeResult(requestID: requestID, text: literalTranscript), source: .unpolished)
+    }
+
+    private enum InsertSource { case polished, unpolished }
+
+    private func insert(_ result: ScribeResult, source: InsertSource) async throws {
+        guard let capture = activeCapture else {
             throw ScribeCoordinatorError.invalidState
         }
 
+        // Selecting an action is terminal for any retained retry. A late
+        // completion cannot replace, resurrect, or redirect this draft.
+        cancelOutstandingGeneration()
         state = .inserting(requestID: result.requestID)
         do {
             guard try contextService.insert(result.text, for: capture) else {
@@ -489,13 +493,16 @@ final class ScribeCoordinator {
             state = .succeeded(requestID: result.requestID)
         } catch let error as ScribeContextError {
             failure = .context(error)
-            state = .insertionRecovery(result)
+            // `reviewedResult` is intentionally untouched for an unpolished
+            // insertion attempt. Recovery always preserves both routes.
+            state = source == .polished ? .insertionRecovery(result) : (reviewedResult.map(ScribeSessionState.insertionRecovery) ?? .failed(requestID: result.requestID, error: .unavailable))
             throw error
         }
     }
 
     func takeReviewedDraftForCopy() -> String? {
         guard let result = reviewedResult else { return nil }
+        cancelOutstandingGeneration()
         let text = result.text
         clearContext()
         clearContent()
@@ -503,13 +510,21 @@ final class ScribeCoordinator {
         return text
     }
 
+    func takeUnpolishedDraftForCopy() -> String? {
+        guard let literalTranscript,
+              !literalTranscript.isEmpty,
+              let requestID = activeRequestID else { return nil }
+        let text = literalTranscript
+        cancelOutstandingGeneration()
+        clearContext()
+        clearContent()
+        state = .succeeded(requestID: requestID)
+        return text
+    }
+
     func cancel() async {
         let cancelledRequestID = activeRequestID
-        generation += 1
-        generationTask?.cancel()
-        generationTask = nil
-        softWaitTask?.cancel()
-        softWaitTask = nil
+        cancelOutstandingGeneration()
 
         if case .listening = state {
             _ = audioCaptureService.stopCapture()
@@ -532,17 +547,62 @@ final class ScribeCoordinator {
 
     private func startGeneration(
         _ request: ScribeRequest,
-        providerRequest: ScribeProviderRequest,
         providerAction: ScribeProviderActionSnapshot,
         generation expectedGeneration: Int
     ) async {
         guard await providerDispatchAuthorization(providerAction) else {
-            await cancel()
+            // Authorization is a narrow egress gate.  A denial must not
+            // destructively cancel a previously reviewed draft or clear its
+            // processed dictation/target needed for local recovery.
+            activeProviderRequest = nil
+            activeAttemptID = nil
+            retainReviewedDraftOrFail(
+                .provider(.unavailable),
+                requestID: request.id
+            )
+            return
+        }
+        do {
+            // The authorization closure can suspend while settings, consent,
+            // or the focused target changes. Re-check the exact pinned target
+            // immediately before building any request or dispatching egress.
+            guard let activeCapture,
+                  try contextService.verifyTarget(for: activeCapture) else {
+                throw ScribeContextError.targetChanged
+            }
+        } catch let error as ScribeContextError {
+            retainReviewedDraftOrFail(.context(error), requestID: request.id)
+            return
+        } catch {
+            retainReviewedDraftOrFail(.context(.targetChanged), requestID: request.id)
             return
         }
         state = .generating(requestID: request.id)
         failure = nil
         providerFailure = nil
+        attemptRevision &+= 1
+        let binding = ScribeProviderResultBinding(
+            requestID: request.id,
+            actionRevision: actionRevision,
+            attemptRevision: attemptRevision,
+            providerKind: providerAction.destination.providerKind,
+            modelID: providerAction.selectedModelID
+        )
+        let providerRequest: ScribeProviderRequest
+        do {
+            providerRequest = ScribeProviderRequest(
+                id: request.id,
+                input: try ScribeRequestPolicy.providerSafeInput(
+                    for: request,
+                    destination: providerAction.destination
+                ),
+                resultBinding: binding
+            )
+        } catch {
+            retainReviewedDraftOrFail(.provider(.invalidResult), requestID: request.id)
+            return
+        }
+        activeProviderRequest = providerRequest
         let attemptID = UUID()
         activeAttemptID = attemptID
         softWaitTask?.cancel()
@@ -567,7 +627,8 @@ final class ScribeCoordinator {
                     timeout: generationTimeout
                 )
                 guard !Task.isCancelled else { return }
-                guard result.requestID == request.id else {
+                guard result.requestID == request.id,
+                      result.binding == providerRequest.resultBinding else {
                     throw ScribeProviderError.invalidResult
                 }
                 let validatedText = try ScribeRequestPolicy.validateOutput(
@@ -575,7 +636,11 @@ final class ScribeCoordinator {
                     requiredLiterals: request.exactLiterals,
                     spokenRequest: request.spokenTranscript
                 )
-                let validatedResult = ScribeResult(requestID: request.id, text: validatedText)
+                let validatedResult = ScribeResult(
+                    requestID: request.id,
+                    text: validatedText,
+                    binding: result.binding
+                )
                 await MainActor.run { [weak self] in
                     guard let self,
                           self.generation == expectedGeneration,
@@ -663,12 +728,38 @@ final class ScribeCoordinator {
     }
 
     private func setProviderFailure(_ error: ScribeProviderError, requestID: UUID) {
+        if reviewedResult != nil {
+            retainReviewedDraftOrFail(.provider(error), requestID: requestID)
+            return
+        }
         providerFailure = nil
         failure = .provider(error)
         state = .failed(requestID: requestID, error: error)
     }
 
+    private func cancelOutstandingGeneration() {
+        generation &+= 1
+        generationTask?.cancel()
+        generationTask = nil
+        softWaitTask?.cancel()
+        softWaitTask = nil
+        activeAttemptID = nil
+    }
+
     private func setProviderFailure(_ error: ScribeProviderFailure, requestID: UUID) {
+        if reviewedResult != nil {
+            providerFailure = error
+            let legacyError: ScribeProviderError
+            switch error.category {
+            case .transportUnavailable: legacyError = .offline
+            case .timedOut: legacyError = .timedOut
+            case .cancelled: legacyError = .cancelled
+            case .invalidResponse: legacyError = .invalidResult
+            default: legacyError = .unavailable
+            }
+            retainReviewedDraftOrFail(.provider(legacyError), requestID: requestID)
+            return
+        }
         providerFailure = error
         let legacyError: ScribeProviderError
         switch error.category {
@@ -685,6 +776,30 @@ final class ScribeCoordinator {
         }
         failure = .provider(legacyError)
         state = .failed(requestID: requestID, error: legacyError)
+    }
+
+    /// Preserve an already reviewed draft whenever a later retry or egress
+    /// checkpoint fails.  The visible reviewing state keeps copy/insert
+    /// available and `failure` still tells the panel why retry stopped.
+    private func retainReviewedDraftOrFail(
+        _ sessionFailure: ScribeSessionFailure,
+        requestID: UUID
+    ) {
+        failure = sessionFailure
+        activeProviderRequest = nil
+        activeAttemptID = nil
+        if let reviewedResult {
+            state = .reviewing(reviewedResult)
+            return
+        }
+        switch sessionFailure {
+        case let .provider(error):
+            state = .failed(requestID: requestID, error: error)
+        case .context:
+            state = .failed(requestID: requestID, error: .unavailable)
+        default:
+            state = .failed(requestID: requestID, error: .unavailable)
+        }
     }
 
     private func releaseVoiceLease() {
@@ -711,7 +826,6 @@ final class ScribeCoordinator {
     }
 
     private func clearContent() {
-        activeIntent = nil
         activeRequest = nil
         activeProviderRequest = nil
         activeProviderAction = nil

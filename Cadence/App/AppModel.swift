@@ -209,7 +209,6 @@ final class AppModel: ObservableObject {
     private var meetingVoiceSessionLease: VoiceSessionLease?
     private var calendarDetectionTimer: Timer?
     private var promptedCalendarEventIDs = Set<String>()
-    private var pendingScribeIntent: ScribeIntent?
 
     init() {
         #if DEBUG
@@ -618,7 +617,7 @@ final class AppModel: ObservableObject {
     var scribeReadiness: ScribeReadiness {
         let capabilities: ScribeProviderCapabilities
         if case .ready = scribeProviderReadiness {
-            capabilities = [.semanticGeneration, .selectedTextContext, .cancellation]
+            capabilities = [.semanticGeneration, .cancellation]
         } else {
             capabilities = []
         }
@@ -2252,7 +2251,6 @@ final class AppModel: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.scribeCoordinator.cancel()
-            self.pendingScribeIntent = nil
             self.scribePanelWindowController.close()
             self.isScribeProviderSetupPresented = true
             self.showMainWindow()
@@ -2481,7 +2479,7 @@ final class AppModel: ObservableObject {
 
     func generateScribePracticeDraft() async throws -> String {
         let action = try await scribeProviderV2Controller.actionForNewRequest()
-        try action.validateForAcquisition(intent: .compose)
+        try action.validateForAcquisition()
         let environment = WritingEnvironmentResolver.resolve(
             recognizedEnvironmentID: .global,
             adaptationEnabled: true,
@@ -2823,28 +2821,7 @@ final class AppModel: ObservableObject {
         }
         switch scribeState {
         case .idle, .succeeded, .cancelled, .failed:
-            do {
-                try ScribePanelLaunchSequence.launch(
-                    prepareTarget: { try scribeCoordinator.prepareTarget() },
-                    presentPicker: { initialFocus in
-                        scribeState = .choosingIntent
-                        scribePanelWindowController.presentIntentPicker(
-                            providerStatus: scribeProviderStatus,
-                            selectedTextDisclosure: scribeCoordinator.selectedTextDisclosure,
-                            initialFocus: initialFocus
-                        )
-                    }
-                )
-            } catch let error as ScribeContextError {
-                presentScribeStartFailure(error.userMessage)
-                return
-            } catch is ScribeProviderFailure {
-                presentScribeProviderSetup()
-                return
-            } catch {
-                presentScribeStartFailure("Cadence could not identify where to write. Return to the original app and try again.")
-                return
-            }
+            beginScribe()
         default:
             scribePanelWindowController.update(
                 state: scribeState,
@@ -2858,9 +2835,8 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func beginScribe(intent: ScribeIntent) {
+    private func beginScribe() {
         guard revalidateAdaptiveScribeReaders() else { return }
-        pendingScribeIntent = intent
         guard permissions.allRequiredGranted else {
             presentScribeStartFailure("Finish microphone, Accessibility, and Input Monitoring setup before using Scribe.")
             return
@@ -2870,7 +2846,7 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             do {
                 try await self.scribeTranscriptionEngine.updateConfiguration(self.transcriptionConfiguration)
-                try await self.scribeCoordinator.begin(intent: intent)
+                try await self.scribeCoordinator.beginDirectDictation()
                 self.lastError = nil
             } catch let error as ScribeContextError {
                 self.presentScribeStartFailure(error.userMessage)
@@ -2906,17 +2882,12 @@ final class AppModel: ObservableObject {
             await self.scribeCoordinator.cancel()
             try? await Task.sleep(for: .milliseconds(500))
             guard case .cancelled = self.scribeState else { return }
-            self.pendingScribeIntent = nil
             self.scribeState = .idle
             self.scribePanelWindowController.close()
         }
     }
 
     private func retryScribe() {
-        if !scribeCoordinator.canRetryGeneration, let pendingScribeIntent {
-            beginScribe(intent: pendingScribeIntent)
-            return
-        }
         if !scribeCoordinator.canRetryGeneration {
             showScribe()
             return
@@ -2947,8 +2918,48 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func copyScribeResult() {
+    private func insertUnpolishedScribeResult() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.scribeCoordinator.insertUnpolishedResult()
+            } catch let error as ScribeContextError {
+                self.scribePanelWindowController.update(
+                    state: self.scribeState,
+                    failureMessage: error.userMessage,
+                    literalTranscript: self.scribeCoordinator.literalTranscript,
+                    environmentCue: self.scribeCoordinator.resolvedEnvironment?.cue,
+                    targetDisplayName: self.scribeCoordinator.targetDisplayName,
+                    exactLiterals: self.scribeCoordinator.exactLiterals,
+                    canRetryGeneration: self.scribeCoordinator.canRetryGeneration
+                )
+            } catch {
+                self.lastError = "Cadence could not safely insert the unpolished dictation. Copy it instead."
+            }
+        }
+    }
+
+    private func reRecordScribe() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.scribeCoordinator.reRecord()
+            } catch let error as ScribeContextError {
+                self.presentScribeStartFailure(error.userMessage)
+            } catch {
+                self.presentScribeStartFailure("Scribe could not start a new recording.")
+            }
+        }
+    }
+
+    private func copyPolishedScribeResult() {
         guard let text = scribeCoordinator.takeReviewedDraftForCopy() else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func copyUnpolishedScribeResult() {
+        guard let text = scribeCoordinator.takeUnpolishedDraftForCopy() else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }
@@ -2994,18 +3005,19 @@ final class AppModel: ObservableObject {
         }
 
         let viewModel = scribePanelWindowController.viewModel
-        viewModel.onChooseIntent = { [weak self] intent in self?.beginScribe(intent: intent) }
         viewModel.onStop = { [weak self] in self?.stopScribeRecording() }
         viewModel.onCancel = { [weak self] in self?.cancelScribe() }
         viewModel.onRetry = { [weak self] in self?.retryScribe() }
+        viewModel.onReRecord = { [weak self] in self?.reRecordScribe() }
         viewModel.onUseLiteral = { [weak self] in self?.scribeCoordinator.useLiteralTranscript() }
         viewModel.onInsert = { [weak self] in self?.insertScribeResult() }
-        viewModel.onCopy = { [weak self] in self?.copyScribeResult() }
+        viewModel.onInsertUnpolished = { [weak self] in self?.insertUnpolishedScribeResult() }
+        viewModel.onCopyPolished = { [weak self] in self?.copyPolishedScribeResult() }
+        viewModel.onCopyUnpolished = { [weak self] in self?.copyUnpolishedScribeResult() }
         viewModel.onClose = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 await self.scribeCoordinator.dismissPanel()
-                self.pendingScribeIntent = nil
                 self.scribePanelWindowController.close()
             }
         }
@@ -3020,7 +3032,6 @@ final class AppModel: ObservableObject {
             availability: availability,
             cancelActiveCoordinator: { [weak self] in
                 guard let self else { return }
-                self.pendingScribeIntent = nil
                 self.scribePanelWindowController.close()
                 Task { @MainActor [weak self] in
                     await self?.scribeCoordinator.cancel()
@@ -3035,7 +3046,6 @@ final class AppModel: ObservableObject {
 
     private func invalidateAdaptiveScribeRuntime() {
         adaptiveScribeV2Availability = .setupRequired
-        pendingScribeIntent = nil
         scribePanelWindowController.close()
         scribeCoordinator.invalidateProviderWork()
         Task { @MainActor [weak self] in
@@ -3059,14 +3069,13 @@ final class AppModel: ObservableObject {
     private func recordScribeState(_ state: ScribeSessionState) async {
         let event: ScribeDiagnosticEvent?
         switch state {
-        case let .listening(_, intent):
+        case .listening:
             event = ScribeDiagnosticEvent(
                 kind: .captureCompleted,
                 phase: .capture,
                 provider: diagnosticProvider,
                 outcome: .success,
-                appAdaptationEnabled: scribeAppAdaptationEnabled,
-                selectedTextIntent: intent.requiresSelectedText
+                appAdaptationEnabled: scribeAppAdaptationEnabled
             )
         case .transcribing:
             event = ScribeDiagnosticEvent(
@@ -3125,7 +3134,7 @@ final class AppModel: ObservableObject {
                     fallback: scribeCoordinator.failure
                 )
             )
-        case .idle, .choosingIntent, .inserting:
+        case .idle, .inserting:
             event = nil
         }
         if let event { await scribeDiagnosticsService.record(event) }
@@ -3223,15 +3232,15 @@ final class AppModel: ObservableObject {
         )
         let width = ScribeLaunchFixtures.panelWidth
         switch fixture {
-        case .intent:
-            scribeState = .choosingIntent
+        case .directReady:
+            scribeState = .idle
             scribePanelWindowController.presentFixture(
-                state: .choosingIntent,
-                fixtureIdentifier: "scribe-fixture-intent",
+                state: .idle,
+                fixtureIdentifier: "scribe-fixture-direct-ready",
                 width: width
             )
         case .listening:
-            scribeState = .listening(requestID: result.requestID, intent: .compose)
+            scribeState = .listening(requestID: result.requestID)
             scribePanelWindowController.presentFixture(
                 state: scribeState,
                 targetDisplayName: "Slack",
@@ -3263,6 +3272,7 @@ final class AppModel: ObservableObject {
             scribeState = .reviewing(result)
             scribePanelWindowController.presentFixture(
                 state: .reviewing(result),
+                literalTranscript: "Synthetic spoken request",
                 environmentCue: "Slack · Neutral",
                 targetDisplayName: "Slack",
                 exactLiterals: [ScribeExactLiteral(
@@ -3348,9 +3358,9 @@ final class AppModel: ObservableObject {
                 width: width
             )
         case .controlSemantics:
-            scribeState = .choosingIntent
+            scribeState = .idle
             scribePanelWindowController.presentFixture(
-                state: .choosingIntent,
+                state: .idle,
                 fixtureIdentifier: "scribe-fixture-control-semantics",
                 width: width
             )

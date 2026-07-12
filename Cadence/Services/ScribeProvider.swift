@@ -117,11 +117,10 @@ struct ScribeProviderActionSnapshot: Sendable {
         self.credentialReference = credentialReference
     }
 
-    func validateForAcquisition(intent: ScribeIntent) throws {
+    func validateForAcquisition() throws {
         guard destination.disclosureVersion == ScribeProviderDisclosure.currentVersion,
               !destination.recipientOrigin.isEmpty,
-              provider.capabilities.contains(.semanticGeneration),
-              !intent.requiresSelectedText || provider.capabilities.contains(.selectedTextContext) else {
+              provider.capabilities.contains(.semanticGeneration) else {
             throw ScribeProviderFailure(
                 phase: .generation,
                 category: .configurationInvalid,
@@ -142,20 +141,4 @@ struct ScribeProviderActionSnapshot: Sendable {
         )
     }
 
-    var selectedTextDisclosure: String {
-        switch destination.providerKind {
-        case .openAIDirect:
-            return ScribeProviderDisclosure.selectedTextRecipient(ScribeProviderKind.openAIDirect.displayName)
-        case .openRouter:
-            return ScribeProviderDisclosure.selectedTextRecipient(ScribeProviderKind.openRouter.displayName)
-        case .deepSeek:
-            return ScribeProviderDisclosure.selectedTextRecipient(ScribeProviderKind.deepSeek.displayName)
-        case .advanced:
-            let recipient = URL(string: destination.recipientOrigin)?.host
-                ?? destination.recipientOrigin
-            return ScribeProviderDisclosure.selectedTextRecipient(recipient)
-        case .legacyLocal:
-            return "Selected text stays on this Mac and is used only after you choose Respond or Edit."
-        }
-    }
 }

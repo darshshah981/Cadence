@@ -1,40 +1,30 @@
 import AppKit
 import SwiftUI
 
-enum ScribePanelLaunchSequence {
-    static func launch(
-        prepareTarget: () throws -> Void,
-        presentPicker: (ScribeIntent) -> Void
-    ) rethrows {
-        try prepareTarget()
-        presentPicker(.compose)
-    }
-}
-
 @MainActor
 final class ScribePanelViewModel: ObservableObject {
-    @Published private(set) var state = ScribeSessionState.choosingIntent
+    @Published private(set) var state = ScribeSessionState.idle
     @Published private(set) var failureMessage: String?
     @Published private(set) var literalTranscript: String?
     @Published private(set) var providerStatus = "Private preview"
-    @Published private(set) var requestedIntentFocus: ScribeIntent?
     @Published private(set) var environmentCue: String?
     @Published private(set) var targetDisplayName = "original app"
     @Published private(set) var exactLiteralSummary: String?
-    @Published private(set) var selectedTextDisclosure = "Selected text is used only after you choose Respond or Edit."
     @Published private(set) var canRetryGeneration = false
     @Published private(set) var fixtureIdentifier: String?
     @Published private(set) var closeRequestRevision = 0
     @Published private(set) var panelWidth = CadenceDesignMetrics.compactActionBreakpoint
     @Published private(set) var isDiscardAlertPresented = false
 
-    var onChooseIntent: ((ScribeIntent) -> Void)?
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
     var onRetry: (() -> Void)?
+    var onReRecord: (() -> Void)?
     var onUseLiteral: (() -> Void)?
     var onInsert: (() -> Void)?
-    var onCopy: (() -> Void)?
+    var onInsertUnpolished: (() -> Void)?
+    var onCopyPolished: (() -> Void)?
+    var onCopyUnpolished: (() -> Void)?
     var onClose: (() -> Void)?
 
     func requestCloseFromKeyboard() {
@@ -47,22 +37,6 @@ final class ScribePanelViewModel: ObservableObject {
 
     func setDiscardAlertPresented(_ isPresented: Bool) {
         isDiscardAlertPresented = isPresented
-    }
-
-    func presentPicker(
-        providerStatus: String,
-        selectedTextDisclosure: String = "Selected text is used only after you choose Respond or Edit.",
-        initialFocus: ScribeIntent
-    ) {
-        self.providerStatus = providerStatus
-        self.selectedTextDisclosure = selectedTextDisclosure
-        requestedIntentFocus = initialFocus
-        failureMessage = nil
-        literalTranscript = nil
-        environmentCue = nil
-        exactLiteralSummary = nil
-        canRetryGeneration = false
-        state = .choosingIntent
     }
 
     func apply(
@@ -96,7 +70,6 @@ final class ScribePanelViewModel: ObservableObject {
 struct ScribePanelView: View {
     @ObservedObject var model: ScribePanelViewModel
     @Environment(\.cadenceAccessibility) private var accessibility
-    @FocusState private var focusedIntent: ScribeIntent?
     @State private var showsDiscardConfirmation = false
 
     var body: some View {
@@ -128,9 +101,6 @@ struct ScribePanelView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(model.fixtureIdentifier ?? "scribe-panel")
         .cadenceAccessibilityPreferences()
-        .onAppear { focusFirstIntentIfNeeded() }
-        .onChange(of: model.state) { _, _ in focusFirstIntentIfNeeded() }
-        .onChange(of: model.requestedIntentFocus) { _, intent in focusedIntent = intent }
         .onChange(of: model.closeRequestRevision) { _, _ in requestClose() }
         .onChange(of: showsDiscardConfirmation) { _, isPresented in
             model.setDiscardAlertPresented(isPresented)
@@ -178,10 +148,10 @@ struct ScribePanelView: View {
     @ViewBuilder
     private var content: some View {
         switch model.state {
-        case .idle, .choosingIntent:
-            intentPicker
-        case let .listening(_, intent):
-            listening(intent: intent)
+        case .idle:
+            directDictationStatus
+        case .listening:
+            listening
         case .transcribing:
             cancellableStatus(
                 icon: "waveform",
@@ -215,49 +185,23 @@ struct ScribePanelView: View {
         }
     }
 
-    private var intentPicker: some View {
+    private var directDictationStatus: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("How should Scribe help?")
+            Text("Preparing dictation…")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(FlowTheme.textPrimary)
-            Text(model.selectedTextDisclosure)
+            Text("Cadence will transcribe your dictation, then send only the processed dictation and writing behavior to your configured provider for review.")
                 .font(.body)
                 .foregroundStyle(FlowTheme.textSecondary)
-
-            ForEach(ScribeIntent.allCases) { intent in
-                Button {
-                    model.onChooseIntent?(intent)
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: intentIcon(intent))
-                            .frame(width: 18)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(intent.displayName)
-                                .font(.headline)
-                            Text(intent.shortDescription)
-                                .font(.caption)
-                                .foregroundStyle(FlowTheme.textSecondary)
-                        }
-                        Spacer()
-                    }
-                    .contentShape(Rectangle())
-                    .padding(10)
-                }
-                .buttonStyle(.plain)
-                .focused($focusedIntent, equals: intent)
-                .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .accessibilityLabel(intent.displayName)
-                .accessibilityHint(intent.shortDescription)
-            }
         }
     }
 
-    private func listening(intent: ScribeIntent) -> some View {
+    private var listening: some View {
         VStack(alignment: .leading, spacing: 14) {
             statusView(
                 icon: "waveform.circle.fill",
-                title: "Listening for \(intent.displayName.lowercased())",
-                detail: intent.requiresSelectedText ? "Using the selected text for this request." : "No app text is being read."
+                title: "Listening…",
+                detail: "No app text is being read."
             )
             actionGroup
         }
@@ -265,6 +209,14 @@ struct ScribePanelView: View {
 
     private func review(_ result: ScribeResult) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            if let failureMessage = model.failureMessage {
+                statusView(
+                    icon: "exclamationmark.triangle",
+                    title: "Latest polish attempt failed",
+                    detail: failureMessage
+                )
+                .accessibilityIdentifier("scribe-polish-retry-failure")
+            }
             Text("Draft ready")
                 .font(.headline)
                 .foregroundStyle(FlowTheme.textPrimary)
@@ -355,33 +307,32 @@ struct ScribePanelView: View {
         }
     }
 
-    private func intentIcon(_ intent: ScribeIntent) -> String {
-        switch intent {
-        case .compose: return "square.and.pencil"
-        case .respond: return "arrowshape.turn.up.left"
-        case .edit: return "text.cursor"
-        }
-    }
-
     private var showsEnvironmentCue: Bool {
         ScribeActionPolicy.showsEnvironmentCue(model.state)
     }
 
     private var actionGroup: some View {
-        CadenceActionGroup(
-            actions: ScribeActionPolicy.actions(
-                for: model.state,
-                hasLiteralTranscript: model.literalTranscript?.isEmpty == false,
-                canRetryGeneration: model.canRetryGeneration,
-                targetDisplayName: model.targetDisplayName
-            ),
+        let actions = ScribeActionPolicy.actions(
+            for: model.state,
+            hasLiteralTranscript: model.literalTranscript?.isEmpty == false,
+            canRetryGeneration: model.canRetryGeneration,
+            targetDisplayName: model.targetDisplayName
+        )
+        let usesVerticalLayout = model.panelWidth < CadenceDesignMetrics.compactActionBreakpoint
+            || actions.count > 4
+        return CadenceActionGroup(
+            actions: actions,
             layoutWidth: model.panelWidth,
             perform: perform
         )
+        // A review can expose seven recovery actions. Keep that ordered
+        // control group operable in the compact panel even when surrounding
+        // explanatory text honors a larger accessibility category.
+        .dynamicTypeSize(...DynamicTypeSize.large)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("scribe-action-group")
         .accessibilityValue(
-            model.panelWidth < CadenceDesignMetrics.compactActionBreakpoint
+            usesVerticalLayout
                 ? "Vertical"
                 : "Horizontal"
         )
@@ -392,9 +343,12 @@ struct ScribePanelView: View {
         case .cancel: requestClose()
         case .stop: model.onStop?()
         case .retry: model.onRetry?()
+        case .reRecord: model.onReRecord?()
         case .useLiteral: model.onUseLiteral?()
         case .insert: model.onInsert?()
-        case .copy: model.onCopy?()
+        case .insertUnpolished: model.onInsertUnpolished?()
+        case .copyPolished: model.onCopyPolished?()
+        case .copyUnpolished: model.onCopyUnpolished?()
         case .close: model.onClose?()
         }
     }
@@ -426,11 +380,6 @@ struct ScribePanelView: View {
         )
     }
 
-    private func focusFirstIntentIfNeeded() {
-        if model.state == .choosingIntent || model.state == .idle {
-            focusedIntent = model.requestedIntentFocus ?? .compose
-        }
-    }
 }
 
 @MainActor
@@ -456,27 +405,14 @@ private final class ScribeNonactivatingPanel: NSPanel {
 @MainActor
 final class ScribePanelWindowController {
     private enum Metrics {
-        static let picker = NSSize(width: 440, height: 330)
+        static let directReady = NSSize(width: 440, height: 170)
         static let status = NSSize(width: 400, height: 170)
-        static let review = NSSize(width: 580, height: 390)
+        static let review = NSSize(width: 580, height: 580)
         static let bottomInset: CGFloat = 42
     }
 
     let viewModel = ScribePanelViewModel()
     private var panel: NSPanel?
-
-    func presentIntentPicker(
-        providerStatus: String,
-        selectedTextDisclosure: String,
-        initialFocus: ScribeIntent = .compose
-    ) {
-        viewModel.presentPicker(
-            providerStatus: providerStatus,
-            selectedTextDisclosure: selectedTextDisclosure,
-            initialFocus: initialFocus
-        )
-        show(size: Metrics.picker)
-    }
 
     func update(
         state: ScribeSessionState,
@@ -498,9 +434,7 @@ final class ScribePanelWindowController {
         )
         switch state {
         case .idle:
-            panel?.orderOut(nil)
-        case .choosingIntent:
-            show(size: Metrics.picker)
+            show(size: Metrics.directReady)
         case .reviewing, .insertionRecovery:
             show(size: Metrics.review)
         default:
@@ -553,10 +487,18 @@ final class ScribePanelWindowController {
                 ))
             }
         }
-        show(size: NSSize(
-            width: width ?? Metrics.review.width,
-            height: Metrics.review.height
-        ))
+        let fixtureHeight: CGFloat
+        if ScribeLaunchFixtures.usesLargeText {
+            // Review now has seven actions. At accessibility text sizes they
+            // form a single vertical hierarchy, so preserve enough height for
+            // every route to be operable rather than merely present in AX.
+            fixtureHeight = 700
+        } else if (width ?? Metrics.review.width) < CadenceDesignMetrics.compactActionBreakpoint {
+            fixtureHeight = 700
+        } else {
+            fixtureHeight = 680
+        }
+        show(size: NSSize(width: width ?? Metrics.review.width, height: fixtureHeight))
     }
     #endif
 

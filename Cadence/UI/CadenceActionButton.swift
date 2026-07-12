@@ -29,9 +29,12 @@ enum ScribeActionRoute: Equatable, Sendable {
     case cancel
     case stop
     case retry
+    case reRecord
     case useLiteral
     case insert
-    case copy
+    case insertUnpolished
+    case copyPolished
+    case copyUnpolished
     case close
 }
 
@@ -341,7 +344,7 @@ enum ScribeActionPolicy {
         targetDisplayName: String = "original app"
     ) -> [CadenceActionDescriptor] {
         switch state {
-        case .idle, .choosingIntent:
+        case .idle:
             return []
         case .listening:
             return [
@@ -357,24 +360,37 @@ enum ScribeActionPolicy {
                 keyboardShortcut: .cancelAction, route: .cancel
             )]
         case .reviewing:
-            return [
+            var actions: [CadenceActionDescriptor] = [
                 .init(id: id("discard-draft"), title: "Discard draft", role: .destructive, route: .cancel),
-                .init(id: id("draft-again"), title: "Draft again", role: .secondary, route: .retry),
-                .init(id: id("copy-draft"), title: "Copy draft", role: .quiet, route: .copy),
-                .init(
-                    id: id("insert-draft"), title: "Insert into \(targetDisplayName)", role: .primary,
-                    keyboardShortcut: .defaultAction, route: .insert
-                )
+                .init(id: id("record-again"), title: "Record again", role: .secondary, route: .reRecord),
             ]
+            if canRetryGeneration {
+                actions.append(.init(id: id("retry-polish"), title: "Retry polish", role: .quiet, route: .retry))
+            }
+            if hasLiteralTranscript {
+                actions.append(.init(id: id("copy-unpolished"), title: "Copy unpolished", role: .quiet, route: .copyUnpolished))
+                actions.append(.init(id: id("insert-unpolished"), title: "Insert unpolished", role: .quiet, route: .insertUnpolished))
+            }
+            actions.append(.init(id: id("copy-polished"), title: "Copy polished", role: .quiet, route: .copyPolished))
+            actions.append(.init(
+                id: id("insert-polished"), title: "Insert polished into \(targetDisplayName)", role: .primary,
+                keyboardShortcut: .defaultAction, route: .insert
+            ))
+            return actions
         case .insertionRecovery:
-            return [
+            var actions: [CadenceActionDescriptor] = [
                 .init(id: id("discard-draft"), title: "Discard draft", role: .destructive, route: .cancel),
-                .init(id: id("copy-draft"), title: "Copy draft", role: .quiet, route: .copy),
-                .init(
-                    id: id("insert-draft"), title: "Return to \(targetDisplayName) and insert", role: .primary,
-                    keyboardShortcut: .defaultAction, route: .insert
-                )
             ]
+            if hasLiteralTranscript {
+                actions.append(.init(id: id("copy-unpolished"), title: "Copy unpolished", role: .quiet, route: .copyUnpolished))
+                actions.append(.init(id: id("insert-unpolished"), title: "Insert unpolished", role: .quiet, route: .insertUnpolished))
+            }
+            actions.append(.init(id: id("copy-polished"), title: "Copy polished", role: .quiet, route: .copyPolished))
+            actions.append(.init(
+                id: id("insert-polished"), title: "Return to \(targetDisplayName) and insert polished", role: .primary,
+                keyboardShortcut: .defaultAction, route: .insert
+            ))
+            return actions
         case .inserting:
             return []
         case .succeeded:
@@ -393,8 +409,12 @@ enum ScribeActionPolicy {
             )]
             if hasLiteralTranscript {
                 actions.append(.init(
-                    id: id("use-spoken-words"), title: "Use spoken words", role: .quiet,
-                    route: .useLiteral
+                    id: id("copy-unpolished"), title: "Copy unpolished", role: .quiet,
+                    route: .copyUnpolished
+                ))
+                actions.append(.init(
+                    id: id("insert-unpolished"), title: "Insert unpolished", role: .quiet,
+                    route: .insertUnpolished
                 ))
             }
             actions.append(.init(

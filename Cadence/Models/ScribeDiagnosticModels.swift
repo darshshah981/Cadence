@@ -100,7 +100,6 @@ struct ScribeDiagnosticEvent: Codable, Equatable, Sendable {
     let attempt: ScribeDiagnosticAttempt
     let retry: ScribeDiagnosticRetry
     let appAdaptationEnabled: Bool
-    let selectedTextIntent: Bool
     let fallbackUsed: Bool
     let lateResultSuppressed: Bool
 
@@ -114,7 +113,6 @@ struct ScribeDiagnosticEvent: Codable, Equatable, Sendable {
         attempt: ScribeDiagnosticAttempt = .notApplicable,
         retry: ScribeDiagnosticRetry = .none,
         appAdaptationEnabled: Bool = false,
-        selectedTextIntent: Bool = false,
         fallbackUsed: Bool = false,
         lateResultSuppressed: Bool = false
     ) {
@@ -127,7 +125,6 @@ struct ScribeDiagnosticEvent: Codable, Equatable, Sendable {
         self.attempt = attempt
         self.retry = retry
         self.appAdaptationEnabled = appAdaptationEnabled
-        self.selectedTextIntent = selectedTextIntent
         self.fallbackUsed = fallbackUsed
         self.lateResultSuppressed = lateResultSuppressed
     }
@@ -143,7 +140,6 @@ struct ScribeDiagnosticEvent: Codable, Equatable, Sendable {
             attempt: attempt,
             retry: retry,
             appAdaptationEnabled: appAdaptationEnabled,
-            selectedTextIntent: selectedTextIntent,
             fallbackUsed: fallbackUsed,
             lateResultSuppressed: lateResultSuppressed
         )

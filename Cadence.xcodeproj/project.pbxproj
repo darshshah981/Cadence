@@ -56,6 +56,7 @@
 		528C236DA42EA03EAB731414 /* PersonalizationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F79D43E58B9D94CA1C36BFB /* PersonalizationStore.swift */; };
 		541432DC77D74A0DAB846DAB /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD8226A6E492745025CF418 /* AnalyticsService.swift */; };
 		54A92CC0B1038FB507FFEE10 /* ScribeProviderSetupSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A66E30E921DDEF50028694D /* ScribeProviderSetupSession.swift */; };
+		565802BC12300CB87A5E4A76 /* quality-corpus-manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 9AEDC021CB58476A4FB96E92 /* quality-corpus-manifest.json */; };
 		57F06125EB560A0004973BDA /* MeetingDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAE902E9A7F2F2906C91892 /* MeetingDetectionService.swift */; };
 		5AD53269E2F3698F85A01036 /* DurablePreferenceKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78697F1129D556E082D17DAD /* DurablePreferenceKeys.swift */; };
 		5B459732BF97D90537C75E4A /* ScribeRequestPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA4184D1F8A91858269D49B0 /* ScribeRequestPolicy.swift */; };
@@ -282,6 +283,7 @@
 		9939AF8E2BE1659663A74ED4 /* ScribePresetCatalogStateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribePresetCatalogStateModels.swift; sourceTree = "<group>"; };
 		9996810D696746CB2E5DA171 /* HUDVisibilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDVisibilityService.swift; sourceTree = "<group>"; };
 		9AB3EA660E7E3BB4BBA7E31C /* ApplicationConfigurationMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationConfigurationMigrationTests.swift; sourceTree = "<group>"; };
+		9AEDC021CB58476A4FB96E92 /* quality-corpus-manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "quality-corpus-manifest.json"; sourceTree = "<group>"; };
 		9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCoordinator.swift; sourceTree = "<group>"; };
 		9D8371975360FC8D8C76AB8C /* TranscriptionAudioPreprocessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionAudioPreprocessor.swift; sourceTree = "<group>"; };
 		9E82B6E6F4A16C4CBB239C15 /* MeetingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingStore.swift; sourceTree = "<group>"; };
@@ -365,6 +367,7 @@
 				4A806C1F045050D4BE94DCF1 /* legacy-application-preferences.json */,
 				16029181741E78FDC22FD716 /* legacy-provider-library.json */,
 				A3713BE1986E47AE5FF5CAA9 /* manifest.json */,
+				9AEDC021CB58476A4FB96E92 /* quality-corpus-manifest.json */,
 				113DBC10FED7509DA4FD5824 /* quality-corpus.json */,
 			);
 			path = AdaptiveScribe;
@@ -724,6 +727,7 @@
 				A431EC194F3DAB38251D91B5 /* legacy-application-preferences.json in Resources */,
 				ECEB86A208B2CF41D371011E /* legacy-provider-library.json in Resources */,
 				9A1B5D692714C55AD0F1F4A5 /* manifest.json in Resources */,
+				565802BC12300CB87A5E4A76 /* quality-corpus-manifest.json in Resources */,
 				DB4CE2A3A7F999054FAE609D /* quality-corpus.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
