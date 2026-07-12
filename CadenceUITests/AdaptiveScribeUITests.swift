@@ -493,26 +493,29 @@ final class AdaptiveScribeUITests: XCTestCase {
     @MainActor
     private func selectSettingsCategory(_ category: String, in app: XCUIApplication) {
         let title = category.prefix(1).uppercased() + category.dropFirst()
-        let railByID = app.descendants(matching: .any)["settings-category-\(category)"]
+        let railByID = app.descendants(matching: .any)["settings-category-\(category)"].firstMatch
         if railByID.waitForExistence(timeout: 1) {
             railByID.click()
             return
         }
-        let railByTitle = app.buttons[title]
+        let railByTitle = app.buttons[title].firstMatch
         if railByTitle.exists {
             railByTitle.click()
             return
         }
-        let selector = app.popUpButtons["settings-category-selector"]
+        // Prefer popUpButtons; fall back to any element with the ID (some
+        // macOS/SwiftUI builds expose the picker as a non-popUp control).
+        let selector = app.popUpButtons["settings-category-selector"].firstMatch.exists
+            ? app.popUpButtons["settings-category-selector"].firstMatch
+            : app.descendants(matching: .any)["settings-category-selector"].firstMatch
         if selector.waitForExistence(timeout: 2) {
             selector.click()
-            let menuItem = app.menuItems[title]
+            let menuItem = app.menuItems[title].firstMatch
             if menuItem.waitForExistence(timeout: 2) {
                 menuItem.click()
                 return
             }
-            // Some macOS builds expose the picker choice as a static text row.
-            let choice = app.staticTexts[title]
+            let choice = app.staticTexts[title].firstMatch
             if choice.waitForExistence(timeout: 1) {
                 choice.click()
                 return
