@@ -19,7 +19,10 @@ struct SettingsView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let compact = proxy.size.width < CadenceDesignMetrics.compactActionBreakpoint
+            // Fixture windows pin an exact content width; prefer that over a
+            // GeometryReader that can lag one layout pass behind the outer frame.
+            let measuredWidth = fixtureLayoutWidth ?? proxy.size.width
+            let compact = measuredWidth < CadenceDesignMetrics.compactActionBreakpoint
             Group {
                 if compact {
                     VStack(alignment: .leading, spacing: 14) {
@@ -35,6 +38,7 @@ struct SettingsView: View {
             }
             .padding(contentPadding)
             .frame(maxWidth: maxContentWidth, alignment: .topLeading)
+            .frame(width: fixtureLayoutWidth, alignment: .topLeading)
             .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: appModel.settingsPresentationState)
             .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: appModel.dictationQualityPreset)
             .sheet(item: $editingShortcut) { shortcut in
@@ -76,6 +80,17 @@ struct SettingsView: View {
         }
     }
 
+    /// When UI-test fixtures pin a content width, use it for the compact rail
+    /// decision so 559/560 breakpoints are deterministic on CI runners.
+    private var fixtureLayoutWidth: CGFloat? {
+        #if DEBUG
+        guard ScribeLaunchFixtures.current == .settings else { return nil }
+        return ScribeLaunchFixtures.panelWidth
+        #else
+        return nil
+        #endif
+    }
+
     private var categorySelector: some View {
         CadenceDropdownRow(
             title: "Settings category",
@@ -86,23 +101,37 @@ struct SettingsView: View {
                 Text(category.title).tag(category)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings-category-selector")
     }
 
     private var settingsRail: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Settings").font(.title3.weight(.semibold)).padding(.bottom, 8)
             ForEach(SettingsCategoryID.allCases, id: \.self) { category in
-                CadenceActionButton(
-                    actionID: .init(rawValue: "settings.category.\(category.rawValue)"),
-                    title: category.title,
-                    role: appModel.settingsPresentationState.selectedCategory == category ? .secondary : .quiet,
-                    accessibilityIdentifier: "settings-category-\(category.rawValue)"
-                ) { selectCategory(category) }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Button(category.title) { selectCategory(category) }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(
+                        appModel.settingsPresentationState.selectedCategory == category
+                            ? FlowTheme.subtle
+                            : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    )
+                    .foregroundStyle(
+                        appModel.settingsPresentationState.selectedCategory == category
+                            ? FlowTheme.textPrimary
+                            : FlowTheme.textSecondary
+                    )
+                    .accessibilityIdentifier("settings-category-\(category.rawValue)")
+                    .accessibilityLabel(category.title)
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
         .frame(width: 176, alignment: .topLeading)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings-category-rail")
     }
 

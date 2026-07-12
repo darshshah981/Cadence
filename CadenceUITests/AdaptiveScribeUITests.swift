@@ -492,17 +492,33 @@ final class AdaptiveScribeUITests: XCTestCase {
 
     @MainActor
     private func selectSettingsCategory(_ category: String, in app: XCUIApplication) {
-        let railButton = app.descendants(matching: .any)["settings-category-\(category)"]
-        if railButton.exists {
-            railButton.click()
+        let title = category.prefix(1).uppercased() + category.dropFirst()
+        let railByID = app.descendants(matching: .any)["settings-category-\(category)"]
+        if railByID.waitForExistence(timeout: 1) {
+            railByID.click()
+            return
+        }
+        let railByTitle = app.buttons[title]
+        if railByTitle.exists {
+            railByTitle.click()
             return
         }
         let selector = app.descendants(matching: .any)["settings-category-selector"]
-        XCTAssertTrue(selector.waitForExistence(timeout: 2))
-        selector.click()
-        let title = category.prefix(1).uppercased() + category.dropFirst()
-        XCTAssertTrue(app.menuItems[title].waitForExistence(timeout: 2))
-        app.menuItems[title].click()
+        if selector.waitForExistence(timeout: 2) {
+            selector.click()
+            let menuItem = app.menuItems[title]
+            if menuItem.waitForExistence(timeout: 2) {
+                menuItem.click()
+                return
+            }
+            // Some macOS builds expose the picker choice as a static text row.
+            let choice = app.staticTexts[title]
+            if choice.waitForExistence(timeout: 1) {
+                choice.click()
+                return
+            }
+        }
+        XCTFail("Could not select settings category \(category) via rail or compact selector")
     }
 
     @MainActor
