@@ -131,6 +131,7 @@ final class ScribeProviderSetupModel: ObservableObject {
 struct ScribeProviderSetupView: View {
     @StateObject private var model = ScribeProviderSetupModel()
     @State private var validationTask: Task<Void, Never>?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onConnectDeepSeek: (String) async throws -> Void
     let onConnectOpenAI: (String, String) async throws -> Void
     let onConnectOpenRouter: (String, String) async throws -> Void
@@ -146,12 +147,25 @@ struct ScribeProviderSetupView: View {
             header
             Divider()
             content
+                .id(model.stage)
+                .transition(
+                    reduceMotion
+                        ? .opacity
+                        : .asymmetric(
+                            insertion: .opacity.combined(with: .offset(x: 8)),
+                            removal: .opacity
+                        )
+                )
             Spacer(minLength: 0)
             actions
         }
         .padding(24)
         .frame(minWidth: 520, idealWidth: 620, minHeight: 480, idealHeight: 620)
         .background(FlowTheme.background)
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.18),
+            value: model.stage
+        )
         .onExitCommand { dismiss() }
         .onDisappear {
             validationTask?.cancel()
@@ -413,7 +427,7 @@ struct ScribeProviderSetupView: View {
             .padding(14)
             .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 10))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ProviderChoiceCardButtonStyle())
         .accessibilityLabel(title)
         .accessibilityHint(detail)
     }
@@ -565,6 +579,20 @@ struct ScribeProviderSetupView: View {
 
     private var cadenceVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+    }
+}
+
+private struct ProviderChoiceCardButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .opacity(configuration.isPressed ? 0.88 : 1)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.12),
+                value: configuration.isPressed
+            )
     }
 }
 

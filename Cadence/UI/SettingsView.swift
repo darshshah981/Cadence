@@ -39,7 +39,6 @@ struct SettingsView: View {
             .padding(contentPadding)
             .frame(maxWidth: maxContentWidth, alignment: .topLeading)
             .frame(width: fixtureLayoutWidth, alignment: .topLeading)
-            .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: appModel.settingsPresentationState)
             .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: appModel.dictationQualityPreset)
             .sheet(item: $editingShortcut) { shortcut in
                 PersonalShortcutEditor(shortcut: shortcut) { appModel.savePersonalShortcut($0) }

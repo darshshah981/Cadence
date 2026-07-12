@@ -97,7 +97,6 @@ struct ScribePanelView: View {
                 .stroke(FlowTheme.borderStrong, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .animation(accessibility.reduceMotion ? nil : FlowMotion.quick, value: model.state)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(model.fixtureIdentifier ?? "scribe-panel")
         .cadenceAccessibilityPreferences()
