@@ -50,8 +50,10 @@ A green pull request proves deterministic implementation checks; it does not cer
 
 The same candidate must prove:
 
-- A signed, notarized, stapled, Gatekeeper-accepted Release DMG on minimum macOS 14 and the current stable macOS, covering every packaged architecture.
-- The live DeepSeek V4 Flash quality and latency matrix, including 72 scored drafts and 100 production-shaped latency requests.
+- A signed, notarized, stapled, Gatekeeper-accepted Release DMG with matching `CadenceSourceCommit` on minimum macOS 14 and the current stable macOS, covering every packaged architecture.
+- Live OpenAI Direct and OpenRouter synthetic checks against the installed app from the same DMG
+- The live DeepSeek V4 Flash quality and latency matrix (when DeepSeek remains a packaged profile), including 72 scored drafts and 100 production-shaped latency requests.
+- Cursor, Slack, and Codex/OpenAI Desktop recognition and insertion checks
 - Exact Slack behavior checks and the positive/negative certified Claude Code prompt signature in the signed current Claude Desktop build.
 - Keyboard, VoiceOver, Increase Contrast, Reduce Transparency, and Reduce Motion checks.
 - No-pre-consent-network, Keychain lifecycle, redirect refusal, egress allowlist, and privacy-canary evidence.

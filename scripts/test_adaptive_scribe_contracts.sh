@@ -30,6 +30,7 @@ FILTERS=(
   "FixedOriginScribeProviderTests"
   "FocusedApplicationMonitorTests"
   "InstalledApplicationCatalogTests"
+  "ReleaseEvidenceContractTests"
   "ReleaseFixtureIsolationTests"
   "ScribeActionPolicyTests"
   "ScribeContextServiceTests"

@@ -104,6 +104,7 @@
 		A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */; };
 		A431EC194F3DAB38251D91B5 /* legacy-application-preferences.json in Resources */ = {isa = PBXBuildFile; fileRef = 4A806C1F045050D4BE94DCF1 /* legacy-application-preferences.json */; };
 		A5F36020AF84151664929781 /* MeetingAudioStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB40F5DFBCB574CACFAFA572 /* MeetingAudioStore.swift */; };
+		A6560304C67D2DC9EF97D0E2 /* ReleaseEvidenceContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D090C352A07AE85748852F1 /* ReleaseEvidenceContractTests.swift */; };
 		A7E797355BE705E6FFFAEB58 /* ApplicationConfigurationMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AB3EA660E7E3BB4BBA7E31C /* ApplicationConfigurationMigrationTests.swift */; };
 		A80CB4A7BD09CCFED5F7F6A0 /* ScribePresetCatalogStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D52DC2E3702C732FFA8B86 /* ScribePresetCatalogStateStore.swift */; };
 		ABAAF7AD1FA70D69BA85152C /* TextInsertionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF53A70456557098B43E818E /* TextInsertionService.swift */; };
@@ -205,6 +206,7 @@
 		164913F8C06819E7939FA094 /* ScribeDiagnosticsExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeDiagnosticsExportService.swift; sourceTree = "<group>"; };
 		19004982898DC1FD2A4774E4 /* ScribeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProvider.swift; sourceTree = "<group>"; };
 		1947EF0EC7977800EEC5E3B3 /* ScribeLiteralNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeLiteralNormalizer.swift; sourceTree = "<group>"; };
+		1D090C352A07AE85748852F1 /* ReleaseEvidenceContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseEvidenceContractTests.swift; sourceTree = "<group>"; };
 		1D4B99C85DEAD06BD9AE2253 /* RuntimeApplicationProcessAuthority.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeApplicationProcessAuthority.swift; sourceTree = "<group>"; };
 		1D7C3A6BAEFD6B0313D6D7D2 /* WritingEnvironmentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingEnvironmentsView.swift; sourceTree = "<group>"; };
 		1DF59AD9CDC1C89E87DB75ED /* OpenRouterScribeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterScribeProvider.swift; sourceTree = "<group>"; };
@@ -406,6 +408,7 @@
 				51D8EC088DD170378EAA03FD /* InstalledApplicationCatalogTests.swift */,
 				393D34EA2315483D46C808AC /* OnboardingTests.swift */,
 				92617578D8E7278F00452C6A /* PersonalizationTests.swift */,
+				1D090C352A07AE85748852F1 /* ReleaseEvidenceContractTests.swift */,
 				11221647F46E10E7506D3EB2 /* ReleaseFixtureIsolationTests.swift */,
 				EB4DD449A99A4B91654EAC3B /* ScribeActionPolicyTests.swift */,
 				D75497C3F44A3081C0A107D3 /* ScribeContextServiceTests.swift */,
@@ -899,6 +902,7 @@
 				F0B09129DE4578A72441D412 /* InstalledApplicationCatalogTests.swift in Sources */,
 				8C3A810CDD019ABE9195E199 /* OnboardingTests.swift in Sources */,
 				6441E942D018DF9194C80446 /* PersonalizationTests.swift in Sources */,
+				A6560304C67D2DC9EF97D0E2 /* ReleaseEvidenceContractTests.swift in Sources */,
 				849587550D65089855C22B54 /* ReleaseFixtureIsolationTests.swift in Sources */,
 				AC6DF1FE3309A49660FC1924 /* ScribeActionPolicyTests.swift in Sources */,
 				2D950BB2549846B4C6E7BF2F /* ScribeContextServiceTests.swift in Sources */,
@@ -993,6 +997,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CADENCE_SOURCE_COMMIT = unknown;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -1106,6 +1111,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CADENCE_SOURCE_COMMIT = unknown;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";

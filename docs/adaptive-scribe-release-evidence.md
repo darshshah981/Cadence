@@ -33,11 +33,20 @@ Accepted for the compatibility release based on PR #34 commit `04391d3`: Scribe 
 
 ## Signed Candidate and Distribution
 
+- [ ] `CadenceSourceCommit` in the mounted Release app matches the packaging git SHA.
+
+
 - [ ] Developer ID signature passes `codesign --verify --deep --strict`.
 - [ ] Notarization succeeds and the ticket is stapled.
 - [ ] `spctl` accepts the DMG.
 - [ ] Release—not Debug—bundle identity, display name, and executable are present.
 - [ ] Minimum and current macOS launch, Dictation, Scribe, and meeting-capture regressions pass on every packaged architecture.
+
+## Live OpenAI Direct and OpenRouter
+
+- [ ] Live OpenAI Direct synthetic validation against the installed Release app from the candidate DMG.
+- [ ] Live OpenRouter ZDR-oriented route validation for the selected model.
+- [ ] Recipient/model policy review dates recorded for this candidate.
 
 ## Live DeepSeek Quality
 
@@ -59,6 +68,8 @@ Use the versioned synthetic corpus under `CadenceTests/Fixtures/AdaptiveScribe/q
 - Confirm the calm 8-second soft-wait UI and ten setup validations that finish or fail safely by 15 seconds.
 
 ## Real-App Recognition and Insertion
+
+Primary targets for this release line: **Cursor**, **Slack**, and **Codex/OpenAI Desktop**, plus certified Claude Code signatures where present.
 
 - [ ] Slack Compose/Respond/Edit passes Formal, Neutral, and Casual behavior, formatting, fresh-focus insertion, copy, retry, and discard.
 - [ ] Capture and record the signed Claude Desktop bundle ID and one stable non-content Code-prompt AX role/subrole/identifier ancestry.

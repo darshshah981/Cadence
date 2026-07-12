@@ -91,6 +91,18 @@ EOF
 require_developer_id_certificate
 require_notary_profile
 
+cd "$ROOT_DIR"
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Refusing to package from a dirty worktree. Commit or stash first so CadenceSourceCommit is exact." >&2
+  exit 1
+fi
+CADENCE_SOURCE_COMMIT="$(git rev-parse HEAD)"
+if [[ -z "$CADENCE_SOURCE_COMMIT" || ${#CADENCE_SOURCE_COMMIT} -ne 40 ]]; then
+  echo "Could not resolve a full source commit SHA for packaging." >&2
+  exit 1
+fi
+echo "Packaging clean source commit: $CADENCE_SOURCE_COMMIT"
+
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR" "$EXPORT_PATH"
 
@@ -117,7 +129,8 @@ xcodebuild archive \
   -scheme "$SCHEME" \
   -configuration "$CONFIGURATION" \
   -destination "generic/platform=macOS" \
-  -archivePath "$ARCHIVE_PATH"
+  -archivePath "$ARCHIVE_PATH" \
+  CADENCE_SOURCE_COMMIT="$CADENCE_SOURCE_COMMIT"
 
 echo "Exporting Developer ID app..."
 xcodebuild -exportArchive \
@@ -131,9 +144,17 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
+# Belt-and-suspenders: ensure the embedded commit matches the packaging tree
+# even if Info.plist substitution was skipped by a stale project file.
+/usr/libexec/PlistBuddy -c "Set :CadenceSourceCommit $CADENCE_SOURCE_COMMIT" \
+  "$APP_PATH/Contents/Info.plist" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :CadenceSourceCommit string $CADENCE_SOURCE_COMMIT" \
+    "$APP_PATH/Contents/Info.plist"
+
 DISPLAY_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$APP_PATH/Contents/Info.plist" 2>/dev/null || true)"
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Contents/Info.plist" 2>/dev/null || true)"
 EXECUTABLE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Contents/Info.plist" 2>/dev/null || true)"
+EMBEDDED_COMMIT="$(/usr/libexec/PlistBuddy -c 'Print :CadenceSourceCommit' "$APP_PATH/Contents/Info.plist" 2>/dev/null || true)"
 
 if [[ "$DISPLAY_NAME" == *Debug* || "$BUNDLE_ID" == *debug* || "$EXECUTABLE_NAME" == *Debug* ]]; then
   cat >&2 <<EOF
@@ -144,6 +165,11 @@ Refusing to package a debug build:
 
 GitHub releases must ship Cadence.app from the Release configuration.
 EOF
+  exit 1
+fi
+
+if [[ "$EMBEDDED_COMMIT" != "$CADENCE_SOURCE_COMMIT" ]]; then
+  echo "Embedded CadenceSourceCommit ($EMBEDDED_COMMIT) does not match packaging commit ($CADENCE_SOURCE_COMMIT)." >&2
   exit 1
 fi
 
