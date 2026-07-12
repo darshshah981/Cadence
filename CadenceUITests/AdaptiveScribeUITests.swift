@@ -48,7 +48,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.buttons["I understand"].click()
         XCTAssertTrue(app.secureTextFields["scribe-provider-api-key"].waitForExistence(timeout: 3))
         app.buttons["Not now"].click()
-        XCTAssertFalse(app.secureTextFields["scribe-provider-api-key"].exists)
+        XCTAssertTrue(waitForNonexistence(app.secureTextFields["scribe-provider-api-key"]))
 
         attachScreenshot(app: app, name: "deepseek-setup-dismissed")
     }
@@ -485,7 +485,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         key.click()
         key.typeText("ephemeral-fixture-key")
         app.buttons["Not now"].click()
-        XCTAssertFalse(key.exists)
+        XCTAssertTrue(waitForNonexistence(key))
         selectSettingsCategory("privacy", in: app)
         XCTAssertFalse(app.staticTexts["Connect Scribe"].exists)
     }
@@ -503,7 +503,7 @@ final class AdaptiveScribeUITests: XCTestCase {
             railByTitle.click()
             return
         }
-        let selector = app.descendants(matching: .any)["settings-category-selector"]
+        let selector = app.popUpButtons["settings-category-selector"]
         if selector.waitForExistence(timeout: 2) {
             selector.click()
             let menuItem = app.menuItems[title]
@@ -519,6 +519,13 @@ final class AdaptiveScribeUITests: XCTestCase {
             }
         }
         XCTFail("Could not select settings category \(category) via rail or compact selector")
+    }
+
+    @MainActor
+    private func waitForNonexistence(_ element: XCUIElement, timeout: TimeInterval = 3) -> Bool {
+        let predicate = NSPredicate(format: "exists == false")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
     @MainActor

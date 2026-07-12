@@ -101,8 +101,6 @@ struct SettingsView: View {
                 Text(category.title).tag(category)
             }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("settings-category-selector")
     }
 
     private var settingsRail: some View {
