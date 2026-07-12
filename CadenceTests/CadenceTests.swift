@@ -1,3 +1,4 @@
+import AppKit
 import Carbon
 import Darwin
 import Foundation
@@ -3409,6 +3410,18 @@ struct AppActivationPolicyTests {
     @Test
     func incidentalActivationDoesNotOpenTheMainWindow() {
         #expect(!AppActivationPolicy.shouldOpenMainWindow(for: .becameActive))
+    }
+
+    @Test @MainActor
+    func applicationTerminationInvokesRegisteredServiceShutdown() {
+        var shutdownCount = 0
+        let previous = AppDelegate.shutdownApplicationServices
+        AppDelegate.shutdownApplicationServices = { shutdownCount += 1 }
+        defer { AppDelegate.shutdownApplicationServices = previous }
+
+        AppDelegate().applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+
+        #expect(shutdownCount == 1)
     }
 }
 

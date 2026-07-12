@@ -4,6 +4,227 @@ import Testing
 
 struct ApplicationConfigurationTests {
     @Test
+    func identityResolutionPrefersExactThenUniqueRebindAndFailsClosedForDuplicates() {
+        let saved = ApplicationReference(
+            bundleIdentifier: "example.app",
+            lastKnownBundleURL: URL(fileURLWithPath: "/Applications/Old.app"),
+            lastKnownDisplayName: "Old"
+        )
+        let exact = InstalledApplicationDescriptor(
+            bundleURL: saved.lastKnownBundleURL, bundleIdentifier: "example.app",
+            displayName: "Exact", version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        let moved = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/New.app"), bundleIdentifier: "example.app",
+            displayName: "Moved", version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        #expect(ApplicationIdentityResolver.resolve(reference: saved, applications: [exact, moved], savedURLExists: true) == .exact(exact))
+        #expect(ApplicationIdentityResolver.resolve(reference: saved, applications: [moved], savedURLExists: false) == .uniqueRebind(moved))
+        let secondMoved = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Other.app"), bundleIdentifier: "example.app",
+            displayName: "Other", version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        #expect(ApplicationIdentityResolver.resolve(reference: saved, applications: [moved, secondMoved], savedURLExists: false) == .ambiguous)
+        #expect(ApplicationIdentityResolver.resolve(reference: saved, applications: [], savedURLExists: false) == .missing)
+        let invalid = ApplicationReference(
+            bundleIdentifier: "example.app", lastKnownBundleURL: URL(fileURLWithPath: "/tmp/not-an-app"),
+            lastKnownDisplayName: "Invalid"
+        )
+        #expect(ApplicationIdentityResolver.resolve(reference: invalid, applications: [exact], savedURLExists: false) == .invalid)
+    }
+
+    @Test
+    func runtimeExactConfigurationRejectsDuplicateExactCopiesRatherThanChoosingByOrder() throws {
+        let fixture = try ApplicationStoreFixture()
+        defer { fixture.cleanUp() }
+        let first = try fixture.configuration()
+        let duplicate = try ApplicationConfiguration(
+            id: UUID(), application: ApplicationReference(
+                id: UUID(), bundleIdentifier: first.application.bundleIdentifier,
+                lastKnownBundleURL: first.application.lastKnownBundleURL,
+                lastKnownDisplayName: first.application.lastKnownDisplayName
+            ), isEnabled: true, familyID: .messaging, presetSelection: .familyDefault,
+            customGuidance: nil, revision: 1
+        )
+        let identity = ActiveApplicationIdentity(
+            bundleIdentifier: first.application.bundleIdentifier,
+            bundleURL: first.application.lastKnownBundleURL,
+            displayName: "Slack", processIdentifier: 10
+        )
+        #expect(ApplicationIdentityResolver.runtimeExactConfiguration(
+            identity: identity,
+            library: .init(revision: 1, configurations: [first, duplicate])
+        ) == nil)
+    }
+
+    @Test
+    func guardedRebindPreservesIDsAndFieldsAndRejectsStaleOrAmbiguousRaces() async throws {
+        let fixture = try ApplicationStoreFixture()
+        defer { fixture.cleanUp() }
+        let original = try fixture.configuration()
+        try fixture.store.save(.init(revision: 4, configurations: [original]))
+        let moved = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Slack New.app"),
+            bundleIdentifier: original.application.bundleIdentifier,
+            displayName: "Slack New", version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        let writer = ApplicationConfigurationWriter(store: fixture.store)
+        let committed = try await writer.rebind(
+            configurationID: original.id,
+            expectedLibraryRevision: 4,
+            expectedConfigurationRevision: original.revision,
+            expectedReferenceID: original.application.id,
+            expectedOldURL: original.application.lastKnownBundleURL,
+            snapshot: .init(generation: 9, applications: [moved]),
+            newestSnapshot: { .init(generation: 9, applications: [moved]) },
+            savedURLExists: { false }
+        )
+        #expect(committed.application.id == original.application.id)
+        #expect(committed.id == original.id)
+        #expect(committed.application.lastKnownBundleURL == moved.bundleURL)
+        #expect(committed.presetSelection == original.presetSelection)
+        #expect(committed.revision == original.revision + 1)
+        guard case let .valid(library) = fixture.store.load() else { Issue.record("Expected rebound library"); return }
+        #expect(library.revision == 5)
+
+        let next = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Slack Latest.app"),
+            bundleIdentifier: original.application.bundleIdentifier,
+            displayName: "Slack Latest", version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        await #expect(throws: ApplicationConfigurationWriterError.staleSnapshot) {
+            _ = try await writer.rebind(
+                configurationID: original.id,
+                expectedLibraryRevision: 5,
+                expectedConfigurationRevision: committed.revision,
+                expectedReferenceID: original.application.id,
+                expectedOldURL: committed.application.lastKnownBundleURL,
+                snapshot: .init(generation: 9, applications: [next]),
+                newestSnapshot: { .init(generation: 10, applications: [next]) },
+                savedURLExists: { false }
+            )
+        }
+    }
+
+    @Test
+    func rebindRollsBackExactBytesWhenCatalogChangesAfterSave() async throws {
+        let fixture = try ApplicationStoreFixture()
+        defer { fixture.cleanUp() }
+        let original = try fixture.configuration()
+        try fixture.store.save(.init(revision: 4, configurations: [original]))
+        let originalBytes = fixture.store.rawRepresentation()
+        let moved = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Slack New.app"),
+            bundleIdentifier: original.application.bundleIdentifier,
+            displayName: "Slack New", version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        let snapshots = RebindSnapshotSequence([
+            .init(generation: 9, applications: [moved]),
+            .init(generation: 10, applications: [])
+        ])
+        let writer = ApplicationConfigurationWriter(store: fixture.store)
+
+        await #expect(throws: ApplicationConfigurationWriterError.staleSnapshot) {
+            _ = try await writer.rebind(
+                configurationID: original.id,
+                expectedLibraryRevision: 4,
+                expectedConfigurationRevision: original.revision,
+                expectedReferenceID: original.application.id,
+                expectedOldURL: original.application.lastKnownBundleURL,
+                snapshot: .init(generation: 9, applications: [moved]),
+                newestSnapshot: { await snapshots.next() },
+                savedURLExists: { false }
+            )
+        }
+        #expect(fixture.store.rawRepresentation() == originalBytes)
+        #expect(fixture.store.load() == .valid(.init(revision: 4, configurations: [original]).normalized()))
+    }
+
+    @Test
+    func rebindRollsBackExactBytesWhenCandidateIdentityChangesAfterSave() async throws {
+        let fixture = try ApplicationStoreFixture()
+        defer { fixture.cleanUp() }
+        let original = try fixture.configuration()
+        try fixture.store.save(.init(revision: 4, configurations: [original]))
+        let originalBytes = fixture.store.rawRepresentation()
+        let moved = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Slack New.app"),
+            bundleIdentifier: original.application.bundleIdentifier,
+            displayName: "Slack New", version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        let replacement = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Slack Replacement.app"),
+            bundleIdentifier: original.application.bundleIdentifier,
+            displayName: "Slack Replacement", version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        let snapshots = RebindSnapshotSequence([
+            .init(generation: 9, applications: [moved]),
+            .init(generation: 9, applications: [replacement])
+        ])
+        let writer = ApplicationConfigurationWriter(store: fixture.store)
+
+        await #expect(throws: ApplicationConfigurationWriterError.staleSnapshot) {
+            _ = try await writer.rebind(
+                configurationID: original.id,
+                expectedLibraryRevision: 4,
+                expectedConfigurationRevision: original.revision,
+                expectedReferenceID: original.application.id,
+                expectedOldURL: original.application.lastKnownBundleURL,
+                snapshot: .init(generation: 9, applications: [moved]),
+                newestSnapshot: { await snapshots.next() },
+                savedURLExists: { false }
+            )
+        }
+        #expect(fixture.store.rawRepresentation() == originalBytes)
+    }
+
+    @Test
+    func staleRebindRollbackUsesCASAndPreservesSameWriterMutationDuringPostSaveAwait() async throws {
+        let fixture = try ApplicationStoreFixture()
+        defer { fixture.cleanUp() }
+        let original = try fixture.configuration()
+        try fixture.store.save(.init(revision: 4, configurations: [original]))
+        let moved = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Slack New.app"),
+            bundleIdentifier: original.application.bundleIdentifier,
+            displayName: "Slack New", version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        let gate = RebindPostSaveSnapshotGate(
+            stable: .init(generation: 9, applications: [moved]),
+            stale: .init(generation: 10, applications: [])
+        )
+        let writer = ApplicationConfigurationWriter(store: fixture.store)
+        let rebind = Task {
+            try await writer.rebind(
+                configurationID: original.id,
+                expectedLibraryRevision: 4,
+                expectedConfigurationRevision: original.revision,
+                expectedReferenceID: original.application.id,
+                expectedOldURL: original.application.lastKnownBundleURL,
+                snapshot: .init(generation: 9, applications: [moved]),
+                newestSnapshot: { await gate.next() },
+                savedURLExists: { false }
+            )
+        }
+        await gate.waitUntilPostSaveCheck()
+        let updated = try await writer.updateCustomGuidance(
+            configurationID: original.id,
+            input: "Keep the concurrent edit."
+        )
+        await gate.releasePostSaveCheck()
+
+        await #expect(throws: ApplicationConfigurationWriterError.concurrentMutation) {
+            _ = try await rebind.value
+        }
+        guard case let .valid(library) = fixture.store.load() else {
+            Issue.record("Expected concurrent mutation to remain valid")
+            return
+        }
+        #expect(library.configurations.first?.customGuidance == updated.customGuidance)
+        #expect(library.configurations.first?.revision == updated.revision)
+        #expect(library.revision == 6)
+    }
+    @Test
     func absentStoreHasSafeFallbackAndValidLibraryRoundTrips() throws {
         let fixture = try ApplicationStoreFixture()
         defer { fixture.cleanUp() }
@@ -101,6 +322,38 @@ struct ApplicationConfigurationTests {
         for forbidden in ["processIdentifier", "pid", "icon", "focusRevision", "transcript", "processedDictation"] {
             #expect(!text.contains(forbidden))
         }
+    }
+}
+
+private actor RebindSnapshotSequence {
+    private var snapshots: [InstalledApplicationCatalogSnapshot]
+    init(_ snapshots: [InstalledApplicationCatalogSnapshot]) { self.snapshots = snapshots }
+    func next() -> InstalledApplicationCatalogSnapshot { snapshots.removeFirst() }
+}
+
+private actor RebindPostSaveSnapshotGate {
+    private let stable: InstalledApplicationCatalogSnapshot
+    private let stale: InstalledApplicationCatalogSnapshot
+    private var callCount = 0
+    private var postSaveCheckStarted = false
+    private var continuation: CheckedContinuation<Void, Never>?
+    init(stable: InstalledApplicationCatalogSnapshot, stale: InstalledApplicationCatalogSnapshot) {
+        self.stable = stable
+        self.stale = stale
+    }
+    func next() async -> InstalledApplicationCatalogSnapshot {
+        callCount += 1
+        guard callCount > 1 else { return stable }
+        postSaveCheckStarted = true
+        await withCheckedContinuation { continuation = $0 }
+        return stale
+    }
+    func waitUntilPostSaveCheck() async {
+        while !postSaveCheckStarted { await Task.yield() }
+    }
+    func releasePostSaveCheck() {
+        continuation?.resume()
+        continuation = nil
     }
 }
 

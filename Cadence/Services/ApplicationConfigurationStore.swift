@@ -1,6 +1,13 @@
 import Foundation
 
-final class ApplicationConfigurationStore {
+protocol ApplicationConfigurationPersisting: AnyObject, Sendable {
+    func load() -> ApplicationConfigurationLoadResult
+    func save(_ library: ApplicationConfigurationLibrary) throws
+    func rawRepresentation() -> Data?
+    func restoreRawRepresentation(_ data: Data?)
+}
+
+final class ApplicationConfigurationStore: ApplicationConfigurationPersisting, @unchecked Sendable {
     static let defaultKey = CadenceDurablePreferenceKeys.applicationConfigurations
 
     private let defaults: UserDefaults
@@ -49,6 +56,13 @@ final class ApplicationConfigurationStore {
         }
     }
 
+    func rawRepresentation() -> Data? { defaults.data(forKey: key) }
+
+    func restoreRawRepresentation(_ data: Data?) {
+        if let data { defaults.set(data, forKey: key) }
+        else { defaults.removeObject(forKey: key) }
+    }
+
     private static func validate(_ library: ApplicationConfigurationLibrary) -> ApplicationConfigurationRejection? {
         guard library.revision >= 0 else { return .invalidConfiguration }
         let configurations = library.configurations.map { $0.normalized() }
@@ -89,7 +103,7 @@ final class ApplicationConfigurationStore {
                   presetID.rawValue.hasPrefix("\(configuration.familyID.rawValue).") else { return false }
         }
         if let guidance = configuration.customGuidance {
-            guard let validated = try? ScribeCustomGuidance(guidance.rawValue),
+            guard let validated = try? CustomGuidanceValidator.validate(guidance.rawValue),
                   validated == guidance,
                   !guidance.rawValue.isEmpty else { return false }
         }

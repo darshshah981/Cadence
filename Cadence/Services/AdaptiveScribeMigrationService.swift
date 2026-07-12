@@ -125,21 +125,14 @@ struct AdaptiveScribeMigrationService {
 
     func resetApplicationConfiguration(
         _ id: UUID,
-        store: ApplicationConfigurationStore
-    ) throws {
-        guard case let .valid(library) = store.load() else {
-            throw AdaptiveScribeMigrationError.destinationRejected
-        }
-        let remaining = library.configurations.filter { $0.id != id }
-        guard remaining.count != library.configurations.count else { return }
-        try store.save(.init(revision: library.revision + 1, configurations: remaining))
+        writer: ApplicationConfigurationWriter
+    ) async throws {
+        do { try await writer.resetConfiguration(id) }
+        catch ApplicationConfigurationWriterError.missingConfiguration { return }
     }
 
-    func resetAllApplicationSettings(store: ApplicationConfigurationStore) throws {
-        guard case let .valid(library) = store.load() else {
-            throw AdaptiveScribeMigrationError.destinationRejected
-        }
-        try store.save(.init(revision: library.revision + 1, configurations: []))
+    func resetAllApplicationSettings(writer: ApplicationConfigurationWriter) async throws {
+        try await writer.resetAllApplications()
         restoreAdaptationEnabledForAllApps()
     }
 

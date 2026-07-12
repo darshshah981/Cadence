@@ -151,6 +151,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var onboardingProgress: OnboardingProgress
     @Published private(set) var hudVisibility: HUDVisibilityState
     @Published var menuScreen: MenuScreen = .home
+    @Published private(set) var installedApplications: [InstalledApplicationDescriptor] = []
 
     @Published private(set) var holdToTalkBinding: HotkeyBinding
     @Published private(set) var tapToStartStopBinding: HotkeyBinding
@@ -171,6 +172,11 @@ final class AppModel: ObservableObject {
     private let adaptiveScribeLiveReaderService: AdaptiveScribeLiveReaderService
     private let adaptiveScribeReaderMonitor: AdaptiveScribeReaderMonitor
     private let writingEnvironmentStore: WritingEnvironmentStore
+    private let applicationConfigurationStore: ApplicationConfigurationStore
+    private let applicationConfigurationWriter: ApplicationConfigurationWriter
+    private let installedApplicationSnapshotStore: InstalledApplicationCatalogSnapshotStore
+    private let installedApplicationCatalogService: InstalledApplicationCatalogService
+    private let installedApplicationLifecycleSource: WorkspaceInstalledApplicationLifecycleSource
     private let scribeDiagnosticsService: ScribeDiagnosticsService
     private let scribePanelWindowController = ScribePanelWindowController()
     private let voiceSessionArbiter: VoiceSessionArbiter
@@ -343,9 +349,25 @@ final class AppModel: ObservableObject {
         let scribeModelCatalogService = scribeProviderRuntime.modelCatalog
         let scribeConsentAuthority = scribeProviderRuntime.consentAuthority
         let writingEnvironmentStore = WritingEnvironmentStore(defaults: defaults)
+        let applicationConfigurationStore = ApplicationConfigurationStore(defaults: defaults)
+        let applicationConfigurationWriter = ApplicationConfigurationWriter(store: applicationConfigurationStore)
+        let installedApplicationSnapshotStore = InstalledApplicationCatalogSnapshotStore()
+        let rememberedApplicationURLs: Set<URL>
+        if case let .valid(library) = applicationConfigurationStore.load() {
+            rememberedApplicationURLs = Set(library.configurations.map(\.application.lastKnownBundleURL))
+        } else {
+            rememberedApplicationURLs = []
+        }
+        let installedApplicationCatalogService = InstalledApplicationCatalogService(
+            cadenceBundleIdentifiers: ["com.darshshah.Cadence", "com.darshshah.Cadence.debug"],
+            currentBundleURL: Bundle.main.bundleURL,
+            snapshotStore: installedApplicationSnapshotStore,
+            rememberedURLs: rememberedApplicationURLs
+        )
+        let installedApplicationLifecycleSource = WorkspaceInstalledApplicationLifecycleSource()
         let adaptiveScribeLiveReaderService = AdaptiveScribeLiveReaderService(
             providerStore: scribeProviderLibraryStore,
-            applicationStore: ApplicationConfigurationStore(defaults: defaults),
+            applicationStore: applicationConfigurationStore,
             presetStore: ScribePresetCatalogStateStore(defaults: defaults),
             settingsStore: SettingsPresentationStore(defaults: defaults),
             featureGateStore: AdaptiveScribeFeatureGateStore(defaults: defaults),
@@ -385,6 +407,11 @@ final class AppModel: ObservableObject {
         self.adaptiveScribeLiveReaderService = adaptiveScribeLiveReaderService
         self.adaptiveScribeReaderMonitor = adaptiveScribeReaderMonitor
         self.writingEnvironmentStore = writingEnvironmentStore
+        self.applicationConfigurationStore = applicationConfigurationStore
+        self.applicationConfigurationWriter = applicationConfigurationWriter
+        self.installedApplicationSnapshotStore = installedApplicationSnapshotStore
+        self.installedApplicationCatalogService = installedApplicationCatalogService
+        self.installedApplicationLifecycleSource = installedApplicationLifecycleSource
         self.scribeDiagnosticsService = scribeDiagnosticsService
         self.scribeProviderReadiness = scribeProviderV2Controller.readiness
         self.adaptiveScribeV2Availability = v2MigrationResult?.liveReaderState.scribeAvailability
@@ -442,6 +469,9 @@ final class AppModel: ObservableObject {
             self?.invalidateAdaptiveScribeRuntime()
         }
         adaptiveScribeReaderMonitor.start()
+        installedApplicationSnapshotStore.onPublish = { [weak self] snapshot in
+            self?.handleInstalledApplicationSnapshot(snapshot)
+        }
         applyAppearancePreference()
         bindCoordinator()
         bindHUDVisibility()
@@ -451,11 +481,18 @@ final class AppModel: ObservableObject {
         AppDelegate.openMainWindow = { [weak self] in
             self?.showMainWindow()
         }
+        AppDelegate.shutdownApplicationServices = {
+            installedApplicationLifecycleSource.stop()
+            Task { await installedApplicationCatalogService.stop() }
+        }
         showMainWindow()
         #if DEBUG
         presentScribeLaunchFixtureIfNeeded()
         #endif
         Task {
+            await installedApplicationCatalogService.start(
+                lifecycleSource: installedApplicationLifecycleSource
+            )
             await scribeDiagnosticsService.load()
             try? await scribeProviderV2Controller.reconcileAtStartup()
             scribeProviderReadiness = scribeProviderV2Controller.readiness
@@ -2550,44 +2587,106 @@ final class AppModel: ObservableObject {
     }
 
     func resetApplicationConfiguration(_ id: UUID) {
-        do {
-            try AdaptiveScribeMigrationService(
-                defaults: defaults,
-                personalizationStore: personalizationStore
-            ).resetApplicationConfiguration(
-                id,
-                store: ApplicationConfigurationStore(defaults: defaults)
-            )
-            adaptiveScribeV2Availability = adaptiveScribeLiveReaderService.load().scribeAvailability
-        } catch {
-            lastError = "Cadence could not reset this application setting."
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await AdaptiveScribeMigrationService(
+                    defaults: self.defaults,
+                    personalizationStore: self.personalizationStore
+                ).resetApplicationConfiguration(
+                    id,
+                    writer: self.applicationConfigurationWriter
+                )
+                self.adaptiveScribeV2Availability = self.adaptiveScribeLiveReaderService.load().scribeAvailability
+            } catch {
+                self.lastError = "Cadence could not reset this application setting."
+            }
         }
     }
 
     func resetAllApplicationSettings() {
-        do {
-            try Self.performResetAllApplicationSettings(
-                defaults: defaults,
-                applicationStore: ApplicationConfigurationStore(defaults: defaults),
-                personalizationStore: personalizationStore
-            )
-            scribeAppAdaptationEnabled = true
-            adaptiveScribeV2Availability = adaptiveScribeLiveReaderService.load().scribeAvailability
-            lastError = nil
-        } catch {
-            lastError = "Cadence could not reset application settings."
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await Self.performResetAllApplicationSettings(
+                    defaults: self.defaults,
+                    writer: self.applicationConfigurationWriter,
+                    personalizationStore: self.personalizationStore
+                )
+                self.scribeAppAdaptationEnabled = true
+                self.adaptiveScribeV2Availability = self.adaptiveScribeLiveReaderService.load().scribeAvailability
+                self.lastError = nil
+            } catch {
+                self.lastError = "Cadence could not reset application settings."
+            }
         }
     }
 
     static func performResetAllApplicationSettings(
         defaults: UserDefaults,
-        applicationStore: ApplicationConfigurationStore,
+        writer: ApplicationConfigurationWriter,
         personalizationStore: PersonalizationStore
-    ) throws {
-        try AdaptiveScribeMigrationService(
+    ) async throws {
+        try await AdaptiveScribeMigrationService(
             defaults: defaults,
             personalizationStore: personalizationStore
-        ).resetAllApplicationSettings(store: applicationStore)
+        ).resetAllApplicationSettings(
+            writer: writer
+        )
+    }
+
+    func refreshInstalledApplications() {
+        Task { await installedApplicationCatalogService.pageAppeared() }
+    }
+
+    func chooseInstalledApplication(at url: URL) {
+        Task { await installedApplicationCatalogService.chooseApplication(at: url) }
+    }
+
+    private func handleInstalledApplicationSnapshot(_ snapshot: InstalledApplicationCatalogSnapshot) {
+        installedApplications = snapshot.applications
+        guard case let .valid(library) = applicationConfigurationStore.load() else { return }
+        let configurationIDs = library.configurations.map(\.id)
+        Task { [weak self] in
+            guard let self else { return }
+            for configurationID in configurationIDs {
+                guard case let .valid(currentLibrary) = self.applicationConfigurationStore.load(),
+                      let configuration = currentLibrary.configurations.first(where: {
+                          $0.id == configurationID
+                      }) else { continue }
+                let savedURLExists = FileManager.default.fileExists(
+                    atPath: configuration.application.lastKnownBundleURL.path
+                )
+                guard ApplicationIdentityResolver.resolve(
+                    reference: configuration.application,
+                    applications: snapshot.applications,
+                    savedURLExists: savedURLExists
+                ).isUniqueRebind else { continue }
+                do {
+                    _ = try await self.applicationConfigurationWriter.rebind(
+                        configurationID: configuration.id,
+                        expectedLibraryRevision: currentLibrary.revision,
+                        expectedConfigurationRevision: configuration.revision,
+                        expectedReferenceID: configuration.application.id,
+                        expectedOldURL: configuration.application.lastKnownBundleURL,
+                        snapshot: snapshot,
+                        newestSnapshot: {
+                            await MainActor.run { self.installedApplicationSnapshotStore.snapshot }
+                        },
+                        savedURLExists: {
+                            FileManager.default.fileExists(
+                                atPath: configuration.application.lastKnownBundleURL.path
+                            )
+                        },
+                        onCommittedRememberedURLs: { urls in
+                            await self.installedApplicationCatalogService.updateRememberedURLs(urls)
+                        }
+                    )
+                } catch {
+                    continue
+                }
+            }
+        }
     }
 
     func dismissLegacyWritingProfileNotice() {

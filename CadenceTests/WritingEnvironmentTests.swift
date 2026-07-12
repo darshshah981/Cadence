@@ -227,7 +227,7 @@ struct WritingEnvironmentTests {
 
     @Test
     @MainActor
-    func appModelExactAndAllAppResetsPreserveLegacyAndOtherDurableDomains() throws {
+    func appModelExactAndAllAppResetsPreserveLegacyAndOtherDurableDomains() async throws {
         let suite = "CadenceTests.V2AppReset.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -264,7 +264,10 @@ struct WritingEnvironmentTests {
             personalizationStore: PersonalizationStore(defaults: defaults)
         )
 
-        try service.resetApplicationConfiguration(first.id, store: appStore)
+        try await service.resetApplicationConfiguration(
+            first.id,
+            writer: ApplicationConfigurationWriter(store: appStore)
+        )
         guard case let .valid(afterExact) = appStore.load() else {
             Issue.record("Expected app library")
             return
@@ -272,9 +275,9 @@ struct WritingEnvironmentTests {
         #expect(afterExact.configurations.map(\.id) == [second.id])
         #expect(!service.adaptationEnabled())
 
-        try AppModel.performResetAllApplicationSettings(
+        try await AppModel.performResetAllApplicationSettings(
             defaults: defaults,
-            applicationStore: appStore,
+            writer: ApplicationConfigurationWriter(store: appStore),
             personalizationStore: PersonalizationStore(defaults: defaults)
         )
         guard case let .valid(afterAll) = appStore.load() else {

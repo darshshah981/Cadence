@@ -167,11 +167,34 @@ struct ResolvedScribeGuidance: Equatable, Sendable {
     let customGuidance: ScribeCustomGuidance?
     let resolutionSource: ScribeGuidanceResolutionSource
     let preservesExactLiterals: Bool
+    let literalCapabilities: Set<ScribeLiteralCapability>
+
+    var providerSafeValue: ProviderSafeScribeGuidance {
+        ProviderSafeScribeGuidance(
+            compiledPresetInstructions: compiledPresetInstructions,
+            customGuidance: customGuidance?.rawValue,
+            preservesExactLiterals: preservesExactLiterals,
+            automaticTechnicalLiteralNormalization: literalCapabilities
+                .contains(.automaticTechnicalLiteralNormalization)
+        )
+    }
+}
+
+enum ScribeLiteralCapability: String, Codable, Equatable, Hashable, Sendable {
+    case automaticTechnicalLiteralNormalization
+}
+
+struct ProviderSafeScribeGuidance: Codable, Equatable, Sendable {
+    let compiledPresetInstructions: String
+    let customGuidance: String?
+    let preservesExactLiterals: Bool
+    let automaticTechnicalLiteralNormalization: Bool
 }
 
 enum ScribeGuidanceResolutionSource: Equatable, Sendable {
     case bundledDefault
     case configuredApplication
+    case disabledApplicationFallback
     case adaptationDisabledFallback
     case missingApplicationFallback
     case ambiguousApplicationFallback

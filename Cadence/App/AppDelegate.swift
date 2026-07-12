@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
+    static var shutdownApplicationServices: (() -> Void)?
 
     private static var pendingMainWindowOpen = false
 
@@ -59,6 +60,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // In particular, interacting with a floating HUD must not reveal it.
         guard AppActivationPolicy.shouldOpenMainWindow(for: .becameActive) else { return }
         Self.requestMainWindowOpen(reason: "became-active")
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        Self.shutdownApplicationServices?()
     }
 
     private static var hasVisibleMainWindow: Bool {
