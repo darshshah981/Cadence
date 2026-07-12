@@ -32,6 +32,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.launch()
 
         openSettings(in: app)
+        selectSettingsCategory("scribe", in: app)
         let setup = app.buttons["scribe-provider-setup"]
         XCTAssertTrue(setup.waitForExistence(timeout: 5))
         setup.click()
@@ -59,6 +60,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.launch()
 
         openSettings(in: app)
+        selectSettingsCategory("providers", in: app)
         app.buttons["scribe-provider-setup"].click()
         XCTAssertTrue(app.buttons["Advanced OpenAI-compatible"].waitForExistence(timeout: 5))
         app.buttons["Advanced OpenAI-compatible"].click()
@@ -88,6 +90,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.launch()
 
         openSettings(in: app)
+        selectSettingsCategory("scribe", in: app)
         let adaptationToggle = app.descendants(matching: .any)["scribe-adaptation-toggle"]
         XCTAssertTrue(adaptationToggle.waitForExistence(timeout: 3))
         let initialToggleValue = String(describing: adaptationToggle.value!)
@@ -361,8 +364,10 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.launch()
 
         openSettings(in: app)
+        selectSettingsCategory("dictation", in: app)
         let qualityMenu = app.descendants(matching: .any)["settings-quality-menu"]
         XCTAssertTrue(qualityMenu.waitForExistence(timeout: 3))
+        selectSettingsCategory("scribe", in: app)
         let slackMenu = app.descendants(matching: .any)["scribe-environment-behavior-slack"]
         XCTAssertTrue(slackMenu.exists)
         slackMenu.click()
@@ -373,8 +378,8 @@ final class AdaptiveScribeUITests: XCTestCase {
         slackMenu.click()
         app.typeKey(.escape, modifierFlags: [])
 
+        selectSettingsCategory("advanced", in: app)
         let disclosure = app.descendants(matching: .any)["settings-advanced-disclosure"]
-        scrollToExistence(disclosure, in: app)
         XCTAssertTrue(disclosure.exists)
         let disclosureState = app.descendants(matching: .any)["settings-advanced-disclosure-state"]
         XCTAssertEqual(disclosureState.value as? String, "Collapsed")
@@ -423,7 +428,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.activate()
         let settings = app.buttons["sidebar-settings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 8))
-        let settingsContent = app.descendants(matching: .any)["settings-quality-menu"]
+        let settingsContent = app.descendants(matching: .any)["settings-category-content-general"]
         for _ in 0..<3 where !settingsContent.exists {
             app.activate()
             settings.click()
@@ -431,6 +436,73 @@ final class AdaptiveScribeUITests: XCTestCase {
             _ = settingsContent.waitForExistence(timeout: 1)
         }
         XCTAssertTrue(settingsContent.exists)
+    }
+
+    @MainActor
+    func testSettingsRouterUsesExactBreakpointAndReachesEveryCategory() throws {
+        for width in [520, 559, 560, 720] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--scribe-fixture", "settings", "--scribe-fixture-width", String(width)]
+            app.launch()
+            openSettings(in: app)
+
+            if width < 560 {
+                XCTAssertTrue(app.descendants(matching: .any)["settings-category-selector"].exists)
+                XCTAssertFalse(app.descendants(matching: .any)["settings-category-rail"].exists)
+            } else {
+                XCTAssertTrue(app.descendants(matching: .any)["settings-category-rail"].exists)
+            }
+            for category in ["general", "dictation", "scribe", "apps", "providers", "privacy", "advanced"] {
+                selectSettingsCategory(category, in: app)
+                XCTAssertTrue(app.descendants(matching: .any)["settings-category-content-\(category)"].waitForExistence(timeout: 2))
+            }
+            app.terminate()
+        }
+    }
+
+    @MainActor
+    func testSettingsUsesRailAtExactly560Points() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--scribe-fixture", "settings", "--scribe-fixture-width", "560"]
+        app.launch()
+        openSettings(in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["settings-category-rail"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.descendants(matching: .any)["settings-category-selector"].exists)
+    }
+
+    @MainActor
+    func testProviderSetupDismissalClearsCredentialAndDoesNotReappearOnNavigation() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--scribe-fixture", "setup", "--scribe-fixture-width", "720"]
+        app.launch()
+        openSettings(in: app)
+        selectSettingsCategory("providers", in: app)
+        app.buttons["scribe-provider-setup"].click()
+        app.buttons["OpenAI Direct"].click()
+        app.buttons["I understand"].click()
+        let key = app.secureTextFields["scribe-provider-api-key"]
+        XCTAssertTrue(key.waitForExistence(timeout: 3))
+        key.click()
+        key.typeText("ephemeral-fixture-key")
+        app.buttons["Not now"].click()
+        XCTAssertFalse(key.exists)
+        selectSettingsCategory("privacy", in: app)
+        XCTAssertFalse(app.staticTexts["Connect Scribe"].exists)
+    }
+
+    @MainActor
+    private func selectSettingsCategory(_ category: String, in app: XCUIApplication) {
+        let railButton = app.descendants(matching: .any)["settings-category-\(category)"]
+        if railButton.exists {
+            railButton.click()
+            return
+        }
+        let selector = app.descendants(matching: .any)["settings-category-selector"]
+        XCTAssertTrue(selector.waitForExistence(timeout: 2))
+        selector.click()
+        let title = category.prefix(1).uppercased() + category.dropFirst()
+        XCTAssertTrue(app.menuItems[title].waitForExistence(timeout: 2))
+        app.menuItems[title].click()
     }
 
     @MainActor

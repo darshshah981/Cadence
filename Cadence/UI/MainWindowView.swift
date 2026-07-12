@@ -16,15 +16,35 @@ final class MainWindowController: NSWindowController {
     }
 
     convenience init() {
+        #if DEBUG
+        let fixtureContentWidth = ScribeLaunchFixtures.current == .settings
+            ? (ScribeLaunchFixtures.panelWidth ?? 720)
+            : nil
+        let fixtureWindowWidth = fixtureContentWidth.map { $0 + 221 }
+        #endif
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1228, height: 768),
+            contentRect: NSRect(
+                x: 0, y: 0,
+                width: {
+                    #if DEBUG
+                    fixtureWindowWidth ?? 1228
+                    #else
+                    1228
+                    #endif
+                }(),
+                height: 768
+            ),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "Cadence"
         window.isReleasedWhenClosed = false
+        #if DEBUG
+        window.minSize = NSSize(width: fixtureWindowWidth ?? 980, height: 640)
+        #else
         window.minSize = NSSize(width: 980, height: 640)
+        #endif
         window.titlebarAppearsTransparent = true
         self.init(window: window)
     }
@@ -203,6 +223,12 @@ struct MainWindowView: View {
                     trailing: 24
                 )
             )
+            #if DEBUG
+            // Fixture windows include the main sidebar and its divider. Pin the
+            // settings detail itself so GeometryReader receives the requested
+            // 520/559/560/720 content width without a one-point split-view loss.
+            .frame(width: ScribeLaunchFixtures.current == .settings ? ScribeLaunchFixtures.panelWidth : nil)
+            #endif
             .background(FlowTheme.background)
         }
     }

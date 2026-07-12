@@ -2,6 +2,8 @@ import SwiftUI
 
 enum ScribeProviderSetupChoice: Equatable, Sendable {
     case deepSeek
+    case openAI
+    case openRouter
     case advanced
 }
 
@@ -23,6 +25,10 @@ final class ScribeProviderSetupModel: ObservableObject {
     @Published var advancedBaseURL = ""
     @Published var advancedModel = ""
     @Published var credential = ""
+    @Published var selectedModel = ""
+    @Published var modelSearchQuery = ""
+    @Published var disclosureAccepted = false
+    @Published private(set) var discoveredModels: [ScribeSearchableModelEntry] = []
     @Published private(set) var normalizedAdvancedEndpoint: AdvancedScribeEndpoint?
     @Published private(set) var failureMessage: String?
     @Published private(set) var practiceDraft: String?
@@ -30,7 +36,7 @@ final class ScribeProviderSetupModel: ObservableObject {
     func choose(_ choice: ScribeProviderSetupChoice) {
         self.choice = choice
         failureMessage = nil
-        stage = choice == .deepSeek ? .disclosure : .advancedConfiguration
+        stage = choice == .advanced ? .advancedConfiguration : .disclosure
     }
 
     func submitAdvancedConfiguration() {
@@ -99,7 +105,7 @@ final class ScribeProviderSetupModel: ObservableObject {
             stage = .chooseProvider
         case .disclosure:
             stage = choice == .advanced ? .advancedConfiguration : .chooseProvider
-            if choice == .deepSeek { choice = nil }
+            if choice != .advanced { choice = nil }
         case .credential:
             credential = ""
             stage = .disclosure
@@ -113,13 +119,22 @@ final class ScribeProviderSetupModel: ObservableObject {
 
     func clearCandidate() {
         credential = ""
+        selectedModel = ""
+        modelSearchQuery = ""
+        discoveredModels = []
+        disclosureAccepted = false
     }
+
+    func setDiscoveredModels(_ models: [ScribeSearchableModelEntry]) { discoveredModels = models }
 }
 
 struct ScribeProviderSetupView: View {
     @StateObject private var model = ScribeProviderSetupModel()
     @State private var validationTask: Task<Void, Never>?
     let onConnectDeepSeek: (String) async throws -> Void
+    let onConnectOpenAI: (String, String) async throws -> Void
+    let onConnectOpenRouter: (String, String) async throws -> Void
+    let onDiscoverModels: (ScribeProviderKind, String, Bool, String) async -> [ScribeSearchableModelEntry]
     let onConnectAdvanced: (String, String, String) async throws -> Void
     let onGeneratePractice: () async throws -> String
     let onSwitchProvider: (ScribeProviderKind) -> Void
@@ -189,6 +204,12 @@ struct ScribeProviderSetupView: View {
                     model.choose(.deepSeek)
                 }
             )
+            providerCard(title: "OpenAI Direct", detail: "Use your OpenAI API key and choose a compatible model after reviewing data use.") {
+                onSwitchProvider(.openAIDirect); model.choose(.openAI)
+            }
+            providerCard(title: "OpenRouter", detail: "Use a zero-data-retention compatible route and choose a model after reviewing data use.") {
+                onSwitchProvider(.openRouter); model.choose(.openRouter)
+            }
             providerCard(
                 title: "Advanced OpenAI-compatible",
                 detail: "One HTTPS, bearer-authenticated, non-streaming Chat Completions endpoint.",
@@ -247,6 +268,9 @@ struct ScribeProviderSetupView: View {
                         "Review the DeepSeek Privacy Policy",
                         destination: ScribeProviderDisclosure.deepSeekPrivacyPolicyURL
                     )
+                } else if model.choice == .openAI || model.choice == .openRouter {
+                    Text("Model search is optional and happens only after you explicitly continue. Your key and search stay in this setup session until it closes.")
+                        .font(.caption).foregroundStyle(FlowTheme.textSecondary)
                 } else if let endpoint = model.normalizedAdvancedEndpoint {
                     Text("Recipient: \(endpoint.normalizedOrigin)\nRequest endpoint: \(endpoint.requestURL.absoluteString)")
                         .font(.system(.caption, design: .monospaced))
@@ -267,6 +291,16 @@ struct ScribeProviderSetupView: View {
                 text: $model.credential,
                 accessibilityIdentifier: "scribe-provider-api-key"
             )
+            if model.choice == .openAI || model.choice == .openRouter {
+                CadenceFieldRow(title: "Search models", detail: "Search is consent-gated and is not saved.", placeholder: "Model name", text: $model.modelSearchQuery, accessibilityIdentifier: "scribe-provider-model-search")
+                CadenceActionButton(title: "Search models", role: .secondary, accessibilityIdentifier: "scribe-provider-model-discover") { discoverModels() }
+                if !model.discoveredModels.isEmpty {
+                    CadenceDiscretePicker(title: "Model", selection: $model.selectedModel) {
+                        ForEach(model.discoveredModels, id: \.modelID) { entry in Text(entry.displayName).tag(entry.modelID) }
+                    }
+                    .accessibilityIdentifier("scribe-provider-model-picker")
+                }
+            }
             Text("Validation sends only “Return only OK.” and “Cadence provider compatibility check.”")
                 .font(.caption)
                 .foregroundStyle(FlowTheme.textTertiary)
@@ -345,6 +379,7 @@ struct ScribeProviderSetupView: View {
                 }
             case .disclosure:
                 CadenceActionButton(title: "I understand", role: .primary, isDefault: true) {
+                    model.disclosureAccepted = true
                     model.acceptDisclosure()
                 }
             case .credential:
@@ -397,9 +432,15 @@ struct ScribeProviderSetupView: View {
         validationTask = Task { @MainActor in
             defer { validationTask = nil }
             do {
-                switch choice {
-                case .deepSeek:
+            switch choice {
+            case .deepSeek:
                     try await onConnectDeepSeek(key)
+                case .openAI:
+                    guard !model.selectedModel.isEmpty else { model.validationFailed("Search for and choose an OpenAI model before connecting."); return }
+                    try await onConnectOpenAI(model.selectedModel, key)
+                case .openRouter:
+                    guard !model.selectedModel.isEmpty else { model.validationFailed("Search for and choose an OpenRouter model before connecting."); return }
+                    try await onConnectOpenRouter(model.selectedModel, key)
                 case .advanced:
                     try await onConnectAdvanced(model.advancedBaseURL, model.advancedModel, key)
                 }
@@ -411,6 +452,18 @@ struct ScribeProviderSetupView: View {
             } catch {
                 model.validationFailed("Cadence could not validate this provider. Check the connection details and try again.")
             }
+        }
+    }
+
+    private func discoverModels() {
+        guard let provider: ScribeProviderKind = model.choice == .openAI ? .openAIDirect : (model.choice == .openRouter ? .openRouter : nil) else { return }
+        let credential = model.credential
+        validationTask?.cancel()
+        validationTask = Task { @MainActor in
+            let entries = await onDiscoverModels(provider, credential, model.disclosureAccepted, model.modelSearchQuery)
+            guard !Task.isCancelled else { return }
+            model.setDiscoveredModels(entries)
+            if model.selectedModel.isEmpty { model.selectedModel = entries.first?.modelID ?? "" }
         }
     }
 
@@ -442,6 +495,8 @@ struct ScribeProviderSetupView: View {
         case .advancedConfiguration: return "Configure an Advanced provider"
         case .disclosure:
             if model.choice == .deepSeek { return ScribeProviderDisclosure.deepSeekTitle }
+            if model.choice == .openAI { return "Connect to OpenAI" }
+            if model.choice == .openRouter { return "Connect to OpenRouter" }
             let origin = model.normalizedAdvancedEndpoint?.normalizedOrigin ?? "the configured provider"
             return "Connect to \(origin)"
         case .credential: return "Connect Scribe"
@@ -467,6 +522,8 @@ struct ScribeProviderSetupView: View {
 
     private var connectTitle: String {
         if model.choice == .deepSeek { return "Connect and validate with DeepSeek" }
+        if model.choice == .openAI { return "Connect and validate with OpenAI" }
+        if model.choice == .openRouter { return "Connect and validate with OpenRouter" }
         let host = model.normalizedAdvancedEndpoint?.requestURL.host ?? "provider"
         return "Connect and validate \(host)"
     }
@@ -475,6 +532,8 @@ struct ScribeProviderSetupView: View {
         if model.choice == .deepSeek {
             return ScribeProviderDisclosure.deepSeek
         }
+        if model.choice == .openAI { return "Cadence will send each dictated draft, its selected writing preset, and optional custom guidance to OpenAI. It does not send audio, selected text, nearby text, window titles, meeting notes, or history." }
+        if model.choice == .openRouter { return "Cadence will send each dictated draft, its selected writing preset, and optional custom guidance to OpenRouter. It does not send audio, selected text, nearby text, window titles, meeting notes, or history." }
         let origin = model.normalizedAdvancedEndpoint?.normalizedOrigin ?? "the configured endpoint"
         return ScribeProviderDisclosure.advanced(origin: origin)
     }

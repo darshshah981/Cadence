@@ -39,7 +39,7 @@ struct ScribeProviderManagementView: View {
 
                 DisclosureGroup("Review data sent to \(kind.displayName)") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Cadence sends the current dictated text, compiled writing behavior, and selected text only for Respond or Edit. It does not send audio, window titles, nearby text, meetings, history, or the analytics ID.")
+                        Text("Cadence sends the current dictated text, compiled writing preset, and optional custom guidance. It does not send audio, selected text, nearby text, window titles, meetings, history, or the analytics ID.")
                         if let recipient = appModel.configuredScribeRecipient {
                             Text("Recipient: \(recipient)")
                                 .font(.system(.caption, design: .monospaced))
@@ -77,23 +77,6 @@ struct ScribeProviderManagementView: View {
                 }
             }
 
-            Divider()
-            VStack(alignment: .leading, spacing: 7) {
-                Text("Local Scribe diagnostics")
-                    .font(.headline)
-                Text("A bounded, content-free local ring records coarse setup and recovery outcomes. It is separate from analytics and is never uploaded automatically.")
-                    .font(.caption)
-                    .foregroundStyle(FlowTheme.textSecondary)
-                HStack {
-                    CadenceActionButton(title: "Clear Scribe diagnostics", role: .destructive) {
-                        appModel.clearScribeDiagnostics()
-                    }
-                    Spacer()
-                    CadenceActionButton(title: "Export Scribe diagnostics…", role: .quiet) {
-                        appModel.exportScribeDiagnostics()
-                    }
-                }
-            }
         }
     }
 
