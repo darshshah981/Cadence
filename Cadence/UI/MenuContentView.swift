@@ -1,78 +1,5 @@
 import SwiftUI
 
-enum FlowTheme {
-    static let background = Color(dynamicLight: 0xFAF9F5, dark: 0x1A1A18)
-    static let elevated = Color(dynamicLight: 0xFFFFFF, dark: 0x24241F)
-    static let subtle = Color(dynamicLight: 0xF5F3EC, dark: 0x14140F)
-    static let border = Color(dynamicLight: 0xECE8DD, dark: 0x2E2E28)
-    static let borderStrong = Color(dynamicLight: 0xC4C0B6, dark: 0x545048)
-    static let textPrimary = Color(dynamicLight: 0x1B1B19, dark: 0xEDEAE0)
-    static let textSecondary = Color(dynamicLight: 0x6B6B66, dark: 0x9A968A)
-    static let textTertiary = Color(dynamicLight: 0xA8A8A0, dark: 0x5D5A52)
-    static let placeholder = Color(dynamicLight: 0xA8A8A0, dark: 0x5D5A52)
-    static let accent = Color(dynamicLight: 0x1B1B19, dark: 0xEDEAE0)
-    static let accentPressed = Color(dynamicLight: 0x3D3D39, dark: 0xFFFFFF)
-    static let accentSubtle = Color(dynamicLight: 0xEFEBE1, dark: 0x2E2E28)
-    static let accentBorder = Color(dynamicLight: 0xD6D4CB, dark: 0x5D5A52)
-    static let success = Color(dynamicLight: 0x4F7A5B, dark: 0x7DA088)
-    static let successSubtle = Color(dynamicLight: 0xE0EAE0, dark: 0x243328)
-    static let teal = Color(dynamicLight: 0x4F7A5B, dark: 0x7DA088)
-    static let tealSubtle = Color(dynamicLight: 0xE0EAE0, dark: 0x243328)
-    static let error = Color(dynamicLight: 0xB84A3A, dark: 0xD17563)
-    static let errorSubtle = Color(dynamicLight: 0xF5E3DE, dark: 0x33201C)
-}
-
-enum FlowMotion {
-    static let control = Animation.spring(response: 0.26, dampingFraction: 0.86, blendDuration: 0.04)
-    static let page = Animation.spring(response: 0.34, dampingFraction: 0.9, blendDuration: 0.04)
-    static let section = Animation.spring(response: 0.3, dampingFraction: 0.88, blendDuration: 0.04)
-    static let quick = Animation.easeOut(duration: 0.16)
-
-    static func enabled(_ animation: Animation, reduceMotion: Bool) -> Animation? {
-        reduceMotion ? nil : animation
-    }
-}
-
-extension Color {
-    init(dynamicLight lightHex: UInt32, dark darkHex: UInt32) {
-        self.init(
-            nsColor: NSColor(name: nil) { appearance in
-                let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-                return NSColor(hex: isDark ? darkHex : lightHex)
-            }
-        )
-    }
-}
-
-extension NSColor {
-    convenience init(hex: UInt32, alpha: CGFloat = 1) {
-        let red = CGFloat((hex >> 16) & 0xFF) / 255
-        let green = CGFloat((hex >> 8) & 0xFF) / 255
-        let blue = CGFloat(hex & 0xFF) / 255
-        self.init(red: red, green: green, blue: blue, alpha: alpha)
-    }
-}
-
-struct FlowSectionCard<Content: View>: View {
-    let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(FlowTheme.border, lineWidth: 1)
-        )
-    }
-}
-
 struct FlowSectionHeader: View {
     let title: String
 
@@ -196,7 +123,7 @@ struct MenuContentView: View {
                 copiedTranscriptID: appModel.copiedTranscriptID,
                 shortcutHint: primaryShortcutHint,
                 expandedTranscriptIDs: $expandedTranscriptIDs,
-                onCopy: appModel.copyTranscript,
+                onCopy: { _ = appModel.copyTranscript($0) },
                 onOpenPermissionsWizard: appModel.openPermissionsWizard,
                 onOpenSettings: appModel.showSettingsScreen
             )
@@ -536,12 +463,10 @@ private struct HomeDashboardView: View {
 
                 Spacer()
 
-                Button("Open") {
+                CadenceActionButton(title: "Open", role: .quiet) {
                     onOpenPermissionsWizard()
                 }
-                .buttonStyle(.plain)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(FlowTheme.accent)
             }
         }
     }
@@ -897,12 +822,9 @@ private struct EmptyTranscriptStateView: View {
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
 
-            Button(needsPermissions ? "Complete Setup" : "How to use") {
+            CadenceActionButton(title: needsPermissions ? "Complete Setup" : "How to use", role: .secondary) {
                 onOpenSettings()
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(FlowTheme.accent)
         }
         .padding(20)
         .frame(maxWidth: .infinity)

@@ -21,7 +21,7 @@ actor MockScribeProvider: ScribeProvider {
         self.responses = responses
     }
 
-    func generate(_ request: ScribeRequest) async throws -> ScribeResult {
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
         try Task.checkCancellation()
 
         if let existing = completedRequests[request.id] {
@@ -42,13 +42,13 @@ actor MockScribeProvider: ScribeProvider {
             throw error
         case let .success(text):
             let normalized = try ScribeOutputPolicy.normalizedOutput(text)
-            let result = ScribeResult(requestID: request.id, text: normalized)
+            let result = ScribeResult(requestID: request.id, text: normalized, binding: request.resultBinding)
             cache(result)
             return result
         case let .delayedSuccess(text, delay):
             try await Task.sleep(for: delay)
             let normalized = try ScribeOutputPolicy.normalizedOutput(text)
-            let result = ScribeResult(requestID: request.id, text: normalized)
+            let result = ScribeResult(requestID: request.id, text: normalized, binding: request.resultBinding)
             cache(result)
             return result
         }

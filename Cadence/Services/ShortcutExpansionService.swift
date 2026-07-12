@@ -10,8 +10,18 @@ enum ShortcutExpansionService {
     static func expand(
         _ text: String,
         bundleIdentifier: String?,
-        shortcuts: [PersonalShortcut]
+        shortcuts: [PersonalShortcut],
+        protectedValues: [String] = []
     ) -> String {
+        let protectedRanges = protectedValues.flatMap { value -> [NSRange] in
+            guard !value.isEmpty else { return [] }
+            let pattern = NSRegularExpression.escapedPattern(for: value)
+            guard let expression = try? NSRegularExpression(pattern: pattern) else { return [] }
+            return expression.matches(
+                in: text,
+                range: NSRange(text.startIndex..., in: text)
+            ).map(\.range)
+        }
         let candidates = shortcuts
             .filter { shortcut in
                 guard shortcut.isEnabled, shortcut.isValid else { return false }
@@ -38,7 +48,11 @@ enum ShortcutExpansionService {
                 return expression.matches(
                     in: text,
                     range: NSRange(text.startIndex..., in: text)
-                ).map {
+                ).filter { match in
+                    protectedRanges.allSatisfy {
+                        NSIntersectionRange($0, match.range).length == 0
+                    }
+                }.map {
                     Candidate(range: $0.range, shortcut: shortcut, scopePriority: scopePriority)
                 }
             }

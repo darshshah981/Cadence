@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "corpusFile": "quality-corpus.json",
+  "syntheticOnly": true,
+  "caseCount": 24,
+  "families": {"general": 8, "messaging": 8, "coding": 8},
+  "dictationOnly": true,
+  "releaseScoringRunsPerCase": 3,
+  "criticalInvariantPassRequired": true,
+  "readyUnchangedThreshold": 0.8,
+  "readyOrLightEditThreshold": 0.95
+}

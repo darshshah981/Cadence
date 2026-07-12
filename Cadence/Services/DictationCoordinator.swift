@@ -48,17 +48,20 @@ final class DictationCoordinator {
     var onError: ((String) -> Void)?
     var onBackendStatus: ((String) -> Void)?
     var onScribeRequested: (() -> Void)?
+    var onTargetPin: ((ApplicationTargetCapture, String?) -> Void)?
+    var onTargetClear: ((UUID) -> Void)?
 
     private let hotkeyService: HotkeyService
-    private let permissionsService: PermissionsService
+    private let permissionsService: any DictationPermissionsServing
     private let audioCaptureService: AudioCaptureServing
     private let transcriptionEngine: TranscriptionEngine
     private let textInsertionService: TextInsertionServing
     private let hudController: HUDWindowController
     private let analytics: AnalyticsService
-    private let feedbackService: FeedbackServing
+    private let activationFeedbackGate: DictationActivationFeedbackGate
     private let sessionArbiter: VoiceSessionArbiter
     private let personalizationStore: PersonalizationStore
+    private let targetAuthority: any ApplicationTargetAuthorizing
     private var transcriptionConfiguration = TranscriptionConfiguration()
     private var activeTriggerMode: DictationTriggerMode?
     private var stopTapDictationOnNextKeyPress = false
@@ -72,6 +75,7 @@ final class DictationCoordinator {
     private var sessionStartedAt: Date?
     private var activeSessionID: String?
     private var activeTargetApplication: DictationTargetApplication?
+    private var activeTargetCapture: ApplicationTargetCapture?
     private var firstPreviewTracked = false
     private var lastSuccessfulCompletionAt: Date?
     private var terminalHUDTask: Task<Void, Never>?
@@ -85,7 +89,7 @@ final class DictationCoordinator {
 
     init(
         hotkeyService: HotkeyService,
-        permissionsService: PermissionsService,
+        permissionsService: any DictationPermissionsServing,
         audioCaptureService: AudioCaptureServing,
         transcriptionEngine: TranscriptionEngine,
         textInsertionService: TextInsertionServing,
@@ -93,6 +97,7 @@ final class DictationCoordinator {
         analytics: AnalyticsService,
         feedbackService: FeedbackServing,
         sessionArbiter: VoiceSessionArbiter,
+        targetAuthority: any ApplicationTargetAuthorizing,
         personalizationStore: PersonalizationStore = PersonalizationStore(),
         waveformSensitivity: Double = 1.0
     ) {
@@ -103,8 +108,9 @@ final class DictationCoordinator {
         self.textInsertionService = textInsertionService
         self.hudController = hudController
         self.analytics = analytics
-        self.feedbackService = feedbackService
+        self.activationFeedbackGate = DictationActivationFeedbackGate(service: feedbackService)
         self.sessionArbiter = sessionArbiter
+        self.targetAuthority = targetAuthority
         self.personalizationStore = personalizationStore
         self.waveformSensitivity = Self.sanitizedWaveformSensitivity(waveformSensitivity)
 
@@ -127,6 +133,14 @@ final class DictationCoordinator {
 
     func insertPreviewText() async throws {
         try await textInsertionService.insert("Cadence preview insert.\n")
+    }
+
+    func startDictation(triggerMode: DictationTriggerMode = .tapToStartStop) async {
+        await beginDictationIfPossible(triggerMode: triggerMode)
+    }
+
+    func finishDictation() async {
+        await finishDictationIfNeeded()
     }
 
     func updateTranscriptionConfiguration(_ configuration: TranscriptionConfiguration) async throws -> String {
@@ -225,6 +239,7 @@ final class DictationCoordinator {
 
         do {
             invalidateTerminalHUD()
+            clearActiveTargetCapture()
             var permissions = permissionsService.snapshot()
             if !permissions.microphoneGranted {
                 _ = await permissionsService.requestMicrophoneAccess()
@@ -237,6 +252,14 @@ final class DictationCoordinator {
             }
 
             voiceSessionLease = try sessionArbiter.acquire(for: .dictation)
+
+            let targetCapture = try await targetAuthority.capture(source: .dictation)
+            activeTargetCapture = targetCapture
+            activeTargetApplication = DictationTargetApplication(
+                bundleIdentifier: targetCapture.process.bundleIdentifier,
+                displayName: targetCapture.displayName ?? "Application"
+            )
+            onTargetPin?(targetCapture, targetCapture.displayName)
 
             activeTriggerMode = triggerMode
             let sessionID = Self.makeAnalyticsSessionID()
@@ -255,7 +278,6 @@ final class DictationCoordinator {
                 )
             }
             analytics.track("shortcut_used", properties: ["sessionID": .string(sessionID), "mode": .string(triggerMode.rawValue)])
-            activeTargetApplication = Self.currentTargetApplication()
             analytics.track("dictation_started", properties: sessionAnalyticsProperties(triggerMode: triggerMode))
 
             try await transcriptionEngine.startSession()
@@ -313,7 +335,7 @@ final class DictationCoordinator {
                 waveformLevels: latestWaveformLevels,
                 showsSubtitle: false
             )
-            feedbackService.playActivationSound()
+            activationFeedbackGate.handle(.listeningStarted)
             warmBackendForCurrentSession()
         } catch {
             releaseVoiceSessionLease()
@@ -339,6 +361,7 @@ final class DictationCoordinator {
 
     private func finishDictationIfNeeded() async {
         guard state == .listening else { return }
+        activationFeedbackGate.handle(.stopped)
 
         let finalizeStartedAt = Date()
         state = .finalizing
@@ -426,6 +449,10 @@ final class DictationCoordinator {
 
             let insertionStartedAt = Date()
             do {
+                guard let activeTargetCapture else {
+                    throw ApplicationTargetAuthorityError.noExternalTarget
+                }
+                try await targetAuthority.verify(activeTargetCapture)
                 try await textInsertionService.insert(polishResult.insertionText)
             } catch {
                 analytics.track(
@@ -533,6 +560,7 @@ final class DictationCoordinator {
     }
 
     private func transitionToLogoIdle() {
+        clearActiveTargetCapture()
         onHUDChange?(HUDState.logoIdle)
         hudController.update(with: .logoIdle)
     }
@@ -567,6 +595,7 @@ final class DictationCoordinator {
     }
 
     private func publishError(_ message: String) {
+        activationFeedbackGate.handle(.failed)
         stopPreviewLoop()
         activeTriggerMode = nil
         state = .error(message)
@@ -752,6 +781,7 @@ final class DictationCoordinator {
     private func cancelFromHUD() async {
         guard activeTriggerMode == .tapToStartStop else { return }
         guard state == .listening else { return }
+        activationFeedbackGate.handle(.cancelled)
 
         let metrics = audioCaptureService.stopCapture()
         stopPreviewLoop()
@@ -789,13 +819,10 @@ final class DictationCoordinator {
         ]
     }
 
-    private static func currentTargetApplication() -> DictationTargetApplication? {
-        let frontmostApplication = NSWorkspace.shared.frontmostApplication
-        guard frontmostApplication?.bundleIdentifier != Bundle.main.bundleIdentifier else {
-            return nil
-        }
-
-        return DictationTargetApplication(runningApplication: frontmostApplication)
+    private func clearActiveTargetCapture() {
+        guard let capture = activeTargetCapture else { return }
+        activeTargetCapture = nil
+        onTargetClear?(capture.id)
     }
 
     private static func shouldTrackAbandonment(for error: Error) -> Bool {
@@ -829,10 +856,8 @@ final class DictationCoordinator {
 
     private func checkAndShowDragTooltip() {
         let countKey = "Cadence.holdHintRecordingCount"
-        let tooltipKey = "Cadence.dragTooltipShown"
         let count = UserDefaults.standard.integer(forKey: countKey)
-        guard count >= 3, !UserDefaults.standard.bool(forKey: tooltipKey) else { return }
-        hudController.showDragTooltip()
+        hudController.showDragTooltipIfEligible(successfulDictationCount: count)
     }
 
     private func humanizedHUDMessage(for raw: String) -> String {

@@ -710,6 +710,34 @@ enum HUDVisualState: Equatable {
     }
 }
 
+enum HUDMetrics {
+    static let idleHitSize = NSSize(width: 44, height: 44)
+    static let idleMarkSize = NSSize(width: 31, height: 31)
+    static let expandedTraySize = NSSize(width: 240, height: 38)
+    static let pillHeight: CGFloat = 38
+    static let compactWidth: CGFloat = 236
+    static let holdHintWidth: CGFloat = 320
+    static let statusWidth: CGFloat = 236
+    static let subtitleSize = NSSize(width: 320, height: 36)
+    static let subtitleGap: CGFloat = 8
+    static let waveformWidth: CGFloat = 112
+    static let waveformHeight: CGFloat = 28
+    static let waveformBarWidth: CGFloat = 3
+    static let waveformBarGap: CGFloat = 3
+}
+
+enum HUDMotion {
+    static let morphDuration: TimeInterval = 0.18
+    static let waveformAttackRate = -log(0.6) * 60
+    static let waveformReleaseRate = -log(0.92) * 60
+    static let stableTolerance = 0.001
+
+    static func easeOutCubic(_ progress: Double) -> Double {
+        let clamped = max(0, min(1, progress))
+        return 1 - pow(1 - clamped, 3)
+    }
+}
+
 struct HUDCornerRadii: Equatable {
     let topLeading: CGFloat
     let bottomLeading: CGFloat
@@ -740,14 +768,34 @@ enum HUDPosition: String, CaseIterable, Equatable {
         }
     }
 
+    func visibleMarkFrame(in panelFrame: NSRect) -> NSRect {
+        let markSize = HUDMetrics.idleMarkSize
+        let horizontalInset = panelFrame.width - markSize.width
+        let verticalInset = panelFrame.height - markSize.height
+        let origin: NSPoint
+        switch self {
+        case .bottomCenter:
+            origin = NSPoint(x: panelFrame.minX + horizontalInset / 2, y: panelFrame.minY)
+        case .topLeft:
+            origin = NSPoint(x: panelFrame.minX, y: panelFrame.minY + verticalInset)
+        case .topRight:
+            origin = NSPoint(x: panelFrame.minX + horizontalInset, y: panelFrame.minY + verticalInset)
+        case .bottomLeft:
+            origin = panelFrame.origin
+        case .bottomRight:
+            origin = NSPoint(x: panelFrame.minX + horizontalInset, y: panelFrame.minY)
+        }
+        return NSRect(origin: origin, size: markSize)
+    }
+
     func origin(screenFrame: NSRect, visibleFrame: NSRect, hudSize: NSSize) -> NSPoint {
         switch self {
         case .bottomCenter:
             return NSPoint(x: visibleFrame.midX - hudSize.width / 2, y: visibleFrame.minY)
         case .topLeft:
-            return NSPoint(x: screenFrame.minX, y: screenFrame.maxY - hudSize.height)
+            return NSPoint(x: screenFrame.minX, y: visibleFrame.maxY - hudSize.height)
         case .topRight:
-            return NSPoint(x: screenFrame.maxX - hudSize.width, y: screenFrame.maxY - hudSize.height)
+            return NSPoint(x: screenFrame.maxX - hudSize.width, y: visibleFrame.maxY - hudSize.height)
         case .bottomLeft:
             return NSPoint(x: screenFrame.minX, y: screenFrame.minY)
         case .bottomRight:

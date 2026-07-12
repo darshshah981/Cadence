@@ -13,13 +13,24 @@ struct IdleExpandedTray: View {
             contractButton
         }
         .padding(.horizontal, 10)
-        .frame(height: 38)
-        .background(trayBackground)
-        .overlay(trayStroke)
+        .frame(height: HUDMetrics.pillHeight)
+        .background {
+            ZStack {
+                trayBackground
+                Button(action: model.handleTrayBackgroundTap) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .accessibilityHidden(true)
+            }
+        }
+        .overlay(trayStroke.allowsHitTesting(false))
     }
 
     private var copyButton: some View {
-        Button(action: { model.onCopyLast?() }) {
+        Button(action: model.requestCopyLast) {
             Group {
                 if model.showCopyConfirmation {
                     Image(systemName: "checkmark")
@@ -42,7 +53,7 @@ struct IdleExpandedTray: View {
 
     @ViewBuilder
     private var dictionaryButton: some View {
-        Button(action: { model.onAddToDictionary?() }) {
+        Button(action: model.requestAddToDictionary) {
             dictionaryButtonContent
         }
         .buttonStyle(HUDControlButtonStyle())
@@ -84,7 +95,7 @@ struct IdleExpandedTray: View {
         Menu {
             ForEach(HUDHideDuration.allCases, id: \.self) { duration in
                 Button(duration.displayName) {
-                    model.onHide?(duration)
+                    model.requestHide(duration)
                 }
             }
         } label: {
@@ -111,27 +122,13 @@ struct IdleExpandedTray: View {
     }
 
     private var trayBackground: some View {
-        let radii = model.position.cornerRadii
-        return UnevenRoundedRectangle(
-            topLeadingRadius: radii.topLeading,
-            bottomLeadingRadius: radii.bottomLeading,
-            bottomTrailingRadius: radii.bottomTrailing,
-            topTrailingRadius: radii.topTrailing,
-            style: .continuous
-        )
-        .fill(FlowTheme.elevated)
+        HUDAdaptiveShape(position: model.position)
+            .fill(FlowTheme.elevated)
     }
 
     private var trayStroke: some View {
-        let radii = model.position.cornerRadii
-        return UnevenRoundedRectangle(
-            topLeadingRadius: radii.topLeading,
-            bottomLeadingRadius: radii.bottomLeading,
-            bottomTrailingRadius: radii.bottomTrailing,
-            topTrailingRadius: radii.topTrailing,
-            style: .continuous
-        )
-        .stroke(FlowTheme.border, lineWidth: 1)
+        HUDAdaptiveShape(position: model.position)
+            .stroke(FlowTheme.border, lineWidth: 1)
     }
 }
 

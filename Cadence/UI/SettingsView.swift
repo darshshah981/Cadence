@@ -1,39 +1,277 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
+    private static let writingEnvironmentsScrollID = "settings-writing-environments"
+
     @ObservedObject var appModel: AppModel
     var maxContentWidth: CGFloat?
     var contentPadding = EdgeInsets()
-    @State private var isAdvancedExpanded = false
+    @State private var appSearchQuery = ""
+    @State private var selectedApplication: InstalledApplicationDescriptor?
+    @State private var applicationFamily: ScribeEnvironmentFamilyID = .general
+    @State private var applicationPresetID = ""
+    @State private var customGuidance = ""
     @State private var editingShortcut: PersonalShortcut?
     @State private var editingStyleProfile: WritingStyleProfile?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        GeometryReader { proxy in
+            // Fixture windows pin an exact content width; prefer that over a
+            // GeometryReader that can lag one layout pass behind the outer frame.
+            let measuredWidth = fixtureLayoutWidth ?? proxy.size.width
+            let compact = measuredWidth < CadenceDesignMetrics.compactActionBreakpoint
+            Group {
+                if compact {
+                    VStack(alignment: .leading, spacing: 14) {
+                        categorySelector
+                        settingsContent
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: 20) {
+                        settingsRail
+                        settingsContent
+                    }
+                }
+            }
+            .padding(contentPadding)
+            .frame(maxWidth: maxContentWidth, alignment: .topLeading)
+            .frame(width: fixtureLayoutWidth, alignment: .topLeading)
+            .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: appModel.dictationQualityPreset)
+            .sheet(item: $editingShortcut) { shortcut in
+                PersonalShortcutEditor(shortcut: shortcut) { appModel.savePersonalShortcut($0) }
+            }
+            .sheet(item: $editingStyleProfile) { profile in
+                WritingStyleProfileEditor(profile: profile) { appModel.saveWritingStyleProfile($0) }
+            }
+            .sheet(
+                isPresented: $appModel.isScribeProviderSetupPresented,
+                onDismiss: appModel.dismissScribeProviderSetup
+            ) {
+                ScribeProviderSetupView(
+                    onConnectDeepSeek: { try await appModel.connectDeepSeekForScribe(credential: $0) },
+                    onConnectOpenAI: { try await appModel.connectOpenAIForScribe(model: $0, credential: $1) },
+                    onConnectOpenRouter: { try await appModel.connectOpenRouterForScribe(model: $0, credential: $1) },
+                    onAcceptDisclosure: { provider, advancedBaseURL in
+                        try await appModel.acceptScribeProviderSetupDisclosure(
+                            for: provider,
+                            advancedBaseURL: advancedBaseURL
+                        )
+                    },
+                    onDiscoverModels: { provider, credential, accepted, query in
+                        await appModel.discoverScribeModels(for: provider, credential: credential, disclosureAccepted: accepted, matching: query)
+                    },
+                    onConnectAdvanced: {
+                        try await appModel.connectAdvancedScribeProvider(
+                            baseURL: $0,
+                            model: $1,
+                            credential: $2
+                        )
+                    },
+                    onGeneratePractice: { try await appModel.generateScribePracticeDraft() },
+                    onSwitchProvider: appModel.switchScribeProviderSetup,
+                    onDismiss: appModel.dismissScribeProviderSetup
+                )
+            }
+            .onDisappear(perform: appModel.dismissScribeProviderSetup)
+        }
+    }
+
+    /// When UI-test fixtures pin a content width, use it for the compact rail
+    /// decision so 559/560 breakpoints are deterministic on CI runners.
+    private var fixtureLayoutWidth: CGFloat? {
+        #if DEBUG
+        guard ScribeLaunchFixtures.current == .settings else { return nil }
+        return ScribeLaunchFixtures.panelWidth
+        #else
+        return nil
+        #endif
+    }
+
+    private var categorySelector: some View {
+        CadenceDropdownRow(
+            title: "Settings category",
+            selection: Binding(get: { appModel.settingsPresentationState.selectedCategory }, set: selectCategory),
+            accessibilityIdentifier: "settings-category-selector"
+        ) {
+            ForEach(SettingsCategoryID.allCases, id: \.self) { category in
+                Text(category.title).tag(category)
+            }
+        }
+    }
+
+    private var settingsRail: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Settings").font(.title3.weight(.semibold)).padding(.bottom, 8)
+            ForEach(SettingsCategoryID.allCases, id: \.self) { category in
+                Button(category.title) { selectCategory(category) }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(
+                        appModel.settingsPresentationState.selectedCategory == category
+                            ? FlowTheme.subtle
+                            : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    )
+                    .foregroundStyle(
+                        appModel.settingsPresentationState.selectedCategory == category
+                            ? FlowTheme.textPrimary
+                            : FlowTheme.textSecondary
+                    )
+                    .accessibilityIdentifier("settings-category-\(category.rawValue)")
+                    .accessibilityLabel(category.title)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(width: 176, alignment: .topLeading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings-category-rail")
+    }
+
+    private var settingsContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                setupSection
-                startStopSection
-                scribeSection
-                personalizationSection
-                captureSection
-                writingStyleSection
-                privacySection
-                advancedSection
+                switch appModel.settingsPresentationState.selectedCategory {
+                case .general:
+                    setupSection
+                    personalizationSection
+                case .dictation:
+                    startStopSection
+                    writingStyleSection
+                case .scribe:
+                    scribeSection
+                case .apps:
+                    appsSection
+                case .providers:
+                    providersSection
+                case .privacy:
+                    privacySection
+                    diagnosticsSection
+                case .advanced:
+                    advancedSection
+                }
                 versionFooter
             }
-            .frame(maxWidth: maxContentWidth, alignment: .topLeading)
-            .padding(contentPadding)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(.bottom, 2)
         }
-        .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: isAdvancedExpanded)
-        .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: appModel.dictationQualityPreset)
-        .sheet(item: $editingShortcut) { shortcut in
-            PersonalShortcutEditor(shortcut: shortcut) { appModel.savePersonalShortcut($0) }
+        .accessibilityIdentifier("settings-category-content-\(appModel.settingsPresentationState.selectedCategory.rawValue)")
+    }
+
+    private var providersSection: some View {
+        settingsSection(title: "Providers", systemImage: "network") {
+            FlowSectionCard { ScribeProviderManagementView(appModel: appModel).padding(12) }
         }
-        .sheet(item: $editingStyleProfile) { profile in
-            WritingStyleProfileEditor(profile: profile) { appModel.saveWritingStyleProfile($0) }
+    }
+
+    private var appsSection: some View {
+        settingsSection(title: "Apps", systemImage: "macwindow") {
+            FlowSectionCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SettingsLabelRow(title: "Writing environments", description: "Choose an installed Mac app. Cadence stores its verified app identity, never a typed bundle identifier.")
+                    HStack {
+                        TextField("Search installed apps", text: $appSearchQuery)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("settings-app-search")
+                        CadenceActionButton(title: "Refresh", role: .secondary, accessibilityIdentifier: "settings-app-refresh") { appModel.refreshInstalledApplications() }
+                        CadenceActionButton(title: "Choose app…", role: .secondary, accessibilityIdentifier: "settings-app-choose") { chooseApplication() }
+                    }
+                    appPicker
+                    if let selectedApplication {
+                        CadenceDropdownRow(title: "Writing style", selection: $applicationFamily, accessibilityIdentifier: "settings-app-family") {
+                            Text("General").tag(ScribeEnvironmentFamilyID.general)
+                            Text("Messaging").tag(ScribeEnvironmentFamilyID.messaging)
+                            Text("Coding").tag(ScribeEnvironmentFamilyID.coding)
+                        }
+                        CadenceDropdownRow(title: "Preset", detail: "Presets are limited to the selected writing style.", selection: $applicationPresetID, accessibilityIdentifier: "settings-app-preset") {
+                            Text("Family default").tag("")
+                            ForEach(presets(for: applicationFamily), id: \.id) { preset in
+                                Text(preset.id.rawValue.replacingOccurrences(of: "\(applicationFamily.rawValue).", with: "").capitalized).tag(preset.id.rawValue)
+                            }
+                        }
+                        CadenceTextEditorRow(title: "Custom Scribe guidance", detail: "Optional. Considered with the transcription after the selected style preset.", text: $customGuidance, accessibilityIdentifier: "settings-app-guidance")
+                        CadenceActionButton(title: "Add \(selectedApplication.displayName)", role: .primary, accessibilityIdentifier: "settings-app-add") {
+                            let app = selectedApplication
+                            let guidance = try? ScribeCustomGuidance(customGuidance)
+                            let selection: ScribePresetSelection = applicationPresetID.isEmpty ? .familyDefault : .explicit(try! ScribePresetID(applicationPresetID))
+                            Task { try? await appModel.upsertApplicationConfiguration(for: app, familyID: applicationFamily, presetSelection: selection, customGuidance: guidance) }
+                        }
+                    }
+                    configuredApps
+                }
+                .padding(12)
+            }
+        }
+        .onAppear { appModel.refreshInstalledApplications() }
+        .onChange(of: applicationFamily) { _, _ in applicationPresetID = "" }
+    }
+
+    private var appPicker: some View {
+        let apps = appModel.installedApplications.filter { appSearchQuery.isEmpty || $0.displayName.localizedCaseInsensitiveContains(appSearchQuery) || $0.bundleIdentifier.localizedCaseInsensitiveContains(appSearchQuery) }
+        return VStack(alignment: .leading, spacing: 8) {
+            if apps.isEmpty { Text("No matching installed apps yet. Refresh to scan this Mac.").font(.caption).foregroundStyle(FlowTheme.textSecondary) }
+            ForEach(apps) { app in
+                CadenceActionButton(title: app.displayName + (app.bundleIdentifier == "com.openai.codex" ? " · Recommended for coding" : ""), role: selectedApplication?.id == app.id ? .secondary : .quiet, accessibilityIdentifier: "settings-app-choice-\(settingsAppIdentifier(app))") { selectedApplication = app }
+            }
+        }
+        .accessibilityIdentifier("settings-installed-app-picker")
+    }
+
+    private var configuredApps: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !appModel.applicationConfigurations.isEmpty { Divider(); Text("Configured apps").font(.headline) }
+            ForEach(appModel.applicationConfigurations) { configuration in
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text(configuration.application.lastKnownDisplayName)
+                        Text(configuration.application.lastKnownBundleURL.path).font(.caption).foregroundStyle(FlowTheme.textTertiary).lineLimit(1)
+                    }
+                    Spacer()
+                    CadenceToggle(title: "Enable \(configuration.application.lastKnownDisplayName)", isOn: Binding(get: { configuration.isEnabled }, set: { enabled in Task { try? await appModel.setApplicationConfigurationEnabled(configuration.id, enabled: enabled) } }))
+                    .labelsHidden()
+                }
+            }
+        }
+    }
+
+    private func presets(for family: ScribeEnvironmentFamilyID) -> [ScribeGuidancePresetDefinition] {
+        ScribeGuidanceCatalog.releaseOne.family(family)?.presets ?? []
+    }
+
+    private func selectCategory(_ category: SettingsCategoryID) {
+        appModel.dismissScribeProviderSetup()
+        appModel.selectSettingsCategory(category)
+    }
+
+    private func chooseApplication() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.message = "Choose an installed Mac app to configure Scribe. Cadence reads its verified app identity."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        appModel.chooseInstalledApplication(at: url)
+    }
+
+    private func settingsAppIdentifier(_ app: InstalledApplicationDescriptor) -> String {
+        app.bundleURL.standardizedFileURL.path.unicodeScalars.map { scalar in
+            CharacterSet.alphanumerics.contains(scalar) ? String(Character(scalar)).lowercased() : "-"
+        }.joined()
+    }
+
+    private var diagnosticsSection: some View {
+        settingsSection(title: "Local diagnostics", systemImage: "stethoscope") {
+            FlowSectionCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    SettingsLabelRow(title: "Scribe diagnostics", description: "Content-free local setup and recovery outcomes. Never uploaded automatically.")
+                    HStack { CadenceActionButton(title: "Clear", role: .destructive) { appModel.clearScribeDiagnostics() }; CadenceActionButton(title: "Export…", role: .secondary) { appModel.exportScribeDiagnostics() } }
+                }.padding(12)
+            }
         }
     }
 
@@ -108,6 +346,13 @@ struct SettingsView: View {
                         .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .padding(12)
+                insetDivider
+                ScribeProviderManagementView(appModel: appModel)
+                    .padding(12)
+                insetDivider
+                WritingEnvironmentsView(appModel: appModel)
+                    .id(Self.writingEnvironmentsScrollID)
+                    .padding(12)
             }
         }
     }
@@ -275,12 +520,18 @@ struct SettingsView: View {
                 description: appModel.dictationQualityPreset.description
             )
 
-            QualityPresetSegmentedControl(
+            CadenceDiscretePicker(
+                title: "Quality",
                 selection: Binding(
                     get: { appModel.dictationQualityPreset },
                     set: { appModel.setDictationQualityPreset($0) }
                 )
-            )
+            ) {
+                ForEach(DictationQualityPreset.allCases) { preset in
+                    Text(preset.displayName).tag(preset)
+                }
+            }
+            .accessibilityIdentifier("settings-quality-menu")
 
             ModelReadinessInlineView(summary: appModel.modelReadinessSummary)
         }
@@ -325,6 +576,9 @@ struct SettingsView: View {
                             .foregroundStyle(FlowTheme.textSecondary)
                     }
                 }
+                .disclosureGroupStyle(CadenceDisclosureGroupStyle(
+                    accessibilityIdentifier: "settings-advanced-disclosure"
+                ))
                 .padding(12)
                 insetDivider
                 SettingsActionRow(
@@ -355,28 +609,37 @@ struct SettingsView: View {
                 description: "Change this only when testing speed, size, or accuracy."
             )
 
-            VStack(spacing: 8) {
+            CadenceDiscretePicker(
+                title: "Recognition model",
+                selection: Binding(
+                    get: { appModel.transcriptionConfiguration.model },
+                    set: { appModel.setWhisperModel($0) }
+                )
+            ) {
                 ForEach(WhisperModelOption.allCases) { model in
-                    ModelOptionRow(
-                        model: model,
-                        isSelected: appModel.transcriptionConfiguration.model == model
-                    ) {
-                        appModel.setWhisperModel(model)
-                    }
+                    Text("\(model.displayName.replacingOccurrences(of: " English", with: "")) · \(model.approximateSize)")
+                        .tag(model)
                 }
             }
+            .accessibilityIdentifier("settings-recognition-model-menu")
 
             SettingsLabelRow(
                 title: "Search depth",
                 description: "Fast responds sooner; Accurate works harder on difficult audio."
             )
 
-            DecodingSegmentedControl(
+            CadenceDiscretePicker(
+                title: "Search depth",
                 selection: Binding(
                     get: { appModel.transcriptionConfiguration.decodingMode },
                     set: { appModel.setDecodingMode($0) }
                 )
-            )
+            ) {
+                ForEach(WhisperDecodingMode.allCases) { mode in
+                    Text(mode.productLabel).tag(mode)
+                }
+            }
+            .accessibilityIdentifier("settings-search-depth-menu")
         }
         .padding(12)
     }
@@ -388,7 +651,15 @@ struct SettingsView: View {
                 description: appModel.transcriptionConfiguration.fillerWordPolicy.description
             )
 
-            FillerWordSegmentedControl(selection: fillerWordPolicyBinding)
+            CadenceDiscretePicker(
+                title: "Filler words",
+                selection: fillerWordPolicyBinding
+            ) {
+                ForEach(FillerWordPolicy.allCases) { policy in
+                    Text(policy.displayName).tag(policy)
+                }
+            }
+            .accessibilityIdentifier("settings-filler-words-menu")
         }
         .padding(12)
     }
@@ -430,27 +701,12 @@ struct SettingsView: View {
     }
 
     private var vocabularyControls: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Words Cadence should remember")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(FlowTheme.textPrimary)
-
-            Text("Add names, companies, and phrases that should be spelled correctly.")
-                .font(.system(size: 12))
-                .foregroundStyle(FlowTheme.textSecondary)
-
-            TextEditor(text: vocabularyBinding)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(FlowTheme.textPrimary)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 88)
-                .padding(8)
-                .background(FlowTheme.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(FlowTheme.border, lineWidth: 1)
-                )
-        }
+        CadenceTextEditorRow(
+            title: "Words Cadence should remember",
+            detail: "Add names, companies, and phrases that should be spelled correctly.",
+            text: vocabularyBinding,
+            accessibilityIdentifier: "settings-vocabulary-editor"
+        )
         .padding(12)
     }
 
@@ -583,7 +839,7 @@ struct SettingsView: View {
 
             ShortcutSettingRow(
                 title: "Open Scribe",
-                description: "Choose whether to draft, respond, or edit selected text.",
+                description: "Dictate a request, then review the polished result before inserting it.",
                 hint: "Separate from Dictation. \(appModel.scribeProviderStatus)",
                 isEnabled: scribeEnabledBinding,
                 shortcut: scribeShortcutBinding,
@@ -785,13 +1041,27 @@ struct SettingsView: View {
 
     private var advancedExpandedBinding: Binding<Bool> {
         Binding(
-            get: { isAdvancedExpanded },
+            get: { appModel.settingsPresentationState.isAdvancedExpanded },
             set: { newValue in
                 withAnimation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion)) {
-                    isAdvancedExpanded = newValue
+                    appModel.setAdvancedSettingsExpanded(newValue)
                 }
             }
         )
+    }
+}
+
+private extension SettingsCategoryID {
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .dictation: "Dictation"
+        case .scribe: "Scribe"
+        case .apps: "Apps"
+        case .providers: "Providers"
+        case .privacy: "Privacy"
+        case .advanced: "Advanced"
+        }
     }
 }
 
@@ -973,30 +1243,6 @@ private struct TriggerModeSegmentedControl: View {
     }
 }
 
-private struct QualityPresetSegmentedControl: View {
-    @Binding var selection: DictationQualityPreset
-
-    var body: some View {
-        FlowSegmentedControl(
-            options: Array(DictationQualityPreset.allCases),
-            selection: $selection,
-            title: \.displayName
-        )
-    }
-}
-
-private struct FillerWordSegmentedControl: View {
-    @Binding var selection: FillerWordPolicy
-
-    var body: some View {
-        FlowSegmentedControl(
-            options: Array(FillerWordPolicy.allCases),
-            selection: $selection,
-            title: \.displayName
-        )
-    }
-}
-
 private struct FlowSegmentedControl<Option: Identifiable & Equatable>: View {
     let options: [Option]
     @Binding var selection: Option
@@ -1072,7 +1318,7 @@ private struct SettingsToggleRow: View {
 
             Toggle("", isOn: $isOn)
                 .labelsHidden()
-                .toggleStyle(FlowToggleStyle())
+                .toggleStyle(.switch)
         }
         .padding(12)
     }
@@ -1095,19 +1341,20 @@ private struct WaveformSensitivityRow: View {
                     .font(.system(size: 12, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(FlowTheme.textSecondary)
+                    .accessibilityLabel("Waveform sensitivity value")
+                    .accessibilityValue("\(Int((value * 100).rounded()))%")
+                    .accessibilityIdentifier("settings-waveform-sensitivity-value")
             }
 
-            HStack(spacing: 10) {
-                Text("Calm")
-                    .font(.system(size: 11))
-                    .foregroundStyle(FlowTheme.textTertiary)
-
-                Slider(value: $value, in: 0.1...1.6, step: 0.1)
-
-                Text("Lively")
-                    .font(.system(size: 11))
-                    .foregroundStyle(FlowTheme.textTertiary)
-            }
+            CadenceSensitivitySlider(
+                title: "Waveform sensitivity",
+                value: $value,
+                range: 0.1...1.6,
+                step: 0.1,
+                minimumLabel: "Calm",
+                maximumLabel: "Lively",
+                accessibilityIdentifier: "settings-waveform-sensitivity-slider"
+            )
         }
         .padding(12)
     }
@@ -1171,59 +1418,6 @@ private struct PermissionBadge: View {
             .foregroundStyle(isGranted ? FlowTheme.success : FlowTheme.error)
             .frame(width: 18, height: 18)
             .accessibilityLabel(isGranted ? "Granted" : "Not granted")
-    }
-}
-
-private struct ModelOptionRow: View {
-    let model: WhisperModelOption
-    let isSelected: Bool
-    let action: () -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        Button {
-            withAnimation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion)) {
-                action()
-            }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 13))
-                    .foregroundStyle(isSelected ? FlowTheme.accent : FlowTheme.textTertiary)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(model.displayName.replacingOccurrences(of: " English", with: ""))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(FlowTheme.textPrimary)
-
-                    Text("\(model.approximateSize) • \(model.qualityDescriptor)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(FlowTheme.textSecondary)
-                }
-
-                Spacer()
-            }
-            .padding(10)
-            .background(isSelected ? FlowTheme.subtle : FlowTheme.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isSelected ? FlowTheme.borderStrong : FlowTheme.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .animation(FlowMotion.enabled(FlowMotion.control, reduceMotion: reduceMotion), value: isSelected)
-    }
-}
-
-private struct DecodingSegmentedControl: View {
-    @Binding var selection: WhisperDecodingMode
-
-    var body: some View {
-        FlowSegmentedControl(
-            options: Array(WhisperDecodingMode.allCases),
-            selection: $selection,
-            title: \.productLabel
-        )
     }
 }
 
@@ -1534,20 +1728,11 @@ private struct PersonalizationItemRow: View {
 private struct PersonalShortcutEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: PersonalShortcut
-    @State private var isAppSpecific: Bool
-    @State private var appBundleIdentifier: String
     private let isNew: Bool
     let onSave: (PersonalShortcut) -> Void
 
     init(shortcut: PersonalShortcut, onSave: @escaping (PersonalShortcut) -> Void) {
         _draft = State(initialValue: shortcut)
-        if case let .application(bundleIdentifier) = shortcut.scope {
-            _isAppSpecific = State(initialValue: true)
-            _appBundleIdentifier = State(initialValue: bundleIdentifier)
-        } else {
-            _isAppSpecific = State(initialValue: false)
-            _appBundleIdentifier = State(initialValue: "")
-        }
         self.isNew = shortcut.trigger.isEmpty
         self.onSave = onSave
     }
@@ -1560,26 +1745,19 @@ private struct PersonalShortcutEditor: View {
                 TextField("Spoken trigger", text: $draft.trigger)
                 TextField("Replacement text", text: $draft.template, axis: .vertical)
                     .lineLimit(3...8)
-                Toggle("Only in one app", isOn: $isAppSpecific)
-                if isAppSpecific {
-                    TextField("App bundle identifier", text: $appBundleIdentifier)
-                        .help("For example: com.apple.mail")
-                }
             }
             HStack {
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Save shortcut") {
-                    draft.scope = isAppSpecific
-                        ? .application(appBundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines))
-                        : .global
+                    draft.scope = .global
                     onSave(draft)
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(!draft.isValid || (isAppSpecific && appBundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                .disabled(!draft.isValid)
             }
         }
         .padding(24)
@@ -1590,15 +1768,11 @@ private struct PersonalShortcutEditor: View {
 private struct WritingStyleProfileEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: WritingStyleProfile
-    @State private var isAppSpecific: Bool
-    @State private var appBundleIdentifier: String
     private let isNew: Bool
     let onSave: (WritingStyleProfile) -> Void
 
     init(profile: WritingStyleProfile, onSave: @escaping (WritingStyleProfile) -> Void) {
         _draft = State(initialValue: profile)
-        _isAppSpecific = State(initialValue: profile.appBundleIdentifier != nil)
-        _appBundleIdentifier = State(initialValue: profile.appBundleIdentifier ?? "")
         self.isNew = profile.name.isEmpty
         self.onSave = onSave
     }
@@ -1622,26 +1796,19 @@ private struct WritingStyleProfileEditor: View {
                     ForEach(WritingFormatting.allCases) { Text($0.displayName).tag($0) }
                 }
                 Toggle("Preserve code exactly", isOn: $draft.preservesCodeLiterals)
-                Toggle("Only in one app", isOn: $isAppSpecific)
-                if isAppSpecific {
-                    TextField("App bundle identifier", text: $appBundleIdentifier)
-                        .help("For example: com.apple.mail")
-                }
             }
             HStack {
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Save profile") {
-                    draft.appBundleIdentifier = isAppSpecific
-                        ? appBundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
-                        : nil
+                    draft.appBundleIdentifier = nil
                     onSave(draft)
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (isAppSpecific && appBundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(24)

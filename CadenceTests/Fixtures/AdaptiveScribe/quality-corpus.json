@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "description": "Synthetic dictation-only Adaptive Scribe release-quality prompts; no user, production, selected-text, or ambient-app content.",
+  "syntheticOnly": true,
+  "cases": [
+    {"id":"general-01","family":"general","behavior":"neutral","spoken":"Write a concise synthetic update that the Atlas migration is on track and testing starts Tuesday.","critical":["Atlas","Tuesday"]},
+    {"id":"general-02","family":"general","behavior":"formal","spoken":"Ask the synthetic release group to review the checklist by four PM Friday without adding urgency.","critical":["4 PM","Friday"]},
+    {"id":"general-03","family":"general","behavior":"casual","spoken":"Tell the synthetic team the demo moved to room Cedar and the agenda is unchanged.","critical":["Cedar"]},
+    {"id":"general-04","family":"general","behavior":"neutral","spoken":"Summarize three synthetic blockers: fixture data, review capacity, and staging access.","critical":["fixture data","review capacity","staging access"]},
+    {"id":"general-05","family":"general","behavior":"formal","spoken":"Draft a measured note that the synthetic budget review overlaps another meeting.","critical":["budget review"]},
+    {"id":"general-06","family":"general","behavior":"neutral","spoken":"Ask which of the synthetic dates 12th or 14th is intended without choosing one.","critical":["12th","14th"]},
+    {"id":"general-07","family":"general","behavior":"casual","spoken":"Create a short bulleted synthetic checklist for validating the fixture, reviewing the diff, and recording the result.","critical":["fixture","diff","result"]},
+    {"id":"general-08","family":"general","behavior":"neutral","spoken":"Write a clear request for the synthetic pre-read before Thursday.","critical":["pre-read","Thursday"]},
+    {"id":"messaging-01","family":"messaging","behavior":"neutral","spoken":"Write a message for a conversational team chat that confirms attendance and asks for the synthetic pre-read.","critical":["attendance","pre-read"]},
+    {"id":"messaging-02","family":"messaging","behavior":"formal","spoken":"Write a polite Slack message declining the launch rehearsal because of the synthetic budget review.","critical":["budget review"]},
+    {"id":"messaging-03","family":"messaging","behavior":"casual","spoken":"Write a short Slack message saying yes and that I will bring the synthetic metrics.","critical":["metrics"]},
+    {"id":"messaging-04","family":"messaging","behavior":"neutral","spoken":"Write a Slack message asking for clarification about the two synthetic dates without selecting either date.","critical":["12th","14th"]},
+    {"id":"messaging-05","family":"messaging","behavior":"formal","spoken":"Write a measured team-chat update that keeps the numbers 240, 3, and 7 exact.","critical":["240","3","7"]},
+    {"id":"messaging-06","family":"messaging","behavior":"casual","spoken":"Write a friendly synthetic reminder to bring the document without emoji.","critical":["document"]},
+    {"id":"messaging-07","family":"messaging","behavior":"neutral","spoken":"Write a concise message that the synthetic launch checklist is ready for review.","critical":["launch","checklist"]},
+    {"id":"messaging-08","family":"messaging","behavior":"formal","spoken":"Write a professional request to share the synthetic metrics by Friday.","critical":["metrics","Friday"]},
+    {"id":"coding-01","family":"coding","behavior":"precise","spoken":"Inspect the synthetic authentication flow and explain why empty tokens are accepted. Do not change files.","critical":["Inspect","Do not change files"]},
+    {"id":"coding-02","family":"coding","behavior":"precise","spoken":"Implement the synthetic parser fix and run focused tests, but do not commit.","critical":["Implement","do not commit"]},
+    {"id":"coding-03","family":"coding","behavior":"precise","spoken":"Review literal camel case parse capital I capital D end literal for regressions.","critical":["parseID","Review"]},
+    {"id":"coding-04","family":"coding","behavior":"precise","spoken":"Plan the synthetic cache refactor without implementing it.","critical":["Plan","without implementing"]},
+    {"id":"coding-05","family":"coding","behavior":"precise","spoken":"Ask the coding agent to verify literal flag verbose end literal remains exact.","critical":["--verbose"]},
+    {"id":"coding-06","family":"coding","behavior":"precise","spoken":"Request a minimal reversible fix with evidence for the synthetic empty array test.","critical":["minimal","evidence"]},
+    {"id":"coding-07","family":"coding","behavior":"precise","spoken":"Ask for repository inspection before making an assumption about the synthetic service seam.","critical":["inspect","assumption"]},
+    {"id":"coding-08","family":"coding","behavior":"precise","spoken":"Preserve literal pascal case capital A capital P capital I client dot swift end literal exactly and request focused verification.","critical":["APIClient.swift","focused verification"]}
+  ]
+}

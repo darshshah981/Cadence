@@ -39,6 +39,12 @@ private struct CadenceMenuBarMenu: View {
         }
         .keyboardShortcut("o")
 
+        if appModel.isCadenceBarHidden {
+            Button("Show Cadence bar") {
+                appModel.showCadenceBar()
+            }
+        }
+
         Divider()
 
         upcomingSection

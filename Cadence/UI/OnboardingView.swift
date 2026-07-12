@@ -104,13 +104,14 @@ struct OnboardingView: View {
         case .welcome:
             featureRows([
                 ("waveform", "Dictation", "Speak into any text field and insert the transcript."),
-                ("sparkles", "Scribe", "Compose, respond, or edit with a review step before insertion."),
+                ("sparkles", "Scribe", "Dictate a request, then review the polished result before insertion."),
                 ("person.2.wave.2", "Meeting capture", "Keep durable audio and recoverable transcripts for calls.")
             ])
         case .privacy:
             featureRows([
-                ("lock.shield", "Local by default", "Audio, transcripts, custom words, and shortcuts remain on this Mac."),
-                ("eye.slash", "Explicit context", "Scribe reads selected text only after you choose Respond or Edit."),
+                ("lock.shield", "Local transcription", "Cadence transcribes microphone audio on this Mac and never sends audio to a Scribe provider."),
+                ("network", "Optional cloud drafting", "Cloud Scribe sends current-session text only after you choose and validate a provider."),
+                ("eye.slash", "Direct dictation only", "Scribe sends only processed dictation, writing guidance, and protected literal metadata to the provider you approve."),
                 ("checkmark.circle", "Review before insert", "Generated drafts never replace text until you approve them.")
             ])
         case .permissions:
@@ -118,8 +119,9 @@ struct OnboardingView: View {
                 permissionRow("Microphone", granted: appModel.permissions.microphoneGranted)
                 permissionRow("Accessibility", granted: appModel.permissions.accessibilityGranted)
                 permissionRow("Input Monitoring", granted: appModel.permissions.inputMonitoringGranted)
-                Button("Review permissions") { appModel.openPermissionsWizard() }
-                    .buttonStyle(.borderedProminent)
+                CadenceActionButton(title: "Review permissions", role: .primary) {
+                    appModel.openPermissionsWizard()
+                }
                 Text("Screen Recording is requested later only if you capture system audio in a meeting.")
                     .font(.system(size: 11))
                     .foregroundStyle(FlowTheme.textTertiary)
@@ -137,10 +139,12 @@ struct OnboardingView: View {
                 Text(microphoneMonitor.isListening ? "Listening only—nothing is saved or transcribed." : "Run a private level check before your first dictation.")
                     .font(.system(size: 12))
                     .foregroundStyle(FlowTheme.textSecondary)
-                Button(microphoneMonitor.isListening ? "Stop microphone check" : "Check microphone") {
+                CadenceActionButton(
+                    title: microphoneMonitor.isListening ? "Stop microphone check" : "Check microphone",
+                    role: microphoneMonitor.isListening ? .secondary : .primary
+                ) {
                     microphoneMonitor.isListening ? microphoneMonitor.stop() : microphoneMonitor.start()
                 }
-                .buttonStyle(.borderedProminent)
                 if let error = microphoneMonitor.errorMessage {
                     Text(error).font(.system(size: 11)).foregroundStyle(.red)
                 }
@@ -156,11 +160,16 @@ struct OnboardingView: View {
                 shortcutCard(
                     title: "Open Scribe",
                     shortcut: appModel.scribeBinding.shortcut.symbolDisplayName,
-                    detail: "Choose Compose, Respond, or Edit. Respond and Edit require selected text."
+                    detail: "Dictate what you want to write, then review the polished result before you insert it."
                 )
                 Text(appModel.scribeProviderStatus)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(FlowTheme.textTertiary)
+                if !appModel.scribeReadiness.canGenerate {
+                    CadenceActionButton(title: "Set up Scribe provider", role: .primary) {
+                        appModel.presentScribeProviderSetup()
+                    }
+                }
             }
         case .personalization:
             featureRows([
@@ -179,19 +188,18 @@ struct OnboardingView: View {
 
     private var footer: some View {
         HStack {
-            Button("Skip for now") { appModel.skipOnboarding() }
-                .buttonStyle(.plain)
-                .foregroundStyle(FlowTheme.textSecondary)
+            CadenceActionButton(title: "Skip for now", role: .quiet) { appModel.skipOnboarding() }
             Spacer()
             if appModel.onboardingProgress.stepIndex > 0 {
-                Button("Back") { appModel.moveBackInOnboarding() }
-                    .buttonStyle(.bordered)
+                CadenceActionButton(title: "Back", role: .secondary) { appModel.moveBackInOnboarding() }
             }
-            Button(appModel.onboardingProgress.currentStep == .ready ? "Start using Cadence" : "Continue") {
+            CadenceActionButton(
+                title: appModel.onboardingProgress.currentStep == .ready ? "Start using Cadence" : "Continue",
+                role: .primary,
+                keyboardShortcut: .defaultAction
+            ) {
                 appModel.advanceOnboarding()
             }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)

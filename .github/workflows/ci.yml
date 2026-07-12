@@ -12,6 +12,7 @@ jobs:
     runs-on: macos-15
     env:
       DERIVED_DATA_PATH: ${{ github.workspace }}/.derived-data
+      UI_DERIVED_DATA_PATH: ${{ github.workspace }}/.derived-data-ui
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,6 +41,11 @@ jobs:
             -derivedDataPath "$DERIVED_DATA_PATH" \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Adaptive Scribe contract suites
+        run: |
+          DERIVED_DATA_PATH="$DERIVED_DATA_PATH" \
+            scripts/test_adaptive_scribe_contracts.sh
+
       - name: Test
         run: |
           xcodebuild test \
@@ -49,3 +55,33 @@ jobs:
             -destination 'platform=macOS' \
             -derivedDataPath "$DERIVED_DATA_PATH" \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Native UI tests
+        run: |
+          xcodebuild test \
+            -project Cadence.xcodeproj \
+            -scheme CadenceUITests \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$UI_DERIVED_DATA_PATH" \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM=
+
+      - name: Privacy canary scan
+        run: |
+          paths=()
+          for candidate in \
+            "$DERIVED_DATA_PATH/Logs/Test" \
+            "$UI_DERIVED_DATA_PATH/Logs/Test"
+          do
+            if [[ -e "$candidate" ]]; then
+              paths+=("$candidate")
+            fi
+          done
+          if [[ ${#paths[@]} -eq 0 ]]; then
+            echo "No test log directories found for privacy canary scan." >&2
+            exit 1
+          fi
+          scripts/verify_scribe_privacy_canaries.sh "${paths[@]}"

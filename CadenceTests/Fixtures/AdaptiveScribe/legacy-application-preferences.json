@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "preferences": [
+    {
+      "environmentID": "slack",
+      "isEnabled": true,
+      "selectedBehaviorID": "formal",
+      "definitionVersion": 1
+    },
+    {
+      "environmentID": "claude-code",
+      "isEnabled": true,
+      "selectedBehaviorID": "precise",
+      "definitionVersion": 1
+    }
+  ]
+}

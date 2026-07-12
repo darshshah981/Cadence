@@ -31,5 +31,114 @@ enum ScribeProviderError: String, Error, Equatable, Sendable {
 
 protocol ScribeProvider: Sendable {
     var capabilities: ScribeProviderCapabilities { get }
-    func generate(_ request: ScribeRequest) async throws -> ScribeResult
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult
+}
+
+struct ScribeProviderActionIdentity: Equatable, Sendable {
+    let configurationID: UUID
+    let libraryRevision: Int
+    let consentReceiptID: UUID?
+    let selectedModelID: String
+    let credentialReference: ScribeStoredCredentialReference?
+
+    init(
+        configurationID: UUID,
+        libraryRevision: Int,
+        consentReceiptID: UUID? = nil,
+        selectedModelID: String,
+        credentialReference: ScribeStoredCredentialReference? = nil
+    ) {
+        self.configurationID = configurationID
+        self.libraryRevision = libraryRevision
+        self.consentReceiptID = consentReceiptID
+        self.selectedModelID = selectedModelID
+        self.credentialReference = credentialReference
+    }
+}
+
+enum ScribeProviderMutationDecision: Equatable, Sendable {
+    case allowed
+    case confirmationRequired
+}
+
+enum ScribeProviderMutationPolicy {
+    static func decision(
+        activeAction: ScribeProviderActionIdentity?,
+        mutatingConfigurationID: UUID
+    ) -> ScribeProviderMutationDecision {
+        activeAction?.configurationID == mutatingConfigurationID
+            ? .confirmationRequired
+            : .allowed
+    }
+
+    static func activationDecision(
+        activeAction: ScribeProviderActionIdentity?
+    ) -> ScribeProviderMutationDecision {
+        activeAction == nil ? .allowed : .confirmationRequired
+    }
+}
+
+struct ScribeProviderActionSnapshot: Sendable {
+    let provider: any ScribeProvider
+    let destination: ScribeEgressDestination
+    let configurationID: UUID?
+    let libraryRevision: Int?
+    let consentReceiptID: UUID?
+    let selectedModelID: String?
+    let credentialReference: ScribeStoredCredentialReference?
+
+    var actionIdentity: ScribeProviderActionIdentity? {
+        guard let configurationID, let libraryRevision, let selectedModelID
+        else { return nil }
+        return ScribeProviderActionIdentity(
+            configurationID: configurationID,
+            libraryRevision: libraryRevision,
+            consentReceiptID: consentReceiptID,
+            selectedModelID: selectedModelID,
+            credentialReference: credentialReference
+        )
+    }
+
+    init(
+        provider: any ScribeProvider,
+        destination: ScribeEgressDestination,
+        configurationID: UUID? = nil,
+        libraryRevision: Int? = nil,
+        consentReceiptID: UUID? = nil,
+        selectedModelID: String? = nil,
+        credentialReference: ScribeStoredCredentialReference? = nil
+    ) {
+        self.provider = provider
+        self.destination = destination
+        self.configurationID = configurationID
+        self.libraryRevision = libraryRevision
+        self.consentReceiptID = consentReceiptID
+        self.selectedModelID = selectedModelID
+        self.credentialReference = credentialReference
+    }
+
+    func validateForAcquisition() throws {
+        guard destination.disclosureVersion == ScribeProviderDisclosure.currentVersion,
+              !destination.recipientOrigin.isEmpty,
+              provider.capabilities.contains(.semanticGeneration) else {
+            throw ScribeProviderFailure(
+                phase: .generation,
+                category: .configurationInvalid,
+                retryDisposition: .reconnect
+            )
+        }
+    }
+
+    func contextAuthorization(for capture: ScribeContextSnapshot) -> ScribeContextAuthorization {
+        ScribeContextAuthorization(
+            scope: capture.scope,
+            providerKind: destination.providerKind,
+            recipientOrigin: destination.recipientOrigin,
+            disclosureVersion: destination.disclosureVersion,
+            captureID: capture.id,
+            target: capture.target,
+            verificationToken: capture.verificationToken
+        )
+    }
+
 }

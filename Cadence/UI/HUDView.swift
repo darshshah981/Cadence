@@ -1,66 +1,167 @@
 import SwiftUI
 
+struct HUDAdaptiveShape: Shape {
+    let position: HUDPosition
+
+    func path(in rect: CGRect) -> Path {
+        let radii = position.cornerRadii
+        return UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading,
+            bottomLeadingRadius: radii.bottomLeading,
+            bottomTrailingRadius: radii.bottomTrailing,
+            topTrailingRadius: radii.topTrailing,
+            style: .continuous
+        ).path(in: rect)
+    }
+}
+
+struct HUDContentAttachment {
+    let alignment: Alignment
+    let anchor: UnitPoint
+
+    static func forPosition(_ position: HUDPosition) -> HUDContentAttachment {
+        switch position {
+        case .bottomCenter:
+            HUDContentAttachment(alignment: .bottom, anchor: .bottom)
+        case .topLeft:
+            HUDContentAttachment(alignment: .topLeading, anchor: .topLeading)
+        case .topRight:
+            HUDContentAttachment(alignment: .topTrailing, anchor: .topTrailing)
+        case .bottomLeft:
+            HUDContentAttachment(alignment: .bottomLeading, anchor: .bottomLeading)
+        case .bottomRight:
+            HUDContentAttachment(alignment: .bottomTrailing, anchor: .bottomTrailing)
+        }
+    }
+
+    static func appKitOrigin(
+        position: HUDPosition,
+        contentSize: NSSize,
+        containerSize: NSSize
+    ) -> NSPoint {
+        switch position {
+        case .bottomCenter:
+            NSPoint(x: (containerSize.width - contentSize.width) / 2, y: 0)
+        case .topLeft:
+            NSPoint(x: 0, y: containerSize.height - contentSize.height)
+        case .topRight:
+            NSPoint(
+                x: containerSize.width - contentSize.width,
+                y: containerSize.height - contentSize.height
+            )
+        case .bottomLeft:
+            .zero
+        case .bottomRight:
+            NSPoint(x: containerSize.width - contentSize.width, y: 0)
+        }
+    }
+}
+
 struct HUDView: View {
     @ObservedObject var model: HUDViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var hasDragged = false
-
-    private static let dragThreshold: CGFloat = 4
 
     var body: some View {
-        Group {
-            switch model.state.visualState {
-            case .idle:
-                if model.isExpanded {
-                    IdleExpandedTray(model: model)
-                } else {
-                    logoBadge
-                }
-            case .recording(let triggerMode, let showsHint):
-                recordingPill(triggerMode: triggerMode, showsHint: showsHint)
-            case .preparingModel:
-                statusPill(icon: .spinner, text: "Setting up speech model…")
-            case .transcribing:
-                statusPill(icon: .spinner, text: "Transcribing…")
-            case .inserting:
-                statusPill(icon: .spinner, text: "Inserting…")
-            case .success:
-                statusPill(icon: .success, text: "Inserted")
-            case .cancelled:
-                statusPill(icon: .cancelled, text: "Cancelled")
-            case .error(let message):
-                statusPill(icon: .error, text: message)
+        ZStack(alignment: attachment.alignment) {
+            if let previous = model.previousPresentation {
+                content(for: previous)
+                    .opacity(1 - model.morphProgress)
+                    .scaleEffect(
+                        x: 1 - 0.04 * model.morphProgress,
+                        y: 1,
+                        anchor: attachment.anchor
+                    )
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
+
+            content(for: model.presentation)
+                .opacity(model.previousPresentation == nil ? 1 : model.morphProgress)
+                .scaleEffect(
+                    x: model.previousPresentation == nil ? 1 : 0.96 + 0.04 * model.morphProgress,
+                    y: 1,
+                    anchor: attachment.anchor
+                )
         }
-        .animation(reduceMotion ? nil : .timingCurve(0.25, 0, 0, 1, duration: 0.18), value: model.state.visualState)
-        .animation(reduceMotion ? nil : FlowMotion.control, value: model.isExpanded)
-        .contentShape(Rectangle())
-        .gesture(dragGesture)
-        .accessibilityLabel(model.state.visualState.accessibilityLabel)
-        .accessibilityHint(model.state.visualState.accessibilityHint ?? "")
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: attachment.alignment)
+        .clipped()
+        .modifier(HUDRootAccessibilityModifier(
+            presentation: model.presentation,
+            application: model.applicationPresentation
+        ))
         .onAppear { model.setReducedMotion(reduceMotion) }
         .onChange(of: reduceMotion) { _, reduced in model.setReducedMotion(reduced) }
     }
 
+    @ViewBuilder
+    private func content(for presentation: HUDPresentation) -> some View {
+        switch presentation.visualState {
+        case .idle:
+            if presentation.isExpanded {
+                IdleExpandedTray(model: model)
+            } else {
+                logoBadge
+            }
+        case .recording(let triggerMode, let showsHint):
+            recordingPill(triggerMode: triggerMode, showsHint: showsHint)
+        case .preparingModel:
+            statusPill(icon: .spinner, text: "Setting up speech model…")
+        case .transcribing:
+            statusPill(icon: .spinner, text: "Transcribing…")
+        case .inserting:
+            statusPill(icon: .spinner, text: "Inserting…")
+        case .success:
+            statusPill(icon: .success, text: "Inserted")
+        case .cancelled:
+            statusPill(icon: .cancelled, text: "Cancelled")
+        case .error(let message):
+            statusPill(icon: .error, text: message)
+        }
+    }
+
     private var logoBadge: some View {
-        let radii = model.position.cornerRadii
-        return Image("HUDLogo")
-            .resizable()
-            .interpolation(.high)
-            .frame(width: 44, height: 44)
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: radii.topLeading,
-                    bottomLeadingRadius: radii.bottomLeading,
-                    bottomTrailingRadius: radii.bottomTrailing,
-                    topTrailingRadius: radii.topTrailing,
-                    style: .continuous
-                )
-            )
+        ZStack(alignment: attachment.alignment) {
+            Color.clear
+            applicationMark(size: HUDMetrics.idleMarkSize)
+        }
+            .frame(width: HUDMetrics.idleHitSize.width, height: HUDMetrics.idleHitSize.height)
+            .overlay {
+                HUDLogoInteractionSurface(model: model)
+            }
+    }
+
+    @ViewBuilder
+    private func applicationMark(size: NSSize) -> some View {
+        let presentation = model.applicationPresentation
+        Group {
+            if presentation.kind == .cadence {
+                Image("HUDLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .accessibilityLabel("Cadence")
+            } else if let icon = presentation.icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .accessibilityLabel(presentation.displayName)
+            } else {
+                Image(systemName: "app.fill")
+                    .resizable()
+                    .accessibilityLabel("\(presentation.displayName) application")
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(HUDAdaptiveShape(position: model.position))
+    }
+
+    private var attachment: HUDContentAttachment {
+        HUDContentAttachment.forPosition(model.position)
     }
 
     private func recordingPill(triggerMode: DictationTriggerMode, showsHint: Bool) -> some View {
         HStack(spacing: 10) {
+            applicationCue
+
             if triggerMode.showsLockIndicator {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 11, weight: .semibold))
@@ -69,7 +170,7 @@ struct HUDView: View {
             }
 
             WaveformCanvasView(levels: model.displayBars)
-                .frame(width: 112, height: 28)
+                .frame(width: HUDMetrics.waveformWidth, height: HUDMetrics.waveformHeight)
 
             if triggerMode == .holdToTalk, showsHint {
                 Text("Release to stop")
@@ -87,6 +188,8 @@ struct HUDView: View {
 
     private func statusPill(icon: StatusIcon, text: String) -> some View {
         HStack(spacing: 8) {
+            applicationCue
+
             switch icon {
             case .spinner:
                 HUDSpinnerView()
@@ -124,15 +227,8 @@ struct HUDView: View {
         }
     }
 
-    private var adaptiveClipShape: UnevenRoundedRectangle {
-        let radii = model.position.cornerRadii
-        return UnevenRoundedRectangle(
-            topLeadingRadius: radii.topLeading,
-            bottomLeadingRadius: radii.bottomLeading,
-            bottomTrailingRadius: radii.bottomTrailing,
-            topTrailingRadius: radii.topTrailing,
-            style: .continuous
-        )
+    private var adaptiveClipShape: HUDAdaptiveShape {
+        HUDAdaptiveShape(position: model.position)
     }
 
     private var pillBackground: some View {
@@ -152,24 +248,109 @@ struct HUDView: View {
         case cancelled
     }
 
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 1)
-            .onChanged { value in
-                if !hasDragged {
-                    let distance = abs(value.translation.width) + abs(value.translation.height)
-                    if distance < Self.dragThreshold { return }
-                    hasDragged = true
-                }
-                model.onDrag?(value.translation)
-            }
-            .onEnded { _ in
-                if hasDragged {
-                    model.onDragEnded?()
-                } else if model.state.visualState == .idle {
-                    model.toggleExpanded()
-                }
-                hasDragged = false
-            }
+    private var applicationCue: some View {
+        HStack(spacing: 5) {
+            applicationMark(size: NSSize(width: 16, height: 16))
+            Text(model.applicationPresentation.displayName)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(FlowTheme.textTertiary)
+                .lineLimit(1)
+                .frame(maxWidth: 72, alignment: .leading)
+        }
+        .accessibilityHidden(true)
+    }
+
+}
+
+private struct HUDRootAccessibilityModifier: ViewModifier {
+    let presentation: HUDPresentation
+    let application: HUDApplicationPresentation
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if presentation.exposesInteractiveChildren {
+            content.accessibilityElement(children: .contain)
+        } else {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(HUDAccessibilityLabelResolver.label(
+                    visualState: presentation.visualState,
+                    application: application
+                ))
+                .accessibilityHint(presentation.visualState.accessibilityHint ?? "")
+        }
+    }
+}
+
+enum HUDAccessibilityLabelResolver {
+    static func label(
+        visualState: HUDVisualState,
+        application: HUDApplicationPresentation
+    ) -> String {
+        let base = visualState.accessibilityLabel
+        guard application.kind != .cadence else { return base }
+        switch visualState {
+        case .idle:
+            return "\(base) for \(application.displayName)"
+        default:
+            return "\(base) in \(application.displayName)"
+        }
+    }
+}
+
+/// AppKit owns the logo pointer sequence so coordinates remain stable while its
+/// panel moves. This surface exists only for the collapsed idle logo; expanded
+/// tray buttons therefore never compete with drag recognition.
+private struct HUDLogoInteractionSurface: NSViewRepresentable {
+    @ObservedObject var model: HUDViewModel
+
+    func makeNSView(context: Context) -> HUDLogoInteractionView {
+        let view = HUDLogoInteractionView()
+        view.setAccessibilityElement(false)
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: HUDLogoInteractionView, context: Context) {
+        configure(view)
+    }
+
+    private func configure(_ view: HUDLogoInteractionView) {
+        view.onEvent = { [weak model] event in
+            model?.handleLogoInteraction(event)
+        }
+    }
+}
+
+final class HUDLogoInteractionView: NSView {
+    var onEvent: ((HUDLogoInteractionEvent) -> Void)?
+    private var tracker = HUDLogoPointerTracker()
+
+    override var acceptsFirstResponder: Bool { false }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = NSEvent.mouseLocation
+        tracker.begin(at: point)
+        onEvent?(.began(point))
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        let point = NSEvent.mouseLocation
+        guard tracker.update(to: point) else { return }
+        onEvent?(.moved(point))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let point = NSEvent.mouseLocation
+        switch tracker.end(at: point) {
+        case .click:
+            onEvent?(.clicked)
+        case .drag:
+            onEvent?(.moved(point))
+            onEvent?(.ended(point))
+        case .none:
+            break
+        }
     }
 }
 
@@ -212,8 +393,8 @@ private struct WaveformCanvasView: View {
             let barCount = levels.count
             guard barCount > 0 else { return }
 
-            let barWidth: CGFloat = 3
-            let barGap: CGFloat = 3
+            let barWidth = HUDMetrics.waveformBarWidth
+            let barGap = HUDMetrics.waveformBarGap
             let maxHeight = max(22, size.height - 2)
             let minHeight: CGFloat = 4
             let totalWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barGap

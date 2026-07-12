@@ -1,5 +1,8 @@
 import Foundation
 
+/// Legacy source compatibility only. Scribe has one direct-dictation flow and
+/// never uses an intent or selected text at runtime.
+@available(*, deprecated, message: "Scribe is direct dictation only")
 enum ScribeIntent: String, CaseIterable, Codable, Identifiable, Sendable {
     case compose
     case respond
@@ -78,7 +81,6 @@ struct ScribeProviderCapabilities: OptionSet, Codable, Equatable, Sendable {
 
     static let mock: ScribeProviderCapabilities = [
         .semanticGeneration,
-        .selectedTextContext,
         .cancellation
     ]
 }
@@ -127,6 +129,8 @@ struct ScribeContextSnapshot: Equatable, Sendable {
     let selectedText: String
     let verificationToken: String
     let selectionIdentity: ScribeSelectionIdentity?
+    let recognitionSignature: TargetRecognitionSignature?
+    let applicationTarget: ApplicationTargetCapture
 
     init(
         id: UUID = UUID(),
@@ -134,7 +138,9 @@ struct ScribeContextSnapshot: Equatable, Sendable {
         scope: ScribeContextScope = .selectedText,
         selectedText: String,
         verificationToken: String = UUID().uuidString,
-        selectionIdentity: ScribeSelectionIdentity? = nil
+        selectionIdentity: ScribeSelectionIdentity? = nil,
+        recognitionSignature: TargetRecognitionSignature? = nil,
+        applicationTarget: ApplicationTargetCapture
     ) {
         self.id = id
         self.target = target
@@ -142,6 +148,8 @@ struct ScribeContextSnapshot: Equatable, Sendable {
         self.selectedText = selectedText
         self.verificationToken = verificationToken
         self.selectionIdentity = selectionIdentity
+        self.recognitionSignature = recognitionSignature
+        self.applicationTarget = applicationTarget
     }
 
     var disclosure: String {
@@ -160,19 +168,42 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
     let spokenTranscript: String
     let context: ScribeRequestContext?
     let style: ScribeStyleInstructions?
+    let resolvedEnvironment: ResolvedWritingEnvironment?
+    let exactLiterals: [ScribeExactLiteral]
 
     init(
         id: UUID = UUID(),
         intent: ScribeIntent,
         spokenTranscript: String,
         context: ScribeRequestContext? = nil,
-        style: ScribeStyleInstructions? = nil
+        style: ScribeStyleInstructions? = nil,
+        resolvedEnvironment: ResolvedWritingEnvironment? = nil,
+        exactLiterals: [ScribeExactLiteral] = []
     ) {
         self.id = id
         self.intent = intent
         self.spokenTranscript = spokenTranscript
         self.context = context
         self.style = style
+        self.resolvedEnvironment = resolvedEnvironment
+        self.exactLiterals = exactLiterals
+    }
+
+    /// The only constructor for newly-created Scribe work. The legacy intent
+    /// field remains solely so previously persisted values can decode.
+    static func directDictation(
+        id: UUID = UUID(),
+        processedDictation: String,
+        resolvedEnvironment: ResolvedWritingEnvironment? = nil,
+        exactLiterals: [ScribeExactLiteral] = []
+    ) -> Self {
+        Self(
+            id: id,
+            intent: .compose,
+            spokenTranscript: processedDictation,
+            resolvedEnvironment: resolvedEnvironment,
+            exactLiterals: exactLiterals
+        )
     }
 }
 
@@ -193,16 +224,27 @@ struct ScribeStyleInstructions: Equatable, Sendable {
 }
 
 struct ScribeRequestContext: Equatable, Sendable {
-    let selectedText: String
+    let artifact: ScribeContextArtifact
+    let authorization: ScribeContextAuthorization
 
-    init(selectedText: String) {
-        self.selectedText = selectedText
+    var selectedText: String {
+        switch artifact {
+        case let .explicitSelection(selection):
+            return selection.text
+        }
     }
 }
 
 struct ScribeResult: Equatable, Sendable {
     let requestID: UUID
     let text: String
+    let binding: ScribeProviderResultBinding?
+
+    init(requestID: UUID, text: String, binding: ScribeProviderResultBinding? = nil) {
+        self.requestID = requestID
+        self.text = text
+        self.binding = binding
+    }
 }
 
 enum ScribeOutputPolicy {
@@ -229,11 +271,12 @@ enum ScribeOutputPolicy {
 
 enum ScribeSessionState: Equatable, Sendable {
     case idle
-    case choosingIntent
-    case listening(requestID: UUID, intent: ScribeIntent)
+    case listening(requestID: UUID)
     case transcribing(requestID: UUID)
     case generating(requestID: UUID)
+    case generatingSlow(requestID: UUID)
     case reviewing(ScribeResult)
+    case insertionRecovery(ScribeResult)
     case inserting(requestID: UUID)
     case succeeded(requestID: UUID)
     case cancelled(requestID: UUID?)
@@ -241,15 +284,16 @@ enum ScribeSessionState: Equatable, Sendable {
 
     var requestID: UUID? {
         switch self {
-        case .idle, .choosingIntent:
+        case .idle:
             return nil
-        case let .listening(requestID, _),
+        case let .listening(requestID),
              let .transcribing(requestID),
              let .generating(requestID),
+             let .generatingSlow(requestID),
              let .inserting(requestID),
              let .succeeded(requestID):
             return requestID
-        case let .reviewing(result):
+        case let .reviewing(result), let .insertionRecovery(result):
             return result.requestID
         case let .cancelled(requestID), let .failed(requestID, _):
             return requestID

@@ -16,15 +16,35 @@ final class MainWindowController: NSWindowController {
     }
 
     convenience init() {
+        #if DEBUG
+        let fixtureContentWidth = ScribeLaunchFixtures.current == .settings
+            ? (ScribeLaunchFixtures.panelWidth ?? 720)
+            : nil
+        let fixtureWindowWidth = fixtureContentWidth.map { $0 + 221 }
+        #endif
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1228, height: 768),
+            contentRect: NSRect(
+                x: 0, y: 0,
+                width: {
+                    #if DEBUG
+                    fixtureWindowWidth ?? 1228
+                    #else
+                    1228
+                    #endif
+                }(),
+                height: 768
+            ),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "Cadence"
         window.isReleasedWhenClosed = false
+        #if DEBUG
+        window.minSize = NSSize(width: fixtureWindowWidth ?? 980, height: 640)
+        #else
         window.minSize = NSSize(width: 980, height: 640)
+        #endif
         window.titlebarAppearsTransparent = true
         self.init(window: window)
     }
@@ -203,6 +223,12 @@ struct MainWindowView: View {
                     trailing: 24
                 )
             )
+            #if DEBUG
+            // Fixture windows include the main sidebar and its divider. Pin the
+            // settings detail itself so GeometryReader receives the requested
+            // 520/559/560/720 content width without a one-point split-view loss.
+            .frame(width: ScribeLaunchFixtures.current == .settings ? ScribeLaunchFixtures.panelWidth : nil)
+            #endif
             .background(FlowTheme.background)
         }
     }
@@ -1122,13 +1148,13 @@ private struct StenoLatestTranscriptCard: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(FlowTheme.textSecondary)
                 Spacer()
-                Button(action: onCopy) {
-                    Label("Copy", systemImage: "doc.on.doc")
-                        .font(.system(size: 12.5, weight: .semibold))
-                }
-                .buttonStyle(.borderless)
+                CadenceActionButton(
+                    title: "Copy",
+                    role: .quiet,
+                    accessibilityIdentifier: "speech-latest-copy-button",
+                    action: onCopy
+                )
                 .accessibilityLabel("Copy latest transcript")
-                .accessibilityIdentifier("speech-latest-copy-button")
             }
 
             Text(item.text)
@@ -1352,13 +1378,7 @@ private struct MainSidebarNewNoteButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Label("New note", systemImage: "plus")
-                .font(.system(size: 13, weight: .semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 9)
-        }
-        .buttonStyle(.borderedProminent)
+        CadenceActionButton(title: "New note", role: .primary, action: action)
         .controlSize(.regular)
         .padding(.horizontal, 12)
         .padding(.top, 8)
@@ -1413,7 +1433,7 @@ private struct DashboardDetailView: View {
                     transcripts: Array(appModel.transcriptHistory.prefix(4)),
                     notes: Array(appModel.meetingNotes.prefix(4)),
                     onOpenMeetings: onOpenMeetings,
-                    onCopy: appModel.copyTranscript
+                    onCopy: { _ = appModel.copyTranscript($0) }
                 )
             }
             .padding(28)
@@ -1475,21 +1495,15 @@ private struct DictationPanel: View {
                 }
 
                 HStack(spacing: 10) {
-                    Button {
+                    CadenceActionButton(title: appModel.permissions.allRequiredGranted ? "Check" : "Review", role: .secondary) {
                         if appModel.permissions.allRequiredGranted {
                             appModel.runSetupCheck()
                         } else {
                             appModel.openPermissionsWizard()
                         }
-                    } label: {
-                        Label(appModel.permissions.allRequiredGranted ? "Check" : "Review", systemImage: "checkmark.seal")
                     }
-                    .buttonStyle(.bordered)
 
-                    Button(action: onOpenSettings) {
-                        Label("Tune", systemImage: "slider.horizontal.3")
-                    }
-                    .buttonStyle(.bordered)
+                    CadenceActionButton(title: "Tune", role: .secondary, action: onOpenSettings)
                 }
             }
         }
@@ -1555,18 +1569,12 @@ private struct MeetingPanel: View {
                 }
 
                 HStack(spacing: 10) {
-                    Button {
+                    CadenceActionButton(title: "New", role: .primary) {
                         _ = appModel.createMeetingNote()
                         onOpenMeetings()
-                    } label: {
-                        Label("New", systemImage: "plus")
                     }
-                    .buttonStyle(.borderedProminent)
 
-                    Button(action: onOpenMeetings) {
-                        Label("Open", systemImage: "sidebar.leading")
-                    }
-                    .buttonStyle(.bordered)
+                    CadenceActionButton(title: "Open", role: .secondary, action: onOpenMeetings)
                 }
             }
         }

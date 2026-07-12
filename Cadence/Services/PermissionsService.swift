@@ -5,7 +5,13 @@ import Foundation
 import IOKit.hidsystem
 
 @MainActor
-final class PermissionsService {
+protocol DictationPermissionsServing: AnyObject {
+    func snapshot() -> PermissionsSnapshot
+    func requestMicrophoneAccess() async -> Bool
+}
+
+@MainActor
+final class PermissionsService: DictationPermissionsServing {
     private enum PrivacyPane {
         static let microphone = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
         static let accessibility = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"

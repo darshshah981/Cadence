@@ -1,3 +1,4 @@
+import AppKit
 import Carbon
 import Darwin
 import Foundation
@@ -306,21 +307,17 @@ struct CadenceTests {
 
     @Test
     @MainActor
-    func scribeLaunchPinsTargetBeforePresentingComposeFocus() throws {
-        var events: [String] = []
+    func scribePanelDirectLifecycleHasNoIntentPickerState() throws {
         let model = ScribePanelViewModel()
-
-        ScribePanelLaunchSequence.launch(
-            prepareTarget: { events.append("target-pinned") },
-            presentPicker: { initialFocus in
-                events.append("panel-presented-\(initialFocus.rawValue)")
-                model.presentPicker(providerStatus: "On-device", initialFocus: initialFocus)
-            }
+        model.apply(
+            state: .listening(requestID: UUID()),
+            failureMessage: nil,
+            literalTranscript: nil,
+            environmentCue: nil,
+            exactLiterals: [],
+            canRetryGeneration: false
         )
-
-        #expect(events == ["target-pinned", "panel-presented-compose"])
-        #expect(model.state == .choosingIntent)
-        #expect(model.requestedIntentFocus == .compose)
+        #expect(model.state.requestID != nil)
     }
 
     @Test
@@ -2599,13 +2596,14 @@ struct CadenceTests {
     }
 
     @Test
-    func hudPositionTopLeftOriginIsFlushWithScreenCorner() {
+    func hudPositionTopLeftOriginIsBelowMenuBar() {
         let screenFrame = NSRect(x: 0, y: 0, width: 1920, height: 1080)
-        let visibleFrame = NSRect(x: 0, y: 70, width: 1920, height: 1010)
+        let visibleFrame = NSRect(x: 0, y: 70, width: 1920, height: 986)
         let hudSize = NSSize(width: 44, height: 44)
         let origin = HUDPosition.topLeft.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)
         #expect(origin.x == screenFrame.minX)
-        #expect(origin.y == screenFrame.maxY - hudSize.height)
+        #expect(origin.y == visibleFrame.maxY - hudSize.height)
+        #expect(origin.y < screenFrame.maxY - hudSize.height)
     }
 
     @Test
@@ -2666,12 +2664,14 @@ struct CadenceTests {
 
     @Test
     func dragTooltipShownPersistsAndPreventsReTrigger() {
-        let defaults = UserDefaults.standard
-        let key = "Cadence.dragTooltipShown"
-        defaults.removeObject(forKey: key)
-        #expect(!defaults.bool(forKey: key))
-        defaults.set(true, forKey: key)
-        #expect(defaults.bool(forKey: key))
+        let suite = "CadenceTests.dragTooltip.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = HUDDragTooltipStateStore(defaults: defaults)
+        #expect(!store.hasBeenShown)
+        store.markShown()
+        #expect(store.hasBeenShown)
     }
 
     private func temporaryMeetingStoreURL() -> URL {
@@ -2797,11 +2797,11 @@ struct CadenceTests {
 
     @Test
     @MainActor
-    func hudViewModelInjectsPulseOnHiddenToRecordingTransition() {
+    func hudViewModelInjectsPulseOnVisibleIdleToRecordingTransition() {
         let viewModel = HUDViewModel()
         viewModel.reduceMotionProvider = { false }
 
-        viewModel.apply(HUDState.idle)
+        viewModel.apply(HUDState.logoIdle)
 
         let recordingState = HUDState(
             visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
@@ -2830,7 +2830,7 @@ struct CadenceTests {
             isVisible: true,
             showsSubtitle: false
         )
-        viewModel.apply(HUDState.idle)
+        viewModel.apply(HUDState.logoIdle)
         viewModel.apply(recordingState)
 
         let firstBars = viewModel.displayBars
@@ -2845,7 +2845,7 @@ struct CadenceTests {
 
     @Test
     @MainActor
-    func hudViewModelResetsPulseFlagWhenHidden() {
+    func hudViewModelResetsPulseFlagWhenReturningToIdleBetweenSessions() {
         let viewModel = HUDViewModel()
         viewModel.reduceMotionProvider = { false }
 
@@ -2857,12 +2857,22 @@ struct CadenceTests {
             isVisible: true,
             showsSubtitle: false
         )
-        viewModel.apply(HUDState.idle)
+        viewModel.apply(HUDState.logoIdle)
         viewModel.apply(recordingState)
         #expect(viewModel.displayBars.contains { $0 > 0.1 })
 
-        viewModel.apply(HUDState.idle)
+        viewModel.apply(HUDState(
+            visualState: .success,
+            subtitle: "",
+            level: 0,
+            waveformLevels: Array(repeating: 0.0, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        ))
+        viewModel.apply(HUDState.logoIdle)
+        viewModel.setReducedMotion(true)
         #expect(viewModel.displayBars.allSatisfy { $0 == 0 })
+        viewModel.setReducedMotion(false)
 
         viewModel.apply(recordingState)
         #expect(viewModel.displayBars.contains { $0 > 0.1 })
@@ -2882,7 +2892,7 @@ struct CadenceTests {
             isVisible: true,
             showsSubtitle: false
         )
-        viewModel.apply(HUDState.idle)
+        viewModel.apply(HUDState.logoIdle)
         viewModel.apply(recordingState)
 
         #expect(viewModel.displayBars.allSatisfy { $0 == 0 })
@@ -3270,23 +3280,144 @@ struct IdleExpandedTrayTests {
 
 struct TapDragDisambiguationTests {
     @Test
-    func recognizeTapReturnsTrueForSmallTranslation() {
-        #expect(HUDViewModel.recognizeTap(translation: CGSize(width: 2, height: 1)) == true)
+    func zeroMovementPointerSequenceIsAClick() {
+        var tracker = HUDLogoPointerTracker()
+        tracker.begin(at: NSPoint(x: 100, y: 200))
+
+        #expect(tracker.end(at: NSPoint(x: 100, y: 200)) == .click)
     }
 
     @Test
-    func recognizeTapReturnsFalseForLargeTranslation() {
-        #expect(HUDViewModel.recognizeTap(translation: CGSize(width: 20, height: 5)) == false)
+    func movementBelowThresholdRemainsAClick() {
+        var tracker = HUDLogoPointerTracker()
+        tracker.begin(at: NSPoint(x: 100, y: 200))
+
+        #expect(tracker.update(to: NSPoint(x: 102, y: 201)) == false)
+        #expect(tracker.end(at: NSPoint(x: 102, y: 201)) == .click)
     }
 
     @Test
-    func recognizeTapReturnsTrueAtExactThreshold() {
-        #expect(HUDViewModel.recognizeTap(translation: CGSize(width: 2, height: 1)) == true)
+    func globalPointerMovementAtThresholdBeginsDrag() {
+        var tracker = HUDLogoPointerTracker()
+        tracker.begin(at: NSPoint(x: -50, y: 400))
+
+        #expect(tracker.update(to: NSPoint(x: -46, y: 400)) == true)
+        #expect(tracker.end(at: NSPoint(x: -46, y: 400)) == .drag)
     }
 
     @Test
-    func recognizeTapReturnsTrueForZeroTranslation() {
-        #expect(HUDViewModel.recognizeTap(translation: .zero) == true)
+    func verticalScreenCoordinatesKeepAppKitDirection() {
+        var tracker = HUDLogoPointerTracker()
+        tracker.begin(at: NSPoint(x: 100, y: 300))
+
+        #expect(tracker.update(to: NSPoint(x: 100, y: 320)) == true)
+        #expect(tracker.end(at: NSPoint(x: 100, y: 320)) == .drag)
+    }
+
+    @Test
+    @MainActor
+    func collapsedIdleForwardsInteractionButExpandedTrayDoesNot() {
+        let model = HUDViewModel()
+        var events: [HUDLogoInteractionEvent] = []
+        model.onLogoInteraction = { events.append($0) }
+        model.apply(.logoIdle)
+
+        model.handleLogoInteraction(.clicked)
+        #expect(events == [.clicked])
+
+        model.setExpanded(true)
+        model.handleLogoInteraction(.began(NSPoint(x: 1, y: 1)))
+        #expect(events == [.clicked])
+    }
+}
+
+struct HUDPanelLayoutTests {
+    @Test
+    func expansionComputesOneAnchoredTargetFrame() {
+        let screen = NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let visible = NSRect(x: 0, y: 40, width: 1920, height: 1016)
+        let frame = HUDPanelLayout.targetFrame(
+            position: .bottomCenter,
+            screenFrame: screen,
+            visibleFrame: visible,
+            size: NSSize(width: 240, height: 38)
+        )
+
+        #expect(frame == NSRect(x: 840, y: 40, width: 240, height: 38))
+    }
+
+    @Test
+    func targetFrameSupportsNegativeScreenOrigins() {
+        let screen = NSRect(x: -1440, y: 120, width: 1440, height: 900)
+        let visible = NSRect(x: -1440, y: 120, width: 1440, height: 876)
+        let frame = HUDPanelLayout.targetFrame(
+            position: .topRight,
+            screenFrame: screen,
+            visibleFrame: visible,
+            size: NSSize(width: 44, height: 44)
+        )
+
+        #expect(frame == NSRect(x: -44, y: 952, width: 44, height: 44))
+    }
+
+    @Test
+    @MainActor
+    func reducedMotionStateIsUsedByRuntimeViewModel() {
+        let model = HUDViewModel()
+        model.reduceMotionProvider = { false }
+        model.setReducedMotion(true)
+
+        #expect(model.isReducedMotionEnabled)
+        #expect(!HUDPanelTransition.shouldAnimate(reduceMotion: model.isReducedMotionEnabled))
+        #expect(HUDPanelTransition.shouldAnimate(reduceMotion: false))
+    }
+
+    @Test
+    func dragGeometryUsesStableGlobalScreenDeltasWithoutFlippingY() {
+        let origin = HUDDragGeometry.origin(
+            startOrigin: NSPoint(x: 500, y: 300),
+            startPointer: NSPoint(x: 800, y: 400),
+            currentPointer: NSPoint(x: 760, y: 475)
+        )
+
+        #expect(origin == NSPoint(x: 460, y: 375))
+    }
+
+    @Test
+    func positionStorePersistsSnapSelection() {
+        let suite = "HUDPositionStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = HUDPositionStore(defaults: defaults)
+
+        #expect(store.load() == .bottomCenter)
+        store.save(.topLeft)
+        #expect(HUDPositionStore(defaults: defaults).load() == .topLeft)
+    }
+}
+
+struct AppActivationPolicyTests {
+    @Test
+    func launchAndDockReopenOpenTheMainWindow() {
+        #expect(AppActivationPolicy.shouldOpenMainWindow(for: .launch))
+        #expect(AppActivationPolicy.shouldOpenMainWindow(for: .dockReopen))
+    }
+
+    @Test
+    func incidentalActivationDoesNotOpenTheMainWindow() {
+        #expect(!AppActivationPolicy.shouldOpenMainWindow(for: .becameActive))
+    }
+
+    @Test @MainActor
+    func applicationTerminationInvokesRegisteredServiceShutdown() {
+        var shutdownCount = 0
+        let previous = AppDelegate.shutdownApplicationServices
+        AppDelegate.shutdownApplicationServices = { shutdownCount += 1 }
+        defer { AppDelegate.shutdownApplicationServices = previous }
+
+        AppDelegate().applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+
+        #expect(shutdownCount == 1)
     }
 }
 

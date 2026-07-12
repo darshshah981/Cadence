@@ -1,6 +1,36 @@
 # Cadence
 
-Cadence is a native macOS menu-bar app for spoken work: fast local dictation and durable, private meeting capture. This glossary fixes the canonical language for the meeting-capture domain. Dictation has its own settled vocabulary and is out of scope here.
+Cadence is a native macOS menu-bar app for spoken work: fast local dictation and durable, private meeting capture. This glossary fixes the canonical language for the meeting-capture and Scribe domains. Dictation has its own settled vocabulary and is out of scope here.
+
+## Scribe
+
+**Meaning-preserving polish**:
+Scribe may remove fillers, correct grammar and punctuation, improve structure, and apply the selected tone or preset, but must preserve the user's claims, requested actions, factual content, and exact literals. It must not add facts, arguments, commitments, code, or inferred content.
+
+**Processed dictation**:
+The local transcript after vocabulary correction, filler handling, shortcut expansion, and literal normalization, before any LLM polish.
+
+**Polished draft**:
+A meaning-preserving result from the selected provider, awaiting explicit user review.
+
+**Retry polish**:
+Regenerate a polished draft from the same processed dictation and guidance snapshot.
+
+**Insert unpolished**:
+Use the processed dictation without LLM polish. This never means inserting raw recognizer output.
+
+**Re-record**:
+Discard the current Scribe action and capture new speech.
+
+## Optional Cloud Scribe
+
+**Setup-only consent receipt**:
+The in-memory proof that a person affirmed the disclosure for one provider recipient during the current setup sheet. It is required before model discovery or validation can use a credential and is cleared on provider switch or dismissal.
+_Avoid_: consent checkbox (the UI acknowledgement alone is not an egress capability)
+
+**Direct dictation**:
+The only Scribe request shape in this release: locally transcribed speech, the resolved writing behavior, and local literal metadata. It does not acquire or send selected text, nearby application content, app identity, or prior turns.
+_Avoid_: Respond/Edit (retired request shapes)
 
 ## Capture lifecycle
 
