@@ -13,6 +13,10 @@ final class ScribeProviderSetupSession {
     private(set) var selectedModelID: String?
     private(set) var attemptRevision = 0
     private(set) var providerKind: ScribeProviderKind?
+    /// A setup-only receipt is created only after the visible recipient
+    /// disclosure has been acknowledged. It never survives a provider change
+    /// or setup dismissal.
+    private(set) var disclosureAuthorization: ScribeProviderConsentReceipt?
     private var validationTask: Task<Void, Never>?
     private var currentFence: ScribeProviderSetupAttemptFence?
     private let consentAuthority: ScribeProviderConsentAuthority
@@ -67,6 +71,7 @@ final class ScribeProviderSetupSession {
         credentialBuffer = ""
         modelSearchQuery = ""
         selectedModelID = nil
+        disclosureAuthorization = nil
         self.providerKind = providerKind
         attemptRevision += 1
         await fence?.invalidate()
@@ -79,6 +84,7 @@ final class ScribeProviderSetupSession {
         credentialBuffer = ""
         modelSearchQuery = ""
         selectedModelID = nil
+        disclosureAuthorization = nil
         providerKind = nil
         attemptRevision += 1
         await fence?.invalidate()
@@ -106,6 +112,33 @@ final class ScribeProviderSetupSession {
     func selectModel(_ modelID: String?) {
         let normalized = modelID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         selectedModelID = normalized.isEmpty ? nil : normalized
+    }
+
+    @discardableResult
+    func authorizeDisclosure(_ receipt: ScribeProviderConsentReceipt) async -> Bool {
+        guard providerKind == receipt.providerKind,
+              receipt.disclosureRevision == ScribeProviderDisclosure.currentVersion,
+              await consentAuthority.verify(receipt) else {
+            disclosureAuthorization = nil
+            return false
+        }
+        disclosureAuthorization = receipt
+        return true
+    }
+
+    func authorizedReceipt(
+        for providerKind: ScribeProviderKind,
+        origin: String
+    ) async -> ScribeProviderConsentReceipt? {
+        guard self.providerKind == providerKind,
+              let disclosureAuthorization,
+              disclosureAuthorization.providerKind == providerKind,
+              disclosureAuthorization.recipientOrigin == origin,
+              disclosureAuthorization.disclosureRevision == ScribeProviderDisclosure.currentVersion else {
+            return nil
+        }
+        guard await consentAuthority.verify(disclosureAuthorization) else { return nil }
+        return disclosureAuthorization
     }
 
     @discardableResult

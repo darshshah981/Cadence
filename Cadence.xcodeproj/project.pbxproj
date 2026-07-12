@@ -42,6 +42,7 @@
 		38E1003D385A084F1DC9A9D3 /* ScribeProviderRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DA19E97FA6998A515B338D5 /* ScribeProviderRuntime.swift */; };
 		3902A86EA028BD31FCEA7A76 /* MeetingFinalTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0738EECF8CC35F6E2FAC3C7B /* MeetingFinalTranscriptionService.swift */; };
 		3986DD601DC81674550A4CD3 /* ScribeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF8D98AB990D3D3E1C7B90F7 /* ScribeModels.swift */; };
+		3A5762945F127B5CA631C9D2 /* ScribePrivacyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF9296B54AADC703E9CBE3ED /* ScribePrivacyTests.swift */; };
 		3AD32478D874A45AF9236DBF /* ScribeCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5E5EB8FD31C509E20741A42 /* ScribeCoordinator.swift */; };
 		3C07F0068A32253FAD3153AA /* ScribeCredentialReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F968C8C4F20FEF850DF5EEAA /* ScribeCredentialReconciler.swift */; };
 		423D3D72E620B972B8B49895 /* ApplicationConfigurationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C120360A306D15039CA66A /* ApplicationConfigurationStore.swift */; };
@@ -61,6 +62,7 @@
 		5AD53269E2F3698F85A01036 /* DurablePreferenceKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78697F1129D556E082D17DAD /* DurablePreferenceKeys.swift */; };
 		5B459732BF97D90537C75E4A /* ScribeRequestPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA4184D1F8A91858269D49B0 /* ScribeRequestPolicy.swift */; };
 		5E268FC2CD9E558B8CEAFCE0 /* CalendarEventCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A485E597733F3F0F173BF23 /* CalendarEventCacheStore.swift */; };
+		5EA278C647A8D09B6290A0F5 /* ScribeDomainIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54784669DC0C68BDF5D31A98 /* ScribeDomainIsolationTests.swift */; };
 		5FFD8D111D99B04C728DDA8E /* CustomGuidanceValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2946568228C48A76AFF42F23 /* CustomGuidanceValidator.swift */; };
 		617024D9E66805B074765926 /* WritingEnvironmentCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76487CD30472CBAAEE6A458C /* WritingEnvironmentCatalog.swift */; };
 		62BB3C50263D2EE23D7BBE21 /* U5TestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32BF8E2A23E2D860E70D4FAE /* U5TestFixtures.swift */; };
@@ -85,6 +87,7 @@
 		81E4D4546DD784E95A32DB68 /* FixedOriginScribeProviderSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F92F1777ADDB952468DD1D9 /* FixedOriginScribeProviderSupport.swift */; };
 		827C3C6F3B9D6355BB6EE82B /* FoundationModelsScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F2F36578CB8F0AF6D9A0C63 /* FoundationModelsScribeProvider.swift */; };
 		843C82C357FF1D426BCFDDF7 /* ScribeChatCompletionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B270F4E9E0E1CB229615B73 /* ScribeChatCompletionClient.swift */; };
+		849587550D65089855C22B54 /* ReleaseFixtureIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11221647F46E10E7506D3EB2 /* ReleaseFixtureIsolationTests.swift */; };
 		878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37031AF8A914D482FABFFD6B /* PermissionsService.swift */; };
 		8867C34B90CB2AD5291DD1D5 /* WritingEnvironmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EED0F11BBBF420A81361E68A /* WritingEnvironmentStore.swift */; };
 		888734B0BC05B1231663DF8C /* PasteboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2241AB1EAC2C658906A2DF74 /* PasteboardService.swift */; };
@@ -193,6 +196,7 @@
 		07592451F56FA01E1134A310 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		0B270F4E9E0E1CB229615B73 /* ScribeChatCompletionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeChatCompletionClient.swift; sourceTree = "<group>"; };
 		0C16117AB80D4197BE302C96 /* ScribeLiteralNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeLiteralNormalizerTests.swift; sourceTree = "<group>"; };
+		11221647F46E10E7506D3EB2 /* ReleaseFixtureIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseFixtureIsolationTests.swift; sourceTree = "<group>"; };
 		113DBC10FED7509DA4FD5824 /* quality-corpus.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "quality-corpus.json"; sourceTree = "<group>"; };
 		149842A517DF930900048ED2 /* ScribeDiagnosticModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeDiagnosticModels.swift; sourceTree = "<group>"; };
 		14AAB6B540E0A37B3128C27F /* CadenceControlSemanticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceControlSemanticsTests.swift; sourceTree = "<group>"; };
@@ -245,6 +249,7 @@
 		53C120360A306D15039CA66A /* ApplicationConfigurationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationConfigurationStore.swift; sourceTree = "<group>"; };
 		53DC5566E2688823A894040D /* CadenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CadenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5471DB10D447DC26C66499B4 /* ScribeContextService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeContextService.swift; sourceTree = "<group>"; };
+		54784669DC0C68BDF5D31A98 /* ScribeDomainIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeDomainIsolationTests.swift; sourceTree = "<group>"; };
 		57F88FDABE976A050039E642 /* DictationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModels.swift; sourceTree = "<group>"; };
 		58943A986FD1C46B9F453ED0 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 		5B0F4A27DA91DA33E9400FDB /* OnboardingMicrophoneMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingMicrophoneMonitor.swift; sourceTree = "<group>"; };
@@ -305,6 +310,7 @@
 		BAAE902E9A7F2F2906C91892 /* MeetingDetectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetectionService.swift; sourceTree = "<group>"; };
 		BB1DD5815D59E02FF0F36E3D /* ScribeProviderManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderManagementView.swift; sourceTree = "<group>"; };
 		BD0DC118E2EEDD11B470D4D3 /* OpenAICompatibleScribeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleScribeProvider.swift; sourceTree = "<group>"; };
+		BF9296B54AADC703E9CBE3ED /* ScribePrivacyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribePrivacyTests.swift; sourceTree = "<group>"; };
 		C1BA8806A19E0089A3DBB906 /* GoogleCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarService.swift; sourceTree = "<group>"; };
 		C25940005A86A98A7EBF4771 /* ApplicationConfigurationResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationConfigurationResolver.swift; sourceTree = "<group>"; };
 		C2B1E2C5902AE4CA7E8D12F8 /* FixedOriginScribeProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixedOriginScribeProviderTests.swift; sourceTree = "<group>"; };
@@ -400,16 +406,19 @@
 				51D8EC088DD170378EAA03FD /* InstalledApplicationCatalogTests.swift */,
 				393D34EA2315483D46C808AC /* OnboardingTests.swift */,
 				92617578D8E7278F00452C6A /* PersonalizationTests.swift */,
+				11221647F46E10E7506D3EB2 /* ReleaseFixtureIsolationTests.swift */,
 				EB4DD449A99A4B91654EAC3B /* ScribeActionPolicyTests.swift */,
 				D75497C3F44A3081C0A107D3 /* ScribeContextServiceTests.swift */,
 				DF8C6312871F32727CBB8DA8 /* ScribeCoordinatorTests.swift */,
 				A1AC1450E1933A53B463B2A4 /* ScribeCredentialStoreTests.swift */,
 				28415840D047F93E2D27B2C4 /* ScribeDiagnosticsTests.swift */,
+				54784669DC0C68BDF5D31A98 /* ScribeDomainIsolationTests.swift */,
 				41AC681B1E47C491C63011FD /* ScribeGuidanceTests.swift */,
 				665F8AA64ED04CA0098D381A /* ScribeHTTPTransportTests.swift */,
 				0C16117AB80D4197BE302C96 /* ScribeLiteralNormalizerTests.swift */,
 				E08E99219366C7D92D4341D1 /* ScribeMigrationTests.swift */,
 				A096D3AE08EFD1C73E7D2765 /* ScribeModelCatalogServiceTests.swift */,
+				BF9296B54AADC703E9CBE3ED /* ScribePrivacyTests.swift */,
 				8DB208296457A9AD795C2206 /* ScribeProviderConfigurationTests.swift */,
 				7B704DDD56CB4C4DDD3AAC4C /* ScribeProviderConnectionManagerTests.swift */,
 				A99463B7363354D536E247F0 /* ScribeProviderConsentTests.swift */,
@@ -890,16 +899,19 @@
 				F0B09129DE4578A72441D412 /* InstalledApplicationCatalogTests.swift in Sources */,
 				8C3A810CDD019ABE9195E199 /* OnboardingTests.swift in Sources */,
 				6441E942D018DF9194C80446 /* PersonalizationTests.swift in Sources */,
+				849587550D65089855C22B54 /* ReleaseFixtureIsolationTests.swift in Sources */,
 				AC6DF1FE3309A49660FC1924 /* ScribeActionPolicyTests.swift in Sources */,
 				2D950BB2549846B4C6E7BF2F /* ScribeContextServiceTests.swift in Sources */,
 				C3DB8E25F8D83D59D0D0CB53 /* ScribeCoordinatorTests.swift in Sources */,
 				C4675B993A45E7EAB560B8E6 /* ScribeCredentialStoreTests.swift in Sources */,
 				6DEBAA6DBB25E6362096380B /* ScribeDiagnosticsTests.swift in Sources */,
+				5EA278C647A8D09B6290A0F5 /* ScribeDomainIsolationTests.swift in Sources */,
 				DE1A5ABADAAACAFBA20660DE /* ScribeGuidanceTests.swift in Sources */,
 				EF64BC08F2C7F02693F757FF /* ScribeHTTPTransportTests.swift in Sources */,
 				DB3DDCEE9D10090CF9A29691 /* ScribeLiteralNormalizerTests.swift in Sources */,
 				47F6B49183EFAB303954CD8C /* ScribeMigrationTests.swift in Sources */,
 				94661C288BFFBB8CC387F87E /* ScribeModelCatalogServiceTests.swift in Sources */,
+				3A5762945F127B5CA631C9D2 /* ScribePrivacyTests.swift in Sources */,
 				CD2CC09844391437AE662E30 /* ScribeProviderConfigurationTests.swift in Sources */,
 				FCF159ABBCB9BEB8EF3886B6 /* ScribeProviderConnectionManagerTests.swift in Sources */,
 				9FF4FC96281540D9441C093A /* ScribeProviderConsentTests.swift in Sources */,

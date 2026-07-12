@@ -32,7 +32,7 @@ struct ScribeProviderSetupModelTests {
         #expect(model.normalizedAdvancedEndpoint?.requestURL.absoluteString == "https://safe.example/v1/chat/completions")
 
         model.acceptDisclosure()
-        model.credential = "sk-canary"
+        model.credential = "fixture-credential"
         model.clearCandidate()
         #expect(model.credential.isEmpty)
     }

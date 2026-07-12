@@ -84,6 +84,7 @@ struct ScribeProviderConsentTests {
         await session.dismiss()
         #expect(session.credentialBuffer.isEmpty)
         #expect(session.providerKind == nil)
+        #expect(session.disclosureAuthorization == nil)
         #expect(!session.acceptsCallback(revision: secondRevision))
     }
 

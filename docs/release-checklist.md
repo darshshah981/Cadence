@@ -58,6 +58,8 @@ The same candidate must prove:
 - Five workdays of dogfood with at least 40 genuine tasks and zero stale/misdirected insertion, silent environment switch, lost actionable draft, or privacy incident.
 - One manifest binding every artifact and PASS/FAIL decision to the same git commit and DMG SHA-256.
 
+Before attaching any evidence, run `scripts/test_adaptive_scribe_contracts.sh` on the candidate source, then `scripts/verify_scribe_privacy_canaries.sh` over the XCTest results, UI-test results, captured logs, diagnostics exports, and evidence directory. The scan includes transcript, selection, credential, origin, model, app, guidance, prompt, response, process-ID, filesystem-path, and bundle-identifier canaries; any match is a release blocker.
+
 Do not weaken or mark an unrun gate complete. If the signed Claude Desktop app lacks a stable non-content Code-prompt signature, Claude Code recognition stays fail-closed to Other apps and the release gate fails.
 
 ## Minimum Release Notes Template

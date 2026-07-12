@@ -51,6 +51,12 @@ struct SettingsView: View {
                     onConnectDeepSeek: { try await appModel.connectDeepSeekForScribe(credential: $0) },
                     onConnectOpenAI: { try await appModel.connectOpenAIForScribe(model: $0, credential: $1) },
                     onConnectOpenRouter: { try await appModel.connectOpenRouterForScribe(model: $0, credential: $1) },
+                    onAcceptDisclosure: { provider, advancedBaseURL in
+                        try await appModel.acceptScribeProviderSetupDisclosure(
+                            for: provider,
+                            advancedBaseURL: advancedBaseURL
+                        )
+                    },
                     onDiscoverModels: { provider, credential, accepted, query in
                         await appModel.discoverScribeModels(for: provider, credential: credential, disclosureAccepted: accepted, matching: query)
                     },

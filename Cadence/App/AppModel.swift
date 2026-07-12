@@ -2295,19 +2295,15 @@ final class AppModel: ObservableObject {
         guard disclosureAccepted,
               provider == .openAIDirect || provider == .openRouter,
               !credential.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
-        await scribeProviderSetupSession.providerSwitched(to: provider)
+        let origin = provider == .openAIDirect ? "https://api.openai.com" : "https://openrouter.ai"
+        guard let receipt = await scribeProviderSetupSession.authorizedReceipt(for: provider, origin: origin) else {
+            return []
+        }
         let revision = scribeProviderSetupSession.prepareAttempt(
             providerKind: provider,
             credential: credential
         )
         scribeProviderSetupSession.setModelSearchQuery(query)
-        let receipt = await scribeConsentAuthority.issueEphemeral(
-            providerKind: provider,
-            recipientOrigin: provider == .openAIDirect ? "https://api.openai.com" : "https://openrouter.ai",
-            routingPolicy: provider == .openAIDirect ? .directSingleModel : .zeroDataRetentionSingleModel,
-            retentionPolicy: provider == .openAIDirect ? .requestStorageDisabled : .zeroDataRetentionRequired,
-            dataPolicy: provider == .openAIDirect ? .providerPolicyApplies : .collectionDenied
-        )
         let discoverySentinel = "cadence-discovery-only"
         if provider == .openAIDirect {
             _ = await scribeModelCatalogService.refreshOpenAI(
@@ -2337,6 +2333,46 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Records an affirmative acknowledgement of the currently visible setup
+    /// disclosure. Connect and model-discovery calls require this session-only
+    /// receipt, so callers cannot turn a boolean parameter into egress.
+    func acceptScribeProviderSetupDisclosure(
+        for kind: ScribeProviderKind,
+        advancedBaseURL: String? = nil
+    ) async throws {
+        // Bind the setup session to this provider before authorizing. Choosing
+        // a card fires an asynchronous switch; accepting disclosure must not
+        // race that Task and must never authorize a mismatched recipient.
+        if scribeProviderSetupSession.providerKind != kind {
+            await scribeProviderSetupSession.providerSwitched(to: kind)
+        }
+        let recipient: (origin: String, routing: ScribeProviderRoutingPolicy, retention: ScribeProviderRetentionPolicy, data: ScribeProviderDataPolicy)
+        switch kind {
+        case .deepSeek:
+            recipient = ("https://api.deepseek.com", .providerControlledSingleModel, .providerControlled, .providerControlled)
+        case .openAIDirect:
+            recipient = ("https://api.openai.com", .directSingleModel, .requestStorageDisabled, .providerPolicyApplies)
+        case .openRouter:
+            recipient = ("https://openrouter.ai", .zeroDataRetentionSingleModel, .zeroDataRetentionRequired, .collectionDenied)
+        case .advanced:
+            guard let advancedBaseURL else { throw ScribeProviderConnectionError.consentRequired }
+            let endpoint = try AdvancedScribeEndpoint(advancedBaseURL)
+            recipient = (endpoint.normalizedOrigin, .providerControlledSingleModel, .providerControlled, .providerControlled)
+        case .legacyLocal:
+            throw ScribeProviderConnectionError.consentRequired
+        }
+        let receipt = await scribeConsentAuthority.issueEphemeral(
+            providerKind: kind,
+            recipientOrigin: recipient.origin,
+            routingPolicy: recipient.routing,
+            retentionPolicy: recipient.retention,
+            dataPolicy: recipient.data
+        )
+        guard await scribeProviderSetupSession.authorizeDisclosure(receipt) else {
+            throw ScribeProviderConnectionError.consentRequired
+        }
+    }
+
     func connectDeepSeekForScribe(credential: String, confirmed: Bool = false) async throws {
         await recordScribeDiagnostic(
             kind: .validationStarted,
@@ -2345,17 +2381,12 @@ final class AppModel: ObservableObject {
             outcome: .success
         )
         do {
-            await scribeProviderSetupSession.providerSwitched(to: .deepSeek)
             guard let entry = ScribeProviderCatalog.releaseOne.deepSeekEntries.first else {
                 throw ScribeProviderConnectionError.validationFailed
             }
-            let receipt = await scribeConsentAuthority.issueEphemeral(
-                providerKind: .deepSeek,
-                recipientOrigin: "https://api.deepseek.com",
-                routingPolicy: .providerControlledSingleModel,
-                retentionPolicy: .providerControlled,
-                dataPolicy: .providerControlled
-            )
+            guard let receipt = await scribeProviderSetupSession.authorizedReceipt(
+                for: .deepSeek, origin: "https://api.deepseek.com"
+            ) else { throw ScribeProviderConnectionError.consentRequired }
             let candidate = ScribeProviderConnectionCandidate(
                 id: UUID(),
                 kind: .deepSeek,
@@ -2403,16 +2434,11 @@ final class AppModel: ObservableObject {
             outcome: .success
         )
         do {
-            await scribeProviderSetupSession.providerSwitched(to: .advanced)
             let endpoint = try AdvancedScribeEndpoint(baseURL)
             let modelID = try ScribeModelIdentifier(model)
-            let receipt = await scribeConsentAuthority.issueEphemeral(
-                providerKind: .advanced,
-                recipientOrigin: endpoint.normalizedOrigin,
-                routingPolicy: .providerControlledSingleModel,
-                retentionPolicy: .providerControlled,
-                dataPolicy: .providerControlled
-            )
+            guard let receipt = await scribeProviderSetupSession.authorizedReceipt(
+                for: .advanced, origin: endpoint.normalizedOrigin
+            ) else { throw ScribeProviderConnectionError.consentRequired }
             let candidate = ScribeProviderConnectionCandidate(
                 id: UUID(),
                 kind: .advanced,
@@ -2450,15 +2476,10 @@ final class AppModel: ObservableObject {
     }
 
     func connectOpenAIForScribe(model: String, credential: String, confirmed: Bool = false) async throws {
-        await scribeProviderSetupSession.providerSwitched(to: .openAIDirect)
         let modelID = try ScribeModelIdentifier(model)
-        let receipt = await scribeConsentAuthority.issueEphemeral(
-            providerKind: .openAIDirect,
-            recipientOrigin: "https://api.openai.com",
-            routingPolicy: .directSingleModel,
-            retentionPolicy: .requestStorageDisabled,
-            dataPolicy: .providerPolicyApplies
-        )
+        guard let receipt = await scribeProviderSetupSession.authorizedReceipt(
+            for: .openAIDirect, origin: "https://api.openai.com"
+        ) else { throw ScribeProviderConnectionError.consentRequired }
         let candidate = ScribeProviderConnectionCandidate(
             id: UUID(), kind: .openAIDirect, displayName: ScribeProviderKind.openAIDirect.displayName,
             normalizedOrigin: "https://api.openai.com",
@@ -2471,15 +2492,10 @@ final class AppModel: ObservableObject {
     }
 
     func connectOpenRouterForScribe(model: String, credential: String, confirmed: Bool = false) async throws {
-        await scribeProviderSetupSession.providerSwitched(to: .openRouter)
         let modelID = try ScribeModelIdentifier(model)
-        let receipt = await scribeConsentAuthority.issueEphemeral(
-            providerKind: .openRouter,
-            recipientOrigin: "https://openrouter.ai",
-            routingPolicy: .zeroDataRetentionSingleModel,
-            retentionPolicy: .zeroDataRetentionRequired,
-            dataPolicy: .collectionDenied
-        )
+        guard let receipt = await scribeProviderSetupSession.authorizedReceipt(
+            for: .openRouter, origin: "https://openrouter.ai"
+        ) else { throw ScribeProviderConnectionError.consentRequired }
         let candidate = ScribeProviderConnectionCandidate(
             id: UUID(), kind: .openRouter, displayName: ScribeProviderKind.openRouter.displayName,
             normalizedOrigin: "https://openrouter.ai",

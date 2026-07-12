@@ -19,12 +19,12 @@ Run `scripts/collect_adaptive_scribe_evidence.sh` only from the clean candidate 
 ## Deterministic Pull-Request Evidence
 
 - [ ] `xcodegen generate` is idempotent.
-- [ ] Focused Scribe, environment, provider, transport, diagnostics, migration, coordinator, and action-policy tests pass without credentials or live network.
+- [ ] `scripts/test_adaptive_scribe_contracts.sh` passes the focused Adaptive Scribe contract wrapper (provider, migration, app, identity, guidance, lifecycle, control, diagnostic, privacy, domain isolation, release-fixture isolation) without credentials or live network.
 - [ ] Full `xcodebuild test` passes with signing disabled.
 - [ ] Ad-hoc-signed `CadenceUITests` passes against synthetic DEBUG launch fixtures and attaches privacy-safe screenshots.
 - [ ] `./script/build_and_run.sh --verify` proves the installed Debug app launches and shows its main window.
 - [ ] `./script/build_and_run.sh --audio-smoke` preserves meeting system-audio frames.
-- [ ] The recursive privacy-canary scan passes over xcresults, captured logs, defaults/app-support snapshots, diagnostics exports, and collected evidence.
+- [ ] The recursive privacy-canary scan passes over xcresults, captured logs, defaults/app-support snapshots, diagnostics exports, and collected evidence, including transcript, selection, credential, origin, model, app, prompt, response, process-ID, filesystem-path, and bundle-identifier canaries.
 - [ ] Independent source review confirms no Scribe content enters analytics, OSLog, Dictation history, meeting stores, caches, or crash/support payloads.
 
 ### Credential Accessibility Compatibility Decision
@@ -82,7 +82,7 @@ Use the versioned synthetic corpus under `CadenceTests/Fixtures/AdaptiveScribe/q
 - [ ] Successful setup creates one app-scoped, non-synchronizing item.
 - [ ] Replacement is validate-stage-commit-cleanup; failure preserves the working item.
 - [ ] Every redirect is refused and Authorization is never resent.
-- [ ] Compose and Respond/Edit egress captures match the allowlist; all denylisted fields are absent.
+- [ ] Direct-dictation egress captures match the allowlist; selected text and every other denylisted field are absent.
 - [ ] Disable retains the key; removal clears only provider state and current Scribe buffers.
 - [ ] Privacy policy, setup disclosure, Settings disclosure, and observed payload agree.
 

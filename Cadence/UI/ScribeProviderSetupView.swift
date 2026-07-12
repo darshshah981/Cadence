@@ -134,6 +134,7 @@ struct ScribeProviderSetupView: View {
     let onConnectDeepSeek: (String) async throws -> Void
     let onConnectOpenAI: (String, String) async throws -> Void
     let onConnectOpenRouter: (String, String) async throws -> Void
+    let onAcceptDisclosure: (ScribeProviderKind, String?) async throws -> Void
     let onDiscoverModels: (ScribeProviderKind, String, Bool, String) async -> [ScribeSearchableModelEntry]
     let onConnectAdvanced: (String, String, String) async throws -> Void
     let onGeneratePractice: () async throws -> String
@@ -379,8 +380,7 @@ struct ScribeProviderSetupView: View {
                 }
             case .disclosure:
                 CadenceActionButton(title: "I understand", role: .primary, isDefault: true) {
-                    model.disclosureAccepted = true
-                    model.acceptDisclosure()
+                    acceptDisclosure()
                 }
             case .credential:
                 CadenceActionButton(title: connectTitle, role: .primary, isDefault: true) {
@@ -451,6 +451,31 @@ struct ScribeProviderSetupView: View {
                 model.validationFailed(configuration.setupMessage)
             } catch {
                 model.validationFailed("Cadence could not validate this provider. Check the connection details and try again.")
+            }
+        }
+    }
+
+    private func acceptDisclosure() {
+        guard let choice = model.choice else { return }
+        let provider: ScribeProviderKind
+        switch choice {
+        case .deepSeek: provider = .deepSeek
+        case .openAI: provider = .openAIDirect
+        case .openRouter: provider = .openRouter
+        case .advanced: provider = .advanced
+        }
+        let advancedBaseURL = choice == .advanced ? model.advancedBaseURL : nil
+        validationTask?.cancel()
+        validationTask = Task { @MainActor in
+            defer { validationTask = nil }
+            do {
+                try await onAcceptDisclosure(provider, advancedBaseURL)
+                guard !Task.isCancelled else { return }
+                model.disclosureAccepted = true
+                model.acceptDisclosure()
+            } catch {
+                model.validationFailed("Cadence could not confirm this provider disclosure. Review the provider details and try again.")
+                model.goBack()
             }
         }
     }

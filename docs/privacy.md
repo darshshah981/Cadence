@@ -14,7 +14,7 @@ Current Scribe speech, selected text, provider request, generated draft, and ret
 
 ## Optional Cloud Scribe
 
-Cadence does not choose or contact a cloud provider until you complete guided setup. Setup first identifies the recipient and shows the data-use disclosure. A network request begins only after you choose **Connect and validate**. The first request is a synthetic compatibility check containing only:
+Cadence does not choose or contact a cloud provider until you complete guided setup. Setup first identifies the recipient and shows the data-use disclosure. Cadence creates a setup-only consent receipt only after you affirm that disclosure; a recipient change, provider switch, or setup dismissal clears it. A network request begins only after you choose **Connect and validate**. The first request is a synthetic compatibility check containing only:
 
 - System: `Return only OK.`
 - User: `Cadence provider compatibility check.`
@@ -25,16 +25,27 @@ After successful validation, a Scribe generation request may contain only:
 - Text dictated for the current Scribe action, transcribed locally.
 - The compiled behavior for the current writing environment.
 - Exact literals identified locally in the current request.
-- For Respond or Edit only, the text explicitly selected for that action.
 - The configured model and minimum generation controls.
 
-Cadence does not send audio, window titles, nearby text, general clipboard contents, screen content, transcript history, meetings, or your Cadence analytics ID. It also excludes document titles, cursor-adjacent text, vocabulary or shortcut catalogs, exact shortcut keys, bundle identifiers, Accessibility signatures, device or account identifiers, and prior Scribe turns.
+Cadence does not send audio, selected text, window titles, nearby text, general clipboard contents, screen content, transcript history, meetings, or your Cadence analytics ID. It also excludes document titles, cursor-adjacent text, vocabulary or shortcut catalogs, exact shortcut keys, bundle identifiers, Accessibility signatures, device or account identifiers, and prior Scribe turns.
 
 ### DeepSeek
 
 The first bundled profile sends requests directly to `https://api.deepseek.com/chat/completions` for DeepSeek V4 Flash. DeepSeek—not Cadence—controls provider-side processing and retention. DeepSeek's policy says it may collect inputs, use personal data to improve or train its technology, retain some inputs while an account is active, and process or store personal data in the People's Republic of China. DeepSeek also describes privacy rights including training opt-out and deletion requests. [Review the DeepSeek Privacy Policy](https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html), reviewed for this contract on 10 July 2026.
 
 Cadence does not promise zero provider retention, no training, immediate deletion, or request-level erasure.
+
+### OpenAI Direct
+
+OpenAI Direct sends generation requests to `https://api.openai.com` using the configured model. Cadence sets request storage disabled where the API allows it and does not use server-side conversation state. OpenAI—not Cadence—controls provider-side processing, abuse monitoring, and retention. Inputs may be subject to OpenAI's abuse-monitoring retention even when training use is off by default. [Review the OpenAI Privacy Policy](https://openai.com/policies/privacy-policy/) before connecting. Policy review date for this contract: 12 July 2026.
+
+Cadence does not promise zero provider retention, immediate deletion, or request-level erasure at OpenAI.
+
+### OpenRouter
+
+OpenRouter routes selected-model requests through `https://openrouter.ai` with Cadence's zero-data-retention oriented setup. OpenRouter may still retain limited router metadata. The downstream model operator—not Cadence—controls that model's processing and retention. Prefer zero-data-retention-compatible routes and review OpenRouter's data policies before connecting. [Review OpenRouter privacy documentation](https://openrouter.ai/docs) for current routing and retention terms. Policy review date for this contract: 12 July 2026.
+
+Cadence does not promise that every OpenRouter model is zero-retention end to end; only the configured route and operator policies apply.
 
 ### Advanced OpenAI-compatible endpoints
 

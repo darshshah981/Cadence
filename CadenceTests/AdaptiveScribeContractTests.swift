@@ -10,9 +10,12 @@ struct AdaptiveScribeContractTests {
             encoding: .utf8
         )
 
-        #expect(privacy.contains("Cadence does not send audio, window titles, nearby text"))
+        #expect(privacy.contains("Cadence does not send audio, selected text, window titles, nearby text"))
         #expect(privacy.contains("Local removal does not revoke a key at the provider"))
         #expect(privacy.contains("Release one sends no remote Scribe telemetry"))
+        #expect(privacy.contains("setup-only consent receipt"))
+        #expect(privacy.contains("### OpenAI Direct") || privacy.contains("api.openai.com"))
+        #expect(privacy.contains("### OpenRouter") || privacy.contains("openrouter.ai"))
         #expect(ScribeProviderDisclosure.deepSeek.contains("directly to DeepSeek at api.deepseek.com"))
         #expect(ScribeProviderDisclosure.removal(provider: "DeepSeek").contains("does not revoke the key"))
     }

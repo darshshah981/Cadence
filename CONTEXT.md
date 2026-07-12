@@ -2,6 +2,16 @@
 
 Cadence is a native macOS menu-bar app for spoken work: fast local dictation and durable, private meeting capture. This glossary fixes the canonical language for the meeting-capture domain. Dictation has its own settled vocabulary and is out of scope here.
 
+## Optional Cloud Scribe
+
+**Setup-only consent receipt**:
+The in-memory proof that a person affirmed the disclosure for one provider recipient during the current setup sheet. It is required before model discovery or validation can use a credential and is cleared on provider switch or dismissal.
+_Avoid_: consent checkbox (the UI acknowledgement alone is not an egress capability)
+
+**Direct dictation**:
+The only Scribe request shape in this release: locally transcribed speech, the resolved writing behavior, and local literal metadata. It does not acquire or send selected text, nearby application content, app identity, or prior turns.
+_Avoid_: Respond/Edit (retired request shapes)
+
 ## Capture lifecycle
 
 **Capture session**:
