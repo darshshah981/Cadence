@@ -1148,13 +1148,13 @@ private struct StenoLatestTranscriptCard: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(FlowTheme.textSecondary)
                 Spacer()
-                Button(action: onCopy) {
-                    Label("Copy", systemImage: "doc.on.doc")
-                        .font(.system(size: 12.5, weight: .semibold))
-                }
-                .buttonStyle(.borderless)
+                CadenceActionButton(
+                    title: "Copy",
+                    role: .quiet,
+                    accessibilityIdentifier: "speech-latest-copy-button",
+                    action: onCopy
+                )
                 .accessibilityLabel("Copy latest transcript")
-                .accessibilityIdentifier("speech-latest-copy-button")
             }
 
             Text(item.text)
@@ -1378,13 +1378,7 @@ private struct MainSidebarNewNoteButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Label("New note", systemImage: "plus")
-                .font(.system(size: 13, weight: .semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 9)
-        }
-        .buttonStyle(.borderedProminent)
+        CadenceActionButton(title: "New note", role: .primary, action: action)
         .controlSize(.regular)
         .padding(.horizontal, 12)
         .padding(.top, 8)
@@ -1501,21 +1495,15 @@ private struct DictationPanel: View {
                 }
 
                 HStack(spacing: 10) {
-                    Button {
+                    CadenceActionButton(title: appModel.permissions.allRequiredGranted ? "Check" : "Review", role: .secondary) {
                         if appModel.permissions.allRequiredGranted {
                             appModel.runSetupCheck()
                         } else {
                             appModel.openPermissionsWizard()
                         }
-                    } label: {
-                        Label(appModel.permissions.allRequiredGranted ? "Check" : "Review", systemImage: "checkmark.seal")
                     }
-                    .buttonStyle(.bordered)
 
-                    Button(action: onOpenSettings) {
-                        Label("Tune", systemImage: "slider.horizontal.3")
-                    }
-                    .buttonStyle(.bordered)
+                    CadenceActionButton(title: "Tune", role: .secondary, action: onOpenSettings)
                 }
             }
         }
@@ -1581,18 +1569,12 @@ private struct MeetingPanel: View {
                 }
 
                 HStack(spacing: 10) {
-                    Button {
+                    CadenceActionButton(title: "New", role: .primary) {
                         _ = appModel.createMeetingNote()
                         onOpenMeetings()
-                    } label: {
-                        Label("New", systemImage: "plus")
                     }
-                    .buttonStyle(.borderedProminent)
 
-                    Button(action: onOpenMeetings) {
-                        Label("Open", systemImage: "sidebar.leading")
-                    }
-                    .buttonStyle(.bordered)
+                    CadenceActionButton(title: "Open", role: .secondary, action: onOpenMeetings)
                 }
             }
         }

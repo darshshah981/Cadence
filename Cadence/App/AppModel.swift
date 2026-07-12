@@ -2554,9 +2554,11 @@ final class AppModel: ObservableObject {
             adaptationEnabled: true,
             preferenceLoadResult: .absent
         )
-        let request = ScribeRequest(
-            intent: .compose,
-            spokenTranscript: "Write one short update confirming that the Cadence Scribe practice check is complete.",
+        // This synthetic, review-only exercise has no target, selected text,
+        // insertion path, or persistence path. It uses the same direct-only
+        // request construction and egress policy as a live Scribe draft.
+        let request = ScribeRequest.directDictation(
+            processedDictation: "Write one short update confirming that the Cadence Scribe practice check is complete.",
             resolvedEnvironment: environment
         )
         let providerRequest = ScribeProviderRequest(

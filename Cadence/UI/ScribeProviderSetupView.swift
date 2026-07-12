@@ -532,8 +532,8 @@ struct ScribeProviderSetupView: View {
         if model.choice == .deepSeek {
             return ScribeProviderDisclosure.deepSeek
         }
-        if model.choice == .openAI { return "Cadence will send each dictated draft, its selected writing preset, and optional custom guidance to OpenAI. It does not send audio, selected text, nearby text, window titles, meeting notes, or history." }
-        if model.choice == .openRouter { return "Cadence will send each dictated draft, its selected writing preset, and optional custom guidance to OpenRouter. It does not send audio, selected text, nearby text, window titles, meeting notes, or history." }
+        if model.choice == .openAI { return ScribeProviderDisclosure.openAIDirect }
+        if model.choice == .openRouter { return ScribeProviderDisclosure.openRouter }
         let origin = model.normalizedAdvancedEndpoint?.normalizedOrigin ?? "the configured endpoint"
         return ScribeProviderDisclosure.advanced(origin: origin)
     }

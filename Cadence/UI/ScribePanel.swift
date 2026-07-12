@@ -134,12 +134,9 @@ struct ScribePanelView: View {
                 }
             }
             Spacer()
-            Button {
+            CadenceActionButton(title: "Close", role: .icon, accessibilityIdentifier: "scribe-close") {
                 requestClose()
-            } label: {
-                Image(systemName: "xmark")
             }
-            .buttonStyle(.borderless)
             .accessibilityLabel("Cancel Scribe")
             .accessibilityHint(closeAccessibilityHint)
         }

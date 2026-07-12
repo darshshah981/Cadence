@@ -13,6 +13,17 @@ struct ScribeTests {
     }
 
     @Test
+    func directDictationFactoryNeverCarriesTargetOrSelectedTextContext() {
+        let request = ScribeRequest.directDictation(
+            processedDictation: "Synthetic direct-only practice dictation"
+        )
+
+        #expect(request.intent == .compose)
+        #expect(request.context == nil)
+        #expect(request.spokenTranscript == "Synthetic direct-only practice dictation")
+    }
+
+    @Test
     func privateModeNeverAdvertisesSemanticGeneration() {
         let readiness = ScribeReadiness(
             privacyMode: .privateMode,

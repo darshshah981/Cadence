@@ -39,7 +39,7 @@ struct ScribeProviderManagementView: View {
 
                 DisclosureGroup("Review data sent to \(kind.displayName)") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Cadence sends the current dictated text, compiled writing preset, and optional custom guidance. It does not send audio, selected text, nearby text, window titles, meetings, history, or the analytics ID.")
+                        Text(ScribeProviderDisclosure.directDictationSummary)
                         if let recipient = appModel.configuredScribeRecipient {
                             Text("Recipient: \(recipient)")
                                 .font(.system(.caption, design: .monospaced))

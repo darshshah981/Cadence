@@ -108,16 +108,11 @@ struct MeetingNotesView: View {
             .searchable(text: $searchText, placement: .sidebar)
             .accessibilityIdentifier("meeting-notes-list")
 
-            Button {
+            CadenceActionButton(title: "New Meeting Note", role: .primary, accessibilityIdentifier: "meeting-notes-new-note-button") {
                 appModel.createMeetingNote(openWindow: false)
-            } label: {
-                Label("New Meeting Note", systemImage: "plus")
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .accessibilityLabel("New meeting note")
-            .accessibilityIdentifier("meeting-notes-new-note-button")
             .padding(12)
         }
     }
@@ -246,15 +241,11 @@ private struct EmptyMeetingSelectionView: View {
                     .foregroundStyle(FlowTheme.textSecondary)
             }
 
-            Button {
+            CadenceActionButton(title: "New Meeting Note", role: .primary, accessibilityIdentifier: "empty-meeting-new-note-button") {
                 onCreate()
-            } label: {
-                Label("New Meeting Note", systemImage: "plus")
             }
-            .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .accessibilityLabel("New meeting note")
-            .accessibilityIdentifier("empty-meeting-new-note-button")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(FlowTheme.background)
@@ -289,19 +280,15 @@ private struct MeetingRecoverySection: View {
 
                     Spacer()
 
-                    Button("Keep") {
+                    CadenceActionButton(title: "Keep", role: .secondary, accessibilityIdentifier: "meeting-recovery-keep-\(recording.id.uuidString)") {
                         onKeep(recording)
                     }
-                    .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .accessibilityIdentifier("meeting-recovery-keep-\(recording.id.uuidString)")
 
-                    Button("Discard", role: .destructive) {
+                    CadenceActionButton(title: "Discard", role: .destructive, accessibilityIdentifier: "meeting-recovery-discard-\(recording.id.uuidString)") {
                         onDiscard(recording)
                     }
-                    .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .accessibilityIdentifier("meeting-recovery-discard-\(recording.id.uuidString)")
                 }
             }
         }
@@ -364,8 +351,7 @@ private struct GoogleCalendarConnectionCard: View {
 
             HStack(spacing: 8) {
                 if detectedMeeting != nil {
-                    Button("Start capture", action: onStartDetectedMeeting)
-                        .buttonStyle(.borderedProminent)
+                    CadenceActionButton(title: "Start capture", role: .primary, action: onStartDetectedMeeting)
                         .controlSize(.small)
                         .accessibilityLabel("Start capture for detected meeting")
                         .accessibilityIdentifier("calendar-detected-start-capture")
@@ -388,8 +374,7 @@ private struct GoogleCalendarConnectionCard: View {
                     .accessibilityLabel("Disconnect calendar")
                     .accessibilityIdentifier("calendar-disconnect-button")
                 } else if state.isConfigured {
-                    Button("Continue with Google", action: onConnect)
-                        .buttonStyle(.borderedProminent)
+                    CadenceActionButton(title: "Continue with Google", role: .primary, action: onConnect)
                         .controlSize(.small)
                         .accessibilityLabel("Sign in with Google")
                         .accessibilityIdentifier("calendar-sign-in-button")

@@ -237,23 +237,19 @@ private struct PermissionWizardView: View {
     private var actions: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Button("Reveal App", action: onRevealApp)
-                    .buttonStyle(.bordered)
+                CadenceActionButton(title: "Reveal App", role: .secondary, action: onRevealApp)
 
-                Button("Check Again", action: onRefresh)
-                    .buttonStyle(.bordered)
+                CadenceActionButton(title: "Check Again", role: .secondary, action: onRefresh)
 
                 Spacer()
             }
 
             HStack(spacing: 8) {
-                Button("Restart \(appName)", action: onRestartApp)
-                    .buttonStyle(.bordered)
+                CadenceActionButton(title: "Restart \(appName)", role: .secondary, action: onRestartApp)
 
                 Spacer()
 
-                Button("Done", action: onClose)
-                    .buttonStyle(.borderedProminent)
+                CadenceActionButton(title: "Done", role: .primary, isDefault: true, action: onClose)
             }
         }
         .controlSize(.regular)
@@ -321,8 +317,7 @@ private struct PermissionWizardRow: View {
             Spacer()
 
             if !isGranted {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.bordered)
+                CadenceActionButton(title: actionTitle, role: .secondary, action: action)
                     .controlSize(.small)
             }
         }

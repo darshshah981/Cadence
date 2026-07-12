@@ -463,12 +463,10 @@ private struct HomeDashboardView: View {
 
                 Spacer()
 
-                Button("Open") {
+                CadenceActionButton(title: "Open", role: .quiet) {
                     onOpenPermissionsWizard()
                 }
-                .buttonStyle(.plain)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(FlowTheme.accent)
             }
         }
     }
@@ -824,12 +822,9 @@ private struct EmptyTranscriptStateView: View {
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
 
-            Button(needsPermissions ? "Complete Setup" : "How to use") {
+            CadenceActionButton(title: needsPermissions ? "Complete Setup" : "How to use", role: .secondary) {
                 onOpenSettings()
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(FlowTheme.accent)
         }
         .padding(20)
         .frame(maxWidth: .infinity)

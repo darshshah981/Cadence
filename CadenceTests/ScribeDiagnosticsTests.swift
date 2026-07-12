@@ -34,7 +34,9 @@ struct ScribeDiagnosticsTests {
         #expect(ScribeProviderDisclosure.openRouter.contains("retain limited router metadata"))
         for disclosure in [
             ScribeProviderDisclosure.openAIDirect,
-            ScribeProviderDisclosure.openRouter
+            ScribeProviderDisclosure.openRouter,
+            ScribeProviderDisclosure.deepSeek,
+            ScribeProviderDisclosure.advanced(origin: "https://provider.example")
         ] {
             #expect(disclosure.contains("Processed dictation"))
             #expect(disclosure.contains("compiled preset"))
@@ -49,6 +51,8 @@ struct ScribeDiagnosticsTests {
             #expect(disclosure.contains("files"))
             #expect(disclosure.contains("prior turns"))
             #expect(disclosure.contains("ambient context"))
+            #expect(!disclosure.localizedCaseInsensitiveContains("choose Respond"))
+            #expect(!disclosure.localizedCaseInsensitiveContains("choose Edit"))
         }
     }
     @Test

@@ -188,6 +188,23 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
         self.resolvedEnvironment = resolvedEnvironment
         self.exactLiterals = exactLiterals
     }
+
+    /// The only constructor for newly-created Scribe work. The legacy intent
+    /// field remains solely so previously persisted values can decode.
+    static func directDictation(
+        id: UUID = UUID(),
+        processedDictation: String,
+        resolvedEnvironment: ResolvedWritingEnvironment? = nil,
+        exactLiterals: [ScribeExactLiteral] = []
+    ) -> Self {
+        Self(
+            id: id,
+            intent: .compose,
+            spokenTranscript: processedDictation,
+            resolvedEnvironment: resolvedEnvironment,
+            exactLiterals: exactLiterals
+        )
+    }
 }
 
 struct ScribeStyleInstructions: Equatable, Sendable {

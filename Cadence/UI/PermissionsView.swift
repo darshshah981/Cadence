@@ -46,9 +46,14 @@ struct PermissionsView: View {
             Spacer()
 
             if !granted {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                CadenceActionButton(
+                    title: actionTitle,
+                    role: .secondary,
+                    accessibilityIdentifier: "permissions-\(title.lowercased().replacingOccurrences(of: " ", with: "-"))"
+                ) {
+                    action()
+                }
+                .controlSize(.small)
             }
         }
         .font(.system(size: 12.5))

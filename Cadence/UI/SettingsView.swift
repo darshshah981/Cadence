@@ -807,7 +807,7 @@ struct SettingsView: View {
 
             ShortcutSettingRow(
                 title: "Open Scribe",
-                description: "Choose whether to draft, respond, or edit selected text.",
+                description: "Dictate a request, then review the polished result before inserting it.",
                 hint: "Separate from Dictation. \(appModel.scribeProviderStatus)",
                 isEnabled: scribeEnabledBinding,
                 shortcut: scribeShortcutBinding,

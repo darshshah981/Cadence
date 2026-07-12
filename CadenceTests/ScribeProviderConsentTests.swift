@@ -4,6 +4,33 @@ import Testing
 
 struct ScribeProviderConsentTests {
     @Test
+    func currentDisclosureVersionInvalidatesPriorConsentReceiptsFailClosed() async throws {
+        #expect(ScribeProviderDisclosure.currentVersion == 2)
+        let authority = ScribeProviderConsentAuthority()
+        let stale = ScribeProviderConsentIssuer.issue(
+            providerKind: .openAIDirect,
+            recipientOrigin: "https://api.openai.com",
+            routingPolicy: .directSingleModel,
+            retentionPolicy: .requestStorageDisabled,
+            dataPolicy: .providerPolicyApplies,
+            disclosureRevision: ScribeProviderDisclosure.currentVersion - 1,
+            acceptedAt: Date(timeIntervalSince1970: 10)
+        )
+        let configuration = try U5Fixtures.configuration(
+            kind: .openAIDirect,
+            model: "gpt-test",
+            receipt: stale
+        )
+
+        await authority.bootstrap(from: .init(
+            revision: 1,
+            configurations: [configuration],
+            activeConfigurationID: configuration.id
+        ))
+        #expect(!(await authority.verify(stale)))
+    }
+
+    @Test
     func opaqueReceiptRequiresAuthorityAndRevocationIsImmediate() async {
         let authority = ScribeProviderConsentAuthority()
         let receipt = await authority.issueEphemeral(
