@@ -25,10 +25,6 @@ struct BoundedInstalledApplicationDebouncer: InstalledApplicationRefreshDebounci
     func wait() async throws { try await Task.sleep(for: duration) }
 }
 
-struct ImmediateInstalledApplicationDebouncer: InstalledApplicationRefreshDebouncing {
-    func wait() async throws { try Task.checkCancellation() }
-}
-
 struct SystemInstalledApplicationFileSystem: InstalledApplicationFileSystem, @unchecked Sendable {
     private let fileManager = FileManager.default
 
@@ -41,7 +37,10 @@ struct SystemInstalledApplicationFileSystem: InstalledApplicationFileSystem, @un
             at: url,
             includingPropertiesForKeys: [.isDirectoryKey, .isApplicationKey],
             options: [.skipsHiddenFiles]
-        )
+        ).filter { child in
+            if child.pathExtension.lowercased() == "app" { return true }
+            return (try? child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        }
     }
 
     func metadata(at url: URL) -> InstalledApplicationBundleMetadata? {
@@ -170,7 +169,6 @@ actor InstalledApplicationCatalogService {
         return [
             URL(fileURLWithPath: "/Applications"),
             URL(fileURLWithPath: "/System/Applications"),
-            URL(fileURLWithPath: "/System/Applications/Utilities"),
             home.appendingPathComponent("Applications", isDirectory: true)
         ]
     }
@@ -191,7 +189,6 @@ actor InstalledApplicationCatalogService {
     private var initialRefreshTask: Task<Void, Never>?
     private var debouncedRefreshTask: Task<Void, Never>?
     private var lifecycleSource: (any InstalledApplicationLifecycleSource)?
-    private var pendingEvents: Set<InstalledApplicationCatalogEvent> = []
     private var pendingRelocations: [(oldRoot: URL, newRoot: URL)] = []
 
     init(
@@ -297,16 +294,9 @@ actor InstalledApplicationCatalogService {
 
     func handle(_ event: InstalledApplicationCatalogEvent) async {
         guard !stopped else { return }
-        switch event {
-        case .mounted:
-            break
-        case .unmounted:
-            break
-        case let .volumeRelocated(oldRoot, newRoot):
+        if case let .volumeRelocated(oldRoot, newRoot) = event {
             explicitURLs = remap(explicitURLs, oldRoot: oldRoot, newRoot: newRoot)
             rememberedURLs = remap(rememberedURLs, oldRoot: oldRoot, newRoot: newRoot)
-        case .applicationsChanged:
-            break
         }
         await refresh()
     }
@@ -321,7 +311,6 @@ actor InstalledApplicationCatalogService {
         initialRefreshTask = nil
         debouncedRefreshTask?.cancel()
         debouncedRefreshTask = nil
-        pendingEvents.removeAll()
         pendingRelocations.removeAll()
         let source = lifecycleSource
         lifecycleSource = nil
@@ -332,8 +321,6 @@ actor InstalledApplicationCatalogService {
         generation += 1
         if case let .volumeRelocated(oldRoot, newRoot) = event {
             pendingRelocations.append((oldRoot, newRoot))
-        } else {
-            pendingEvents.insert(event)
         }
         debouncedRefreshTask?.cancel()
         debouncedRefreshTask = Task { [weak self, debouncer] in
@@ -346,7 +333,6 @@ actor InstalledApplicationCatalogService {
     private func flushPendingEvents() async {
         let relocations = pendingRelocations
         pendingRelocations.removeAll()
-        pendingEvents.removeAll()
         for relocation in relocations {
             explicitURLs = remap(
                 explicitURLs, oldRoot: relocation.oldRoot, newRoot: relocation.newRoot

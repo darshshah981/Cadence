@@ -2,6 +2,35 @@ import Foundation
 import Testing
 @testable import Cadence
 
+private extension AdaptiveScribeReaderValidity {
+    func withProviderLibrary(_ value: DurableReaderValidity) -> Self {
+        .init(
+            providerLibrary: value,
+            applicationConfigurations: applicationConfigurations,
+            presetCatalogState: presetCatalogState,
+            settingsPresentation: settingsPresentation
+        )
+    }
+
+    func withApplicationConfigurations(_ value: DurableReaderValidity) -> Self {
+        .init(
+            providerLibrary: providerLibrary,
+            applicationConfigurations: value,
+            presetCatalogState: presetCatalogState,
+            settingsPresentation: settingsPresentation
+        )
+    }
+
+    func withSettingsPresentation(_ value: DurableReaderValidity) -> Self {
+        .init(
+            providerLibrary: providerLibrary,
+            applicationConfigurations: applicationConfigurations,
+            presetCatalogState: presetCatalogState,
+            settingsPresentation: value
+        )
+    }
+}
+
 struct AdaptiveScribeFeatureGateTests {
     @Test
     func independentStoresOwnInjectedDurableKeysAndRoundTripWithoutSynthesizingState() throws {

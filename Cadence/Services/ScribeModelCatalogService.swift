@@ -153,13 +153,14 @@ actor ScribeModelCatalogService {
         }
         var reachedConfirmedEligibility = false
         do {
+            let credential = try await discoveryCredential(for: .openRouter)
             let rawModels = try await discoveryGET(
                 URL(string: "https://openrouter.ai/api/v1/models/user")!,
-                provider: .openRouter
+                credential: credential
             )
             let rawZDR = try await discoveryGET(
                 URL(string: "https://openrouter.ai/api/v1/endpoints/zdr")!,
-                provider: .openRouter
+                credential: credential
             )
             let models = try JSONDecoder().decode(OpenRouterModels.self, from: rawModels).data
             guard models.count <= 10_000,
@@ -190,7 +191,6 @@ actor ScribeModelCatalogService {
             guard model.rawValue == selectedModelID else {
                 return .needsAttention(selectedModelID: selectedModelID)
             }
-            let credential = try await credentialLoader(.openRouter)
             try await OpenRouterScribeProvider(
                 model: model,
                 credentialLoader: { credential },
@@ -248,8 +248,8 @@ actor ScribeModelCatalogService {
                     recommendation: .none,
                     source: .live,
                     compatibility: .liveVisible,
-                    providerDisplayName: "OpenAI",
-                    searchTerms: [modelID, "OpenAI"],
+                    providerDisplayName: ScribeProviderKind.openAIDirect.displayName,
+                    searchTerms: [modelID, ScribeProviderKind.openAIDirect.displayName],
                     eligibilityFacts: [.authenticatedUserVisible]
                 )
             }
@@ -351,14 +351,23 @@ actor ScribeModelCatalogService {
     }
 
     private func discoveryGET(_ url: URL, provider: ScribeProviderKind) async throws -> Data {
+        let credential = try await discoveryCredential(for: provider)
+        return try await discoveryGET(url, credential: credential)
+    }
+
+    private func discoveryCredential(for provider: ScribeProviderKind) async throws -> String {
         let key = try await credentialLoader(provider)
         guard !key.isEmpty else {
             throw FixedOriginScribeProviderSupport.failure(.validation, .credentialRejected, .reconnect)
         }
+        return key
+    }
+
+    private func discoveryGET(_ url: URL, credential: String) async throws -> Data {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
         return try await FixedOriginScribeProviderSupport.send(
             request, phase: .validation, transport: transport
         )

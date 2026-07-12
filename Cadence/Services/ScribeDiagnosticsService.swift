@@ -14,8 +14,11 @@ actor FileScribeDiagnosticsStorage: ScribeDiagnosticsPersisting {
     }
 
     func load() async throws -> Data? {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
-        return try Data(contentsOf: fileURL)
+        do {
+            return try Data(contentsOf: fileURL)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return nil
+        }
     }
 
     func save(_ data: Data) async throws {
@@ -27,8 +30,11 @@ actor FileScribeDiagnosticsStorage: ScribeDiagnosticsPersisting {
     }
 
     func clear() async throws {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
-        try FileManager.default.removeItem(at: fileURL)
+        do {
+            try FileManager.default.removeItem(at: fileURL)
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
+            return
+        }
     }
 
     nonisolated private static func defaultFileURL() -> URL {

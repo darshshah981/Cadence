@@ -52,30 +52,6 @@ struct AdaptiveScribeReaderValidity: Equatable, Sendable {
     let presetCatalogState: DurableReaderValidity
     let settingsPresentation: DurableReaderValidity
 
-    func withProviderLibrary(_ value: DurableReaderValidity) -> AdaptiveScribeReaderValidity {
-        replacing(providerLibrary: value)
-    }
-
-    func withApplicationConfigurations(_ value: DurableReaderValidity) -> AdaptiveScribeReaderValidity {
-        replacing(applicationConfigurations: value)
-    }
-
-    func withSettingsPresentation(_ value: DurableReaderValidity) -> AdaptiveScribeReaderValidity {
-        replacing(settingsPresentation: value)
-    }
-
-    private func replacing(
-        providerLibrary: DurableReaderValidity? = nil,
-        applicationConfigurations: DurableReaderValidity? = nil,
-        settingsPresentation: DurableReaderValidity? = nil
-    ) -> AdaptiveScribeReaderValidity {
-        AdaptiveScribeReaderValidity(
-            providerLibrary: providerLibrary ?? self.providerLibrary,
-            applicationConfigurations: applicationConfigurations ?? self.applicationConfigurations,
-            presetCatalogState: presetCatalogState,
-            settingsPresentation: settingsPresentation ?? self.settingsPresentation
-        )
-    }
 }
 
 struct AdaptiveScribeEligibility: Equatable, Sendable {
@@ -284,8 +260,9 @@ struct AdaptiveScribeLiveReaderService {
     }
 
     private func providerValidity() -> DurableReaderValidity {
-        guard markerStore.load(.providerLibrary) == .valid else {
-            return markerStore.load(.providerLibrary) == .rejected ? .rejected : .absent
+        let marker = markerStore.load(.providerLibrary)
+        guard marker == .valid else {
+            return marker == .rejected ? .rejected : .absent
         }
         switch providerStore.load() {
         case .absent: return .absent

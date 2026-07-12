@@ -108,7 +108,7 @@ final class FocusedApplicationMonitor {
     private let source: any FocusedApplicationSource
     private let cadenceBundleIdentifiers: Set<String>
     private var eventTask: Task<Void, Never>?
-    private var refreshTasks: [UUID: Task<Void, Never>] = [:]
+    private var refreshTask: Task<Void, Never>?
     private var incarnations: [ProcessKey: IncarnationRecord] = [:]
     private(set) var currentExternal: FocusedApplicationIdentity?
     private(set) var history: [FocusedApplicationIdentity] = []
@@ -144,8 +144,8 @@ final class FocusedApplicationMonitor {
         generation += 1
         eventTask?.cancel()
         eventTask = nil
-        refreshTasks.values.forEach { $0.cancel() }
-        refreshTasks.removeAll()
+        refreshTask?.cancel()
+        refreshTask = nil
         source.stop()
     }
 
@@ -197,13 +197,13 @@ final class FocusedApplicationMonitor {
     func requestResample() {
         generation += 1
         let requestedGeneration = generation
-        let taskID = UUID()
-        refreshTasks[taskID] = Task { [weak self] in
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
             guard let self else { return }
             let sample = await self.source.frontmostSample()
             guard !Task.isCancelled else { return }
             self.apply(sample, requestedGeneration: requestedGeneration)
-            self.refreshTasks.removeValue(forKey: taskID)
+            self.refreshTask = nil
         }
     }
 
@@ -217,8 +217,7 @@ final class FocusedApplicationMonitor {
         case let .terminated(processIdentifier, bundleIdentifier, bundleURL, launchDate):
             let canonical = bundleURL?.standardizedFileURL.resolvingSymlinksInPath()
             let matching = ([currentExternal].compactMap { $0 } + history).first {
-                Self.matchesTermination(
-                    $0.process,
+                $0.process.matchesTermination(
                     processIdentifier: processIdentifier,
                     bundleIdentifier: bundleIdentifier,
                     bundleURL: canonical,
@@ -232,8 +231,7 @@ final class FocusedApplicationMonitor {
                 if let launchDate, record.launchDate != launchDate { return true }
                 return false
             }
-            if let currentExternal, Self.matchesTermination(
-                currentExternal.process,
+            if let currentExternal, currentExternal.process.matchesTermination(
                 processIdentifier: processIdentifier,
                 bundleIdentifier: bundleIdentifier,
                 bundleURL: canonical,
@@ -325,19 +323,6 @@ final class FocusedApplicationMonitor {
             && lhs.launchDate == rhs.launchDate
     }
 
-    private static func matchesTermination(
-        _ identity: ApplicationProcessIdentity,
-        processIdentifier: Int32,
-        bundleIdentifier: String?,
-        bundleURL: URL?,
-        launchDate: Date?
-    ) -> Bool {
-        guard identity.processIdentifier == processIdentifier else { return false }
-        if let bundleIdentifier, identity.bundleIdentifier != bundleIdentifier { return false }
-        if let bundleURL, identity.bundleURL != bundleURL { return false }
-        if let launchDate, identity.launchDate != launchDate { return false }
-        return true
-    }
 }
 
 @MainActor

@@ -50,8 +50,7 @@ final class ApplicationConfigurationStore: ApplicationConfigurationPersisting, @
         let previous = defaults.data(forKey: key)
         defaults.set(try encoder.encode(ApplicationConfigurationEnvelope(library: normalized)), forKey: key)
         guard case let .valid(readback) = load(), readback.semanticallyEquals(normalized) else {
-            if let previous { defaults.set(previous, forKey: key) }
-            else { defaults.removeObject(forKey: key) }
+            restoreRawRepresentation(previous)
             throw StrictPersistenceError.semanticReadbackFailed
         }
     }

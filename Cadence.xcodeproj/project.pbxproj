@@ -56,6 +56,7 @@
 		541432DC77D74A0DAB846DAB /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD8226A6E492745025CF418 /* AnalyticsService.swift */; };
 		54A92CC0B1038FB507FFEE10 /* ScribeProviderSetupSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A66E30E921DDEF50028694D /* ScribeProviderSetupSession.swift */; };
 		57F06125EB560A0004973BDA /* MeetingDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAE902E9A7F2F2906C91892 /* MeetingDetectionService.swift */; };
+		5AD53269E2F3698F85A01036 /* DurablePreferenceKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78697F1129D556E082D17DAD /* DurablePreferenceKeys.swift */; };
 		5B459732BF97D90537C75E4A /* ScribeRequestPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA4184D1F8A91858269D49B0 /* ScribeRequestPolicy.swift */; };
 		5E268FC2CD9E558B8CEAFCE0 /* CalendarEventCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A485E597733F3F0F173BF23 /* CalendarEventCacheStore.swift */; };
 		5FFD8D111D99B04C728DDA8E /* CustomGuidanceValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2946568228C48A76AFF42F23 /* CustomGuidanceValidator.swift */; };
@@ -256,6 +257,7 @@
 		76231658305ADA779483A7F8 /* MeetingRollingTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingRollingTranscriptionService.swift; sourceTree = "<group>"; };
 		76487CD30472CBAAEE6A458C /* WritingEnvironmentCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingEnvironmentCatalog.swift; sourceTree = "<group>"; };
 		76D967993988BE3091065B08 /* ScribePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribePanel.swift; sourceTree = "<group>"; };
+		78697F1129D556E082D17DAD /* DurablePreferenceKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DurablePreferenceKeys.swift; sourceTree = "<group>"; };
 		7AC2755A285EBF89D055BD70 /* FocusedApplicationMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusedApplicationMonitorTests.swift; sourceTree = "<group>"; };
 		7B704DDD56CB4C4DDD3AAC4C /* ScribeProviderConnectionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderConnectionManagerTests.swift; sourceTree = "<group>"; };
 		7C4E7B75CF2690446DD7057A /* HUDServicesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDServicesTests.swift; sourceTree = "<group>"; };
@@ -424,6 +426,7 @@
 				8568D275C5BC3621348D9865 /* ApplicationConfigurationModels.swift */,
 				4869863B9DF3D3A7416EF506 /* ApplicationIdentityModels.swift */,
 				57F88FDABE976A050039E642 /* DictationModels.swift */,
+				78697F1129D556E082D17DAD /* DurablePreferenceKeys.swift */,
 				E578BEB1EADBEB5800402E25 /* MeetingModels.swift */,
 				D863A4F60ACA0F8754D55EFF /* OnboardingModels.swift */,
 				B82DFA8D72277D8A1A6424D2 /* PersonalizationModels.swift */,
@@ -763,6 +766,7 @@
 				E793FF1D9AC31F83CA55F3C2 /* DeepSeekScribeProvider.swift in Sources */,
 				A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */,
 				0A71E31A51D2EC604CDAF28F /* DictationModels.swift in Sources */,
+				5AD53269E2F3698F85A01036 /* DurablePreferenceKeys.swift in Sources */,
 				BE3775994F8519CF5CBA8FDF /* FeedbackService.swift in Sources */,
 				81E4D4546DD784E95A32DB68 /* FixedOriginScribeProviderSupport.swift in Sources */,
 				22FADFE488BFB74F1659675D /* FocusedApplicationMonitor.swift in Sources */,

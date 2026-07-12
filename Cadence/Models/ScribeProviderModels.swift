@@ -79,7 +79,7 @@ struct ScribeProviderConsentReceipt: Codable, Equatable, Sendable {
     }
 }
 
-/// U5's consent owner is the only production component that should issue and retain these
+/// The consent authority is the only production component that should issue and retain these
 /// values. Catalog use additionally requires its injected verifier to confirm the opaque ID.
 enum ScribeProviderConsentIssuer {
     static func issue(

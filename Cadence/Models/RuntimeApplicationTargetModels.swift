@@ -20,6 +20,19 @@ struct ApplicationProcessIdentity: Equatable, Hashable, Sendable {
         self.incarnation = incarnation
         self.launchDate = launchDate
     }
+
+    func matchesTermination(
+        processIdentifier: Int32,
+        bundleIdentifier: String?,
+        bundleURL: URL?,
+        launchDate: Date?
+    ) -> Bool {
+        guard self.processIdentifier == processIdentifier else { return false }
+        if let bundleIdentifier, self.bundleIdentifier != bundleIdentifier { return false }
+        if let bundleURL, self.bundleURL != bundleURL { return false }
+        if let launchDate, self.launchDate != launchDate { return false }
+        return true
+    }
 }
 
 struct FocusedApplicationIdentity: Equatable, Sendable {

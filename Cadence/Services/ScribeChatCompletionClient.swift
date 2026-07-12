@@ -8,18 +8,13 @@ struct ScribeChatCompletionClient: Sendable {
 
     typealias CredentialLoader = @Sendable () throws -> String
 
-    private struct Message: Encodable {
-        let role: String
-        let content: String
-    }
-
     private struct Thinking: Encodable {
         let type: String
     }
 
     private struct DeepSeekBody: Encodable {
         let model: String
-        let messages: [Message]
+        let messages: [ScribeChatMessageWire]
         let thinking: Thinking
         let stream: Bool
         let maxTokens: Int
@@ -37,7 +32,7 @@ struct ScribeChatCompletionClient: Sendable {
 
     private struct AdvancedBody: Encodable {
         let model: String
-        let messages: [Message]
+        let messages: [ScribeChatMessageWire]
         let stream: Bool
         let maxTokens: Int
 
@@ -133,8 +128,8 @@ struct ScribeChatCompletionClient: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
         let messages = [
-            Message(role: "system", content: systemMessage),
-            Message(role: "user", content: userMessage)
+            ScribeChatMessageWire(role: "system", content: systemMessage),
+            ScribeChatMessageWire(role: "user", content: userMessage)
         ]
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]

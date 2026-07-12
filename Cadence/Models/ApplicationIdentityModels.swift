@@ -136,8 +136,3 @@ struct ActiveApplicationIdentity: Equatable, Sendable {
     let displayName: String
     let processIdentifier: Int32
 }
-
-struct ApplicationPresentation: Equatable, Sendable {
-    let displayName: String
-    let bundleURL: URL?
-}

@@ -157,19 +157,20 @@ final class ScribeContextService: ScribeContextServing {
             processIdentifier: raw.target.processIdentifier,
             bundleIdentifier: raw.target.bundleIdentifier
         )
-        let monitorIsExact = monitorTarget.map {
+        let exactMonitorTarget = monitorTarget.flatMap {
             $0.process.processIdentifier == resolved.identity.processIdentifier
                 && $0.process.bundleIdentifier == resolved.identity.bundleIdentifier
                 && $0.process.bundleURL == resolved.identity.bundleURL
                 && $0.process.launchDate == resolved.identity.launchDate
-        } == true
+                ? $0 : nil
+        }
         let applicationTarget = ApplicationTargetCapture(
             id: captureID,
             process: resolved.identity,
-            identityRevision: monitorIsExact ? monitorTarget!.identityRevision : 0,
-            captureRevision: monitorIsExact ? monitorTarget!.captureRevision : 0,
+            identityRevision: exactMonitorTarget?.identityRevision ?? 0,
+            captureRevision: exactMonitorTarget?.captureRevision ?? 0,
             source: .scribeAccessibility,
-            displayName: monitorIsExact ? monitorTarget!.displayName : resolved.displayName
+            displayName: exactMonitorTarget?.displayName ?? resolved.displayName
         )
         let capture = ScribeContextSnapshot(
             id: captureID,
@@ -219,7 +220,9 @@ final class ScribeContextService: ScribeContextServing {
     }
 
     func clear(_ capture: ScribeContextSnapshot) {
-        activeCaptures.removeValue(forKey: capture.id)
+        if activeCaptures.removeValue(forKey: capture.id) != nil {
+            processAuthority.release(capture.applicationTarget.process)
+        }
         if activeCaptures.isEmpty { reader.clearPinnedTarget() }
     }
 

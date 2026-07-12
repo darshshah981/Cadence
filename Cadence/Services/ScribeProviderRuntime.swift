@@ -93,10 +93,16 @@ final class ScribeProviderRuntime {
             consentReceipt: candidate.consentReceipt,
             setupRevision: revision
         )
-        guard case let .ready(proof) = validation, await fence() else {
+        guard case let .ready(proof) = validation else {
             setupSession.completeAttempt(revision: revision)
             throw ScribeProviderConnectionError.validationFailed
         }
+        guard await fence() else {
+            await modelCatalog.discard(proof)
+            setupSession.completeAttempt(revision: revision)
+            throw ScribeProviderConnectionError.validationFailed
+        }
+        defer { setupSession.completeAttempt(revision: revision) }
         do {
             let connected = try await manager.connectValidated(
                 candidate: candidate,
@@ -112,11 +118,9 @@ final class ScribeProviderRuntime {
                     )
                 }
             )
-            setupSession.completeAttempt(revision: revision)
             return connected
         } catch {
             await modelCatalog.discard(proof)
-            setupSession.completeAttempt(revision: revision)
             throw error
         }
     }

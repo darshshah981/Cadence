@@ -62,10 +62,7 @@ struct OpenAIDirectScribeProvider: ScribeProvider {
 
     func validateConnection() async throws {
         _ = try await execute(
-            input: ProviderSafeScribeInput(
-                systemMessage: "Return only OK.",
-                userMessage: "Cadence provider compatibility check."
-            ),
+            input: .connectionValidation,
             phase: .validation,
             maxTokens: 8
         )

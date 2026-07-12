@@ -11,14 +11,6 @@ private let preferencesLogger = Logger(
     category: "Preferences"
 )
 
-enum CadenceDurablePreferenceKeys {
-    static let providerLibrary = "Cadence.scribeProviderLibrary.v2"
-    static let applicationConfigurations = "Cadence.applicationConfigurationLibrary.v1"
-    static let presetCatalogState = "Cadence.scribePresetCatalogState.v1"
-    static let settingsPresentation = "Cadence.settingsPresentation.v1"
-    static let featureGates = "Cadence.adaptiveScribeFeatureGates.v2"
-}
-
 enum MenuScreen: Equatable {
     case home
     case settings
@@ -45,11 +37,6 @@ struct ModelReadinessSummary {
 @MainActor
 final class AppModel: ObservableObject {
     private enum PreferenceKey {
-        static let scribeProviderLibrary = CadenceDurablePreferenceKeys.providerLibrary
-        static let applicationConfigurations = CadenceDurablePreferenceKeys.applicationConfigurations
-        static let scribePresetCatalogState = CadenceDurablePreferenceKeys.presetCatalogState
-        static let settingsPresentation = CadenceDurablePreferenceKeys.settingsPresentation
-        static let adaptiveScribeFeatureGates = CadenceDurablePreferenceKeys.featureGates
         static let whisperModel = "FlowState.whisperModel"
         static let decodingMode = "FlowState.decodingMode"
         static let fillerWordPolicy = "FlowState.fillerWordPolicy"
@@ -2305,7 +2292,7 @@ final class AppModel: ObservableObject {
             let candidate = ScribeProviderConnectionCandidate(
                 id: UUID(),
                 kind: .deepSeek,
-                displayName: "DeepSeek",
+                displayName: ScribeProviderKind.deepSeek.displayName,
                 normalizedOrigin: "https://api.deepseek.com",
                 baseURL: URL(string: "https://api.deepseek.com")!,
                 requestURL: entry.endpoint,
@@ -2406,7 +2393,7 @@ final class AppModel: ObservableObject {
             dataPolicy: .providerPolicyApplies
         )
         let candidate = ScribeProviderConnectionCandidate(
-            id: UUID(), kind: .openAIDirect, displayName: "OpenAI",
+            id: UUID(), kind: .openAIDirect, displayName: ScribeProviderKind.openAIDirect.displayName,
             normalizedOrigin: "https://api.openai.com",
             baseURL: URL(string: "https://api.openai.com")!,
             requestURL: URL(string: "https://api.openai.com/v1/responses")!,
@@ -2427,7 +2414,7 @@ final class AppModel: ObservableObject {
             dataPolicy: .collectionDenied
         )
         let candidate = ScribeProviderConnectionCandidate(
-            id: UUID(), kind: .openRouter, displayName: "OpenRouter",
+            id: UUID(), kind: .openRouter, displayName: ScribeProviderKind.openRouter.displayName,
             normalizedOrigin: "https://openrouter.ai",
             baseURL: URL(string: "https://openrouter.ai")!,
             requestURL: URL(string: "https://openrouter.ai/api/v1/chat/completions")!,
@@ -2701,7 +2688,9 @@ final class AppModel: ObservableObject {
         )
         installedApplicationIconSnapshot = snapshot
         applicationIconResolver.invalidate(bundleURLs: affectedIconURLs)
-        installedApplications = snapshot.applications
+        if installedApplications != snapshot.applications {
+            installedApplications = snapshot.applications
+        }
         guard case let .valid(library) = applicationConfigurationStore.load() else { return }
         let configurationIDs = library.configurations.map(\.id)
         Task { [weak self] in

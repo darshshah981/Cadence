@@ -29,10 +29,22 @@ enum ApplicationIdentityResolver {
         identity: ActiveApplicationIdentity,
         library: ApplicationConfigurationLibrary
     ) -> ApplicationConfiguration? {
+        runtimeExactConfiguration(
+            bundleIdentifier: identity.bundleIdentifier,
+            bundleURL: identity.bundleURL,
+            library: library
+        )
+    }
+
+    static func runtimeExactConfiguration(
+        bundleIdentifier: String,
+        bundleURL: URL,
+        library: ApplicationConfigurationLibrary
+    ) -> ApplicationConfiguration? {
         let matches = library.configurations.filter {
-            $0.application.bundleIdentifier == identity.bundleIdentifier
+            $0.application.bundleIdentifier == bundleIdentifier
                 && $0.application.lastKnownBundleURL.standardizedFileURL
-                    == identity.bundleURL.standardizedFileURL
+                    == bundleURL.standardizedFileURL
         }
         return matches.count == 1 ? matches[0] : nil
     }

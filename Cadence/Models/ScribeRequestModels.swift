@@ -45,6 +45,16 @@ struct NormalizedScribeTranscript: Equatable, Sendable {
 struct ProviderSafeScribeInput: Equatable, Sendable {
     let systemMessage: String
     let userMessage: String
+
+    static let connectionValidation = ProviderSafeScribeInput(
+        systemMessage: "Return only OK.",
+        userMessage: "Cadence provider compatibility check."
+    )
+}
+
+struct ScribeChatMessageWire: Encodable {
+    let role: String
+    let content: String
 }
 
 struct ScribeProviderRequest: Equatable, Identifiable, Sendable {

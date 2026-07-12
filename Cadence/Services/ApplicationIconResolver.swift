@@ -38,12 +38,10 @@ protocol ApplicationIconLoading: AnyObject {
 final class WorkspaceApplicationIconLoader: ApplicationIconLoading {
     func runningIcon(for identity: ApplicationProcessIdentity) -> NSImage? {
         guard let launchDate = identity.launchDate,
-              let app = NSWorkspace.shared.runningApplications.first(where: {
-            $0.processIdentifier == identity.processIdentifier
-                && $0.bundleIdentifier == identity.bundleIdentifier
-                && $0.bundleURL?.standardizedFileURL.resolvingSymlinksInPath() == identity.bundleURL
-                && $0.launchDate == launchDate
-        }) else { return nil }
+              let app = NSRunningApplication(processIdentifier: identity.processIdentifier),
+              app.bundleIdentifier == identity.bundleIdentifier,
+              app.bundleURL?.standardizedFileURL.resolvingSymlinksInPath() == identity.bundleURL,
+              app.launchDate == launchDate else { return nil }
         return app.icon?.copy() as? NSImage
     }
 
@@ -99,14 +97,15 @@ final class ApplicationIconResolver {
         let values = try? identity.bundleURL.resourceValues(forKeys: [
             .contentModificationDateKey, .fileSizeKey
         ])
+        let bundle = Bundle(url: identity.bundleURL)
         let bundleKey = BundleCacheKey(
             url: identity.bundleURL,
             modificationDate: values?.contentModificationDate,
             fileSize: values?.fileSize,
-            version: Bundle(url: identity.bundleURL)?.object(
+            version: bundle?.object(
                 forInfoDictionaryKey: "CFBundleShortVersionString"
             ) as? String,
-            build: Bundle(url: identity.bundleURL)?.object(
+            build: bundle?.object(
                 forInfoDictionaryKey: "CFBundleVersion"
             ) as? String,
             scale: scaleKey
@@ -253,12 +252,14 @@ final class ApplicationPresentationArbiter {
         launchDate: Date?
     ) {
         let matches: (HUDApplicationPresentation) -> Bool = { presentation in
-            guard let process = presentation.identity,
-                  process.processIdentifier == processIdentifier else { return false }
+            guard let process = presentation.identity else { return false }
             if let identity { return process == identity }
-            if let bundleURL, process.bundleURL != bundleURL { return false }
-            if let launchDate, process.launchDate != launchDate { return false }
-            return true
+            return process.matchesTermination(
+                processIdentifier: processIdentifier,
+                bundleIdentifier: nil,
+                bundleURL: bundleURL,
+                launchDate: launchDate
+            )
         }
         if let pinned, matches(pinned) {
             pinRequestRevision += 1
@@ -290,9 +291,9 @@ final class ApplicationPresentationArbiter {
         Task { [weak self] in
             guard let self else { return }
             let resolved = await resolver.resolve(identity: identity)
-            guard name != nil else { return }
+            guard let name else { return }
             let presentation = HUDApplicationPresentation(
-                identity: identity, displayName: name!, icon: resolved.image,
+                identity: identity, displayName: name, icon: resolved.image,
                 iconSource: resolved.source, kind: .knownApplication,
                 presentationRevision: presentationRevision, pinID: pinID
             )

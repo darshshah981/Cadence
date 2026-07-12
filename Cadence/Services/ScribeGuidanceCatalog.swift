@@ -156,11 +156,11 @@ enum ScribeGuidanceResolver {
             guard libraryIsStructurallyValid(library) else {
                 return fallback(catalog: catalog, source: .invalidConfigurationFallback)
             }
-            if let configuration = library.configurations.first(where: {
-                $0.application.bundleIdentifier == descriptor.bundleIdentifier
-                    && $0.application.lastKnownBundleURL.standardizedFileURL
-                        == descriptor.bundleURL.standardizedFileURL
-            }) {
+            if let configuration = ApplicationIdentityResolver.runtimeExactConfiguration(
+                bundleIdentifier: descriptor.bundleIdentifier,
+                bundleURL: descriptor.bundleURL,
+                library: library
+            ) {
                 guard configuration.isEnabled else {
                     return fallback(catalog: catalog, source: .disabledApplicationFallback)
                 }

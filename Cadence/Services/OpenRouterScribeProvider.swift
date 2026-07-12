@@ -7,7 +7,6 @@ struct OpenRouterScribeProvider: ScribeProvider {
         .semanticGeneration, .selectedTextContext, .cancellation
     ]
 
-    private struct Message: Encodable { let content: String; let role: String }
     private struct Routing: Encodable {
         let dataCollection = "deny"
         let zdr = true
@@ -15,7 +14,7 @@ struct OpenRouterScribeProvider: ScribeProvider {
     }
     private struct Body: Encodable {
         let maxCompletionTokens: Int
-        let messages: [Message]
+        let messages: [ScribeChatMessageWire]
         let model: String
         let provider = Routing()
         let stream = false
@@ -81,10 +80,7 @@ struct OpenRouterScribeProvider: ScribeProvider {
 
     func validateConnection() async throws {
         _ = try await execute(
-            input: ProviderSafeScribeInput(
-                systemMessage: "Return only OK.",
-                userMessage: "Cadence provider compatibility check."
-            ), phase: .validation, maxTokens: 8
+            input: .connectionValidation, phase: .validation, maxTokens: 8
         )
     }
 
@@ -104,8 +100,8 @@ struct OpenRouterScribeProvider: ScribeProvider {
         request.httpBody = try encoder.encode(Body(
             maxCompletionTokens: maxTokens,
             messages: [
-                Message(content: input.systemMessage, role: "system"),
-                Message(content: input.userMessage, role: "user")
+                ScribeChatMessageWire(role: "system", content: input.systemMessage),
+                ScribeChatMessageWire(role: "user", content: input.userMessage)
             ],
             model: modelID
         ))

@@ -145,11 +145,11 @@ struct ScribeProviderActionSnapshot: Sendable {
     var selectedTextDisclosure: String {
         switch destination.providerKind {
         case .openAIDirect:
-            return ScribeProviderDisclosure.selectedTextRecipient("OpenAI")
+            return ScribeProviderDisclosure.selectedTextRecipient(ScribeProviderKind.openAIDirect.displayName)
         case .openRouter:
-            return ScribeProviderDisclosure.selectedTextRecipient("OpenRouter")
+            return ScribeProviderDisclosure.selectedTextRecipient(ScribeProviderKind.openRouter.displayName)
         case .deepSeek:
-            return ScribeProviderDisclosure.selectedTextRecipient("DeepSeek")
+            return ScribeProviderDisclosure.selectedTextRecipient(ScribeProviderKind.deepSeek.displayName)
         case .advanced:
             let recipient = URL(string: destination.recipientOrigin)?.host
                 ?? destination.recipientOrigin

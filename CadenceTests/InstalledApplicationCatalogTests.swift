@@ -3,6 +3,10 @@ import Foundation
 import Testing
 @testable import Cadence
 
+private struct ImmediateInstalledApplicationDebouncer: InstalledApplicationRefreshDebouncing {
+    func wait() async throws { try Task.checkCancellation() }
+}
+
 @MainActor
 struct InstalledApplicationCatalogTests {
     @Test
