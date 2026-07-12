@@ -34,4 +34,11 @@ final class SettingsPresentationStore {
             throw StrictPersistenceError.semanticReadbackFailed
         }
     }
+
+    /// Presentation state is disposable UI state. Removing a rejected value is
+    /// intentionally separate from feature availability so a future settings
+    /// category cannot strand the whole router.
+    func clear() {
+        defaults.removeObject(forKey: key)
+    }
 }

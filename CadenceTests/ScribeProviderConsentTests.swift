@@ -59,4 +59,19 @@ struct ScribeProviderConsentTests {
         #expect(session.providerKind == nil)
         #expect(!session.acceptsCallback(revision: secondRevision))
     }
+
+    @Test @MainActor
+    func setupSearchStateIsEphemeralAlongsideCredentialState() async {
+        let session = ScribeProviderSetupSession(consentAuthority: ScribeProviderConsentAuthority())
+        _ = session.prepareAttempt(providerKind: .openRouter, credential: "secret")
+        session.setModelSearchQuery("claude")
+        session.selectModel("anthropic/claude")
+        #expect(session.modelSearchQuery == "claude")
+        #expect(session.selectedModelID == "anthropic/claude")
+
+        await session.dismiss()
+        #expect(session.credentialBuffer.isEmpty)
+        #expect(session.modelSearchQuery.isEmpty)
+        #expect(session.selectedModelID == nil)
+    }
 }

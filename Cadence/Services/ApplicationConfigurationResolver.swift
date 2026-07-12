@@ -8,6 +8,7 @@ enum ApplicationConfigurationWriterError: Error, Equatable, Sendable {
     case savedURLStillPresent
     case ambiguousIdentity
     case semanticReadbackFailed
+    case invalidInstalledApplication
 }
 
 actor ApplicationConfigurationWriter {
@@ -15,6 +16,69 @@ actor ApplicationConfigurationWriter {
 
     init(store: any ApplicationConfigurationPersisting) {
         self.store = store
+    }
+
+    /// Creates or updates a configuration from a catalog descriptor. Callers
+    /// deliberately cannot provide a bundle identifier: the descriptor is the
+    /// installed-app identity boundary, and its canonical URL keeps duplicate
+    /// installations distinct.
+    func upsert(
+        application: InstalledApplicationDescriptor,
+        familyID: ScribeEnvironmentFamilyID,
+        presetSelection: ScribePresetSelection = .familyDefault,
+        customGuidance: ScribeCustomGuidance? = nil,
+        isEnabled: Bool = true
+    ) throws -> ApplicationConfiguration {
+        guard application.isInstalled,
+              application.bundleURL.isFileURL,
+              application.bundleURL.pathExtension.lowercased() == "app",
+              !application.bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !application.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ApplicationConfigurationWriterError.invalidInstalledApplication
+        }
+        if case let .explicit(presetID) = presetSelection,
+           !presetID.rawValue.hasPrefix("\(familyID.rawValue).") {
+            throw ApplicationConfigurationWriterError.invalidInstalledApplication
+        }
+
+        let library: ApplicationConfigurationLibrary
+        switch store.load() {
+        case .absent:
+            library = .init(revision: 0, configurations: [])
+        case let .valid(value):
+            library = value
+        case .rejected:
+            throw ApplicationConfigurationWriterError.rejectedStore
+        }
+
+        let url = application.bundleURL.standardizedFileURL
+        let existingIndex = library.configurations.firstIndex {
+            $0.application.lastKnownBundleURL.standardizedFileURL == url
+        }
+        let existing = existingIndex.map { library.configurations[$0] }
+        let reference = ApplicationReference(
+            id: existing?.application.id ?? UUID(),
+            bundleIdentifier: application.bundleIdentifier,
+            lastKnownBundleURL: url,
+            lastKnownDisplayName: application.displayName
+        )
+        let configuration = try ApplicationConfiguration(
+            id: existing?.id ?? UUID(),
+            application: reference,
+            isEnabled: isEnabled,
+            familyID: familyID,
+            presetSelection: presetSelection,
+            customGuidance: customGuidance,
+            revision: (existing?.revision ?? 0) + 1
+        )
+        var configurations = library.configurations
+        if let existingIndex {
+            configurations[existingIndex] = configuration
+        } else {
+            configurations.append(configuration)
+        }
+        try persist(.init(revision: library.revision + 1, configurations: configurations))
+        return configuration
     }
 
     func updateCustomGuidance(

@@ -323,6 +323,59 @@ struct ApplicationConfigurationTests {
             #expect(!text.contains(forbidden))
         }
     }
+
+    @Test
+    func upsertUsesInstalledDescriptorIdentityAndKeepsDuplicateInstallationsDistinct() async throws {
+        let fixture = try ApplicationStoreFixture()
+        defer { fixture.cleanUp() }
+        let writer = ApplicationConfigurationWriter(store: fixture.store)
+        let first = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Codex.app"),
+            bundleIdentifier: "com.openai.codex",
+            displayName: "Codex",
+            version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        let second = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Codex Beta.app"),
+            bundleIdentifier: "com.openai.codex",
+            displayName: "Codex Beta",
+            version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        let firstSaved = try await writer.upsert(application: first, familyID: .coding)
+        let secondSaved = try await writer.upsert(application: second, familyID: .coding)
+        let updatedFirst = try await writer.upsert(
+            application: first,
+            familyID: .coding,
+            customGuidance: try ScribeCustomGuidance("Keep code blocks exact.")
+        )
+
+        #expect(firstSaved.id == updatedFirst.id)
+        #expect(updatedFirst.application.id == firstSaved.application.id)
+        #expect(secondSaved.id != firstSaved.id)
+        guard case let .valid(library) = fixture.store.load() else {
+            Issue.record("Expected a valid library")
+            return
+        }
+        #expect(library.configurations.count == 2)
+        #expect(library.configurations.map(\.application.lastKnownBundleURL).contains(first.bundleURL))
+        #expect(library.configurations.map(\.application.lastKnownBundleURL).contains(second.bundleURL))
+    }
+
+    @Test
+    func upsertRejectsDescriptorsOutsideInstalledAppCatalog() async throws {
+        let fixture = try ApplicationStoreFixture()
+        defer { fixture.cleanUp() }
+        let writer = ApplicationConfigurationWriter(store: fixture.store)
+        let manualBundleIdentifierSurrogate = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/tmp/not-installed.app"),
+            bundleIdentifier: "com.example.manual",
+            displayName: "Manual",
+            version: nil, build: nil, isInstalled: false, isRunning: false
+        )
+        await #expect(throws: ApplicationConfigurationWriterError.invalidInstalledApplication) {
+            _ = try await writer.upsert(application: manualBundleIdentifierSurrogate, familyID: .general)
+        }
+    }
 }
 
 private actor RebindSnapshotSequence {

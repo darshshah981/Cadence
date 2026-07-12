@@ -139,6 +139,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var hudVisibility: HUDVisibilityState
     @Published var menuScreen: MenuScreen = .home
     @Published private(set) var installedApplications: [InstalledApplicationDescriptor] = []
+    @Published private(set) var settingsPresentationState: SettingsPresentationState
+    @Published private(set) var applicationConfigurations: [ApplicationConfiguration] = []
 
     @Published private(set) var holdToTalkBinding: HotkeyBinding
     @Published private(set) var tapToStartStopBinding: HotkeyBinding
@@ -159,6 +161,7 @@ final class AppModel: ObservableObject {
     private let adaptiveScribeLiveReaderService: AdaptiveScribeLiveReaderService
     private let adaptiveScribeReaderMonitor: AdaptiveScribeReaderMonitor
     private let writingEnvironmentStore: WritingEnvironmentStore
+    private let settingsPresentationStore: SettingsPresentationStore
     private let applicationConfigurationStore: ApplicationConfigurationStore
     private let applicationConfigurationWriter: ApplicationConfigurationWriter
     private let installedApplicationSnapshotStore: InstalledApplicationCatalogSnapshotStore
@@ -355,6 +358,19 @@ final class AppModel: ObservableObject {
         let scribeModelCatalogService = scribeProviderRuntime.modelCatalog
         let scribeConsentAuthority = scribeProviderRuntime.consentAuthority
         let writingEnvironmentStore = WritingEnvironmentStore(defaults: defaults)
+        let settingsPresentationStore = SettingsPresentationStore(defaults: defaults)
+        let settingsPresentationState: SettingsPresentationState
+        switch settingsPresentationStore.load() {
+        case let .valid(state):
+            settingsPresentationState = state
+        case .absent:
+            settingsPresentationState = .init(selectedCategory: .general, isAdvancedExpanded: false)
+        case .rejected:
+            // A stale presentation preference must never disable Scribe or the
+            // rest of Settings. It is safe to discard and start at General.
+            settingsPresentationStore.clear()
+            settingsPresentationState = .init(selectedCategory: .general, isAdvancedExpanded: false)
+        }
         let applicationConfigurationStore = ApplicationConfigurationStore(defaults: defaults)
         let applicationConfigurationWriter = ApplicationConfigurationWriter(store: applicationConfigurationStore)
         let installedApplicationSnapshotStore = InstalledApplicationCatalogSnapshotStore()
@@ -413,8 +429,13 @@ final class AppModel: ObservableObject {
         self.adaptiveScribeLiveReaderService = adaptiveScribeLiveReaderService
         self.adaptiveScribeReaderMonitor = adaptiveScribeReaderMonitor
         self.writingEnvironmentStore = writingEnvironmentStore
+        self.settingsPresentationStore = settingsPresentationStore
+        self.settingsPresentationState = settingsPresentationState
         self.applicationConfigurationStore = applicationConfigurationStore
         self.applicationConfigurationWriter = applicationConfigurationWriter
+        if case let .valid(library) = applicationConfigurationStore.load() {
+            self.applicationConfigurations = library.configurations
+        }
         self.installedApplicationSnapshotStore = installedApplicationSnapshotStore
         self.installedApplicationCatalogService = installedApplicationCatalogService
         self.installedApplicationLifecycleSource = installedApplicationLifecycleSource
@@ -2262,6 +2283,54 @@ final class AppModel: ObservableObject {
         Task { [scribeProviderSetupSession] in await scribeProviderSetupSession.dismiss() }
     }
 
+    /// Makes the session-memory catalog available only after the caller has
+    /// explicitly accepted the recipient disclosure. The candidate credential
+    /// remains in the setup session and is cleared on cancellation/dismissal.
+    func discoverScribeModels(
+        for provider: ScribeProviderKind,
+        credential: String,
+        disclosureAccepted: Bool,
+        matching query: String
+    ) async -> [ScribeSearchableModelEntry] {
+        guard disclosureAccepted,
+              provider == .openAIDirect || provider == .openRouter,
+              !credential.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        await scribeProviderSetupSession.providerSwitched(to: provider)
+        let revision = scribeProviderSetupSession.prepareAttempt(
+            providerKind: provider,
+            credential: credential
+        )
+        scribeProviderSetupSession.setModelSearchQuery(query)
+        let receipt = await scribeConsentAuthority.issueEphemeral(
+            providerKind: provider,
+            recipientOrigin: provider == .openAIDirect ? "https://api.openai.com" : "https://openrouter.ai",
+            routingPolicy: provider == .openAIDirect ? .directSingleModel : .zeroDataRetentionSingleModel,
+            retentionPolicy: provider == .openAIDirect ? .requestStorageDisabled : .zeroDataRetentionRequired,
+            dataPolicy: provider == .openAIDirect ? .providerPolicyApplies : .collectionDenied
+        )
+        let discoverySentinel = "cadence-discovery-only"
+        if provider == .openAIDirect {
+            _ = await scribeModelCatalogService.refreshOpenAI(
+                selectedModelID: discoverySentinel,
+                consentReceipt: receipt
+            )
+        } else {
+            _ = await scribeModelCatalogService.refreshOpenRouter(
+                selectedModelID: discoverySentinel,
+                consentReceipt: receipt
+            )
+        }
+        guard scribeProviderSetupSession.acceptsCallback(revision: revision) else { return [] }
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let models = await scribeModelCatalogService.availableModels(for: provider)
+        guard !normalizedQuery.isEmpty else { return models }
+        return models.filter { entry in
+            ([entry.modelID, entry.displayName] + entry.searchTerms).contains {
+                $0.localizedCaseInsensitiveContains(normalizedQuery)
+            }
+        }
+    }
+
     func switchScribeProviderSetup(to kind: ScribeProviderKind) {
         Task { [scribeProviderSetupSession] in
             await scribeProviderSetupSession.providerSwitched(to: kind)
@@ -2570,6 +2639,110 @@ final class AppModel: ObservableObject {
         defaults.set(enabled, forKey: AdaptiveScribeMigrationService.adaptationEnabledKey)
     }
 
+    func selectSettingsCategory(_ category: SettingsCategoryID) {
+        updateSettingsPresentation(.init(
+            selectedCategory: category,
+            isAdvancedExpanded: settingsPresentationState.isAdvancedExpanded
+        ))
+    }
+
+    func setAdvancedSettingsExpanded(_ isExpanded: Bool) {
+        updateSettingsPresentation(.init(
+            selectedCategory: settingsPresentationState.selectedCategory,
+            isAdvancedExpanded: isExpanded
+        ))
+    }
+
+    func resetSettingsPresentation() {
+        settingsPresentationStore.clear()
+        settingsPresentationState = .init(selectedCategory: .general, isAdvancedExpanded: false)
+    }
+
+    func upsertApplicationConfiguration(
+        for application: InstalledApplicationDescriptor,
+        familyID: ScribeEnvironmentFamilyID,
+        presetSelection: ScribePresetSelection = .familyDefault,
+        customGuidance: ScribeCustomGuidance? = nil,
+        isEnabled: Bool = true
+    ) async throws -> ApplicationConfiguration {
+        let configuration = try await applicationConfigurationWriter.upsert(
+            application: application,
+            familyID: familyID,
+            presetSelection: presetSelection,
+            customGuidance: customGuidance,
+            isEnabled: isEnabled
+        )
+        refreshApplicationConfigurationState()
+        if case let .valid(library) = applicationConfigurationStore.load() {
+            await installedApplicationCatalogService.updateRememberedURLs(
+                Set(library.configurations.map(\.application.lastKnownBundleURL))
+            )
+        }
+        return configuration
+    }
+
+    func setApplicationConfigurationEnabled(_ id: UUID, enabled: Bool) async throws -> ApplicationConfiguration {
+        guard case let .valid(library) = applicationConfigurationStore.load(),
+              let current = library.configurations.first(where: { $0.id == id }) else {
+            throw ApplicationConfigurationWriterError.missingConfiguration
+        }
+        return try await updateApplicationConfiguration(
+            current,
+            in: library,
+            isEnabled: enabled,
+            familyID: current.familyID,
+            presetSelection: current.presetSelection,
+            customGuidance: current.customGuidance
+        )
+    }
+
+    func updateApplicationConfiguration(
+        _ id: UUID,
+        isEnabled: Bool,
+        familyID: ScribeEnvironmentFamilyID,
+        presetSelection: ScribePresetSelection,
+        customGuidance: ScribeCustomGuidance?
+    ) async throws -> ApplicationConfiguration {
+        guard case let .valid(library) = applicationConfigurationStore.load(),
+              let current = library.configurations.first(where: { $0.id == id }) else {
+            throw ApplicationConfigurationWriterError.missingConfiguration
+        }
+        return try await updateApplicationConfiguration(
+            current,
+            in: library,
+            isEnabled: isEnabled,
+            familyID: familyID,
+            presetSelection: presetSelection,
+            customGuidance: customGuidance
+        )
+    }
+
+    private func updateApplicationConfiguration(
+        _ current: ApplicationConfiguration,
+        in library: ApplicationConfigurationLibrary,
+        isEnabled: Bool,
+        familyID: ScribeEnvironmentFamilyID,
+        presetSelection: ScribePresetSelection,
+        customGuidance: ScribeCustomGuidance?
+    ) async throws -> ApplicationConfiguration {
+        let updated = try ApplicationConfiguration(
+            id: current.id,
+            application: current.application,
+            isEnabled: isEnabled,
+            familyID: familyID,
+            presetSelection: presetSelection,
+            customGuidance: customGuidance,
+            revision: current.revision + 1
+        )
+        try await applicationConfigurationWriter.replaceConfiguration(
+            updated,
+            expectedLibraryRevision: library.revision,
+            expectedConfigurationRevision: current.revision
+        )
+        refreshApplicationConfigurationState()
+        return updated
+    }
+
     func setWritingEnvironmentBehavior(
         _ behaviorID: WritingBehaviorID,
         for environmentID: WritingEnvironmentID
@@ -2677,6 +2850,22 @@ final class AppModel: ObservableObject {
 
     func chooseInstalledApplication(at url: URL) {
         Task { await installedApplicationCatalogService.chooseApplication(at: url) }
+    }
+
+    private func updateSettingsPresentation(_ state: SettingsPresentationState) {
+        do {
+            try settingsPresentationStore.save(state)
+            settingsPresentationState = state
+        } catch {
+            lastError = "Cadence could not save the Settings view preference."
+        }
+    }
+
+    private func refreshApplicationConfigurationState() {
+        applicationConfigurations = {
+            guard case let .valid(library) = applicationConfigurationStore.load() else { return [] }
+            return library.configurations
+        }()
     }
 
     private func handleInstalledApplicationSnapshot(_ snapshot: InstalledApplicationCatalogSnapshot) {

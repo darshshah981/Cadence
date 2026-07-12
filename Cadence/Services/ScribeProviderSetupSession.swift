@@ -9,6 +9,8 @@ actor ScribeProviderSetupAttemptFence {
 @MainActor
 final class ScribeProviderSetupSession {
     private(set) var credentialBuffer = ""
+    private(set) var modelSearchQuery = ""
+    private(set) var selectedModelID: String?
     private(set) var attemptRevision = 0
     private(set) var providerKind: ScribeProviderKind?
     private var validationTask: Task<Void, Never>?
@@ -63,6 +65,8 @@ final class ScribeProviderSetupSession {
     func providerSwitched(to providerKind: ScribeProviderKind) async {
         let fence = cancelValidation()
         credentialBuffer = ""
+        modelSearchQuery = ""
+        selectedModelID = nil
         self.providerKind = providerKind
         attemptRevision += 1
         await fence?.invalidate()
@@ -73,6 +77,8 @@ final class ScribeProviderSetupSession {
     func dismiss() async {
         let fence = cancelValidation()
         credentialBuffer = ""
+        modelSearchQuery = ""
+        selectedModelID = nil
         providerKind = nil
         attemptRevision += 1
         await fence?.invalidate()
@@ -89,6 +95,17 @@ final class ScribeProviderSetupSession {
             throw ScribeProviderConnectionError.staleAttempt
         }
         return credentialBuffer
+    }
+
+    func setModelSearchQuery(_ query: String) {
+        // Search is session-only; do not allow unbounded UI state to outlive a
+        // dismissed setup sheet.
+        modelSearchQuery = String(query.prefix(256))
+    }
+
+    func selectModel(_ modelID: String?) {
+        let normalized = modelID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        selectedModelID = normalized.isEmpty ? nil : normalized
     }
 
     @discardableResult
