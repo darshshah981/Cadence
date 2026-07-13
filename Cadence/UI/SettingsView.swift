@@ -196,7 +196,9 @@ struct SettingsView: View {
                             .textFieldStyle(.roundedBorder)
                             .accessibilityIdentifier("settings-app-search")
                         CadenceActionButton(title: "Refresh", role: .secondary, accessibilityIdentifier: "settings-app-refresh") { appModel.refreshInstalledApplications() }
+                            .controlSize(.small)
                         CadenceActionButton(title: "Choose app…", role: .secondary, accessibilityIdentifier: "settings-app-choose") { chooseApplication() }
+                            .controlSize(.small)
                     }
                     appPicker
                     if let selectedApplication {
@@ -369,7 +371,16 @@ struct SettingsView: View {
             FlowSectionCard {
                 VStack(alignment: .leading, spacing: 8) {
                     SettingsLabelRow(title: "Scribe diagnostics", description: "Content-free local setup and recovery outcomes. Never uploaded automatically.")
-                    HStack { CadenceActionButton(title: "Clear", role: .destructive) { appModel.clearScribeDiagnostics() }; CadenceActionButton(title: "Export…", role: .secondary) { appModel.exportScribeDiagnostics() } }
+                    HStack {
+                        CadenceActionButton(title: "Clear", role: .destructive) {
+                            appModel.clearScribeDiagnostics()
+                        }
+                        .controlSize(.small)
+                        CadenceActionButton(title: "Export…", role: .secondary) {
+                            appModel.exportScribeDiagnostics()
+                        }
+                        .controlSize(.small)
+                    }
                 }.padding(12)
             }
         }

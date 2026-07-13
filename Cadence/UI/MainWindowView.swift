@@ -215,7 +215,9 @@ struct MainWindowView: View {
         case .settings:
             SettingsView(
                 appModel: appModel,
-                maxContentWidth: 620,
+                // Leave room for the 176pt Settings rail and a useful desktop
+                // detail column instead of constraining the entire surface.
+                maxContentWidth: 960,
                 contentPadding: EdgeInsets(
                     top: StenoLayout.settingsTopPadding,
                     leading: 24,

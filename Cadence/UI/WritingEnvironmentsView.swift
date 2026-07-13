@@ -41,6 +41,7 @@ struct WritingEnvironmentsView: View {
             CadenceActionButton(title: "Restore writing environment defaults", role: .secondary) {
                 appModel.restoreWritingEnvironmentDefaults()
             }
+            .controlSize(.small)
         }
         .padding(12)
         .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8))
@@ -99,6 +100,7 @@ struct WritingEnvironmentsView: View {
                     CadenceActionButton(title: "Reset \(definition.displayName)", role: .quiet) {
                         appModel.resetWritingEnvironment(id)
                     }
+                    .controlSize(.small)
                 }
             }
         }
@@ -116,10 +118,12 @@ struct WritingEnvironmentsView: View {
                 CadenceActionButton(title: "Keep legacy profiles", role: .quiet) {
                     appModel.dismissLegacyWritingProfileNotice()
                 }
+                .controlSize(.small)
                 Spacer()
                 CadenceActionButton(title: "Remove legacy writing profiles", role: .destructive) {
                     appModel.removeLegacyWritingProfiles()
                 }
+                .controlSize(.small)
             }
         }
         .padding(12)

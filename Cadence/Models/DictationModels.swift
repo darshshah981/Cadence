@@ -753,13 +753,12 @@ enum HUDPosition: String, CaseIterable, Equatable {
     case bottomLeft
     case bottomRight
 
-    static var allCases: [HUDPosition] {
-        [.topLeft, .topRight, .bottomLeft, .bottomRight]
-    }
+    static let allCases: [HUDPosition] = [.topLeft, .topRight, .bottomLeft, .bottomCenter, .bottomRight]
 
     var accessibilityName: String {
         switch self {
-        case .bottomCenter, .bottomRight: "Bottom right"
+        case .bottomCenter: "Bottom center"
+        case .bottomRight: "Bottom right"
         case .topLeft: "Top left"
         case .topRight: "Top right"
         case .bottomLeft: "Bottom left"
@@ -788,14 +787,19 @@ enum HUDPosition: String, CaseIterable, Equatable {
     func origin(screenFrame: NSRect, visibleFrame: NSRect, hudSize: NSSize) -> NSPoint {
         let inset = HUDMetrics.screenInset
         switch self {
-        case .bottomCenter, .bottomRight:
-            return NSPoint(x: visibleFrame.maxX - hudSize.width - inset, y: visibleFrame.minY + inset)
+        case .bottomCenter:
+            return NSPoint(
+                x: screenFrame.midX - hudSize.width / 2,
+                y: visibleFrame.minY + inset
+            )
         case .topLeft:
-            return NSPoint(x: visibleFrame.minX + inset, y: visibleFrame.maxY - hudSize.height - inset)
+            return NSPoint(x: screenFrame.minX + inset, y: screenFrame.maxY - hudSize.height - inset)
         case .topRight:
-            return NSPoint(x: visibleFrame.maxX - hudSize.width - inset, y: visibleFrame.maxY - hudSize.height - inset)
+            return NSPoint(x: screenFrame.maxX - hudSize.width - inset, y: screenFrame.maxY - hudSize.height - inset)
         case .bottomLeft:
-            return NSPoint(x: visibleFrame.minX + inset, y: visibleFrame.minY + inset)
+            return NSPoint(x: screenFrame.minX + inset, y: screenFrame.minY + inset)
+        case .bottomRight:
+            return NSPoint(x: screenFrame.maxX - hudSize.width - inset, y: screenFrame.minY + inset)
         }
     }
 
