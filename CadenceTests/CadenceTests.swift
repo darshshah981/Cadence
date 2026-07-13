@@ -3304,7 +3304,12 @@ struct HUDPanelLayoutTests {
             size: NSSize(width: 240, height: 38)
         )
 
-        #expect(frame == NSRect(x: 840, y: 40, width: 240, height: 38))
+        #expect(frame == NSRect(
+            x: visible.maxX - 240 - HUDMetrics.screenInset,
+            y: visible.minY + HUDMetrics.screenInset,
+            width: 240,
+            height: 38
+        ))
     }
 
     @Test
@@ -3318,7 +3323,12 @@ struct HUDPanelLayoutTests {
             size: NSSize(width: 44, height: 44)
         )
 
-        #expect(frame == NSRect(x: -44, y: 952, width: 44, height: 44))
+        #expect(frame == NSRect(
+            x: visible.maxX - 44 - HUDMetrics.screenInset,
+            y: visible.maxY - 44 - HUDMetrics.screenInset,
+            width: 44,
+            height: 44
+        ))
     }
 
     @Test
