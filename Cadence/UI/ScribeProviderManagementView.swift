@@ -28,14 +28,13 @@ struct ScribeProviderManagementView: View {
 
             if let kind = appModel.configuredScribeProviderKind {
                 Divider()
-                Toggle(
-                    "Enable \(kind.displayName) for new Scribe requests",
+                CadenceToggle(
+                    title: "Enable \(kind.displayName) for new Scribe requests",
                     isOn: Binding(
                         get: { appModel.configuredScribeProviderIsEnabled },
                         set: { appModel.setConfiguredScribeProviderEnabled($0) }
                     )
                 )
-                .toggleStyle(.switch)
 
                 DisclosureGroup("Review data sent to \(kind.displayName)") {
                     VStack(alignment: .leading, spacing: 6) {

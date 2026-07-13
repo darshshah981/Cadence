@@ -8,6 +8,22 @@ struct InstalledApplicationDescriptor: Equatable, Identifiable, Sendable {
     let build: String?
     let isInstalled: Bool
     let isRunning: Bool
+    let isUserFacing: Bool
+
+    init(
+        bundleURL: URL, bundleIdentifier: String, displayName: String,
+        version: String?, build: String?, isInstalled: Bool, isRunning: Bool,
+        isUserFacing: Bool = true
+    ) {
+        self.bundleURL = bundleURL
+        self.bundleIdentifier = bundleIdentifier
+        self.displayName = displayName
+        self.version = version
+        self.build = build
+        self.isInstalled = isInstalled
+        self.isRunning = isRunning
+        self.isUserFacing = isUserFacing
+    }
 
     var id: URL { bundleURL }
 }
@@ -22,6 +38,27 @@ struct InstalledApplicationBundleMetadata: Equatable, Sendable {
     let executableIsExecutable: Bool
     let version: String?
     let build: String?
+    let isUIElement: Bool
+    let isBackgroundOnly: Bool
+
+    init(
+        isApplicationBundle: Bool, bundleIdentifier: String?, displayName: String,
+        executableURL: URL?, executableExists: Bool, executableIsRegularFile: Bool,
+        executableIsExecutable: Bool, version: String?, build: String?,
+        isUIElement: Bool = false, isBackgroundOnly: Bool = false
+    ) {
+        self.isApplicationBundle = isApplicationBundle
+        self.bundleIdentifier = bundleIdentifier
+        self.displayName = displayName
+        self.executableURL = executableURL
+        self.executableExists = executableExists
+        self.executableIsRegularFile = executableIsRegularFile
+        self.executableIsExecutable = executableIsExecutable
+        self.version = version
+        self.build = build
+        self.isUIElement = isUIElement
+        self.isBackgroundOnly = isBackgroundOnly
+    }
 
     static func application(
         id: String,
@@ -31,7 +68,9 @@ struct InstalledApplicationBundleMetadata: Equatable, Sendable {
         executableIsRegularFile: Bool = true,
         executableIsExecutable: Bool = true,
         version: String? = nil,
-        build: String? = nil
+        build: String? = nil,
+        isUIElement: Bool = false,
+        isBackgroundOnly: Bool = false
     ) -> InstalledApplicationBundleMetadata {
         .init(
             isApplicationBundle: true,
@@ -42,7 +81,9 @@ struct InstalledApplicationBundleMetadata: Equatable, Sendable {
             executableIsRegularFile: executableIsRegularFile,
             executableIsExecutable: executableIsExecutable,
             version: version,
-            build: build
+            build: build,
+            isUIElement: isUIElement,
+            isBackgroundOnly: isBackgroundOnly
         )
     }
 
@@ -56,8 +97,50 @@ struct InstalledApplicationBundleMetadata: Equatable, Sendable {
             executableIsRegularFile: false,
             executableIsExecutable: false,
             version: nil,
-            build: nil
+            build: nil,
+            isUIElement: false,
+            isBackgroundOnly: false
         )
+    }
+}
+
+enum InstalledApplicationPickerProjection {
+    static let defaultLimit = 12
+
+    static func applications(
+        from catalog: [InstalledApplicationDescriptor], query: String,
+        limit: Int = defaultLimit
+    ) -> [InstalledApplicationDescriptor] {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let eligible = catalog.filter(\.isUserFacing)
+        let matching = normalizedQuery.isEmpty ? eligible : eligible.filter {
+            $0.displayName.localizedCaseInsensitiveContains(normalizedQuery)
+                || $0.bundleIdentifier.localizedCaseInsensitiveContains(normalizedQuery)
+        }
+        let ranked = matching.sorted {
+            if $0.isRunning != $1.isRunning { return $0.isRunning && !$1.isRunning }
+            let nameOrder = $0.displayName.localizedStandardCompare($1.displayName)
+            if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
+            return $0.bundleURL.standardizedFileURL.path < $1.bundleURL.standardizedFileURL.path
+        }
+        return normalizedQuery.isEmpty ? Array(ranked.prefix(max(0, limit))) : ranked
+    }
+}
+
+enum ApplicationSettingsConfigurationState: Equatable, Sendable {
+    case configured(ApplicationConfiguration)
+    case unconfigured
+
+    static func resolve(
+        application: InstalledApplicationDescriptor,
+        configurations: [ApplicationConfiguration]
+    ) -> ApplicationSettingsConfigurationState {
+        guard let configuration = ApplicationIdentityResolver.runtimeExactConfiguration(
+            bundleIdentifier: application.bundleIdentifier,
+            bundleURL: application.bundleURL,
+            configurations: configurations
+        ) else { return .unconfigured }
+        return .configured(configuration)
     }
 }
 

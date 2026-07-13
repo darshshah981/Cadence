@@ -198,12 +198,63 @@ struct CadenceDiscretePicker<SelectionValue: Hashable, Content: View>: View {
 struct CadenceToggle: View {
     let title: String
     @Binding var isOn: Bool
-    var accessibilityIdentifier: String?
+    var accessibilityIdentifier: String? = nil
 
     var body: some View {
         Toggle(title, isOn: $isOn)
             .toggleStyle(.switch)
+            .tint(FlowTheme.teal)
             .modifier(OptionalAccessibilityIdentifier(identifier: accessibilityIdentifier))
+    }
+}
+
+struct CadenceSettingsPrimaryButtonStyle: ButtonStyle {
+    let isHovered: Bool
+    let isFocused: Bool
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(FlowTheme.background)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 32)
+            .background(
+                configuration.isPressed
+                    ? FlowTheme.accentPressed
+                    : (isHovered ? FlowTheme.accent.opacity(0.86) : FlowTheme.accent),
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(
+                        isFocused ? FlowTheme.teal : FlowTheme.accentBorder.opacity(configuration.isPressed ? 0.8 : 0.35),
+                        lineWidth: isFocused ? 2 : 1
+                    )
+            )
+            .opacity(isEnabled ? 1 : 0.45)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(FlowMotion.enabled(FlowMotion.quick, reduceMotion: reduceMotion), value: configuration.isPressed)
+    }
+}
+
+struct CadenceSettingsPrimaryButton: View {
+    let title: String
+    var isEnabled = true
+    let accessibilityIdentifier: String
+    let action: () -> Void
+    @State private var isHovered = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        Button(title, action: action)
+            .buttonStyle(CadenceSettingsPrimaryButtonStyle(isHovered: isHovered, isFocused: isFocused))
+            .disabled(!isEnabled)
+            .focusable(true)
+            .focused($isFocused)
+            .onHover { isHovered = $0 }
+            .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 

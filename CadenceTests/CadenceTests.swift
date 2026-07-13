@@ -2535,64 +2535,25 @@ struct CadenceTests {
     }
 
     @Test
-    func hudPositionBottomCenterHasFlatBottomAndRoundedTop() {
-        let radii = HUDPosition.bottomCenter.cornerRadii
-
-        #expect(radii.topLeading > 0)
-        #expect(radii.topTrailing > 0)
-        #expect(radii.bottomLeading == 0)
-        #expect(radii.bottomTrailing == 0)
-    }
-
-    @Test
-    func hudPositionTopLeftHasFlatTopAndLeft() {
-        let radii = HUDPosition.topLeft.cornerRadii
-
-        #expect(radii.topLeading == 0)
-        #expect(radii.topTrailing == 0)
-        #expect(radii.bottomLeading == 0)
-        #expect(radii.bottomTrailing > 0)
-    }
-
-    @Test
-    func hudPositionTopRightHasFlatTopAndRight() {
-        let radii = HUDPosition.topRight.cornerRadii
-
-        #expect(radii.topLeading == 0)
-        #expect(radii.topTrailing == 0)
-        #expect(radii.bottomTrailing == 0)
-        #expect(radii.bottomLeading > 0)
-    }
-
-    @Test
-    func hudPositionBottomLeftHasFlatBottomAndLeft() {
-        let radii = HUDPosition.bottomLeft.cornerRadii
-
-        #expect(radii.topLeading == 0)
-        #expect(radii.bottomLeading == 0)
-        #expect(radii.bottomTrailing == 0)
-        #expect(radii.topTrailing > 0)
-    }
-
-    @Test
-    func hudPositionBottomRightHasFlatBottomAndRight() {
-        let radii = HUDPosition.bottomRight.cornerRadii
-
-        #expect(radii.topLeading > 0)
-        #expect(radii.topTrailing == 0)
-        #expect(radii.bottomLeading == 0)
-        #expect(radii.bottomTrailing == 0)
+    func hudPositionsRemainFullyRounded() {
+        for position in HUDPosition.allCases {
+            let radii = position.cornerRadii
+            #expect(radii.topLeading > 0)
+            #expect(radii.topTrailing > 0)
+            #expect(radii.bottomLeading > 0)
+            #expect(radii.bottomTrailing > 0)
+        }
     }
 
 
     @Test
-    func hudPositionBottomCenterOriginIsFlushWithDockTop() {
+    func hudPositionBottomRightOriginUsesVisibleFrameInset() {
         let screenFrame = NSRect(x: 0, y: 0, width: 1920, height: 1080)
         let visibleFrame = NSRect(x: 0, y: 70, width: 1920, height: 1010)
         let hudSize = NSSize(width: 44, height: 44)
-        let origin = HUDPosition.bottomCenter.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)
-        #expect(origin.x == visibleFrame.midX - hudSize.width / 2)
-        #expect(origin.y == visibleFrame.minY)
+        let origin = HUDPosition.bottomRight.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)
+        #expect(origin.x == visibleFrame.maxX - hudSize.width - HUDMetrics.screenInset)
+        #expect(origin.y == visibleFrame.minY + HUDMetrics.screenInset)
     }
 
     @Test
@@ -2601,8 +2562,8 @@ struct CadenceTests {
         let visibleFrame = NSRect(x: 0, y: 70, width: 1920, height: 986)
         let hudSize = NSSize(width: 44, height: 44)
         let origin = HUDPosition.topLeft.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)
-        #expect(origin.x == screenFrame.minX)
-        #expect(origin.y == visibleFrame.maxY - hudSize.height)
+        #expect(origin.x == visibleFrame.minX + HUDMetrics.screenInset)
+        #expect(origin.y == visibleFrame.maxY - hudSize.height - HUDMetrics.screenInset)
         #expect(origin.y < screenFrame.maxY - hudSize.height)
     }
 
@@ -2613,7 +2574,7 @@ struct CadenceTests {
         let sz = NSSize(width: 44, height: 44)
         #expect(HUDPosition.nearest(to: NSPoint(x: 30, y: 1060), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .topLeft)
         #expect(HUDPosition.nearest(to: NSPoint(x: 1900, y: 20), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomRight)
-        #expect(HUDPosition.nearest(to: NSPoint(x: 960, y: 80), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomCenter)
+        #expect(HUDPosition.nearest(to: NSPoint(x: 960, y: 80), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomLeft)
     }
 
     @Test
@@ -3384,13 +3345,13 @@ struct HUDPanelLayoutTests {
     }
 
     @Test
-    func positionStorePersistsSnapSelection() {
+    func positionStoreDefaultsToBottomRightAndPersistsSnapSelection() {
         let suite = "HUDPositionStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = HUDPositionStore(defaults: defaults)
 
-        #expect(store.load() == .bottomCenter)
+        #expect(store.load() == .bottomRight)
         store.save(.topLeft)
         #expect(HUDPositionStore(defaults: defaults).load() == .topLeft)
     }
