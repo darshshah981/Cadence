@@ -712,7 +712,8 @@ enum HUDVisualState: Equatable {
 
 enum HUDMetrics {
     static let idleHitSize = NSSize(width: 44, height: 44)
-    static let idleMarkSize = NSSize(width: 31, height: 31)
+    static let idleMarkSize = NSSize(width: 36, height: 28)
+    static let screenInset: CGFloat = 16
     static let expandedTraySize = NSSize(width: 240, height: 38)
     static let pillHeight: CGFloat = 38
     static let compactWidth: CGFloat = 236
@@ -752,59 +753,54 @@ enum HUDPosition: String, CaseIterable, Equatable {
     case bottomLeft
     case bottomRight
 
-    var cornerRadii: HUDCornerRadii {
-        let r: CGFloat = 14
+    static var allCases: [HUDPosition] {
+        [.topLeft, .topRight, .bottomLeft, .bottomRight]
+    }
+
+    var accessibilityName: String {
         switch self {
-        case .bottomCenter:
-            return HUDCornerRadii(topLeading: r, bottomLeading: 0, bottomTrailing: 0, topTrailing: r)
-        case .topLeft:
-            return HUDCornerRadii(topLeading: 0, bottomLeading: 0, bottomTrailing: r, topTrailing: 0)
-        case .topRight:
-            return HUDCornerRadii(topLeading: 0, bottomLeading: r, bottomTrailing: 0, topTrailing: 0)
-        case .bottomLeft:
-            return HUDCornerRadii(topLeading: 0, bottomLeading: 0, bottomTrailing: 0, topTrailing: r)
-        case .bottomRight:
-            return HUDCornerRadii(topLeading: r, bottomLeading: 0, bottomTrailing: 0, topTrailing: 0)
+        case .bottomCenter, .bottomRight: "Bottom right"
+        case .topLeft: "Top left"
+        case .topRight: "Top right"
+        case .bottomLeft: "Bottom left"
         }
+    }
+
+    var cornerRadii: HUDCornerRadii {
+        let radius: CGFloat = 22
+        return HUDCornerRadii(
+            topLeading: radius,
+            bottomLeading: radius,
+            bottomTrailing: radius,
+            topTrailing: radius
+        )
     }
 
     func visibleMarkFrame(in panelFrame: NSRect) -> NSRect {
         let markSize = HUDMetrics.idleMarkSize
-        let horizontalInset = panelFrame.width - markSize.width
-        let verticalInset = panelFrame.height - markSize.height
-        let origin: NSPoint
-        switch self {
-        case .bottomCenter:
-            origin = NSPoint(x: panelFrame.minX + horizontalInset / 2, y: panelFrame.minY)
-        case .topLeft:
-            origin = NSPoint(x: panelFrame.minX, y: panelFrame.minY + verticalInset)
-        case .topRight:
-            origin = NSPoint(x: panelFrame.minX + horizontalInset, y: panelFrame.minY + verticalInset)
-        case .bottomLeft:
-            origin = panelFrame.origin
-        case .bottomRight:
-            origin = NSPoint(x: panelFrame.minX + horizontalInset, y: panelFrame.minY)
-        }
+        let origin = NSPoint(
+            x: panelFrame.midX - markSize.width / 2,
+            y: panelFrame.midY - markSize.height / 2
+        )
         return NSRect(origin: origin, size: markSize)
     }
 
     func origin(screenFrame: NSRect, visibleFrame: NSRect, hudSize: NSSize) -> NSPoint {
+        let inset = HUDMetrics.screenInset
         switch self {
-        case .bottomCenter:
-            return NSPoint(x: visibleFrame.midX - hudSize.width / 2, y: visibleFrame.minY)
+        case .bottomCenter, .bottomRight:
+            return NSPoint(x: visibleFrame.maxX - hudSize.width - inset, y: visibleFrame.minY + inset)
         case .topLeft:
-            return NSPoint(x: screenFrame.minX, y: visibleFrame.maxY - hudSize.height)
+            return NSPoint(x: visibleFrame.minX + inset, y: visibleFrame.maxY - hudSize.height - inset)
         case .topRight:
-            return NSPoint(x: screenFrame.maxX - hudSize.width, y: visibleFrame.maxY - hudSize.height)
+            return NSPoint(x: visibleFrame.maxX - hudSize.width - inset, y: visibleFrame.maxY - hudSize.height - inset)
         case .bottomLeft:
-            return NSPoint(x: screenFrame.minX, y: screenFrame.minY)
-        case .bottomRight:
-            return NSPoint(x: screenFrame.maxX - hudSize.width, y: screenFrame.minY)
+            return NSPoint(x: visibleFrame.minX + inset, y: visibleFrame.minY + inset)
         }
     }
 
     static func nearest(to point: NSPoint, screenFrame: NSRect, visibleFrame: NSRect, hudSize: NSSize) -> HUDPosition {
-        var best = HUDPosition.bottomCenter
+        var best = HUDPosition.bottomRight
         var bestDistance = CGFloat.infinity
         for position in HUDPosition.allCases {
             let origin = position.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)

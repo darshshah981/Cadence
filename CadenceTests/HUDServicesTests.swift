@@ -173,14 +173,15 @@ struct HUDVisualGeometryTests {
     private let visible = NSRect(x: 0, y: 70, width: 1920, height: 986)
 
     @Test
-    func visibleMarkIsThirtyPercentSmallerInsideFullHitTarget() {
+    func idlePillFitsInsideFullHitTarget() {
         #expect(HUDMetrics.idleHitSize == NSSize(width: 44, height: 44))
-        #expect(HUDMetrics.idleMarkSize == NSSize(width: 31, height: 31))
-        #expect(HUDMetrics.idleMarkSize.width == (HUDMetrics.idleHitSize.width * 0.7).rounded())
+        #expect(HUDMetrics.idleMarkSize == NSSize(width: 36, height: 28))
+        #expect(HUDMetrics.idleMarkSize.width < HUDMetrics.idleHitSize.width)
+        #expect(HUDMetrics.idleMarkSize.height < HUDMetrics.idleHitSize.height)
     }
 
     @Test
-    func visibleMarkRemainsFlushWithEveryAttachedEdge() {
+    func visibleMarkIsCenteredInsideEveryPaddedHitTarget() {
         for position in HUDPosition.allCases {
             let panel = HUDPanelLayout.targetFrame(
                 position: position,
@@ -190,23 +191,12 @@ struct HUDVisualGeometryTests {
             )
             let mark = position.visibleMarkFrame(in: panel)
             #expect(mark.size == HUDMetrics.idleMarkSize)
-            switch position {
-            case .bottomCenter:
-                #expect(mark.midX == panel.midX)
-                #expect(mark.minY == visible.minY)
-            case .topLeft:
-                #expect(mark.minX == screen.minX)
-                #expect(mark.maxY == visible.maxY)
-            case .topRight:
-                #expect(mark.maxX == screen.maxX)
-                #expect(mark.maxY == visible.maxY)
-            case .bottomLeft:
-                #expect(mark.minX == screen.minX)
-                #expect(mark.minY == screen.minY)
-            case .bottomRight:
-                #expect(mark.maxX == screen.maxX)
-                #expect(mark.minY == screen.minY)
-            }
+            #expect(mark.midX == panel.midX)
+            #expect(mark.midY == panel.midY)
+            #expect(panel.minX >= visible.minX + HUDMetrics.screenInset)
+            #expect(panel.minY >= visible.minY + HUDMetrics.screenInset)
+            #expect(panel.maxX <= visible.maxX - HUDMetrics.screenInset)
+            #expect(panel.maxY <= visible.maxY - HUDMetrics.screenInset)
         }
     }
 
@@ -315,12 +305,12 @@ struct HUDVisualGeometryTests {
             for: .topLeft,
             screenFrame: screen,
             visibleFrame: visible
-        ) == CGRect(x: 0, y: 24, width: 31, height: 31))
+        ) == CGRect(x: 20, y: 48, width: 36, height: 28))
         #expect(HUDDropZoneGeometry.canvasRect(
-            for: .bottomCenter,
+            for: .bottomRight,
             screenFrame: screen,
             visibleFrame: visible
-        ) == CGRect(x: 944.5, y: 979, width: 31, height: 31))
+        ) == CGRect(x: 1864, y: 958, width: 36, height: 28))
     }
 
     @Test
@@ -332,7 +322,7 @@ struct HUDVisualGeometryTests {
             for: .topRight,
             screenFrame: negativeScreen,
             visibleFrame: negativeVisible
-        ) == CGRect(x: 1409, y: 24, width: 31, height: 31))
+        ) == CGRect(x: 1384, y: 48, width: 36, height: 28))
     }
 
     @Test
@@ -453,11 +443,9 @@ struct HUDVisualGeometryTests {
 
     @Test
     func screenChangesRepositionOnlyVisibleFrameDependentAnchors() {
-        #expect(HUDScreenChangePolicy.shouldReposition(.bottomCenter))
-        #expect(HUDScreenChangePolicy.shouldReposition(.topLeft))
-        #expect(HUDScreenChangePolicy.shouldReposition(.topRight))
-        #expect(!HUDScreenChangePolicy.shouldReposition(.bottomLeft))
-        #expect(!HUDScreenChangePolicy.shouldReposition(.bottomRight))
+        for position in HUDPosition.allCases {
+            #expect(HUDScreenChangePolicy.shouldReposition(position))
+        }
     }
 
     private func assertMorphAnchors(from: HUDPresentation, to: HUDPresentation) {
@@ -554,6 +542,29 @@ struct HUDVisualGeometryTests {
 }
 
 struct HUDAnimationClockTests {
+    @Test
+    func diagnosticsMeasureAHealthy120HzSample() {
+        let diagnostics = HUDFrameDiagnostics(warmUpDuration: 0)
+        diagnostics.begin(targetFramesPerSecond: 120)
+        for _ in 0..<1_200 {
+            diagnostics.record(deltaTime: 1 / 120)
+        }
+        let summary = diagnostics.summary()
+        #expect(summary?.targetFramesPerSecond == 120)
+        #expect(abs((summary?.deliveredFramesPerSecond ?? 0) - 120) < 0.001)
+        #expect((summary?.p95DeltaMilliseconds ?? .infinity) < 8.34)
+        #expect(summary?.lateFramePercentage == 0)
+    }
+
+    @Test
+    func diagnosticsClassifyCallbacksOverOneAndAHalfIntervalsAsLate() {
+        let diagnostics = HUDFrameDiagnostics(warmUpDuration: 0)
+        diagnostics.begin(targetFramesPerSecond: 120)
+        for _ in 0..<99 { diagnostics.record(deltaTime: 1 / 120) }
+        diagnostics.record(deltaTime: 1 / 60)
+        #expect(abs((diagnostics.summary()?.lateFramePercentage ?? 0) - 1) < 0.001)
+    }
+
     @Test
     func waveformAttackIsFrameRateIndependentAt60And120Hz() {
         let sixty = advanceWaveform(from: 0, to: 1, framesPerSecond: 60, seconds: 0.5)
@@ -866,11 +877,24 @@ struct HUDReleaseHardeningTests {
         )
 
         #expect(completion?.position == .topRight)
-        #expect(completion?.origin == NSPoint(x: 956, y: 732))
+        #expect(completion?.origin == NSPoint(x: 940, y: 716))
         #expect(!runtime.isActive)
         #expect(!HUDDragOverlayPolicy.shouldShow(isDragging: runtime.isActive, isOverlayVisible: false))
         if let completion { store.save(completion.position) }
         #expect(store.load() == .topRight)
+    }
+
+    @Test
+    func legacyBottomCenterMigratesOnceAndValidCornersRemainStable() {
+        let suite = "HUDPositionStoreMigrationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(HUDPosition.bottomCenter.rawValue, forKey: "Cadence.hudPosition")
+
+        let store = HUDPositionStore(defaults: defaults)
+        #expect(store.load() == .bottomRight)
+        store.save(.topLeft)
+        #expect(store.load() == .topLeft)
     }
 
     @Test
@@ -954,12 +978,16 @@ struct HUDApplicationPresentationTests {
             .error(message: "Insertion failed")
         ]
 
-        for state in states {
+        for state in states where state != .idle {
             #expect(HUDAccessibilityLabelResolver.label(
                 visualState: state,
                 application: application
             ).contains("Codex"))
         }
+        #expect(HUDAccessibilityLabelResolver.label(
+            visualState: .idle,
+            application: application
+        ) == "Cadence is ready")
         #expect(HUDAccessibilityLabelResolver.label(
             visualState: .transcribing,
             application: .cadence

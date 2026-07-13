@@ -10,6 +10,126 @@ private struct ImmediateInstalledApplicationDebouncer: InstalledApplicationRefre
 @MainActor
 struct InstalledApplicationCatalogTests {
     @Test
+    func pickerProjectionCapsDefaultRanksRunningAppsAndSearchesBeyondCap() {
+        let apps = (0..<15).map { index in
+            InstalledApplicationDescriptor(
+                bundleURL: URL(fileURLWithPath: "/Applications/App\(index).app"),
+                bundleIdentifier: "example.app.\(index)",
+                displayName: String(format: "App %02d", index),
+                version: nil, build: nil, isInstalled: true, isRunning: index == 14
+            )
+        }
+
+        let defaults = InstalledApplicationPickerProjection.applications(from: apps, query: "")
+        #expect(defaults.count == 12)
+        #expect(defaults.first?.bundleIdentifier == "example.app.14")
+        #expect(InstalledApplicationPickerProjection.applications(from: apps, query: "App 13").map(\.bundleIdentifier) == ["example.app.13"])
+    }
+
+    @Test
+    func pickerProjectionExcludesBackgroundAppsFromDefaultAndSearch() {
+        let helper = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Helper.app"),
+            bundleIdentifier: "example.helper", displayName: "Helper", version: nil, build: nil,
+            isInstalled: true, isRunning: true, isUserFacing: false
+        )
+        #expect(InstalledApplicationPickerProjection.applications(from: [helper], query: "").isEmpty)
+        #expect(InstalledApplicationPickerProjection.applications(from: [helper], query: "Helper").isEmpty)
+    }
+
+    @Test
+    func catalogCarriesBundleEligibilityMetadataIntoPickerProjection() async {
+        let fs = CatalogFileSystemFake()
+        let root = URL(fileURLWithPath: "/Applications")
+        let foreground = root.appendingPathComponent("Foreground.app")
+        let helper = root.appendingPathComponent("Helper.app")
+        await fs.setChildren([foreground, helper], for: root)
+        await fs.setMetadata(.application(id: "example.foreground", name: "Foreground"), for: foreground)
+        await fs.setMetadata(.application(id: "example.helper", name: "Helper", isUIElement: true), for: helper)
+        let state = InstalledApplicationCatalogSnapshotStore()
+        let service = InstalledApplicationCatalogService(
+            fileSystem: fs, roots: [root], cadenceBundleIdentifiers: [], currentBundleURL: nil,
+            snapshotStore: state, runningSource: EmptyRunningApplications()
+        )
+
+        await service.refresh()
+
+        #expect(state.snapshot.applications.count == 2)
+        #expect(InstalledApplicationPickerProjection.applications(from: state.snapshot.applications, query: "").map(\.displayName) == ["Foreground"])
+    }
+
+    @Test
+    func manuallyChosenHelperReturnsDescriptorEvenThoughPickerExcludesIt() async {
+        let fs = CatalogFileSystemFake()
+        let helper = URL(fileURLWithPath: "/Applications/Helper.app")
+        await fs.setMetadata(.application(id: "example.helper", name: "Helper", isUIElement: true), for: helper)
+        let state = InstalledApplicationCatalogSnapshotStore()
+        let service = InstalledApplicationCatalogService(
+            fileSystem: fs, roots: [], cadenceBundleIdentifiers: [], currentBundleURL: nil,
+            snapshotStore: state, runningSource: EmptyRunningApplications()
+        )
+
+        let chosen = await service.chooseApplication(at: helper)
+
+        #expect(chosen?.bundleURL == helper.standardizedFileURL)
+        #expect(chosen?.isUserFacing == false)
+        #expect(state.snapshot.applications.map(\.bundleURL) == [helper.standardizedFileURL])
+        #expect(InstalledApplicationPickerProjection.applications(
+            from: state.snapshot.applications, query: ""
+        ).isEmpty)
+    }
+
+    @Test
+    func settingsConfigurationStateUsesExactRuntimeIdentity() throws {
+        let spotify = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Spotify.app"),
+            bundleIdentifier: "com.spotify.client", displayName: "Spotify", version: nil, build: nil,
+            isInstalled: true, isRunning: false
+        )
+        let configured = try ApplicationConfiguration(
+            application: ApplicationReference(
+                bundleIdentifier: "com.spotify.client", lastKnownBundleURL: spotify.bundleURL,
+                lastKnownDisplayName: "Spotify"
+            ), isEnabled: true, familyID: .general, presetSelection: .familyDefault,
+            customGuidance: nil, revision: 1
+        )
+        #expect(ApplicationSettingsConfigurationState.resolve(application: spotify, configurations: [configured]) == .configured(configured))
+        let copy = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Spotify Beta.app"),
+            bundleIdentifier: spotify.bundleIdentifier, displayName: spotify.displayName,
+            version: nil, build: nil, isInstalled: true, isRunning: false
+        )
+        #expect(ApplicationSettingsConfigurationState.resolve(application: copy, configurations: [configured]) == .unconfigured)
+    }
+
+    @Test
+    func settingsConfigurationStateRejectsDuplicateExactConfigurations() throws {
+        let spotify = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/Applications/Spotify.app"),
+            bundleIdentifier: "com.spotify.client", displayName: "Spotify", version: nil, build: nil,
+            isInstalled: true, isRunning: false
+        )
+        let first = try ApplicationConfiguration(
+            application: ApplicationReference(
+                bundleIdentifier: spotify.bundleIdentifier, lastKnownBundleURL: spotify.bundleURL,
+                lastKnownDisplayName: spotify.displayName
+            ), isEnabled: true, familyID: .general, presetSelection: .familyDefault,
+            customGuidance: nil, revision: 1
+        )
+        let duplicate = try ApplicationConfiguration(
+            id: UUID(), application: ApplicationReference(
+                id: UUID(), bundleIdentifier: spotify.bundleIdentifier,
+                lastKnownBundleURL: spotify.bundleURL, lastKnownDisplayName: spotify.displayName
+            ), isEnabled: true, familyID: .general, presetSelection: .familyDefault,
+            customGuidance: nil, revision: 1
+        )
+
+        #expect(ApplicationSettingsConfigurationState.resolve(
+            application: spotify, configurations: [first, duplicate]
+        ) == .unconfigured)
+    }
+
+    @Test
     func standardRootsStopAtAppsValidateBundlesRejectCadenceAndRetainSameIDCopies() async throws {
         let fs = CatalogFileSystemFake()
         let apps = URL(fileURLWithPath: "/Applications")
@@ -381,7 +501,9 @@ private actor CatalogFileSystemFake: InstalledApplicationFileSystem {
             executableIsRegularFile: value.executableIsRegularFile,
             executableIsExecutable: value.executableIsExecutable,
             version: value.version,
-            build: value.build
+            build: value.build,
+            isUIElement: value.isUIElement,
+            isBackgroundOnly: value.isBackgroundOnly
         )
     }
     func queueRootScan(_ values: [URL], gate: CatalogScanGate?) { scans.append(.init(values: values, gate: gate)) }

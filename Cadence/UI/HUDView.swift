@@ -87,7 +87,8 @@ struct HUDView: View {
         .clipped()
         .modifier(HUDRootAccessibilityModifier(
             presentation: model.presentation,
-            application: model.applicationPresentation
+            application: model.applicationPresentation,
+            model: model
         ))
         .onAppear { model.setReducedMotion(reduceMotion) }
         .onChange(of: reduceMotion) { _, reduced in model.setReducedMotion(reduced) }
@@ -100,7 +101,7 @@ struct HUDView: View {
             if presentation.isExpanded {
                 IdleExpandedTray(model: model)
             } else {
-                logoBadge
+                microphonePill
             }
         case .recording(let triggerMode, let showsHint):
             recordingPill(triggerMode: triggerMode, showsHint: showsHint)
@@ -119,15 +120,29 @@ struct HUDView: View {
         }
     }
 
-    private var logoBadge: some View {
-        ZStack(alignment: attachment.alignment) {
+    private var microphonePill: some View {
+        ZStack {
             Color.clear
-            applicationMark(size: HUDMetrics.idleMarkSize)
+            Capsule(style: .continuous)
+                .fill(.ultraThinMaterial)
+                .frame(width: HUDMetrics.idleMarkSize.width, height: HUDMetrics.idleMarkSize.height)
+                .overlay {
+                    Capsule(style: .continuous)
+                        .stroke(Color.primary.opacity(0.14), lineWidth: 0.75)
+                }
+                .shadow(color: .black.opacity(0.16), radius: 8, y: 3)
+                .overlay {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textPrimary)
+                }
         }
             .frame(width: HUDMetrics.idleHitSize.width, height: HUDMetrics.idleHitSize.height)
             .overlay {
                 HUDLogoInteractionSurface(model: model)
             }
+            .accessibilityLabel("Cadence microphone")
+            .accessibilityHint("Drag to move Cadence, or use an action to move it to a screen corner.")
     }
 
     @ViewBuilder
@@ -233,7 +248,8 @@ struct HUDView: View {
 
     private var pillBackground: some View {
         adaptiveClipShape
-            .fill(FlowTheme.elevated)
+            .fill(.ultraThinMaterial)
+            .shadow(color: .black.opacity(0.16), radius: 10, y: 4)
     }
 
     private var pillStroke: some View {
@@ -265,6 +281,7 @@ struct HUDView: View {
 private struct HUDRootAccessibilityModifier: ViewModifier {
     let presentation: HUDPresentation
     let application: HUDApplicationPresentation
+    let model: HUDViewModel
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -278,6 +295,10 @@ private struct HUDRootAccessibilityModifier: ViewModifier {
                     application: application
                 ))
                 .accessibilityHint(presentation.visualState.accessibilityHint ?? "")
+                .accessibilityAction(named: "Move to top left") { model.requestMove(to: .topLeft) }
+                .accessibilityAction(named: "Move to top right") { model.requestMove(to: .topRight) }
+                .accessibilityAction(named: "Move to bottom left") { model.requestMove(to: .bottomLeft) }
+                .accessibilityAction(named: "Move to bottom right") { model.requestMove(to: .bottomRight) }
         }
     }
 }
@@ -291,7 +312,7 @@ enum HUDAccessibilityLabelResolver {
         guard application.kind != .cadence else { return base }
         switch visualState {
         case .idle:
-            return "\(base) for \(application.displayName)"
+            return base
         default:
             return "\(base) in \(application.displayName)"
         }

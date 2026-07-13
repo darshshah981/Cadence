@@ -2,6 +2,24 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+@MainActor
+private final class InstalledApplicationPickerIconCache {
+    static let shared = InstalledApplicationPickerIconCache()
+    private let cache = NSCache<NSURL, NSImage>()
+
+    private init() { cache.countLimit = 64 }
+
+    func icon(for bundleURL: URL) -> NSImage {
+        let key = bundleURL.standardizedFileURL as NSURL
+        if let cached = cache.object(forKey: key) { return cached }
+        let workspaceIcon = NSWorkspace.shared.icon(forFile: bundleURL.path)
+        let icon = (workspaceIcon.copy() as? NSImage) ?? workspaceIcon
+        icon.size = NSSize(width: 32, height: 32)
+        cache.setObject(icon, forKey: key)
+        return icon
+    }
+}
+
 struct SettingsView: View {
     private static let writingEnvironmentsScrollID = "settings-writing-environments"
 
@@ -182,6 +200,19 @@ struct SettingsView: View {
                     }
                     appPicker
                     if let selectedApplication {
+                        HStack(spacing: 8) {
+                            Text(selectedApplication.displayName)
+                                .font(.headline)
+                            if selectedApplicationConfiguration != nil {
+                                Text("Configured")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(FlowTheme.success)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(FlowTheme.successSubtle, in: Capsule())
+                                    .accessibilityIdentifier("settings-app-configured-badge")
+                            }
+                        }
                         CadenceDropdownRow(title: "Writing style", selection: $applicationFamily, accessibilityIdentifier: "settings-app-family") {
                             Text("General").tag(ScribeEnvironmentFamilyID.general)
                             Text("Messaging").tag(ScribeEnvironmentFamilyID.messaging)
@@ -194,7 +225,10 @@ struct SettingsView: View {
                             }
                         }
                         CadenceTextEditorRow(title: "Custom Scribe guidance", detail: "Optional. Considered with the transcription after the selected style preset.", text: $customGuidance, accessibilityIdentifier: "settings-app-guidance")
-                        CadenceActionButton(title: "Add \(selectedApplication.displayName)", role: .primary, accessibilityIdentifier: "settings-app-add") {
+                        CadenceSettingsPrimaryButton(
+                            title: "\(selectedApplicationConfiguration == nil ? "Add" : "Update") \(selectedApplication.displayName)",
+                            accessibilityIdentifier: "settings-app-add"
+                        ) {
                             let app = selectedApplication
                             let guidance = try? ScribeCustomGuidance(customGuidance)
                             let selection: ScribePresetSelection = applicationPresetID.isEmpty ? .familyDefault : .explicit(try! ScribePresetID(applicationPresetID))
@@ -207,18 +241,80 @@ struct SettingsView: View {
             }
         }
         .onAppear { appModel.refreshInstalledApplications() }
-        .onChange(of: applicationFamily) { _, _ in applicationPresetID = "" }
+        .onChange(of: applicationFamily) { _, family in
+            if !applicationPresetID.hasPrefix("\(family.rawValue).") { applicationPresetID = "" }
+        }
     }
 
     private var appPicker: some View {
-        let apps = appModel.installedApplications.filter { appSearchQuery.isEmpty || $0.displayName.localizedCaseInsensitiveContains(appSearchQuery) || $0.bundleIdentifier.localizedCaseInsensitiveContains(appSearchQuery) }
+        let apps = InstalledApplicationPickerProjection.applications(
+            from: appModel.installedApplications,
+            query: appSearchQuery
+        )
         return VStack(alignment: .leading, spacing: 8) {
-            if apps.isEmpty { Text("No matching installed apps yet. Refresh to scan this Mac.").font(.caption).foregroundStyle(FlowTheme.textSecondary) }
+            if apps.isEmpty {
+                Text(appSearchQuery.isEmpty ? "No eligible apps found. Refresh or choose an app manually." : "No matching apps. Try another search or choose an app manually.")
+                    .font(.caption)
+                    .foregroundStyle(FlowTheme.textSecondary)
+            }
             ForEach(apps) { app in
-                CadenceActionButton(title: app.displayName + (app.bundleIdentifier == "com.openai.codex" ? " · Recommended for coding" : ""), role: selectedApplication?.id == app.id ? .secondary : .quiet, accessibilityIdentifier: "settings-app-choice-\(settingsAppIdentifier(app))") { selectedApplication = app }
+                Button {
+                    selectApplication(app)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(nsImage: InstalledApplicationPickerIconCache.shared.icon(for: app.bundleURL))
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 24, height: 24)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(app.displayName).font(.system(size: 13, weight: .medium))
+                            if app.bundleIdentifier == "com.openai.codex" {
+                                Text("Recommended for coding").font(.caption2).foregroundStyle(FlowTheme.textSecondary)
+                            }
+                        }
+                        Spacer()
+                        if selectedApplication?.id == app.id {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(FlowTheme.success)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 40)
+                    .background(selectedApplication?.id == app.id ? FlowTheme.accentSubtle : FlowTheme.subtle.opacity(0.55), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings-app-choice-\(settingsAppIdentifier(app))")
             }
         }
         .accessibilityIdentifier("settings-installed-app-picker")
+    }
+
+    private var selectedApplicationConfiguration: ApplicationConfiguration? {
+        guard let selectedApplication else { return nil }
+        guard case let .configured(configuration) = ApplicationSettingsConfigurationState.resolve(
+            application: selectedApplication,
+            configurations: appModel.applicationConfigurations
+        ) else { return nil }
+        return configuration
+    }
+
+    private func selectApplication(_ application: InstalledApplicationDescriptor) {
+        selectedApplication = application
+        if case let .configured(configuration) = ApplicationSettingsConfigurationState.resolve(
+            application: application,
+            configurations: appModel.applicationConfigurations
+        ) {
+            applicationFamily = configuration.familyID
+            switch configuration.presetSelection {
+            case .familyDefault: applicationPresetID = ""
+            case let .explicit(id): applicationPresetID = id.rawValue
+            }
+            customGuidance = configuration.customGuidance?.rawValue ?? ""
+        } else {
+            applicationFamily = .general
+            applicationPresetID = ""
+            customGuidance = ""
+        }
     }
 
     private var configuredApps: some View {
@@ -255,7 +351,11 @@ struct SettingsView: View {
         panel.allowedContentTypes = [.applicationBundle]
         panel.message = "Choose an installed Mac app to configure Scribe. Cadence reads its verified app identity."
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        appModel.chooseInstalledApplication(at: url)
+        Task {
+            if let application = await appModel.chooseInstalledApplication(at: url) {
+                selectApplication(application)
+            }
+        }
     }
 
     private func settingsAppIdentifier(_ app: InstalledApplicationDescriptor) -> String {
@@ -1316,9 +1416,8 @@ private struct SettingsToggleRow: View {
 
             Spacer()
 
-            Toggle("", isOn: $isOn)
+            CadenceToggle(title: title, isOn: $isOn)
                 .labelsHidden()
-                .toggleStyle(.switch)
         }
         .padding(12)
     }
@@ -1451,9 +1550,8 @@ private struct ShortcutSettingRow: View {
                 ShortcutRecorderField(shortcut: $shortcut, onRecordingChange: onRecordingChange)
                     .frame(width: 154, height: 32)
 
-                Toggle("", isOn: $isEnabled)
+                CadenceToggle(title: "Enable \(title)", isOn: $isEnabled)
                     .labelsHidden()
-                    .toggleStyle(FlowToggleStyle())
             }
             .frame(width: 214, alignment: .trailing)
         }
@@ -1691,10 +1789,9 @@ private struct PersonalizationItemRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Toggle("", isOn: $isEnabled)
+            CadenceToggle(title: "Enable \(title)", isOn: $isEnabled)
                 .labelsHidden()
                 .controlSize(.small)
-                .accessibilityLabel("Enable \(title)")
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 12, weight: .medium))
@@ -1795,7 +1892,7 @@ private struct WritingStyleProfileEditor: View {
                 Picker("Formatting", selection: $draft.formatting) {
                     ForEach(WritingFormatting.allCases) { Text($0.displayName).tag($0) }
                 }
-                Toggle("Preserve code exactly", isOn: $draft.preservesCodeLiterals)
+                CadenceToggle(title: "Preserve code exactly", isOn: $draft.preservesCodeLiterals)
             }
             HStack {
                 Button("Cancel") { dismiss() }

@@ -41,7 +41,19 @@ enum ApplicationIdentityResolver {
         bundleURL: URL,
         library: ApplicationConfigurationLibrary
     ) -> ApplicationConfiguration? {
-        let matches = library.configurations.filter {
+        runtimeExactConfiguration(
+            bundleIdentifier: bundleIdentifier,
+            bundleURL: bundleURL,
+            configurations: library.configurations
+        )
+    }
+
+    static func runtimeExactConfiguration(
+        bundleIdentifier: String,
+        bundleURL: URL,
+        configurations: [ApplicationConfiguration]
+    ) -> ApplicationConfiguration? {
+        let matches = configurations.filter {
             $0.application.bundleIdentifier == bundleIdentifier
                 && $0.application.lastKnownBundleURL.standardizedFileURL
                     == bundleURL.standardizedFileURL

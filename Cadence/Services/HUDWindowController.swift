@@ -1,6 +1,57 @@
 import AppKit
+import OSLog
 import QuartzCore
 import SwiftUI
+
+private let hudLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Cadence", category: "HUD")
+
+struct HUDFrameDiagnosticSummary: Equatable {
+    let targetFramesPerSecond: Int
+    let deliveredFramesPerSecond: Double
+    let p95DeltaMilliseconds: Double
+    let lateFramePercentage: Double
+    let maximumDeltaMilliseconds: Double
+}
+
+final class HUDFrameDiagnostics {
+    private(set) var targetFramesPerSecond = 60
+    private var deltas: [TimeInterval] = []
+    private let warmUpDuration: TimeInterval
+    private var elapsed: TimeInterval = 0
+
+    init(warmUpDuration: TimeInterval = 2) {
+        self.warmUpDuration = warmUpDuration
+    }
+
+    func begin(targetFramesPerSecond: Int) {
+        self.targetFramesPerSecond = max(1, targetFramesPerSecond)
+        deltas.removeAll(keepingCapacity: true)
+        elapsed = 0
+    }
+
+    func record(deltaTime: TimeInterval) {
+        guard deltaTime > 0 else { return }
+        elapsed += deltaTime
+        guard elapsed > warmUpDuration else { return }
+        deltas.append(deltaTime)
+    }
+
+    func summary() -> HUDFrameDiagnosticSummary? {
+        guard !deltas.isEmpty else { return nil }
+        let sorted = deltas.sorted()
+        let index = min(sorted.count - 1, Int(ceil(Double(sorted.count) * 0.95)) - 1)
+        let requestedInterval = 1 / Double(targetFramesPerSecond)
+        let lateCount = deltas.filter { $0 > requestedInterval * 1.5 }.count
+        let totalDuration = deltas.reduce(0, +)
+        return HUDFrameDiagnosticSummary(
+            targetFramesPerSecond: targetFramesPerSecond,
+            deliveredFramesPerSecond: totalDuration > 0 ? Double(deltas.count) / totalDuration : 0,
+            p95DeltaMilliseconds: sorted[index] * 1_000,
+            lateFramePercentage: Double(lateCount) / Double(deltas.count) * 100,
+            maximumDeltaMilliseconds: (sorted.last ?? 0) * 1_000
+        )
+    }
+}
 
 enum HUDWaveformSmoother {
     static func step(current: Double, target: Double, deltaTime: TimeInterval) -> Double {
@@ -32,6 +83,7 @@ final class HUDDisplayLinkClock: NSObject {
     private var displayLink: CADisplayLink?
     private var previousTimestamp: TimeInterval?
     private lazy var callbackTarget = HUDDisplayLinkCallbackTarget(owner: self)
+    let diagnostics = HUDFrameDiagnostics()
 
     func attach(to view: NSView) {
         guard self.view !== view else { return }
@@ -49,6 +101,7 @@ final class HUDDisplayLinkClock: NSObject {
     func requestFrames() {
         guard let displayLink else { return }
         let maximumFPS = view?.window?.screen?.maximumFramesPerSecond ?? 60
+        diagnostics.begin(targetFramesPerSecond: maximumFPS)
         displayLink.preferredFrameRateRange = HUDDisplayRefreshPolicy.preferredRange(
             maximumFramesPerSecond: maximumFPS
         )
@@ -74,7 +127,15 @@ final class HUDDisplayLinkClock: NSObject {
             deltaTime = link.duration > 0 ? link.duration : 1 / 60
         }
         previousTimestamp = link.timestamp
+        diagnostics.record(deltaTime: deltaTime)
         if onFrame?(deltaTime) != true {
+#if DEBUG
+            if let summary = diagnostics.summary() {
+                hudLogger.debug(
+                    "HUD frames target=\(summary.targetFramesPerSecond, privacy: .public) delivered=\(summary.deliveredFramesPerSecond, privacy: .public) p95_ms=\(summary.p95DeltaMilliseconds, privacy: .public) late_pct=\(summary.lateFramePercentage, privacy: .public) max_ms=\(summary.maximumDeltaMilliseconds, privacy: .public)"
+                )
+            }
+#endif
             link.isPaused = true
             previousTimestamp = nil
         }
@@ -218,12 +279,7 @@ enum HUDTooltipGeometry {
 
 enum HUDScreenChangePolicy {
     static func shouldReposition(_ position: HUDPosition) -> Bool {
-        switch position {
-        case .bottomCenter, .topLeft, .topRight:
-            return true
-        case .bottomLeft, .bottomRight:
-            return false
-        }
+        true
     }
 }
 
@@ -356,6 +412,7 @@ enum HUDPanelTransition {
 
 final class HUDPositionStore {
     private static let key = "Cadence.hudPosition"
+    private static let migrationKey = "Cadence.hudPosition.floatingCorners.v1"
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -363,8 +420,16 @@ final class HUDPositionStore {
     }
 
     func load() -> HUDPosition {
-        guard let raw = defaults.string(forKey: Self.key) else { return .bottomCenter }
-        return HUDPosition(rawValue: raw) ?? .bottomCenter
+        if !defaults.bool(forKey: Self.migrationKey) {
+            let raw = defaults.string(forKey: Self.key)
+            if raw == nil || raw == HUDPosition.bottomCenter.rawValue {
+                defaults.set(HUDPosition.bottomRight.rawValue, forKey: Self.key)
+            }
+            defaults.set(true, forKey: Self.migrationKey)
+        }
+        guard let raw = defaults.string(forKey: Self.key) else { return .bottomRight }
+        let position = HUDPosition(rawValue: raw) ?? .bottomRight
+        return position == .bottomCenter ? .bottomRight : position
     }
 
     func save(_ position: HUDPosition) {
@@ -418,6 +483,7 @@ final class HUDWindowController {
         viewModel.onCopyLast = { [weak self] in self?.onCopyLast?() }
         viewModel.onAddToDictionary = { [weak self] in self?.onAddToDictionary?() }
         viewModel.onHide = { [weak self] duration in self?.onHide?(duration) }
+        viewModel.onMoveRequested = { [weak self] position in self?.move(to: position, announce: true) }
         viewModel.onAnimationRequested = { [weak self] in
             self?.displayLinkClock.requestFrames()
         }
@@ -511,8 +577,6 @@ final class HUDWindowController {
             if viewModel.hasPendingWaveformAnimation {
                 displayLinkClock.requestFrames()
             }
-        } else {
-            pillHostingView?.rootView = HUDView(model: viewModel)
         }
 
         let currentPresentation = viewModel.presentation
@@ -542,8 +606,6 @@ final class HUDWindowController {
                     hostingView.bottomAnchor.constraint(equalTo: subtitlePanel.contentView!.bottomAnchor)
                 ])
                 subtitleHostingView = hostingView
-            } else {
-                subtitleHostingView?.rootView = HUDSubtitleView(model: viewModel)
             }
 
             position(subtitlePanel: subtitlePanel, relativeTo: pillPanel)
@@ -685,6 +747,23 @@ final class HUDWindowController {
         positionStore.save(completion.position)
         hideDropZoneOverlay()
         markDragTooltipShown()
+    }
+
+    private func move(to position: HUDPosition, announce: Bool) {
+        guard let pillPanel else { return }
+        positionStore.save(position)
+        viewModel.position = position
+        setPanelFrameImmediately(pillPanel, size: HUDPanelLayout.size(for: viewModel.presentation))
+        if let subtitlePanel, subtitlePanel.isVisible {
+            self.position(subtitlePanel: subtitlePanel, relativeTo: pillPanel)
+        }
+        if announce {
+            NSAccessibility.post(
+                element: NSApp as Any,
+                notification: .announcementRequested,
+                userInfo: [.announcement: "Cadence moved to \(position.accessibilityName.lowercased())"]
+            )
+        }
     }
 
     private func showDropZoneOverlay() {
@@ -890,7 +969,7 @@ final class HUDWindowController {
                 to: transition.targetFrame,
                 progress: easedProgress
             )
-            pillPanel.setFrame(frame, display: true)
+            pillPanel.setFrame(frame, display: false, animate: false)
             viewModel.setMorphProgress(easedProgress)
             if let subtitlePanel, subtitlePanel.isVisible {
                 position(subtitlePanel: subtitlePanel, relativeTo: pillPanel)
@@ -1024,6 +1103,7 @@ final class HUDViewModel: ObservableObject {
     var onHide: ((HUDHideDuration) -> Void)?
     var onAnimationRequested: (() -> Void)?
     var onReducedMotionChanged: ((Bool) -> Void)?
+    var onMoveRequested: ((HUDPosition) -> Void)?
 
     private var targetBars = Array(repeating: 0.0, count: 16)
     private var reducedMotion = false
@@ -1091,6 +1171,10 @@ final class HUDViewModel: ObservableObject {
         onHide?(duration)
     }
 
+    func requestMove(to position: HUDPosition) {
+        onMoveRequested?(position)
+    }
+
     var presentation: HUDPresentation {
         HUDPresentation(visualState: state.visualState, isExpanded: isExpanded)
     }
@@ -1101,7 +1185,9 @@ final class HUDViewModel: ObservableObject {
     }
 
     func setMorphProgress(_ progress: Double) {
-        morphProgress = max(0, min(1, progress))
+        let next = max(0, min(1, progress))
+        guard abs(next - morphProgress) >= 0.000_5 else { return }
+        morphProgress = next
     }
 
     func finishMorph() {
@@ -1119,10 +1205,15 @@ final class HUDViewModel: ObservableObject {
             displayBars = targetBars
             return false
         }
-        displayBars = zip(displayBars, targetBars).map { pair in
+        let nextBars = zip(displayBars, targetBars).map { pair in
             HUDWaveformSmoother.step(current: pair.0, target: pair.1, deltaTime: deltaTime)
         }
-        return !HUDWaveformSmoother.isStable(current: displayBars, target: targetBars)
+        if HUDWaveformSmoother.isStable(current: nextBars, target: targetBars) {
+            displayBars = targetBars
+            return false
+        }
+        displayBars = nextBars
+        return true
     }
 
     func apply(_ state: HUDState) {

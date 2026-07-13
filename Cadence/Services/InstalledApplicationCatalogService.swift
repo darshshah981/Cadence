@@ -66,7 +66,9 @@ struct SystemInstalledApplicationFileSystem: InstalledApplicationFileSystem, @un
             executableIsRegularFile: executableValues?.isRegularFile == true,
             executableIsExecutable: fileManager.isExecutableFile(atPath: canonicalExecutable.path),
             version: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
-            build: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+            build: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String,
+            isUIElement: (bundle.object(forInfoDictionaryKey: "LSUIElement") as? Bool) == true,
+            isBackgroundOnly: (bundle.object(forInfoDictionaryKey: "LSBackgroundOnly") as? Bool) == true
         )
     }
 }
@@ -229,9 +231,14 @@ actor InstalledApplicationCatalogService {
 
     func pageAppeared() async { await refresh() }
 
-    func chooseApplication(at url: URL) async {
-        explicitURLs.insert(url)
+    func chooseApplication(at url: URL) async -> InstalledApplicationDescriptor? {
+        guard let descriptor = await descriptor(at: url, isRunning: false) else {
+            await refresh()
+            return nil
+        }
+        explicitURLs.insert(descriptor.bundleURL)
         await refresh()
+        return descriptor
     }
 
     func updateRememberedURLs(_ urls: Set<URL>) {
@@ -279,7 +286,8 @@ actor InstalledApplicationCatalogService {
                     version: first.version,
                     build: first.build,
                     isInstalled: copies.contains(where: \.isInstalled),
-                    isRunning: copies.contains(where: \.isRunning)
+                    isRunning: copies.contains(where: \.isRunning),
+                    isUserFacing: copies.contains(where: \.isUserFacing)
                 )
             }
             .sorted {
@@ -387,7 +395,8 @@ actor InstalledApplicationCatalogService {
             version: metadata.version,
             build: metadata.build,
             isInstalled: true,
-            isRunning: isRunning
+            isRunning: isRunning,
+            isUserFacing: !metadata.isUIElement && !metadata.isBackgroundOnly
         )
     }
 

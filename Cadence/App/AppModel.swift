@@ -2866,8 +2866,8 @@ final class AppModel: ObservableObject {
         Task { await installedApplicationCatalogService.pageAppeared() }
     }
 
-    func chooseInstalledApplication(at url: URL) {
-        Task { await installedApplicationCatalogService.chooseApplication(at: url) }
+    func chooseInstalledApplication(at url: URL) async -> InstalledApplicationDescriptor? {
+        await installedApplicationCatalogService.chooseApplication(at: url)
     }
 
     private func updateSettingsPresentation(_ state: SettingsPresentationState) {
