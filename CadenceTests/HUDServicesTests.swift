@@ -886,7 +886,10 @@ struct HUDReleaseHardeningTests {
         )
 
         #expect(completion?.position == .topRight)
-        #expect(completion?.origin == NSPoint(x: 940, y: 716))
+        #expect(completion?.origin == NSPoint(
+            x: screen.maxX - HUDMetrics.idleHitSize.width - HUDMetrics.screenInset,
+            y: screen.maxY - HUDMetrics.idleHitSize.height - HUDMetrics.screenInset
+        ))
         #expect(!runtime.isActive)
         #expect(!HUDDragOverlayPolicy.shouldShow(isDragging: runtime.isActive, isOverlayVisible: false))
         if let completion { store.save(completion.position) }
