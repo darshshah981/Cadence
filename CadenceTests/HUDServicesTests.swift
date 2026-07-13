@@ -193,10 +193,14 @@ struct HUDVisualGeometryTests {
             #expect(mark.size == HUDMetrics.idleMarkSize)
             #expect(mark.midX == panel.midX)
             #expect(mark.midY == panel.midY)
-            #expect(panel.minX >= visible.minX + HUDMetrics.screenInset)
-            #expect(panel.minY >= visible.minY + HUDMetrics.screenInset)
-            #expect(panel.maxX <= visible.maxX - HUDMetrics.screenInset)
-            #expect(panel.maxY <= visible.maxY - HUDMetrics.screenInset)
+            #expect(panel.minX >= screen.minX + HUDMetrics.screenInset)
+            if position == .bottomCenter {
+                #expect(panel.minY >= visible.minY + HUDMetrics.screenInset)
+            } else {
+                #expect(panel.minY >= screen.minY + HUDMetrics.screenInset)
+                #expect(panel.maxX <= screen.maxX - HUDMetrics.screenInset)
+                #expect(panel.maxY <= screen.maxY - HUDMetrics.screenInset)
+            }
         }
     }
 
@@ -305,12 +309,17 @@ struct HUDVisualGeometryTests {
             for: .topLeft,
             screenFrame: screen,
             visibleFrame: visible
-        ) == CGRect(x: 20, y: 48, width: 36, height: 28))
+        ) == CGRect(x: 20, y: 24, width: 36, height: 28))
         #expect(HUDDropZoneGeometry.canvasRect(
             for: .bottomRight,
             screenFrame: screen,
             visibleFrame: visible
-        ) == CGRect(x: 1864, y: 958, width: 36, height: 28))
+        ) == CGRect(x: 1864, y: 1028, width: 36, height: 28))
+        #expect(HUDDropZoneGeometry.canvasRect(
+            for: .bottomCenter,
+            screenFrame: screen,
+            visibleFrame: visible
+        ) == CGRect(x: 942, y: 958, width: 36, height: 28))
     }
 
     @Test
@@ -322,7 +331,7 @@ struct HUDVisualGeometryTests {
             for: .topRight,
             screenFrame: negativeScreen,
             visibleFrame: negativeVisible
-        ) == CGRect(x: 1384, y: 48, width: 36, height: 28))
+        ) == CGRect(x: 1384, y: 24, width: 36, height: 28))
     }
 
     @Test
@@ -885,14 +894,14 @@ struct HUDReleaseHardeningTests {
     }
 
     @Test
-    func legacyBottomCenterMigratesOnceAndValidCornersRemainStable() {
+    func bottomCenterPreferencePersistsAlongsideCornerPositions() {
         let suite = "HUDPositionStoreMigrationTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(HUDPosition.bottomCenter.rawValue, forKey: "Cadence.hudPosition")
 
         let store = HUDPositionStore(defaults: defaults)
-        #expect(store.load() == .bottomRight)
+        #expect(store.load() == .bottomCenter)
         store.save(.topLeft)
         #expect(store.load() == .topLeft)
     }

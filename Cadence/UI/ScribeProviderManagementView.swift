@@ -23,6 +23,7 @@ struct ScribeProviderManagementView: View {
                     title: appModel.configuredScribeProviderKind == nil ? "Set up" : "Replace",
                     role: .secondary
                 ) { appModel.presentScribeProviderSetup() }
+                .controlSize(.small)
                 .accessibilityIdentifier("scribe-provider-setup")
             }
 
@@ -61,6 +62,7 @@ struct ScribeProviderManagementView: View {
                         title: "Remove \(kind.displayName) from Cadence",
                         role: .destructive
                     ) { confirmsRemoval = true }
+                    .controlSize(.small)
                 }
                 .confirmationDialog(
                     "Remove \(kind.displayName) from Cadence",

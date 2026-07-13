@@ -142,7 +142,7 @@ struct HUDView: View {
                 HUDLogoInteractionSurface(model: model)
             }
             .accessibilityLabel("Cadence microphone")
-            .accessibilityHint("Drag to move Cadence, or use an action to move it to a screen corner.")
+            .accessibilityHint("Drag to move Cadence, or use an action to move it to a screen position.")
     }
 
     @ViewBuilder
@@ -298,6 +298,7 @@ private struct HUDRootAccessibilityModifier: ViewModifier {
                 .accessibilityAction(named: "Move to top left") { model.requestMove(to: .topLeft) }
                 .accessibilityAction(named: "Move to top right") { model.requestMove(to: .topRight) }
                 .accessibilityAction(named: "Move to bottom left") { model.requestMove(to: .bottomLeft) }
+                .accessibilityAction(named: "Move to bottom center") { model.requestMove(to: .bottomCenter) }
                 .accessibilityAction(named: "Move to bottom right") { model.requestMove(to: .bottomRight) }
         }
     }

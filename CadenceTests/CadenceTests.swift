@@ -2547,24 +2547,23 @@ struct CadenceTests {
 
 
     @Test
-    func hudPositionBottomRightOriginUsesVisibleFrameInset() {
+    func hudPositionBottomRightOriginUsesPhysicalScreenInset() {
         let screenFrame = NSRect(x: 0, y: 0, width: 1920, height: 1080)
         let visibleFrame = NSRect(x: 0, y: 70, width: 1920, height: 1010)
         let hudSize = NSSize(width: 44, height: 44)
         let origin = HUDPosition.bottomRight.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)
-        #expect(origin.x == visibleFrame.maxX - hudSize.width - HUDMetrics.screenInset)
-        #expect(origin.y == visibleFrame.minY + HUDMetrics.screenInset)
+        #expect(origin.x == screenFrame.maxX - hudSize.width - HUDMetrics.screenInset)
+        #expect(origin.y == screenFrame.minY + HUDMetrics.screenInset)
     }
 
     @Test
-    func hudPositionTopLeftOriginIsBelowMenuBar() {
+    func hudPositionTopLeftOriginUsesPhysicalScreenInset() {
         let screenFrame = NSRect(x: 0, y: 0, width: 1920, height: 1080)
         let visibleFrame = NSRect(x: 0, y: 70, width: 1920, height: 986)
         let hudSize = NSSize(width: 44, height: 44)
         let origin = HUDPosition.topLeft.origin(screenFrame: screenFrame, visibleFrame: visibleFrame, hudSize: hudSize)
-        #expect(origin.x == visibleFrame.minX + HUDMetrics.screenInset)
-        #expect(origin.y == visibleFrame.maxY - hudSize.height - HUDMetrics.screenInset)
-        #expect(origin.y < screenFrame.maxY - hudSize.height)
+        #expect(origin.x == screenFrame.minX + HUDMetrics.screenInset)
+        #expect(origin.y == screenFrame.maxY - hudSize.height - HUDMetrics.screenInset)
     }
 
     @Test
@@ -2574,7 +2573,7 @@ struct CadenceTests {
         let sz = NSSize(width: 44, height: 44)
         #expect(HUDPosition.nearest(to: NSPoint(x: 30, y: 1060), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .topLeft)
         #expect(HUDPosition.nearest(to: NSPoint(x: 1900, y: 20), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomRight)
-        #expect(HUDPosition.nearest(to: NSPoint(x: 960, y: 80), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomLeft)
+        #expect(HUDPosition.nearest(to: NSPoint(x: 960, y: 100), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomCenter)
     }
 
     @Test
@@ -2595,7 +2594,41 @@ struct CadenceTests {
         let sz = NSSize(width: 44, height: 44)
         let o1 = HUDPosition.bottomCenter.origin(screenFrame: sf, visibleFrame: NSRect(x: 0, y: 70, width: 1920, height: 1010), hudSize: sz)
         let o2 = HUDPosition.bottomCenter.origin(screenFrame: sf, visibleFrame: NSRect(x: 0, y: 120, width: 1920, height: 960), hudSize: sz)
+        #expect(o1.x == sf.midX - sz.width / 2)
+        #expect(o2.x == sf.midX - sz.width / 2)
         #expect(o2.y > o1.y)
+    }
+
+    @Test
+    func hudPositionBottomCenterStaysCenteredWithLeftDock() {
+        let screenFrame = NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let visibleFrame = NSRect(x: 80, y: 0, width: 1840, height: 1080)
+        let hudSize = NSSize(width: 44, height: 44)
+
+        let origin = HUDPosition.bottomCenter.origin(
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            hudSize: hudSize
+        )
+
+        #expect(origin.x == screenFrame.midX - hudSize.width / 2)
+        #expect(origin.y == visibleFrame.minY + HUDMetrics.screenInset)
+    }
+
+    @Test
+    func hudPositionBottomCenterStaysCenteredWithRightDock() {
+        let screenFrame = NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let visibleFrame = NSRect(x: 0, y: 0, width: 1840, height: 1080)
+        let hudSize = NSSize(width: 44, height: 44)
+
+        let origin = HUDPosition.bottomCenter.origin(
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            hudSize: hudSize
+        )
+
+        #expect(origin.x == screenFrame.midX - hudSize.width / 2)
+        #expect(origin.y == visibleFrame.minY + HUDMetrics.screenInset)
     }
 
     @Test
@@ -3305,7 +3338,7 @@ struct HUDPanelLayoutTests {
         )
 
         #expect(frame == NSRect(
-            x: visible.maxX - 240 - HUDMetrics.screenInset,
+            x: visible.midX - 120,
             y: visible.minY + HUDMetrics.screenInset,
             width: 240,
             height: 38
@@ -3324,8 +3357,8 @@ struct HUDPanelLayoutTests {
         )
 
         #expect(frame == NSRect(
-            x: visible.maxX - 44 - HUDMetrics.screenInset,
-            y: visible.maxY - 44 - HUDMetrics.screenInset,
+            x: screen.maxX - 44 - HUDMetrics.screenInset,
+            y: screen.maxY - 44 - HUDMetrics.screenInset,
             width: 44,
             height: 44
         ))

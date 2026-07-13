@@ -218,8 +218,8 @@ struct CadenceSettingsPrimaryButtonStyle: ButtonStyle {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(FlowTheme.background)
-            .padding(.horizontal, 14)
-            .frame(minHeight: 32)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 28)
             .background(
                 configuration.isPressed
                     ? FlowTheme.accentPressed

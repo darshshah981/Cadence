@@ -412,7 +412,6 @@ enum HUDPanelTransition {
 
 final class HUDPositionStore {
     private static let key = "Cadence.hudPosition"
-    private static let migrationKey = "Cadence.hudPosition.floatingCorners.v1"
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -420,16 +419,8 @@ final class HUDPositionStore {
     }
 
     func load() -> HUDPosition {
-        if !defaults.bool(forKey: Self.migrationKey) {
-            let raw = defaults.string(forKey: Self.key)
-            if raw == nil || raw == HUDPosition.bottomCenter.rawValue {
-                defaults.set(HUDPosition.bottomRight.rawValue, forKey: Self.key)
-            }
-            defaults.set(true, forKey: Self.migrationKey)
-        }
         guard let raw = defaults.string(forKey: Self.key) else { return .bottomRight }
-        let position = HUDPosition(rawValue: raw) ?? .bottomRight
-        return position == .bottomCenter ? .bottomRight : position
+        return HUDPosition(rawValue: raw) ?? .bottomRight
     }
 
     func save(_ position: HUDPosition) {
