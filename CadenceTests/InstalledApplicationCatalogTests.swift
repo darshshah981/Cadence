@@ -10,6 +10,23 @@ private struct ImmediateInstalledApplicationDebouncer: InstalledApplicationRefre
 @MainActor
 struct InstalledApplicationCatalogTests {
     @Test
+    func systemMetadataBooleanParserAcceptsPlistCompatibleTruthForms() {
+        #expect(SystemInstalledApplicationFileSystem.plistBoolean(true))
+        #expect(SystemInstalledApplicationFileSystem.plistBoolean(NSNumber(value: 1)))
+        #expect(SystemInstalledApplicationFileSystem.plistBoolean(NSNumber(value: 7)))
+        #expect(SystemInstalledApplicationFileSystem.plistBoolean("1"))
+        #expect(SystemInstalledApplicationFileSystem.plistBoolean(" true "))
+        #expect(SystemInstalledApplicationFileSystem.plistBoolean("YES"))
+
+        #expect(!SystemInstalledApplicationFileSystem.plistBoolean(false))
+        #expect(!SystemInstalledApplicationFileSystem.plistBoolean(NSNumber(value: 0)))
+        #expect(!SystemInstalledApplicationFileSystem.plistBoolean("0"))
+        #expect(!SystemInstalledApplicationFileSystem.plistBoolean("false"))
+        #expect(!SystemInstalledApplicationFileSystem.plistBoolean("no"))
+        #expect(!SystemInstalledApplicationFileSystem.plistBoolean(nil))
+    }
+
+    @Test
     func pickerProjectionCapsDefaultRanksRunningAppsAndSearchesBeyondCap() {
         let apps = (0..<15).map { index in
             InstalledApplicationDescriptor(

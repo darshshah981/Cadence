@@ -67,9 +67,23 @@ struct SystemInstalledApplicationFileSystem: InstalledApplicationFileSystem, @un
             executableIsExecutable: fileManager.isExecutableFile(atPath: canonicalExecutable.path),
             version: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
             build: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String,
-            isUIElement: (bundle.object(forInfoDictionaryKey: "LSUIElement") as? Bool) == true,
-            isBackgroundOnly: (bundle.object(forInfoDictionaryKey: "LSBackgroundOnly") as? Bool) == true
+            isUIElement: Self.plistBoolean(bundle.object(forInfoDictionaryKey: "LSUIElement")),
+            isBackgroundOnly: Self.plistBoolean(bundle.object(forInfoDictionaryKey: "LSBackgroundOnly"))
         )
+    }
+
+    static func plistBoolean(_ value: Any?) -> Bool {
+        switch value {
+        case let value as Bool:
+            return value
+        case let value as NSNumber:
+            return value.intValue != 0
+        case let value as String:
+            let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return ["1", "true", "yes"].contains(normalized)
+        default:
+            return false
+        }
     }
 }
 
