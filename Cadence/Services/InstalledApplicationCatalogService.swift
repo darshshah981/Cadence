@@ -104,7 +104,8 @@ struct WorkspaceInstalledApplicationRunningSource: InstalledApplicationRunningSo
                 version: nil,
                 build: nil,
                 isInstalled: true,
-                isRunning: true
+                isRunning: true,
+                isUserFacing: application.activationPolicy == .regular
             )
         }
     }
@@ -288,7 +289,16 @@ actor InstalledApplicationCatalogService {
             guard let canonical = await canonicalAllowedURL(runningApplication.bundleURL),
                   cadenceBundleIdentifiers.contains(runningApplication.bundleIdentifier) == false,
                   let descriptor = await descriptor(at: canonical, isRunning: true) else { continue }
-            descriptors.append(descriptor)
+            descriptors.append(InstalledApplicationDescriptor(
+                bundleURL: descriptor.bundleURL,
+                bundleIdentifier: descriptor.bundleIdentifier,
+                displayName: descriptor.displayName,
+                version: descriptor.version,
+                build: descriptor.build,
+                isInstalled: descriptor.isInstalled,
+                isRunning: descriptor.isRunning,
+                isUserFacing: descriptor.isUserFacing && runningApplication.isUserFacing
+            ))
         }
         let merged = Dictionary(grouping: descriptors, by: { $0.bundleURL.standardizedFileURL })
             .compactMap { _, copies -> InstalledApplicationDescriptor? in

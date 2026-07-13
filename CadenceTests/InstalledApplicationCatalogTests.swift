@@ -55,6 +55,36 @@ struct InstalledApplicationCatalogTests {
     }
 
     @Test
+    func runningApplicationPolicyKeepsHelpersOutOfPicker() async {
+        let fs = CatalogFileSystemFake()
+        let helper = URL(fileURLWithPath: "/Applications/Helper.app")
+        let foreground = URL(fileURLWithPath: "/Applications/Foreground.app")
+        await fs.setMetadata(.application(id: "example.helper", name: "Helper"), for: helper)
+        await fs.setMetadata(.application(id: "example.foreground", name: "Foreground"), for: foreground)
+        let state = InstalledApplicationCatalogSnapshotStore()
+        let service = InstalledApplicationCatalogService(
+            fileSystem: fs, roots: [], cadenceBundleIdentifiers: [], currentBundleURL: nil,
+            snapshotStore: state, runningSource: EmptyRunningApplications()
+        )
+        let running = [
+            InstalledApplicationDescriptor(
+                bundleURL: helper, bundleIdentifier: "example.helper", displayName: "Helper",
+                version: nil, build: nil, isInstalled: true, isRunning: true, isUserFacing: false
+            ),
+            InstalledApplicationDescriptor(
+                bundleURL: foreground, bundleIdentifier: "example.foreground", displayName: "Foreground",
+                version: nil, build: nil, isInstalled: true, isRunning: true, isUserFacing: true
+            )
+        ]
+
+        await service.refresh(runningApplications: running)
+
+        #expect(InstalledApplicationPickerProjection.applications(
+            from: state.snapshot.applications, query: ""
+        ).map(\.bundleIdentifier) == ["example.foreground"])
+    }
+
+    @Test
     func catalogCarriesBundleEligibilityMetadataIntoPickerProjection() async {
         let fs = CatalogFileSystemFake()
         let root = URL(fileURLWithPath: "/Applications")
