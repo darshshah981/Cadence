@@ -16,17 +16,19 @@ The app is a native macOS SwiftUI/AppKit hybrid. SwiftUI owns most views. AppKit
 
 ## Scribe Feature Flag
 
-Scribe is compiled into the app but is disabled by default while the core Dictation and Meeting Capture experience is prepared for release. With the flag off, Cadence omits Scribe from Settings and onboarding, disables its hotkey at runtime, blocks direct launch and provider setup, and does not start its defaults monitor.
+Scribe is compiled into the app and enabled by default. Explicitly disabling the flag omits Scribe from Settings and onboarding, disables its hotkey at runtime, blocks direct launch and provider setup, and stops its defaults monitor.
 
-For a durable local Debug opt-in:
+For a durable local opt-out, use the bundle identifier for the build you run:
 
 ```zsh
-defaults write com.darshshah.Cadence.debug Cadence.feature.scribe -bool true
+defaults write com.darshshah.Cadence Cadence.feature.scribe -bool false
+defaults write com.darshshah.Cadence.debug Cadence.feature.scribe -bool false
 ```
 
-Quit and relaunch `Cadence Debug` after changing the value. Remove the override to return to the product default:
+Quit and relaunch Cadence after changing the value. Remove the override to return to the product default:
 
 ```zsh
+defaults delete com.darshshah.Cadence Cadence.feature.scribe
 defaults delete com.darshshah.Cadence.debug Cadence.feature.scribe
 ```
 

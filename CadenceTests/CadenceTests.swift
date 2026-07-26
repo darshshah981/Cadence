@@ -105,6 +105,16 @@ struct CadenceTests {
     }
 
     @Test
+    func freshDefaultsMatchWorkingDebugShortcutSet() {
+        #expect(HotkeyBinding.defaultHoldToTalk.isEnabled)
+        #expect(HotkeyBinding.defaultTapToStartStop.isEnabled)
+        #expect(HotkeyBinding.defaultScribe.isEnabled)
+        #expect(HotkeyConfiguration.defaultTapToStartStop.keyCode == 49)
+        #expect(HotkeyConfiguration.defaultTapToStartStop.carbonModifiers == UInt32(controlKey))
+        #expect(HotkeyConfiguration.defaultTapToStartStop.sidedModifierKeyCodes == [59])
+    }
+
+    @Test
     @MainActor
     func freshDefaultsPreserveScribeLeftControlConstraint() throws {
         let suiteName = "HotkeyDefaults.\(UUID().uuidString)"

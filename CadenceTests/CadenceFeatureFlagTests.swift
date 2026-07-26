@@ -4,7 +4,7 @@ import Testing
 
 struct CadenceFeatureFlagTests {
     @Test
-    func scribeIsDisabledByDefault() throws {
+    func scribeIsEnabledByDefault() throws {
         let suite = "CadenceFeatureFlagTests.default.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -15,7 +15,7 @@ struct CadenceFeatureFlagTests {
             arguments: []
         )
 
-        #expect(!flags.scribeEnabled)
+        #expect(flags.scribeEnabled)
     }
 
     @Test

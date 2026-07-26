@@ -1390,8 +1390,9 @@ struct HotkeyConfiguration: Equatable, Sendable {
 
     static let defaultTapToStartStop = HotkeyConfiguration(
         keyCode: 49,
-        carbonModifiers: UInt32(controlKey) | UInt32(optionKey),
-        keyDisplay: "Space"
+        carbonModifiers: UInt32(controlKey),
+        keyDisplay: "Space",
+        sidedModifierKeyCodes: [59]
     )
 
     static let defaultScribe = HotkeyConfiguration(
@@ -1720,7 +1721,7 @@ struct HotkeyBinding: Equatable, Sendable, Identifiable {
 
     static let defaultTapToStartStop = HotkeyBinding(
         action: .tapToStartStop,
-        isEnabled: false,
+        isEnabled: true,
         shortcut: .defaultTapToStartStop
     )
 

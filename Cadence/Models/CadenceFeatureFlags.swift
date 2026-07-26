@@ -27,7 +27,7 @@ struct CadenceFeatureFlags: Equatable, Sendable {
                 scribeEnabled: defaults.bool(forKey: scribeDefaultsKey)
             )
         }
-        return CadenceFeatureFlags(scribeEnabled: false)
+        return CadenceFeatureFlags(scribeEnabled: true)
     }
 
     private static func parseBoolean(_ value: String) -> Bool? {
