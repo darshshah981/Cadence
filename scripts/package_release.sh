@@ -24,6 +24,17 @@ cleanup_sensitive_xcconfig() {
 
 trap cleanup_sensitive_xcconfig EXIT
 
+run_xcodebuild_redacted() {
+  local status
+  set +e
+  xcodebuild "$@" 2>&1 | sed -E \
+    -e 's/(GOOGLE_OAUTH_CLIENT_ID = ).*/\1[redacted]/' \
+    -e 's/(GOOGLE_OAUTH_CLIENT_SECRET = ).*/\1[redacted]/'
+  status="${PIPESTATUS[0]}"
+  set -e
+  return "$status"
+}
+
 load_optional_env_file() {
   local path="$1"
   if [[ -f "$path" ]]; then
@@ -140,7 +151,7 @@ echo "Packaging clean source commit: $CADENCE_SOURCE_COMMIT"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR" "$EXPORT_PATH"
 
-SENSITIVE_XCCONFIG="$(mktemp "${TMPDIR:-/tmp}/cadence-release.XXXXXX.xcconfig")"
+SENSITIVE_XCCONFIG="$(mktemp "${TMPDIR:-/tmp}/cadence-release.XXXXXX")"
 chmod 600 "$SENSITIVE_XCCONFIG"
 {
   printf 'CADENCE_SOURCE_COMMIT = %s\n' "$CADENCE_SOURCE_COMMIT"
@@ -167,7 +178,7 @@ cat > "$EXPORT_OPTIONS_PLIST" <<EOF
 EOF
 
 echo "Archiving $SCHEME ($CONFIGURATION)..."
-xcodebuild archive \
+run_xcodebuild_redacted archive \
   -project "$PROJECT_PATH" \
   -scheme "$SCHEME" \
   -configuration "$CONFIGURATION" \
