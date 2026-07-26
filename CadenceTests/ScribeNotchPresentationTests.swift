@@ -500,6 +500,18 @@ struct ScribeNotchKeyboardInteractionTests {
 
 struct ScribeHUDProjectionTests {
     @Test
+    func transcriptionFailureUsesTheSameResolvedMessageAsTheNotch() {
+        let requestID = UUID()
+        let message = "Cadence could not transcribe that request. Try again or use Dictation."
+
+        #expect(ScribeHUDProjection.visualState(
+            for: .failed(requestID: requestID, error: .unavailable),
+            replacementCompleted: false,
+            failureMessage: message
+        ) == .error(message: message))
+    }
+
+    @Test
     func scribedPillIsReservedForAReadyPolishedResult() {
         let requestID = UUID()
         let result = ScribeResult(requestID: requestID, text: "Polished")

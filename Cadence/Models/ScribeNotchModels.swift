@@ -199,7 +199,8 @@ enum ScribeNotchPalette {
 enum ScribeHUDProjection {
     static func visualState(
         for state: ScribeSessionState,
-        replacementCompleted: Bool
+        replacementCompleted: Bool,
+        failureMessage: String? = nil
     ) -> HUDVisualState {
         switch state {
         case .idle, .cancelled:
@@ -217,7 +218,7 @@ enum ScribeHUDProjection {
         case .insertionRecovery:
             return .error(message: "Draft not inserted")
         case let .failed(_, error):
-            return .error(message: error.userMessage)
+            return .error(message: failureMessage ?? error.userMessage)
         }
     }
 }

@@ -3558,10 +3558,11 @@ final class AppModel: ObservableObject {
             break
         }
 
+        let resolvedFailureMessage = failureMessageOverride ?? scribeFailureMessage
         let presentation = ScribeNotchPresentation.project(
             state: state,
             literalTranscript: scribeCoordinator.literalTranscript,
-            failureMessage: failureMessageOverride ?? scribeFailureMessage,
+            failureMessage: resolvedFailureMessage,
             canRetryGeneration: scribeCoordinator.canRetryGeneration,
             failureRecovery: failureRecoveryOverride
                 ?? .providerRecovery(for: scribeCoordinator.providerFailure)
@@ -3589,13 +3590,17 @@ final class AppModel: ObservableObject {
         scribeNotchWindowController.update(presentation)
         #endif
 
-        updateScribeHUD(for: state)
+        updateScribeHUD(for: state, failureMessage: resolvedFailureMessage)
     }
 
-    private func updateScribeHUD(for state: ScribeSessionState) {
+    private func updateScribeHUD(
+        for state: ScribeSessionState,
+        failureMessage: String? = nil
+    ) {
         let visualState = ScribeHUDProjection.visualState(
             for: state,
-            replacementCompleted: scribeReplacementCompleted
+            replacementCompleted: scribeReplacementCompleted,
+            failureMessage: failureMessage
         )
 
         guard visualState != .idle else {
