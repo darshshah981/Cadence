@@ -14,6 +14,15 @@ EXPORT_OPTIONS_PLIST="$BUILD_DIR/ExportOptions.plist"
 DMG_STAGING_DIR="$BUILD_DIR/DMG"
 FINAL_DMG="$BUILD_DIR/Cadence.dmg"
 SKIP_NOTARIZATION=0
+SENSITIVE_XCCONFIG=""
+
+cleanup_sensitive_xcconfig() {
+  if [[ -n "$SENSITIVE_XCCONFIG" && -f "$SENSITIVE_XCCONFIG" ]]; then
+    rm -f "$SENSITIVE_XCCONFIG"
+  fi
+}
+
+trap cleanup_sensitive_xcconfig EXIT
 
 load_optional_env_file() {
   local path="$1"
@@ -131,6 +140,15 @@ echo "Packaging clean source commit: $CADENCE_SOURCE_COMMIT"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR" "$EXPORT_PATH"
 
+SENSITIVE_XCCONFIG="$(mktemp "${TMPDIR:-/tmp}/cadence-release.XXXXXX.xcconfig")"
+chmod 600 "$SENSITIVE_XCCONFIG"
+{
+  printf 'CADENCE_SOURCE_COMMIT = %s\n' "$CADENCE_SOURCE_COMMIT"
+  printf 'GOOGLE_OAUTH_CLIENT_ID = %s\n' "$GOOGLE_OAUTH_CLIENT_ID"
+  printf 'GOOGLE_OAUTH_CLIENT_SECRET = %s\n' "${GOOGLE_OAUTH_CLIENT_SECRET:-}"
+  printf 'GOOGLE_OAUTH_REDIRECT_SCHEME = %s\n' "$GOOGLE_OAUTH_REDIRECT_SCHEME"
+} > "$SENSITIVE_XCCONFIG"
+
 cat > "$EXPORT_OPTIONS_PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -155,10 +173,7 @@ xcodebuild archive \
   -configuration "$CONFIGURATION" \
   -destination "generic/platform=macOS" \
   -archivePath "$ARCHIVE_PATH" \
-  CADENCE_SOURCE_COMMIT="$CADENCE_SOURCE_COMMIT" \
-  GOOGLE_OAUTH_CLIENT_ID="$GOOGLE_OAUTH_CLIENT_ID" \
-  GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-}" \
-  GOOGLE_OAUTH_REDIRECT_SCHEME="$GOOGLE_OAUTH_REDIRECT_SCHEME"
+  -xcconfig "$SENSITIVE_XCCONFIG"
 
 echo "Exporting Developer ID app..."
 xcodebuild -exportArchive \
