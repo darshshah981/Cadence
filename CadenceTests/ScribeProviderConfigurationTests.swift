@@ -84,7 +84,7 @@ struct ScribeProviderConfigurationTests {
         #expect(attributes[kSecClass as String] as! CFString == kSecClassGenericPassword)
         #expect(attributes[kSecAttrService as String] as? String == KeychainScribeCredentialStore.service)
         #expect(attributes[kSecAttrSynchronizable as String] as? Bool == false)
-        #expect(attributes[kSecUseDataProtectionKeychain as String] as? Bool == true)
+        #expect(attributes[kSecUseDataProtectionKeychain as String] == nil)
         #expect(attributes[kSecAttrAccessible as String] as! CFString == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
     }
 }

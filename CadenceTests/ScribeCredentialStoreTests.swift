@@ -5,6 +5,17 @@ import Testing
 
 struct ScribeCredentialStoreTests {
     @Test
+    func productionQueriesUseTheProvisioningIndependentMacKeychain() {
+        let attributes = ScribeSecurityItemExecutor.acceptedAttributes(
+            service: KeychainScribeCredentialVault.candidateService,
+            account: "opaque"
+        )
+
+        #expect(attributes[kSecUseDataProtectionKeychain as String] == nil)
+        #expect(attributes[kSecAttrSynchronizable as String] as? Bool == false)
+    }
+
+    @Test
     func candidateAndInheritedServicesAreExactlyIsolated() async throws {
         let executor = U5SecurityExecutor()
         let vault = KeychainScribeCredentialVault(executor: executor)
@@ -29,7 +40,7 @@ struct ScribeCredentialStoreTests {
             account: "opaque"
         )
         #expect(attributes[kSecAttrSynchronizable as String] as? Bool == false)
-        #expect(attributes[kSecUseDataProtectionKeychain as String] as? Bool == true)
+        #expect(attributes[kSecUseDataProtectionKeychain as String] == nil)
         #expect(attributes[kSecAttrAccessible as String] as! CFString
             == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
     }

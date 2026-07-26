@@ -94,6 +94,7 @@ final class ScribeCoordinator {
     private(set) var providerFailure: ScribeProviderFailure?
     private(set) var activeRequestID: UUID?
     private(set) var resolvedEnvironment: ResolvedWritingEnvironment?
+    private(set) var resolvedGuidance: ResolvedScribeGuidance?
     private(set) var exactLiterals: [ScribeExactLiteral] = []
     var canRetryGeneration: Bool { activeRequest != nil }
     var targetDisplayName: String? { activeCapture?.applicationTarget.displayName }
@@ -107,6 +108,10 @@ final class ScribeCoordinator {
     private let generationTimeout: Duration
     private let generationSoftWait: Duration
     private let environmentRecognizer: WritingEnvironmentRecognizer
+    private let applicationGuidanceResolver: @MainActor (
+        ApplicationTargetCapture,
+        TargetRecognitionSignature?
+    ) -> ResolvedScribeGuidance?
     private let writingEnvironmentPreferences: () -> WritingEnvironmentPreferenceLoadResult
     private let adaptationEnabled: () -> Bool
     private let providerDispatchAuthorization: @MainActor (ScribeProviderActionSnapshot) async -> Bool
@@ -142,6 +147,10 @@ final class ScribeCoordinator {
         sessionArbiter: VoiceSessionArbiter,
         personalizationStore: PersonalizationStore = PersonalizationStore(),
         environmentRecognizer: WritingEnvironmentRecognizer = WritingEnvironmentRecognizer(),
+        applicationGuidanceResolver: @escaping @MainActor (
+            ApplicationTargetCapture,
+            TargetRecognitionSignature?
+        ) -> ResolvedScribeGuidance? = { _, _ in nil },
         writingEnvironmentPreferences: @escaping () -> WritingEnvironmentPreferenceLoadResult = { .absent },
         adaptationEnabled: @escaping () -> Bool = { true },
         providerDispatchAuthorization: @escaping @MainActor (ScribeProviderActionSnapshot) async -> Bool = { _ in true },
@@ -166,6 +175,7 @@ final class ScribeCoordinator {
         self.sessionArbiter = sessionArbiter
         self.personalizationStore = personalizationStore
         self.environmentRecognizer = environmentRecognizer
+        self.applicationGuidanceResolver = applicationGuidanceResolver
         self.writingEnvironmentPreferences = writingEnvironmentPreferences
         self.adaptationEnabled = adaptationEnabled
         self.providerDispatchAuthorization = providerDispatchAuthorization
@@ -182,14 +192,14 @@ final class ScribeCoordinator {
         activeProviderAction?.actionIdentity
     }
 
-    func prepareTarget() throws {
+    func prepareTarget() async throws {
         guard state == .idle || isTerminalState else {
             throw ScribeCoordinatorError.invalidState
         }
         resetTransientState()
         generation += 1
         do {
-            try contextService.prepareTarget()
+            try await contextService.prepareTarget()
             state = .idle
         } catch let error as ScribeContextError {
             activeProviderAction = nil
@@ -206,7 +216,7 @@ final class ScribeCoordinator {
     /// dictation. No selection or writing intent is captured or sent remotely.
     func beginDirectDictation() async throws {
         guard !isStarting else { throw ScribeCoordinatorError.invalidState }
-        try prepareTarget()
+        try await prepareTarget()
         try await beginDirectDictationAfterPreparation()
     }
 
@@ -272,6 +282,10 @@ final class ScribeCoordinator {
                 recognizedEnvironmentID: recognizedEnvironmentID,
                 adaptationEnabled: adaptationEnabled(),
                 preferenceLoadResult: writingEnvironmentPreferences()
+            )
+            resolvedGuidance = applicationGuidanceResolver(
+                applicationTarget,
+                capture.recognitionSignature
             )
             try await transcriptionEngine.startSession()
             guard beginGeneration == generation else { throw CancellationError() }
@@ -373,6 +387,7 @@ final class ScribeCoordinator {
                 context: nil,
                 style: nil,
                 resolvedEnvironment: environment,
+                resolvedGuidance: resolvedGuidance,
                 exactLiterals: normalized.exactLiterals
             )
             activeRequest = request
@@ -484,7 +499,7 @@ final class ScribeCoordinator {
         cancelOutstandingGeneration()
         state = .inserting(requestID: result.requestID)
         do {
-            guard try contextService.insert(result.text, for: capture) else {
+            guard try await contextService.insert(result.text, for: capture) else {
                 throw ScribeContextError.unsupportedSelection
             }
             insertionCompleted = true
@@ -501,25 +516,13 @@ final class ScribeCoordinator {
     }
 
     func takeReviewedDraftForCopy() -> String? {
-        guard let result = reviewedResult else { return nil }
-        cancelOutstandingGeneration()
-        let text = result.text
-        clearContext()
-        clearContent()
-        state = .succeeded(requestID: result.requestID)
-        return text
+        reviewedResult?.text
     }
 
     func takeUnpolishedDraftForCopy() -> String? {
         guard let literalTranscript,
-              !literalTranscript.isEmpty,
-              let requestID = activeRequestID else { return nil }
-        let text = literalTranscript
-        cancelOutstandingGeneration()
-        clearContext()
-        clearContent()
-        state = .succeeded(requestID: requestID)
-        return text
+              !literalTranscript.isEmpty else { return nil }
+        return literalTranscript
     }
 
     func cancel() async {
@@ -836,6 +839,7 @@ final class ScribeCoordinator {
         failure = nil
         providerFailure = nil
         resolvedEnvironment = nil
+        resolvedGuidance = nil
         exactLiterals = []
     }
 

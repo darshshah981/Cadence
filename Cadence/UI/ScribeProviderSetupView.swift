@@ -609,24 +609,3 @@ private extension ScribeProviderConfigurationError {
         }
     }
 }
-
-private extension ScribeProviderFailure {
-    var userMessage: String {
-        switch category {
-        case .setupRequired: return "Choose and connect a Scribe provider first."
-        case .configurationInvalid: return "The saved provider configuration needs repair."
-        case .credentialRejected: return "The provider rejected this API key or account access."
-        case .balanceRequired: return "DeepSeek reports that this account needs balance before Scribe can run."
-        case .rateLimited: return "The provider is temporarily rate limited. Try again after it recovers."
-        case .transportUnavailable: return "Cadence could not reach the provider. Check the network and endpoint."
-        case .unsafeConnection: return "Cadence refused a redirect or unsafe connection. Check the endpoint and trust settings."
-        case .timedOut: return "The provider check took too long and was cancelled."
-        case .providerUnavailable: return "The provider is temporarily unavailable."
-        case .providerRejected: return "The provider rejected this compatibility request."
-        case .incompatibleRequest: return "This endpoint or bundled provider profile is not compatible with Cadence."
-        case .endpointNotFound: return "The endpoint or model was not found."
-        case .invalidResponse: return "Cadence received a response it could not safely use."
-        case .cancelled: return "Provider validation was cancelled."
-        }
-    }
-}

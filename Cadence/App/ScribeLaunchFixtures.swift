@@ -86,6 +86,10 @@ enum ScribeLaunchFixtures {
         ProcessInfo.processInfo.arguments.contains("--scribe-fixture-focus-probe")
     }
 
+    static var usesNotchPresentation: Bool {
+        ProcessInfo.processInfo.arguments.contains("--scribe-notch-presentation")
+    }
+
     static func apply(to defaults: UserDefaults) {
         guard current != nil else { return }
         defaults.removeObject(forKey: ScribeProviderConfigurationStore.defaultKey)

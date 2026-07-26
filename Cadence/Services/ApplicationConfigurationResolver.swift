@@ -27,6 +27,7 @@ actor ApplicationConfigurationWriter {
         familyID: ScribeEnvironmentFamilyID,
         presetSelection: ScribePresetSelection = .familyDefault,
         customGuidance: ScribeCustomGuidance? = nil,
+        promptOverride: ScribeCustomGuidance? = nil,
         isEnabled: Bool = true
     ) throws -> ApplicationConfiguration {
         guard application.isInstalled,
@@ -69,6 +70,7 @@ actor ApplicationConfigurationWriter {
             familyID: familyID,
             presetSelection: presetSelection,
             customGuidance: customGuidance,
+            promptOverride: promptOverride,
             revision: (existing?.revision ?? 0) + 1
         )
         var configurations = library.configurations
@@ -98,6 +100,7 @@ actor ApplicationConfigurationWriter {
             familyID: original.familyID,
             presetSelection: original.presetSelection,
             customGuidance: guidance,
+            promptOverride: original.promptOverride,
             revision: original.revision + 1
         )
         var configurations = library.configurations
@@ -210,6 +213,7 @@ actor ApplicationConfigurationWriter {
             familyID: current.familyID,
             presetSelection: current.presetSelection,
             customGuidance: current.customGuidance,
+            promptOverride: current.promptOverride,
             revision: current.revision + 1
         )
         var configurations = currentLibrary.configurations

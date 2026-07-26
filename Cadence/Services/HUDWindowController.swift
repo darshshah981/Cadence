@@ -637,6 +637,8 @@ final class HUDWindowController {
         let startsRecording: Bool
         if case .recording = requestedPresentation.visualState {
             startsRecording = true
+        } else if requestedPresentation.visualState == .scribeRecording {
+            startsRecording = true
         } else {
             startsRecording = false
         }
@@ -1511,7 +1513,7 @@ final class HUDViewModel: ObservableObject {
     var shouldMorphApplicationMark: Bool {
         guard previousPresentation?.visualState == .idle else { return false }
         if case .recording = presentation.visualState { return true }
-        return false
+        return presentation.visualState == .scribeRecording
     }
 
     var isCollapsingToRestingMic: Bool {
@@ -1673,7 +1675,7 @@ final class HUDViewModel: ObservableObject {
         if case .recording = state.visualState {
             return true
         }
-        return false
+        return state.visualState == .scribeRecording
     }
 
     private func normalizedBars(from levels: [Double]) -> [Double] {

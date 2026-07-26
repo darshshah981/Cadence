@@ -418,6 +418,12 @@ final class ScribeProviderV2Controller {
                 credentialReference: configuration.storedCredentialReference
             )
         }
+        // Consent authority is intentionally process-local. A saved receipt is
+        // therefore bootstrapped again after every launch. Do this at the
+        // request boundary as well as during startup reconciliation so an
+        // immediately-invoked shortcut cannot race startup and misclassify a
+        // valid saved provider as needing repair.
+        await consentAuthority.bootstrap(from: library)
         guard let receipt = configuration.consentReceipt,
               receipt.disclosureRevision == ScribeProviderDisclosure.currentVersion,
               receipt.materiallyMatches(configuration),

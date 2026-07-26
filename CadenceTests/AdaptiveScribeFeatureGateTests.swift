@@ -129,6 +129,22 @@ struct AdaptiveScribeFeatureGateTests {
     }
 
     @Test
+    func enabledBuildPromotesOnlyTheMigrationBaselineToCompletedRuntimeGates() throws {
+        let suite = "CadenceTests.FeatureGates.BuildRollout.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AdaptiveScribeFeatureGateStore(defaults: defaults, key: "gates")
+
+        try store.save(.migrationBaseline)
+        try store.promoteMigrationBaselineIfScribeEnabled(true)
+        #expect(store.load() == .valid(.allEnabled))
+
+        try store.save(.allDisabled)
+        try store.promoteMigrationBaselineIfScribeEnabled(true)
+        #expect(store.load() == .valid(.allDisabled))
+    }
+
+    @Test
     func everyReaderRequiresItsOwnSupportedMarkerAndFreshSemanticValidation() throws {
         let suite = "CadenceTests.LiveReaders.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -178,6 +194,16 @@ struct AdaptiveScribeFeatureGateTests {
         }
         #expect(service.load().readers.providerLibrary == .valid)
         #expect(service.load().scribeAvailability == .setupRequired)
+        let completedRuntime = AdaptiveScribeLiveReaderService(
+            providerStore: provider,
+            applicationStore: applications,
+            presetStore: presets,
+            settingsStore: settings,
+            featureGateStore: gates,
+            markerStore: markers,
+            polishedDictationRuntimeAvailable: true
+        )
+        #expect(completedRuntime.load().scribeAvailability == .enabled)
 
         defaults.set(Data("bad".utf8), forKey: "presets")
         let invalidated = service.load()

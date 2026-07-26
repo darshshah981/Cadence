@@ -411,6 +411,7 @@ private final class DictationTargetAuthorityFake: ApplicationTargetAuthorizing {
         verifyCount += 1
         if let verifyError { throw verifyError }
     }
+    func activate(_ capture: ApplicationTargetCapture) -> Bool { true }
     func enrich(processIdentifier: Int32, bundleIdentifier: String?) -> ApplicationProcessIdentity? { nil }
     func enrichCapture(id: UUID, processIdentifier: Int32, bundleIdentifier: String?) -> ApplicationTargetCapture? { nil }
     func matchesCurrent(_ identity: ApplicationProcessIdentity) -> Bool { true }

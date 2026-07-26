@@ -66,7 +66,6 @@ final class KeychainScribeCredentialStore: ScribeCredentialStoring, @unchecked S
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.service,
             kSecAttrSynchronizable as String: kCFBooleanFalse as Any,
-            kSecUseDataProtectionKeychain as String: kCFBooleanTrue as Any,
             kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll
         ]
@@ -102,8 +101,7 @@ final class KeychainScribeCredentialStore: ScribeCredentialStoring, @unchecked S
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: reference.rawValue,
-            kSecAttrSynchronizable as String: false,
-            kSecUseDataProtectionKeychain as String: true
+            kSecAttrSynchronizable as String: false
         ]
     }
 }
@@ -163,7 +161,6 @@ actor ScribeSecurityItemExecutor: ScribeSecurityItemExecuting {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecAttrSynchronizable as String: false,
-            kSecUseDataProtectionKeychain as String: true,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecValueData as String: value
         ]
@@ -188,7 +185,6 @@ actor ScribeSecurityItemExecutor: ScribeSecurityItemExecuting {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrSynchronizable as String: false,
-            kSecUseDataProtectionKeychain as String: true,
             kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll
         ]
@@ -203,7 +199,6 @@ actor ScribeSecurityItemExecutor: ScribeSecurityItemExecuting {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecAttrSynchronizable as String: false,
-            kSecUseDataProtectionKeychain as String: true,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
     }
@@ -213,8 +208,7 @@ actor ScribeSecurityItemExecutor: ScribeSecurityItemExecuting {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecAttrSynchronizable as String: false,
-            kSecUseDataProtectionKeychain as String: true
+            kSecAttrSynchronizable as String: false
         ]
     }
 }

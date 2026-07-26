@@ -74,7 +74,7 @@ Model discovery uses synthetic/no-user content only after consent and only in mo
 
 ### Credential lifecycle
 
-Reuse PR #34's generic-password Keychain service with opaque random account references, `kSecUseDataProtectionKeychain`, `kSecAttrSynchronizable = false`, and `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. Apple documents that this accessibility class does not migrate to a new device; it is compatible with the required this-device-only boundary.
+Reuse PR #34's generic-password Keychain service with opaque random account references and `kSecAttrSynchronizable = false`. On macOS, Cadence uses the standard file-based Keychain so the documented Developer ID build does not require a restricted Keychain access-group entitlement and provisioning profile. The login Keychain remains encrypted and local to this Mac; Cadence does not opt the credential into iCloud synchronization.
 
 For every provider add or edit:
 

@@ -41,6 +41,63 @@ struct CadenceTests {
     }
 
     @Test
+    func scribePermissionMessageDoesNotBlameAnAlreadyGrantedMicrophone() {
+        let permissions = PermissionsSnapshot(
+            microphoneGranted: true,
+            accessibilityGranted: false,
+            inputMonitoringGranted: true
+        )
+
+        #expect(permissions.missingRequiredPermissionNames == ["Accessibility"])
+        #expect(permissions.scribePermissionMessage == "Allow Accessibility access before using Scribe.")
+    }
+
+    @Test
+    @MainActor
+    func scribePermissionGateEvaluatesTheLiveServiceSnapshot() async {
+        let service = ScribePermissionsFake(
+            snapshots: [
+                PermissionsSnapshot(
+                    microphoneGranted: true,
+                    accessibilityGranted: true,
+                    inputMonitoringGranted: true
+                )
+            ]
+        )
+
+        let permissions = await ScribePermissionGate.evaluate(using: service)
+
+        #expect(permissions.allRequiredGranted)
+        #expect(service.microphoneRequestCount == 0)
+        #expect(service.snapshotCount == 1)
+    }
+
+    @Test
+    @MainActor
+    func scribePermissionGateRefreshesAfterRequestingMicrophone() async {
+        let service = ScribePermissionsFake(
+            snapshots: [
+                PermissionsSnapshot(
+                    microphoneGranted: false,
+                    accessibilityGranted: true,
+                    inputMonitoringGranted: true
+                ),
+                PermissionsSnapshot(
+                    microphoneGranted: true,
+                    accessibilityGranted: true,
+                    inputMonitoringGranted: true
+                )
+            ]
+        )
+
+        let permissions = await ScribePermissionGate.evaluate(using: service)
+
+        #expect(permissions.allRequiredGranted)
+        #expect(service.microphoneRequestCount == 1)
+        #expect(service.snapshotCount == 2)
+    }
+
+    @Test
     func defaultHotkeyMatchesPlannedShortcut() {
         #expect(HotkeyConfiguration.defaultHoldToTalk.displayName == "Fn")
         #expect(HotkeyConfiguration.defaultHoldToTalk.symbolDisplayName == "fn")
@@ -312,6 +369,34 @@ struct CadenceTests {
             releasedKeyCode: 63,
             at: 10.30
         ).isEmpty)
+    }
+
+    @Test
+    func secondScribeChordPressLocksInsteadOfStartingOnFirstQuickTap() {
+        var engine = ModifierOnlyGestureEngine()
+        let bindings = [HotkeyBinding.defaultScribe]
+
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function, .control],
+            activeModifierKeyCodes: [63, 59],
+            releasedKeyCode: 59,
+            at: 10
+        ) == [.schedule(.scribe)])
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [],
+            activeModifierKeyCodes: [],
+            releasedKeyCode: 59,
+            at: 10.08
+        ) == [.cancelScheduled(.scribe), .quickTap(.scribe)])
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function, .control],
+            activeModifierKeyCodes: [63, 59],
+            releasedKeyCode: 59,
+            at: 10.22
+        ) == [.doublePress(.scribe)])
     }
 
     @Test
@@ -2993,6 +3078,28 @@ struct CadenceTests {
         viewModel.apply(recordingState)
 
         #expect(viewModel.displayBars.allSatisfy { $0 == 0 })
+    }
+}
+
+@MainActor
+private final class ScribePermissionsFake: DictationPermissionsServing {
+    private var snapshots: [PermissionsSnapshot]
+    private(set) var snapshotCount = 0
+    private(set) var microphoneRequestCount = 0
+
+    init(snapshots: [PermissionsSnapshot]) {
+        self.snapshots = snapshots
+    }
+
+    func snapshot() -> PermissionsSnapshot {
+        let index = min(snapshotCount, snapshots.count - 1)
+        snapshotCount += 1
+        return snapshots[index]
+    }
+
+    func requestMicrophoneAccess() async -> Bool {
+        microphoneRequestCount += 1
+        return true
     }
 }
 

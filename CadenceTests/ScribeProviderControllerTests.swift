@@ -65,6 +65,46 @@ struct ScribeProviderControllerV2Tests {
     }
 
     @Test
+    func savedValidProviderIsUsableBeforeStartupReconciliationFinishes() async throws {
+        let library = U5LibraryStore()
+        let vault = U5Vault()
+        let authority = ScribeProviderConsentAuthority()
+        let reference = ScribeStoredCredentialReference(
+            domain: .candidate,
+            opaqueReference: .init(rawValue: "saved-provider")
+        )
+        let receipt = Self.receipt(for: .deepSeek)
+        let configuration = try U5Fixtures.configuration(
+            kind: .deepSeek,
+            model: "deepseek-chat",
+            receipt: receipt,
+            reference: reference
+        )
+        library.result = .valid(ScribeProviderLibrary(
+            revision: 4,
+            configurations: [configuration],
+            activeConfigurationID: configuration.id
+        ))
+        await vault.insert(reference)
+        let controller = ScribeProviderV2Controller(
+            libraryStore: library,
+            vault: vault,
+            consentAuthority: authority,
+            reconciler: ScribeCredentialReconciler(
+                libraryStore: library,
+                legacyStore: U5LegacyStore(),
+                ledgerStore: U5LedgerStore(),
+                vault: vault
+            )
+        )
+
+        let action = try await controller.actionForNewRequest()
+
+        #expect(action.destination == .deepSeek)
+        #expect(action.configurationID == configuration.id)
+    }
+
+    @Test
     func cancelledConfirmationLeavesLibraryByteSemanticsUnchanged() async throws {
         let library = U5LibraryStore()
         let vault = U5Vault()

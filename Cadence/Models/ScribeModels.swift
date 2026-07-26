@@ -169,6 +169,7 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
     let context: ScribeRequestContext?
     let style: ScribeStyleInstructions?
     let resolvedEnvironment: ResolvedWritingEnvironment?
+    let resolvedGuidance: ResolvedScribeGuidance?
     let exactLiterals: [ScribeExactLiteral]
 
     init(
@@ -178,6 +179,7 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
         context: ScribeRequestContext? = nil,
         style: ScribeStyleInstructions? = nil,
         resolvedEnvironment: ResolvedWritingEnvironment? = nil,
+        resolvedGuidance: ResolvedScribeGuidance? = nil,
         exactLiterals: [ScribeExactLiteral] = []
     ) {
         self.id = id
@@ -186,6 +188,7 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
         self.context = context
         self.style = style
         self.resolvedEnvironment = resolvedEnvironment
+        self.resolvedGuidance = resolvedGuidance
         self.exactLiterals = exactLiterals
     }
 

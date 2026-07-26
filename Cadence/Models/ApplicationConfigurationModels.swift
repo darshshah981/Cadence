@@ -1,9 +1,11 @@
 import Foundation
 
-enum ScribeEnvironmentFamilyID: String, CaseIterable, Codable, Equatable, Sendable {
+enum ScribeEnvironmentFamilyID: String, CaseIterable, Codable, Equatable, Identifiable, Sendable {
     case general
     case messaging
     case coding
+
+    var id: String { rawValue }
 }
 
 struct ScribePresetID: RawRepresentable, Codable, Equatable, Hashable, Sendable {
@@ -74,6 +76,7 @@ struct ApplicationConfiguration: Codable, Equatable, Identifiable, Sendable {
     let familyID: ScribeEnvironmentFamilyID
     let presetSelection: ScribePresetSelection
     let customGuidance: ScribeCustomGuidance?
+    let promptOverride: ScribeCustomGuidance?
     let revision: Int
 
     init(
@@ -83,6 +86,7 @@ struct ApplicationConfiguration: Codable, Equatable, Identifiable, Sendable {
         familyID: ScribeEnvironmentFamilyID,
         presetSelection: ScribePresetSelection,
         customGuidance: ScribeCustomGuidance?,
+        promptOverride: ScribeCustomGuidance? = nil,
         revision: Int
     ) throws {
         self.id = id
@@ -91,6 +95,7 @@ struct ApplicationConfiguration: Codable, Equatable, Identifiable, Sendable {
         self.familyID = familyID
         self.presetSelection = presetSelection
         self.customGuidance = customGuidance?.rawValue.isEmpty == true ? nil : customGuidance
+        self.promptOverride = promptOverride?.rawValue.isEmpty == true ? nil : promptOverride
         self.revision = revision
     }
 
@@ -102,6 +107,7 @@ struct ApplicationConfiguration: Codable, Equatable, Identifiable, Sendable {
             familyID: familyID,
             presetSelection: presetSelection,
             customGuidance: customGuidance,
+            promptOverride: promptOverride,
             revision: revision
         )
     }

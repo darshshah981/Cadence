@@ -114,6 +114,41 @@ struct ScribeGuidanceCatalog: Equatable, Sendable {
     }
 }
 
+enum ApplicationPromptProjection {
+    static func preset(
+        for configuration: ApplicationConfiguration,
+        catalog: ScribeGuidanceCatalog = .releaseOne
+    ) -> ScribeGuidancePresetDefinition {
+        guard let family = catalog.family(configuration.familyID) else {
+            preconditionFailure("Scribe guidance catalog is missing a configured family")
+        }
+        let presetID: ScribePresetID
+        switch configuration.presetSelection {
+        case .familyDefault:
+            presetID = family.defaultPresetID
+        case let .explicit(explicit):
+            presetID = explicit
+        }
+        return catalog.preset(presetID, in: configuration.familyID)
+            ?? catalog.preset(family.defaultPresetID, in: configuration.familyID)!
+    }
+
+    static func presetInstructions(
+        for configuration: ApplicationConfiguration,
+        catalog: ScribeGuidanceCatalog = .releaseOne
+    ) -> String {
+        preset(for: configuration, catalog: catalog).compiledInstructions
+    }
+
+    static func effectiveInstructions(
+        for configuration: ApplicationConfiguration,
+        catalog: ScribeGuidanceCatalog = .releaseOne
+    ) -> String {
+        configuration.promptOverride?.rawValue
+            ?? presetInstructions(for: configuration, catalog: catalog)
+    }
+}
+
 enum ScribeGuidanceResolver {
     private static let builtIns: [String: ScribeEnvironmentFamilyID] = [
         "com.tinyspeck.slackmacgap": .messaging,
@@ -170,6 +205,7 @@ enum ScribeGuidanceResolver {
                 return resolved(
                     preset: preset,
                     custom: configuration.customGuidance,
+                    promptOverride: configuration.promptOverride,
                     source: .configuredApplication
                 )
             }
@@ -240,6 +276,7 @@ enum ScribeGuidanceResolver {
     private static func resolved(
         preset: ScribeGuidancePresetDefinition,
         custom: ScribeCustomGuidance?,
+        promptOverride: ScribeCustomGuidance? = nil,
         source: ScribeGuidanceResolutionSource
     ) -> ResolvedScribeGuidance {
         ResolvedScribeGuidance(
@@ -247,7 +284,8 @@ enum ScribeGuidanceResolver {
             familyDefinitionVersion: 1,
             presetID: preset.id,
             presetDefinitionVersion: preset.definitionVersion,
-            compiledPresetInstructions: preset.compiledInstructions,
+            compiledPresetInstructions: promptOverride?.rawValue
+                ?? preset.compiledInstructions,
             customGuidance: custom,
             resolutionSource: source,
             preservesExactLiterals: true,

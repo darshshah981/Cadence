@@ -4,6 +4,29 @@ import Testing
 
 struct ScribeProviderTests {
     @Test
+    func startupFailuresExplainTheActualProviderBlocker() {
+        let missingProvider = ScribeProviderFailure(
+            phase: .generation,
+            category: .setupRequired,
+            retryDisposition: .reconnect
+        )
+        let invalidProvider = ScribeProviderFailure(
+            phase: .generation,
+            category: .configurationInvalid,
+            retryDisposition: .reconnect
+        )
+
+        #expect(
+            missingProvider.userMessage
+                == "Scribe needs an AI provider. Connect one in Settings, Apps & Integrations."
+        )
+        #expect(
+            invalidProvider.userMessage
+                == "The saved Scribe provider needs attention. Reconnect it in Settings, Apps & Integrations."
+        )
+    }
+
+    @Test
     func deepSeekProductionAndValidationWireProfilesAreExact() async throws {
         let transport = StubScribeHTTPTransport(responses: [
             .success(Self.deepSeekResponse(content: "Draft")),

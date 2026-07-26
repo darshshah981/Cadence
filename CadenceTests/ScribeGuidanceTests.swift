@@ -57,6 +57,50 @@ struct ScribeGuidanceTests {
     }
 
     @Test
+    func configuredAppPromptReplacesPresetAndReachesProviderRequest() throws {
+        let descriptor = Self.descriptor(bundleID: "com.tinyspeck.slackmacgap")
+        let promptOverride = try ScribeCustomGuidance(
+            "Write a terse project update. Preserve every dictated fact."
+        )
+        let configuration = try ApplicationConfiguration(
+            application: ApplicationReference(
+                bundleIdentifier: descriptor.bundleIdentifier,
+                lastKnownBundleURL: descriptor.bundleURL,
+                lastKnownDisplayName: descriptor.displayName
+            ),
+            isEnabled: true,
+            familyID: .messaging,
+            presetSelection: .familyDefault,
+            customGuidance: nil,
+            promptOverride: promptOverride,
+            revision: 1
+        )
+        let resolved = ScribeGuidanceResolver.resolve(
+            application: .exact(descriptor),
+            adaptationEnabled: true,
+            configurationLoadResult: .valid(
+                .init(revision: 1, configurations: [configuration])
+            ),
+            presetState: .valid(.generalNeutral)
+        )
+
+        #expect(resolved.compiledPresetInstructions == promptOverride.rawValue)
+        let request = ScribeRequest(
+            intent: .compose,
+            spokenTranscript: "We shipped the calendar fix today.",
+            resolvedGuidance: resolved
+        )
+        let input = try ScribeRequestPolicy.providerSafeInput(
+            for: request,
+            destination: .deepSeek
+        )
+        #expect(input.userMessage.contains(promptOverride.rawValue))
+        #expect(!input.userMessage.contains("Natural contractions are preferred."))
+        #expect(!input.userMessage.contains(descriptor.bundleIdentifier))
+        #expect(!input.userMessage.contains(descriptor.displayName))
+    }
+
+    @Test
     func codingHasSeparateAutomaticLiteralCapabilityAndProviderSafeValueLeaksNoIdentity() throws {
         let descriptor = Self.descriptor(bundleID: "com.openai.codex")
         let resolved = ScribeGuidanceResolver.resolve(

@@ -65,7 +65,9 @@ enum HUDForegroundMaskLayout {
         renderedWidth: CGFloat
     ) -> CGRect {
         let visibleWidth = max(0, min(targetWidth, renderedWidth))
-        let paddedWidth = max(0, visibleWidth - HUDContentSizing.horizontalPadding)
+        let remainingTravel = max(0, targetWidth - visibleWidth)
+        let insidePadding = min(HUDContentSizing.horizontalPadding, remainingTravel)
+        let paddedWidth = max(0, visibleWidth - insidePadding)
         let visibleOriginX: CGFloat
         switch position {
         case .topLeft, .bottomLeft:
@@ -81,7 +83,7 @@ enum HUDForegroundMaskLayout {
         case .topLeft, .bottomLeft, .bottomCenter:
             x = visibleOriginX
         case .topRight, .bottomRight:
-            x = visibleOriginX + HUDContentSizing.horizontalPadding
+            x = visibleOriginX + insidePadding
         }
 
         return CGRect(
@@ -112,6 +114,7 @@ struct HUDView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @State private var scribeHueRotation = 0.0
 
     var body: some View {
         ZStack(alignment: attachment.alignment) {
@@ -165,8 +168,25 @@ struct HUDView: View {
             application: model.applicationPresentation,
             model: model
         ))
-        .onAppear { model.setReducedMotion(reduceMotion) }
-        .onChange(of: reduceMotion) { _, reduced in model.setReducedMotion(reduced) }
+        .onAppear {
+            model.setReducedMotion(reduceMotion)
+            startScribeHueIfNeeded()
+        }
+        .onChange(of: reduceMotion) { _, reduced in
+            model.setReducedMotion(reduced)
+            startScribeHueIfNeeded()
+        }
+        .onChange(of: model.presentation.visualState) { oldState, newState in
+            let wasScribe = isScribePresentation(oldState)
+            let isScribe = isScribePresentation(newState)
+            if !wasScribe, isScribe {
+                startScribeHueIfNeeded()
+            } else if wasScribe, !isScribe {
+                withAnimation(nil) {
+                    scribeHueRotation = 0
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -193,6 +213,14 @@ struct HUDView: View {
                 hidesApplicationMark: hidesApplicationMark,
                 renderedWidth: renderedWidth
             )
+        case .scribeRecording:
+            recordingPill(
+                triggerMode: .tapToStartStop,
+                showsHint: false,
+                revealsContent: isIncoming && model.shouldMorphApplicationMark,
+                hidesApplicationMark: hidesApplicationMark,
+                renderedWidth: renderedWidth
+            )
         case .preparingModel:
             statusPill(
                 icon: .spinner,
@@ -205,6 +233,22 @@ struct HUDView: View {
             statusPill(
                 icon: .spinner,
                 text: "Transcribing",
+                targetWidth: model.targetWidth(for: presentation),
+                renderedWidth: renderedWidth,
+                hidesApplicationMark: hidesApplicationMark
+            )
+        case .scribeTranscribing:
+            statusPill(
+                icon: .spinner,
+                text: "Transcribing",
+                targetWidth: model.targetWidth(for: presentation),
+                renderedWidth: renderedWidth,
+                hidesApplicationMark: hidesApplicationMark
+            )
+        case .scribed:
+            statusPill(
+                icon: .success,
+                text: "Scribed",
                 targetWidth: model.targetWidth(for: presentation),
                 renderedWidth: renderedWidth,
                 hidesApplicationMark: hidesApplicationMark
@@ -647,12 +691,16 @@ struct HUDView: View {
 
     private func statusDescriptor(for state: HUDVisualState) -> StatusDescriptor? {
         switch state {
-        case .idle, .recording:
+        case .idle, .recording, .scribeRecording:
             return nil
         case .preparingModel:
             return StatusDescriptor(icon: .spinner, text: "Setting up speech model…")
         case .transcribing:
             return StatusDescriptor(icon: .spinner, text: "Transcribing")
+        case .scribeTranscribing:
+            return StatusDescriptor(icon: .spinner, text: "Transcribing")
+        case .scribed:
+            return StatusDescriptor(icon: .success, text: "Scribed")
         case .inserting:
             return StatusDescriptor(icon: .spinner, text: "Inserting…")
         case .copying:
@@ -670,34 +718,43 @@ struct HUDView: View {
 
     @ViewBuilder
     private func statusActivity(icon: StatusIcon, text: String) -> some View {
-        HStack(spacing: HUDContentSizing.contentGap) {
-            switch icon {
-            case .spinner:
-                HUDSpinnerView()
-            case .error:
-                Image(systemName: "exclamationmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(FlowTheme.error)
-            case .success:
-                Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(FlowTheme.accent)
-            case .cancelled:
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(FlowTheme.textSecondary)
-            }
-
-            if icon == .error {
-                HUDMarqueeText(text: text)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 16)
+        Group {
+            if icon == .spinner, text == "Transcribing" {
+                ScribeTranscribingStatusView(
+                    fontSize: 12,
+                    spacing: HUDContentSizing.contentGap
+                )
             } else {
-                Text(text)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(FlowTheme.textSecondary)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                HStack(spacing: HUDContentSizing.contentGap) {
+                    switch icon {
+                    case .spinner:
+                        HUDSpinnerView()
+                    case .error:
+                        Image(systemName: "exclamationmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(FlowTheme.error)
+                    case .success:
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(FlowTheme.accent)
+                    case .cancelled:
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(FlowTheme.textSecondary)
+                    }
+
+                    if icon == .error {
+                        HUDMarqueeText(text: text)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 16)
+                    } else {
+                        Text(text)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(FlowTheme.textSecondary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                }
             }
         }
         .frame(
@@ -722,12 +779,58 @@ struct HUDView: View {
     }
 
     private var pillChrome: some View {
-        HUDChromeSurface(
-            shape: adaptiveClipShape,
-            isDark: colorScheme == .dark,
-            reduceTransparency: reduceTransparency,
-            increasedContrast: colorSchemeContrast == .increased
-        )
+        ZStack {
+            HUDChromeSurface(
+                shape: adaptiveClipShape,
+                isDark: colorScheme == .dark,
+                reduceTransparency: reduceTransparency,
+                increasedContrast: colorSchemeContrast == .increased
+            )
+            if isScribePresentation {
+                adaptiveClipShape
+                    .stroke(
+                        AngularGradient(
+                            colors: [
+                                Color(red: 0.35, green: 0.84, blue: 1),
+                                Color(red: 0.66, green: 0.47, blue: 1),
+                                Color(red: 1, green: 0.45, blue: 0.74),
+                                Color(red: 1, green: 0.68, blue: 0.40),
+                                Color(red: 0.35, green: 0.84, blue: 1)
+                            ],
+                            center: .center,
+                            startAngle: .degrees(scribeHueRotation),
+                            endAngle: .degrees(scribeHueRotation + 360)
+                        ),
+                        lineWidth: colorSchemeContrast == .increased ? 2.25 : 1.7
+                    )
+                    .padding(1)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var isScribePresentation: Bool {
+        isScribePresentation(model.presentation.visualState)
+    }
+
+    private func isScribePresentation(_ state: HUDVisualState) -> Bool {
+        switch state {
+        case .scribeRecording, .scribeTranscribing, .scribed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func startScribeHueIfNeeded() {
+        guard !reduceMotion else {
+            scribeHueRotation = 0
+            return
+        }
+        scribeHueRotation = 0
+        withAnimation(.linear(duration: 2.4).repeatForever(autoreverses: false)) {
+            scribeHueRotation = 360
+        }
     }
 
     private enum StatusIcon {
@@ -990,6 +1093,24 @@ struct HUDSpinnerView: View {
                 ))
                 .frame(width: 14, height: 14)
         }
+    }
+}
+
+struct ScribeTranscribingStatusView: View {
+    var fontSize: CGFloat = 12
+    var spacing: CGFloat = HUDContentSizing.contentGap
+
+    var body: some View {
+        HStack(spacing: spacing) {
+            HUDSpinnerView()
+            Text("Transcribing")
+                .font(.system(size: fontSize, weight: .medium))
+                .foregroundStyle(FlowTheme.textSecondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Transcribing")
     }
 }
 

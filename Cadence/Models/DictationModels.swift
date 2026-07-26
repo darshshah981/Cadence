@@ -734,8 +734,11 @@ struct VocabularyPostProcessor {
 enum HUDVisualState: Equatable {
     case idle
     case recording(triggerMode: DictationTriggerMode, showsHint: Bool)
+    case scribeRecording
     case preparingModel
     case transcribing
+    case scribeTranscribing
+    case scribed
     case inserting
     case copying
     case copied
@@ -749,10 +752,16 @@ enum HUDVisualState: Equatable {
             return "Cadence is ready"
         case .recording(let triggerMode, _):
             return triggerMode == .tapToStartStop ? "Continuous dictation is listening" : "Dictation is listening"
+        case .scribeRecording:
+            return "Scribe is listening"
         case .preparingModel:
             return "Preparing the speech model"
         case .transcribing:
             return "Transcribing dictation"
+        case .scribeTranscribing:
+            return "Transcribing for Scribe"
+        case .scribed:
+            return "Scribe draft ready"
         case .inserting:
             return "Inserting dictation"
         case .copying:
@@ -774,6 +783,8 @@ enum HUDVisualState: Equatable {
             return "Press the Dictation shortcut again to finish."
         case .recording(.holdToTalk, _):
             return "Release the shortcut to finish dictating."
+        case .scribeRecording:
+            return "Press the Scribe shortcut again when you finish speaking."
         default:
             return nil
         }
@@ -838,12 +849,14 @@ enum HUDContentSizing {
                 triggerMode: triggerMode,
                 showsHint: showsHint
             )
+        case .scribeRecording:
+            return activeWidth(applicationName: applicationName)
         case .error:
             // Preserve the recording tray's width so feedback replaces the
             // waveform instead of causing a second geometry change.
             return activeWidth(applicationName: applicationName)
-        case .preparingModel, .transcribing, .inserting, .copying,
-             .copied, .success, .cancelled:
+        case .preparingModel, .transcribing, .scribeTranscribing, .scribed,
+             .inserting, .copying, .copied, .success, .cancelled:
             // Once dictation has opened the active pill, every processing and
             // completion phase keeps that exact footprint. Foreground content
             // can transition without making the capsule breathe between
@@ -1038,6 +1051,9 @@ enum HUDActiveContentTransition {
         if case .recording = requested.visualState {
             return false
         }
+        if requested.visualState == .scribeRecording {
+            return false
+        }
         return true
     }
 }
@@ -1052,9 +1068,10 @@ enum HUDApplicationCueTransition {
 
     private static func isStatus(_ state: HUDVisualState) -> Bool {
         switch state {
-        case .idle, .recording:
+        case .idle, .recording, .scribeRecording:
             return false
-        case .preparingModel, .transcribing, .inserting, .copying,
+        case .preparingModel, .transcribing, .scribeTranscribing, .scribed,
+             .inserting, .copying,
              .copied, .success, .cancelled, .error:
             return true
         }
@@ -1722,5 +1739,35 @@ struct PermissionsSnapshot: Equatable {
 
     var allRequiredGranted: Bool {
         microphoneGranted && accessibilityGranted && inputMonitoringGranted
+    }
+
+    var missingRequiredPermissionNames: [String] {
+        var names: [String] = []
+        if !microphoneGranted {
+            names.append("Microphone")
+        }
+        if !accessibilityGranted {
+            names.append("Accessibility")
+        }
+        if !inputMonitoringGranted {
+            names.append("Input Monitoring")
+        }
+        return names
+    }
+
+    var scribePermissionMessage: String? {
+        let names = missingRequiredPermissionNames
+        guard !names.isEmpty else { return nil }
+
+        let list: String
+        switch names.count {
+        case 1:
+            list = names[0]
+        case 2:
+            list = names.joined(separator: " and ")
+        default:
+            list = names.dropLast().joined(separator: ", ") + ", and " + names.last!
+        }
+        return "Allow \(list) access before using Scribe."
     }
 }

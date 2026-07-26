@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 @MainActor
 private final class InstalledApplicationPickerIconCache {
@@ -21,16 +20,11 @@ private final class InstalledApplicationPickerIconCache {
 }
 
 struct SettingsView: View {
-    private static let writingEnvironmentsScrollID = "settings-writing-environments"
-
     @ObservedObject var appModel: AppModel
     var maxContentWidth: CGFloat?
     var contentPadding = EdgeInsets()
-    @State private var appSearchQuery = ""
-    @State private var selectedApplication: InstalledApplicationDescriptor?
-    @State private var applicationFamily: ScribeEnvironmentFamilyID = .general
-    @State private var applicationPresetID = ""
-    @State private var customGuidance = ""
+    @State private var isApplicationPickerPresented = false
+    @State private var editingApplicationConfiguration: ApplicationConfiguration?
     @State private var shortcutDraft: PersonalShortcut?
     @State private var editingStyleProfile: WritingStyleProfile?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -61,36 +55,20 @@ struct SettingsView: View {
             .sheet(item: $editingStyleProfile) { profile in
                 WritingStyleProfileEditor(profile: profile) { appModel.saveWritingStyleProfile($0) }
             }
-            .sheet(
-                isPresented: $appModel.isScribeProviderSetupPresented,
-                onDismiss: appModel.dismissScribeProviderSetup
-            ) {
-                ScribeProviderSetupView(
-                    onConnectDeepSeek: { try await appModel.connectDeepSeekForScribe(credential: $0) },
-                    onConnectOpenAI: { try await appModel.connectOpenAIForScribe(model: $0, credential: $1) },
-                    onConnectOpenRouter: { try await appModel.connectOpenRouterForScribe(model: $0, credential: $1) },
-                    onAcceptDisclosure: { provider, advancedBaseURL in
-                        try await appModel.acceptScribeProviderSetupDisclosure(
-                            for: provider,
-                            advancedBaseURL: advancedBaseURL
-                        )
-                    },
-                    onDiscoverModels: { provider, credential, accepted, query in
-                        await appModel.discoverScribeModels(for: provider, credential: credential, disclosureAccepted: accepted, matching: query)
-                    },
-                    onConnectAdvanced: {
-                        try await appModel.connectAdvancedScribeProvider(
-                            baseURL: $0,
-                            model: $1,
-                            credential: $2
-                        )
-                    },
-                    onGeneratePractice: { try await appModel.generateScribePracticeDraft() },
-                    onSwitchProvider: appModel.switchScribeProviderSetup,
-                    onDismiss: appModel.dismissScribeProviderSetup
+            .sheet(isPresented: $isApplicationPickerPresented) {
+                InstalledApplicationPickerSheet(
+                    applications: appModel.installedApplications,
+                    configurations: appModel.applicationConfigurations,
+                    onRefresh: appModel.refreshInstalledApplications,
+                    onSelect: addApplication
                 )
             }
-            .onDisappear(perform: appModel.dismissScribeProviderSetup)
+            .sheet(item: $editingApplicationConfiguration) { configuration in
+                ApplicationPromptEditorSheet(
+                    configuration: configuration,
+                    onSave: saveApplicationPromptConfiguration
+                )
+            }
         }
     }
 
@@ -227,189 +205,147 @@ struct SettingsView: View {
     private var appsSection: some View {
         settingsSection(title: "App profiles") {
             FlowSectionCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    SettingsLabelRow(title: "Writing environments", description: "Choose an installed Mac app. Cadence stores its verified app identity, never a typed bundle identifier.")
-                    HStack {
-                        TextField("Search installed apps", text: $appSearchQuery)
-                            .textFieldStyle(.plain)
-                            .cadenceSettingsFieldChrome()
-                            .accessibilityIdentifier("settings-app-search")
-                        CadenceActionButton(title: "Refresh", role: .secondary, accessibilityIdentifier: "settings-app-refresh") { appModel.refreshInstalledApplications() }
-                        CadenceActionButton(title: "Choose app…", role: .secondary, accessibilityIdentifier: "settings-app-choose") { chooseApplication() }
+                SettingsToggleRow(
+                    title: "Adapt Scribe to the app",
+                    description: nil,
+                    isOn: scribeAppAdaptationBinding
+                )
+                .help("Use the enabled profile for the app where a Scribe recording begins.")
+                insetDivider
+
+                if appModel.applicationConfigurations.isEmpty {
+                    Text("No app profiles yet.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                } else {
+                    ForEach(Array(appModel.applicationConfigurations.enumerated()), id: \.element.id) { index, configuration in
+                        if index > 0 { insetDivider }
+                        configuredApplicationRow(configuration)
                     }
-                    appPicker
-                    if let selectedApplication {
-                        HStack(spacing: 8) {
-                            Text(selectedApplication.displayName)
-                                .font(.headline)
-                            if selectedApplicationConfiguration != nil {
-                                Text("Configured")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(FlowTheme.success)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(FlowTheme.successSubtle, in: Capsule())
-                                    .accessibilityIdentifier("settings-app-configured-badge")
-                            }
-                        }
-                        CadenceDropdownRow(title: "Writing style", selection: $applicationFamily, accessibilityIdentifier: "settings-app-family") {
-                            Text("General").tag(ScribeEnvironmentFamilyID.general)
-                            Text("Messaging").tag(ScribeEnvironmentFamilyID.messaging)
-                            Text("Coding").tag(ScribeEnvironmentFamilyID.coding)
-                        }
-                        CadenceDropdownRow(title: "Preset", detail: "Presets are limited to the selected writing style.", selection: $applicationPresetID, accessibilityIdentifier: "settings-app-preset") {
-                            Text("Family default").tag("")
-                            ForEach(presets(for: applicationFamily), id: \.id) { preset in
-                                Text(preset.id.rawValue.replacingOccurrences(of: "\(applicationFamily.rawValue).", with: "").capitalized).tag(preset.id.rawValue)
-                            }
-                        }
-                        CadenceTextEditorRow(title: "Custom Scribe guidance", detail: "Optional. Considered with the transcription after the selected style preset.", text: $customGuidance, accessibilityIdentifier: "settings-app-guidance")
-                        CadenceSettingsPrimaryButton(
-                            title: "\(selectedApplicationConfiguration == nil ? "Add" : "Update") \(selectedApplication.displayName)",
-                            accessibilityIdentifier: "settings-app-add"
-                        ) {
-                            let app = selectedApplication
-                            let guidance = try? ScribeCustomGuidance(customGuidance)
-                            let selection: ScribePresetSelection = applicationPresetID.isEmpty ? .familyDefault : .explicit(try! ScribePresetID(applicationPresetID))
-                            Task { try? await appModel.upsertApplicationConfiguration(for: app, familyID: applicationFamily, presetSelection: selection, customGuidance: guidance) }
-                        }
-                    }
-                    configuredApps
                 }
-                .padding(12)
+
+                if !appModel.applicationConfigurations.isEmpty {
+                    insetDivider
+                }
+                Button {
+                    appModel.refreshInstalledApplications()
+                    isApplicationPickerPresented = true
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .semibold))
+                            .frame(width: 20)
+                        Text("Add app")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                    }
+                    .foregroundStyle(FlowTheme.textPrimary)
+                    .contentShape(Rectangle())
+                    .padding(12)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings-add-application")
             }
         }
         .onAppear { appModel.refreshInstalledApplications() }
-        .onChange(of: applicationFamily) { _, family in
-            if !applicationPresetID.hasPrefix("\(family.rawValue).") { applicationPresetID = "" }
-        }
     }
 
-    private var appPicker: some View {
-        let apps = InstalledApplicationPickerProjection.applications(
-            from: appModel.installedApplications,
-            query: appSearchQuery
-        )
-        return VStack(alignment: .leading, spacing: 8) {
-            if apps.isEmpty {
-                Text(appSearchQuery.isEmpty ? "No eligible apps found. Refresh or choose an app manually." : "No matching apps. Try another search or choose an app manually.")
-                    .font(.caption)
+    private func configuredApplicationRow(
+        _ configuration: ApplicationConfiguration
+    ) -> some View {
+        HStack(spacing: 10) {
+            Image(nsImage: InstalledApplicationPickerIconCache.shared.icon(
+                for: configuration.application.lastKnownBundleURL
+            ))
+            .resizable()
+            .scaledToFit()
+            .frame(width: 28, height: 28)
+            .accessibilityHidden(true)
+
+            Text(configuration.application.lastKnownDisplayName)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(FlowTheme.textPrimary)
+                .lineLimit(1)
+
+            Spacer(minLength: 12)
+
+            Button {
+                editingApplicationConfiguration = configuration
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(FlowTheme.textSecondary)
+                    .frame(width: 26, height: 26)
+                    .contentShape(Rectangle())
             }
-            ForEach(apps) { app in
-                Button {
-                    selectApplication(app)
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(nsImage: InstalledApplicationPickerIconCache.shared.icon(for: app.bundleURL))
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 22, height: 22)
-                            .padding(3)
-                            .background(
-                                Color(nsColor: .controlBackgroundColor),
-                                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Edit \(configuration.application.lastKnownDisplayName) prompt")
+            .accessibilityIdentifier("settings-edit-application-\(configuration.id.uuidString)")
+
+            CadenceToggle(
+                title: "Enable \(configuration.application.lastKnownDisplayName)",
+                isOn: Binding(
+                    get: { configuration.isEnabled },
+                    set: { enabled in
+                        Task {
+                            try? await appModel.setApplicationConfigurationEnabled(
+                                configuration.id,
+                                enabled: enabled
                             )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .stroke(FlowTheme.border.opacity(0.8), lineWidth: 1)
-                            )
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(app.displayName).font(.system(size: 13, weight: .medium))
-                            if app.bundleIdentifier == "com.openai.codex" {
-                                Text("Recommended for coding").font(.caption2).foregroundStyle(FlowTheme.textSecondary)
-                            }
-                        }
-                        Spacer()
-                        if selectedApplication?.id == app.id {
-                            Image(systemName: "checkmark.circle.fill").foregroundStyle(FlowTheme.success)
                         }
                     }
-                    .padding(.horizontal, 10)
-                    .frame(minHeight: 40)
-                    .background(selectedApplication?.id == app.id ? FlowTheme.accentSubtle : FlowTheme.subtle.opacity(0.55), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings-app-choice-\(settingsAppIdentifier(app))")
-            }
+                )
+            )
+            .labelsHidden()
+            .controlSize(.small)
         }
-        .accessibilityIdentifier("settings-installed-app-picker")
+        .padding(12)
+        .accessibilityElement(children: .contain)
     }
 
-    private var selectedApplicationConfiguration: ApplicationConfiguration? {
-        guard let selectedApplication else { return nil }
-        guard case let .configured(configuration) = ApplicationSettingsConfigurationState.resolve(
-            application: selectedApplication,
-            configurations: appModel.applicationConfigurations
-        ) else { return nil }
-        return configuration
-    }
-
-    private func selectApplication(_ application: InstalledApplicationDescriptor) {
-        selectedApplication = application
-        if case let .configured(configuration) = ApplicationSettingsConfigurationState.resolve(
-            application: application,
-            configurations: appModel.applicationConfigurations
-        ) {
-            applicationFamily = configuration.familyID
-            switch configuration.presetSelection {
-            case .familyDefault: applicationPresetID = ""
-            case let .explicit(id): applicationPresetID = id.rawValue
+    private func addApplication(_ application: InstalledApplicationDescriptor) {
+        Task { @MainActor in
+            let configuration: ApplicationConfiguration
+            if case let .configured(existing) = ApplicationSettingsConfigurationState.resolve(
+                application: application,
+                configurations: appModel.applicationConfigurations
+            ) {
+                configuration = existing
+            } else {
+                guard let created = try? await appModel.upsertApplicationConfiguration(
+                    for: application,
+                    familyID: .general
+                ) else { return }
+                configuration = created
             }
-            customGuidance = configuration.customGuidance?.rawValue ?? ""
-        } else {
-            applicationFamily = .general
-            applicationPresetID = ""
-            customGuidance = ""
+            isApplicationPickerPresented = false
+            await Task.yield()
+            editingApplicationConfiguration = configuration
         }
     }
 
-    private var configuredApps: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if !appModel.applicationConfigurations.isEmpty { Divider(); Text("Configured apps").font(.headline) }
-            ForEach(appModel.applicationConfigurations) { configuration in
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text(configuration.application.lastKnownDisplayName)
-                        Text(configuration.application.lastKnownBundleURL.path).font(.caption).foregroundStyle(FlowTheme.textTertiary).lineLimit(1)
-                    }
-                    Spacer()
-                    CadenceToggle(title: "Enable \(configuration.application.lastKnownDisplayName)", isOn: Binding(get: { configuration.isEnabled }, set: { enabled in Task { try? await appModel.setApplicationConfigurationEnabled(configuration.id, enabled: enabled) } }))
-                    .labelsHidden()
-                }
-            }
+    private func saveApplicationPromptConfiguration(
+        _ configuration: ApplicationConfiguration,
+        familyID: ScribeEnvironmentFamilyID,
+        promptOverride: ScribeCustomGuidance?
+    ) {
+        Task {
+            _ = try? await appModel.updateApplicationConfiguration(
+                configuration.id,
+                isEnabled: configuration.isEnabled,
+                familyID: familyID,
+                presetSelection: .familyDefault,
+                customGuidance: configuration.customGuidance,
+                promptOverride: promptOverride
+            )
         }
-    }
-
-    private func presets(for family: ScribeEnvironmentFamilyID) -> [ScribeGuidancePresetDefinition] {
-        ScribeGuidanceCatalog.releaseOne.family(family)?.presets ?? []
     }
 
     private func selectCategory(_ category: SettingsCategoryID) {
         appModel.dismissScribeProviderSetup()
         appModel.selectSettingsCategory(category)
-    }
-
-    private func chooseApplication() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.applicationBundle]
-        panel.message = "Choose an installed Mac app to configure Scribe. Cadence reads its verified app identity."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        Task {
-            if let application = await appModel.chooseInstalledApplication(at: url) {
-                selectApplication(application)
-            }
-        }
-    }
-
-    private func settingsAppIdentifier(_ app: InstalledApplicationDescriptor) -> String {
-        app.bundleURL.standardizedFileURL.path.unicodeScalars.map { scalar in
-            CharacterSet.alphanumerics.contains(scalar) ? String(Character(scalar)).lowercased() : "-"
-        }.joined()
     }
 
     private var diagnosticsSection: some View {
@@ -546,35 +482,38 @@ struct SettingsView: View {
     }
 
     private var scribeSection: some View {
-        settingsSection(title: "Scribe") {
-            FlowSectionCard {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: appModel.scribeReadiness.canGenerate ? "sparkles" : "lock.fill")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(appModel.scribeReadiness.canGenerate ? FlowTheme.success : FlowTheme.textTertiary)
-                        .frame(width: 20)
+        Group {
+            settingsSection(title: "Status") {
+                FlowSectionCard {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: appModel.scribeReadiness.canGenerate ? "sparkles" : "lock.fill")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(appModel.scribeReadiness.canGenerate ? FlowTheme.success : FlowTheme.textTertiary)
+                            .frame(width: 20)
 
-                    SettingsLabelRow(
-                        title: appModel.scribeReadiness.canGenerate ? "Ready to draft" : "Literal Dictation remains available",
-                        description: appModel.scribeProviderStatus
-                    )
+                        SettingsLabelRow(
+                            title: appModel.scribeReadiness.canGenerate ? "Ready to draft" : "Literal Dictation remains available",
+                            description: appModel.scribeProviderStatus
+                        )
 
-                    Spacer()
-                    Text(appModel.scribeBinding.shortcut.symbolDisplayName)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(FlowTheme.textSecondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        Spacer()
+                    }
+                    .padding(12)
                 }
-                .padding(12)
-                insetDivider
-                ScribeProviderManagementView(appModel: appModel)
-                    .padding(12)
-                insetDivider
-                WritingEnvironmentsView(appModel: appModel)
-                    .id(Self.writingEnvironmentsScrollID)
-                    .padding(12)
+            }
+
+            settingsSection(title: "Shortcut") {
+                FlowSectionCard {
+                    ShortcutSettingRow(
+                        title: "Open Scribe",
+                        description: nil,
+                        hint: nil,
+                        isEnabled: scribeEnabledBinding,
+                        shortcut: scribeShortcutBinding,
+                        onRecordingChange: appModel.setShortcutRecordingActive
+                    )
+                    .help("Hold to speak. Double-press to keep listening without holding.")
+                }
             }
         }
     }
@@ -1259,19 +1198,6 @@ struct SettingsView: View {
             )
             .help("Press once to start and again to stop.")
 
-            if appModel.featureFlags.scribeEnabled {
-                insetDivider
-
-                ShortcutSettingRow(
-                    title: "Open Scribe",
-                    description: nil,
-                    hint: nil,
-                    isEnabled: scribeEnabledBinding,
-                    shortcut: scribeShortcutBinding,
-                    onRecordingChange: appModel.setShortcutRecordingActive
-                )
-                .help("Dictate a request, then review the polished result before inserting it.")
-            }
         }
     }
 
@@ -1448,6 +1374,13 @@ struct SettingsView: View {
         )
     }
 
+    private var scribeAppAdaptationBinding: Binding<Bool> {
+        Binding(
+            get: { appModel.scribeAppAdaptationEnabled },
+            set: { appModel.setScribeAppAdaptationEnabled($0) }
+        )
+    }
+
     private var advancedExpandedBinding: Binding<Bool> {
         Binding(
             get: { appModel.settingsPresentationState.isAdvancedExpanded },
@@ -1457,6 +1390,320 @@ struct SettingsView: View {
                 }
             }
         )
+    }
+}
+
+private struct InstalledApplicationPickerSheet: View {
+    let applications: [InstalledApplicationDescriptor]
+    let configurations: [ApplicationConfiguration]
+    let onRefresh: () -> Void
+    let onSelect: (InstalledApplicationDescriptor) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    private var visibleApplications: [InstalledApplicationDescriptor] {
+        InstalledApplicationPickerProjection.applications(
+            from: applications,
+            query: query,
+            limit: .max
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Text("Add app")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                Spacer()
+                Button {
+                    onRefresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Refresh installed apps")
+                Button("Done") { dismiss() }
+                    .buttonStyle(CadenceActionButtonStyle(role: .secondary))
+                    .controlSize(.small)
+            }
+            .padding(16)
+
+            TextField("Search applications", text: $query)
+                .textFieldStyle(.plain)
+                .cadenceSettingsFieldChrome()
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+                .accessibilityIdentifier("settings-application-picker-search")
+
+            Divider().overlay(FlowTheme.border)
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if visibleApplications.isEmpty {
+                        Text("No matching applications.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(FlowTheme.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                    }
+                    ForEach(Array(visibleApplications.enumerated()), id: \.element.id) { index, application in
+                        if index > 0 {
+                            Rectangle()
+                                .fill(FlowTheme.border)
+                                .frame(height: 1)
+                                .padding(.leading, 56)
+                        }
+                        applicationRow(application)
+                    }
+                }
+            }
+        }
+        .frame(width: 500, height: 540)
+        .background(FlowTheme.background)
+        .onAppear(perform: onRefresh)
+        .accessibilityIdentifier("settings-installed-application-picker")
+    }
+
+    private func applicationRow(
+        _ application: InstalledApplicationDescriptor
+    ) -> some View {
+        let isConfigured: Bool
+        if case .configured = ApplicationSettingsConfigurationState.resolve(
+            application: application,
+            configurations: configurations
+        ) {
+            isConfigured = true
+        } else {
+            isConfigured = false
+        }
+
+        return Button {
+            onSelect(application)
+        } label: {
+            HStack(spacing: 12) {
+                Image(nsImage: InstalledApplicationPickerIconCache.shared.icon(
+                    for: application.bundleURL
+                ))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 30, height: 30)
+                .accessibilityHidden(true)
+
+                Text(application.displayName)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                if isConfigured {
+                    Text("Added")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                } else {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 52)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            isConfigured
+                ? "Edit \(application.displayName)"
+                : "Add \(application.displayName)"
+        )
+    }
+}
+
+private struct ApplicationPromptEditorSheet: View {
+    let configuration: ApplicationConfiguration
+    let onSave: (
+        ApplicationConfiguration,
+        ScribeEnvironmentFamilyID,
+        ScribeCustomGuidance?
+    ) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var familyID: ScribeEnvironmentFamilyID
+    @State private var promptText: String
+    @State private var isEditing = false
+    @State private var validationMessage: String?
+
+    init(
+        configuration: ApplicationConfiguration,
+        onSave: @escaping (
+            ApplicationConfiguration,
+            ScribeEnvironmentFamilyID,
+            ScribeCustomGuidance?
+        ) -> Void
+    ) {
+        self.configuration = configuration
+        self.onSave = onSave
+        _familyID = State(initialValue: configuration.familyID)
+        _promptText = State(initialValue: ApplicationPromptProjection.effectiveInstructions(
+            for: configuration
+        ))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(nsImage: InstalledApplicationPickerIconCache.shared.icon(
+                    for: configuration.application.lastKnownBundleURL
+                ))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 36, height: 36)
+                .accessibilityHidden(true)
+
+                Text(configuration.application.lastKnownDisplayName)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Writing style")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                FlowSegmentedControl(
+                    options: ScribeEnvironmentFamilyID.allCases,
+                    selection: $familyID,
+                    title: \.settingsDisplayName
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("App prompt")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                    Spacer()
+                    Button {
+                        isEditing.toggle()
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 11, weight: .semibold))
+                            .frame(width: 26, height: 26)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Edit app prompt")
+                    .accessibilityIdentifier("settings-application-prompt-pencil")
+                }
+
+                Group {
+                    if isEditing {
+                        TextEditor(text: $promptText)
+                            .font(.system(size: 12))
+                            .scrollContentBackground(.hidden)
+                            .padding(8)
+                            .accessibilityIdentifier("settings-application-prompt-editor")
+                    } else {
+                        ScrollView {
+                            Text(promptText)
+                                .font(.system(size: 12))
+                                .foregroundStyle(FlowTheme.textPrimary)
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                                .textSelection(.enabled)
+                                .padding(10)
+                        }
+                        .accessibilityIdentifier("settings-application-prompt-preview")
+                    }
+                }
+                .frame(height: 190)
+                .background(
+                    FlowTheme.subtle,
+                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(
+                            isEditing ? FlowTheme.accent.opacity(0.7) : FlowTheme.border,
+                            lineWidth: 1
+                        )
+                }
+
+                if let validationMessage {
+                    Text(validationMessage)
+                        .font(.system(size: 11))
+                        .foregroundStyle(FlowTheme.error)
+                }
+            }
+
+            HStack {
+                Button("Restore preset") {
+                    promptText = presetInstructions(for: familyID)
+                    isEditing = false
+                    validationMessage = nil
+                }
+                .buttonStyle(CadenceActionButtonStyle(role: .quiet))
+                .controlSize(.small)
+
+                Spacer()
+
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(CadenceActionButtonStyle(role: .secondary))
+                    .controlSize(.small)
+                Button("Save") { save() }
+                    .buttonStyle(CadenceActionButtonStyle(role: .primary))
+                    .controlSize(.small)
+                    .accessibilityIdentifier("settings-save-application-prompt")
+            }
+        }
+        .padding(18)
+        .frame(width: 520)
+        .background(FlowTheme.background)
+        .onChange(of: familyID) { _, newFamily in
+            promptText = presetInstructions(for: newFamily)
+            isEditing = false
+            validationMessage = nil
+        }
+    }
+
+    private func presetInstructions(
+        for familyID: ScribeEnvironmentFamilyID
+    ) -> String {
+        guard let family = ScribeGuidanceCatalog.releaseOne.family(familyID),
+              let preset = ScribeGuidanceCatalog.releaseOne.preset(
+                family.defaultPresetID,
+                in: familyID
+              ) else {
+            return ""
+        }
+        return preset.compiledInstructions
+    }
+
+    private func save() {
+        do {
+            let normalized = try ScribeCustomGuidance(promptText)
+            let preset = presetInstructions(for: familyID)
+            let promptOverride = normalized.rawValue == preset ? nil : normalized
+            onSave(configuration, familyID, promptOverride)
+            dismiss()
+        } catch ApplicationConfigurationValidationError.guidanceTooLarge {
+            validationMessage = "Keep the prompt under 2,000 bytes."
+        } catch {
+            validationMessage = "Remove unsupported control characters."
+        }
+    }
+}
+
+private extension ScribeEnvironmentFamilyID {
+    var settingsDisplayName: String {
+        switch self {
+        case .general: "General"
+        case .messaging: "Messaging"
+        case .coding: "Coding"
+        }
     }
 }
 

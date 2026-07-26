@@ -11,6 +11,18 @@ protocol DictationPermissionsServing: AnyObject {
 }
 
 @MainActor
+enum ScribePermissionGate {
+    static func evaluate(using service: DictationPermissionsServing) async -> PermissionsSnapshot {
+        var permissions = service.snapshot()
+        if !permissions.microphoneGranted {
+            _ = await service.requestMicrophoneAccess()
+            permissions = service.snapshot()
+        }
+        return permissions
+    }
+}
+
+@MainActor
 final class PermissionsService: DictationPermissionsServing {
     private enum PrivacyPane {
         static let microphone = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"

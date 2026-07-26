@@ -53,6 +53,7 @@
 		4AE5455D62B547759960A4D8 /* ScribeContextService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5471DB10D447DC26C66499B4 /* ScribeContextService.swift */; };
 		4C6CACBC4A395B70FE3BDC11 /* ScribeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5E855124924D6CDE8135E7B /* ScribeTests.swift */; };
 		4D2F8AE9416F65231F01489E /* ScribeProviderSetupModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8AF04C147DABB2AC208B963 /* ScribeProviderSetupModelTests.swift */; };
+		51B96298C43378BF6C16C0AA /* ScribeNotchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E289ED69468565DA8A675DAA /* ScribeNotchModels.swift */; };
 		51EE638F985233E0E8A81BAD /* ScribeProviderSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33B77F7F7B3AC1FB25B0E4CD /* ScribeProviderSetupView.swift */; };
 		528C236DA42EA03EAB731414 /* PersonalizationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F79D43E58B9D94CA1C36BFB /* PersonalizationStore.swift */; };
 		541432DC77D74A0DAB846DAB /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD8226A6E492745025CF418 /* AnalyticsService.swift */; };
@@ -64,10 +65,12 @@
 		5E268FC2CD9E558B8CEAFCE0 /* CalendarEventCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A485E597733F3F0F173BF23 /* CalendarEventCacheStore.swift */; };
 		5EA278C647A8D09B6290A0F5 /* ScribeDomainIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54784669DC0C68BDF5D31A98 /* ScribeDomainIsolationTests.swift */; };
 		5FFD8D111D99B04C728DDA8E /* CustomGuidanceValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2946568228C48A76AFF42F23 /* CustomGuidanceValidator.swift */; };
+		60B875EA7C1AC57CE4FBD78C /* ScribeNotchPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D3CE95D7F282CF7CEB8D95 /* ScribeNotchPresentationTests.swift */; };
 		617024D9E66805B074765926 /* WritingEnvironmentCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76487CD30472CBAAEE6A458C /* WritingEnvironmentCatalog.swift */; };
 		62BB3C50263D2EE23D7BBE21 /* U5TestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32BF8E2A23E2D860E70D4FAE /* U5TestFixtures.swift */; };
 		6441E942D018DF9194C80446 /* PersonalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92617578D8E7278F00452C6A /* PersonalizationTests.swift */; };
 		650039271D0987E90C2FA0E1 /* AdaptiveScribeContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 261AA12AB448A4E589D2B94F /* AdaptiveScribeContractTests.swift */; };
+		665AC14592090262D5C80BFF /* ScribeNotchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FF8EE95079506DB9E841BEB /* ScribeNotchView.swift */; };
 		67FD464C28A976DAE727586B /* WritingEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29D9D8149519E0197728D48 /* WritingEnvironmentTests.swift */; };
 		692E5FA7034DEDAEC6EEC2F2 /* ScribeProviderManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1DD5815D59E02FF0F36E3D /* ScribeProviderManagementView.swift */; };
 		6BB8BD517FB2A2FD996131A1 /* AdaptiveScribeMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D904B25BCD8BF86F2F22D98F /* AdaptiveScribeMigrationService.swift */; };
@@ -148,6 +151,7 @@
 		DFE8D51DF1415E2B93218BA6 /* OpenRouterScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF59AD9CDC1C89E87DB75ED /* OpenRouterScribeProvider.swift */; };
 		E1810E46A5A32DAE2D8282B4 /* ScribeHTTPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000F18EAE6F79A44656A0048 /* ScribeHTTPTransport.swift */; };
 		E2A51A21F14EA9161C9E8368 /* ScribeRequestModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3812C70EA42C7636C329E2 /* ScribeRequestModels.swift */; };
+		E3A1AA0B37D1AE1E1403FD7B /* ScribeNotchWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AD361D6B2412E1E5FCC54B6 /* ScribeNotchWindowController.swift */; };
 		E3C4D8A933ACA71432962FC7 /* ScribeGuidanceCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A26C835556EA94A98E38B2 /* ScribeGuidanceCatalog.swift */; };
 		E488D6C051F788D17B29C304 /* ScribeLaunchFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7347FEC30FD5285909EEAD4 /* ScribeLaunchFixtures.swift */; };
 		E58C89BA9F8C0C4210D91AE2 /* TranscriptHistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F0FFD99B19B1F4066A7912 /* TranscriptHistoryService.swift */; };
@@ -291,6 +295,7 @@
 		8E25F690A832F4604D3AFD00 /* ScribeProviderRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderRuntimeTests.swift; sourceTree = "<group>"; };
 		8E7798F0223BD96AFDC68E23 /* ScribeProviderConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderConnectionManager.swift; sourceTree = "<group>"; };
 		8F79D43E58B9D94CA1C36BFB /* PersonalizationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalizationStore.swift; sourceTree = "<group>"; };
+		8FF8EE95079506DB9E841BEB /* ScribeNotchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeNotchView.swift; sourceTree = "<group>"; };
 		92617578D8E7278F00452C6A /* PersonalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalizationTests.swift; sourceTree = "<group>"; };
 		93FFB0F65384AA2F774E98FD /* WritingEnvironmentResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingEnvironmentResolver.swift; sourceTree = "<group>"; };
 		9880DDA2B852F0ED7E7ECC0F /* CadenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceTests.swift; sourceTree = "<group>"; };
@@ -298,6 +303,7 @@
 		9996810D696746CB2E5DA171 /* HUDVisibilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDVisibilityService.swift; sourceTree = "<group>"; };
 		99F0FFD99B19B1F4066A7912 /* TranscriptHistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptHistoryService.swift; sourceTree = "<group>"; };
 		9AB3EA660E7E3BB4BBA7E31C /* ApplicationConfigurationMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationConfigurationMigrationTests.swift; sourceTree = "<group>"; };
+		9AD361D6B2412E1E5FCC54B6 /* ScribeNotchWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeNotchWindowController.swift; sourceTree = "<group>"; };
 		9AEDC021CB58476A4FB96E92 /* quality-corpus-manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "quality-corpus-manifest.json"; sourceTree = "<group>"; };
 		9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCoordinator.swift; sourceTree = "<group>"; };
 		9D8371975360FC8D8C76AB8C /* TranscriptionAudioPreprocessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionAudioPreprocessor.swift; sourceTree = "<group>"; };
@@ -315,6 +321,7 @@
 		AA4184D1F8A91858269D49B0 /* ScribeRequestPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeRequestPolicy.swift; sourceTree = "<group>"; };
 		AC6441168A6E582F67C15B17 /* RuntimeApplicationTargetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeApplicationTargetModels.swift; sourceTree = "<group>"; };
 		AF56CFEA109C013C618C5D17 /* GoogleSignInButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInButton.swift; sourceTree = "<group>"; };
+		B4D3CE95D7F282CF7CEB8D95 /* ScribeNotchPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeNotchPresentationTests.swift; sourceTree = "<group>"; };
 		B4E9CB4DFED2033CA6470E1A /* ScribeProviderLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderLibraryTests.swift; sourceTree = "<group>"; };
 		B5A8C73B4837E38B0677B8E5 /* WhisperKitTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitTranscriptionEngine.swift; sourceTree = "<group>"; };
 		B82DFA8D72277D8A1A6424D2 /* PersonalizationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalizationModels.swift; sourceTree = "<group>"; };
@@ -345,6 +352,7 @@
 		DF8C6312871F32727CBB8DA8 /* ScribeCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeCoordinatorTests.swift; sourceTree = "<group>"; };
 		E08E99219366C7D92D4341D1 /* ScribeMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeMigrationTests.swift; sourceTree = "<group>"; };
 		E21E0D44209E1D489BD2A475 /* ScribeCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeCredentialStore.swift; sourceTree = "<group>"; };
+		E289ED69468565DA8A675DAA /* ScribeNotchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeNotchModels.swift; sourceTree = "<group>"; };
 		E2E1C144AC56A7F8E16B86BB /* CadenceDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceDesignSystem.swift; sourceTree = "<group>"; };
 		E53AF2C6B814A458A5047702 /* DictationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCoordinatorTests.swift; sourceTree = "<group>"; };
 		E578BEB1EADBEB5800402E25 /* MeetingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingModels.swift; sourceTree = "<group>"; };
@@ -432,6 +440,7 @@
 				0C16117AB80D4197BE302C96 /* ScribeLiteralNormalizerTests.swift */,
 				E08E99219366C7D92D4341D1 /* ScribeMigrationTests.swift */,
 				A096D3AE08EFD1C73E7D2765 /* ScribeModelCatalogServiceTests.swift */,
+				B4D3CE95D7F282CF7CEB8D95 /* ScribeNotchPresentationTests.swift */,
 				BF9296B54AADC703E9CBE3ED /* ScribePrivacyTests.swift */,
 				8DB208296457A9AD795C2206 /* ScribeProviderConfigurationTests.swift */,
 				7B704DDD56CB4C4DDD3AAC4C /* ScribeProviderConnectionManagerTests.swift */,
@@ -466,6 +475,7 @@
 				AC6441168A6E582F67C15B17 /* RuntimeApplicationTargetModels.swift */,
 				149842A517DF930900048ED2 /* ScribeDiagnosticModels.swift */,
 				FF8D98AB990D3D3E1C7B90F7 /* ScribeModels.swift */,
+				E289ED69468565DA8A675DAA /* ScribeNotchModels.swift */,
 				9939AF8E2BE1659663A74ED4 /* ScribePresetCatalogStateModels.swift */,
 				D9DD64E29F14ECB8C1F3115D /* ScribeProviderDisclosure.swift */,
 				E68FD2A7C5999695847396F1 /* ScribeProviderModels.swift */,
@@ -490,6 +500,7 @@
 				8338F9E442312C56CB4B1EB2 /* OnboardingView.swift */,
 				2B5252E71CDD37942299004F /* PermissionGuideWindow.swift */,
 				C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */,
+				8FF8EE95079506DB9E841BEB /* ScribeNotchView.swift */,
 				76D967993988BE3091065B08 /* ScribePanel.swift */,
 				BB1DD5815D59E02FF0F36E3D /* ScribeProviderManagementView.swift */,
 				33B77F7F7B3AC1FB25B0E4CD /* ScribeProviderSetupView.swift */,
@@ -592,6 +603,7 @@
 				000F18EAE6F79A44656A0048 /* ScribeHTTPTransport.swift */,
 				1947EF0EC7977800EEC5E3B3 /* ScribeLiteralNormalizer.swift */,
 				7EFBF133DF592739EF68E75F /* ScribeModelCatalogService.swift */,
+				9AD361D6B2412E1E5FCC54B6 /* ScribeNotchWindowController.swift */,
 				49D52DC2E3702C732FFA8B86 /* ScribePresetCatalogStateStore.swift */,
 				19004982898DC1FD2A4774E4 /* ScribeProvider.swift */,
 				A6B92A60007C6CB722726CCD /* ScribeProviderConfigurationStore.swift */,
@@ -861,6 +873,9 @@
 				BD5482A6617BD908C505FCE5 /* ScribeLiteralNormalizer.swift in Sources */,
 				0E34CAAD1C341521759D5F98 /* ScribeModelCatalogService.swift in Sources */,
 				3986DD601DC81674550A4CD3 /* ScribeModels.swift in Sources */,
+				51B96298C43378BF6C16C0AA /* ScribeNotchModels.swift in Sources */,
+				665AC14592090262D5C80BFF /* ScribeNotchView.swift in Sources */,
+				E3A1AA0B37D1AE1E1403FD7B /* ScribeNotchWindowController.swift in Sources */,
 				6E15683DC839CC8616DA90E1 /* ScribePanel.swift in Sources */,
 				339235F801FE54C50D9012E2 /* ScribePresetCatalogStateModels.swift in Sources */,
 				A80CB4A7BD09CCFED5F7F6A0 /* ScribePresetCatalogStateStore.swift in Sources */,
@@ -934,6 +949,7 @@
 				DB3DDCEE9D10090CF9A29691 /* ScribeLiteralNormalizerTests.swift in Sources */,
 				47F6B49183EFAB303954CD8C /* ScribeMigrationTests.swift in Sources */,
 				94661C288BFFBB8CC387F87E /* ScribeModelCatalogServiceTests.swift in Sources */,
+				60B875EA7C1AC57CE4FBD78C /* ScribeNotchPresentationTests.swift in Sources */,
 				3A5762945F127B5CA631C9D2 /* ScribePrivacyTests.swift in Sources */,
 				CD2CC09844391437AE662E30 /* ScribeProviderConfigurationTests.swift in Sources */,
 				FCF159ABBCB9BEB8EF3886B6 /* ScribeProviderConnectionManagerTests.swift in Sources */,

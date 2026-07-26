@@ -296,6 +296,26 @@ actor ScribeModelCatalogService {
         availableModels(for: provider).map(\.modelID)
     }
 
+    /// Searches the session catalog while preserving a pasted exact provider model ID
+    /// as a validation candidate. The provider compatibility check still decides
+    /// whether that exact identifier can be connected.
+    func searchModels(
+        for provider: ScribeProviderKind,
+        matching query: String
+    ) -> [ScribeSearchableModelEntry] {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let models = availableModels(
+            for: provider,
+            customModelID: normalizedQuery.isEmpty ? nil : normalizedQuery
+        )
+        guard !normalizedQuery.isEmpty else { return models }
+        return models.filter { entry in
+            ([entry.modelID, entry.displayName] + entry.searchTerms).contains {
+                $0.localizedCaseInsensitiveContains(normalizedQuery)
+            }
+        }
+    }
+
     func availableModels(
         for provider: ScribeProviderKind,
         customModelID: String? = nil

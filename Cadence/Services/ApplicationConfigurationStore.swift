@@ -106,6 +106,11 @@ final class ApplicationConfigurationStore: ApplicationConfigurationPersisting, @
                   validated == guidance,
                   !guidance.rawValue.isEmpty else { return false }
         }
+        if let promptOverride = configuration.promptOverride {
+            guard let validated = try? CustomGuidanceValidator.validate(promptOverride.rawValue),
+                  validated == promptOverride,
+                  !promptOverride.rawValue.isEmpty else { return false }
+        }
         return true
     }
 

@@ -521,6 +521,43 @@ struct HUDVisualGeometryTests {
     }
 
     @Test
+    func fullyExpandedForegroundDoesNotClipTheApplicationCue() {
+        let targetWidth: CGFloat = 252
+
+        for position in HUDPosition.allCases {
+            let frame = HUDForegroundMaskLayout.frame(
+                position: position,
+                targetWidth: targetWidth,
+                renderedWidth: targetWidth
+            )
+            #expect(frame.minX == 0)
+            #expect(frame.maxX == targetWidth)
+        }
+    }
+
+    @Test
+    func rightAnchoredForegroundMaskRemainsContinuousNearCompletion() {
+        let targetWidth: CGFloat = 252
+
+        for position in [HUDPosition.topRight, .bottomRight] {
+            let before = HUDForegroundMaskLayout.frame(
+                position: position,
+                targetWidth: targetWidth,
+                renderedWidth: targetWidth - 0.51
+            )
+            let after = HUDForegroundMaskLayout.frame(
+                position: position,
+                targetWidth: targetWidth,
+                renderedWidth: targetWidth - 0.49
+            )
+            #expect(abs(before.minX - after.minX) < 0.1)
+            #expect(abs(before.width - after.width) < 0.1)
+            #expect(before.maxX == targetWidth)
+            #expect(after.maxX == targetWidth)
+        }
+    }
+
+    @Test
     func animatedMicrophoneEndsAtThePermanentRestingMicrophoneCenter() {
         let sourceSize = NSSize(width: 252, height: HUDMetrics.panelHeight)
 

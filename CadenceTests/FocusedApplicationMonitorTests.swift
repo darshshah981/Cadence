@@ -44,6 +44,23 @@ struct FocusedApplicationMonitorTests {
     }
 
     @Test
+    func recoveryActivatesTheExactCapturedExternalAppInsteadOfNewerHistory() async {
+        let source = FocusedApplicationSourceFake(sample: Self.cursor(pid: 42))
+        let monitor = FocusedApplicationMonitor(source: source, cadenceBundleIdentifiers: [])
+        monitor.start()
+        while monitor.currentExternal == nil { await Task.yield() }
+        let intended = monitor.currentExternal!.process
+
+        source.sample = Self.slack(pid: 43)
+        source.send(.activated)
+        while monitor.currentExternal?.process.processIdentifier != 43 { await Task.yield() }
+
+        #expect(monitor.activateValidatedExternal(intended))
+        #expect(source.activatedIdentities == [intended])
+        monitor.stop()
+    }
+
+    @Test
     func terminationClearsExactIncarnationAndSamePIDRelaunchGetsNewIncarnation() async {
         let initial = Self.cursor(pid: 44, launchDate: Date(timeIntervalSince1970: 10))
         let source = FocusedApplicationSourceFake(sample: initial)
@@ -203,6 +220,7 @@ private final class FocusedApplicationSourceFake: FocusedApplicationSource, @unc
     private(set) var eventsCallCount = 0
     private(set) var stopCount = 0
     private(set) var callOrder: [String] = []
+    private(set) var activatedIdentities: [ApplicationProcessIdentity] = []
     init(sample: FocusedApplicationSample?) {
         self.sample = sample
         let pair = AsyncStream.makeStream(of: FocusedApplicationEvent.self)
@@ -220,7 +238,10 @@ private final class FocusedApplicationSourceFake: FocusedApplicationSource, @unc
         if let gate { await gate.wait() }
         return captured
     }
-    func activate(_ identity: ApplicationProcessIdentity) -> Bool { true }
+    func activate(_ identity: ApplicationProcessIdentity) -> Bool {
+        activatedIdentities.append(identity)
+        return true
+    }
     func stop() { stopCount += 1; continuation.finish() }
     func send(_ event: FocusedApplicationEvent) { continuation.yield(event) }
 }

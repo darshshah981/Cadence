@@ -7,6 +7,7 @@ private let hotkeyLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Cadence",
     category: "Hotkey"
 )
+private let cadenceHotKeySignature = OSType(0x4653_5441) // FSTA
 
 protocol HotkeyServing: AnyObject {
     var onPress: ((HotkeyAction) -> Void)? { get set }
@@ -91,7 +92,8 @@ struct ModifierOnlyGestureEngine: Sendable {
             )
 
             if matches && !activeActions.contains(action) && !pendingActions.contains(action) {
-                if action == .holdToTalk, consumesDoublePress(for: action, at: time) {
+                if action.supportsHoldAndLockGesture,
+                   consumesDoublePress(for: action, at: time) {
                     blockedActions.insert(action)
                     effects.append(.doublePress(action))
                 } else {
@@ -101,7 +103,7 @@ struct ModifierOnlyGestureEngine: Sendable {
             } else if !matches && pendingActions.remove(action) != nil {
                 effects.append(.cancelScheduled(action))
                 if Self.isRelease(releasedKeyCode, flags: flags) {
-                    if action == .holdToTalk {
+                    if action.supportsHoldAndLockGesture {
                         lastQuickTapTimes[action] = time
                         effects.append(.quickTap(action))
                     } else {
@@ -236,7 +238,7 @@ final class HotkeyService: HotkeyServing {
         let status = InstallEventHandler(
             GetApplicationEventTarget(),
             { _, event, userData in
-                guard let userData else { return noErr }
+                guard let userData else { return OSStatus(eventNotHandledErr) }
                 let service = Unmanaged<HotkeyService>.fromOpaque(userData).takeUnretainedValue()
                 let kind = GetEventKind(event)
 
@@ -252,8 +254,9 @@ final class HotkeyService: HotkeyServing {
                 )
 
                 guard status == noErr,
+                      hotKeyID.signature == cadenceHotKeySignature,
                       let action = HotkeyAction(eventHotKeyID: hotKeyID.id) else {
-                    return noErr
+                    return OSStatus(eventNotHandledErr)
                 }
 
                 guard !service.isPaused else {
@@ -303,7 +306,7 @@ final class HotkeyService: HotkeyServing {
             !binding.shortcut.requiresSpecificModifierSides {
             var hotKeyRef: EventHotKeyRef?
             let hotKeyID = EventHotKeyID(
-                signature: OSType(0x46535441),
+                signature: cadenceHotKeySignature,
                 id: binding.action.eventHotKeyID
             )
 
@@ -503,6 +506,10 @@ final class HotkeyService: HotkeyServing {
 }
 
 private extension HotkeyAction {
+    var supportsHoldAndLockGesture: Bool {
+        self == .holdToTalk || self == .scribe
+    }
+
     var eventHotKeyID: UInt32 {
         switch self {
         case .holdToTalk:

@@ -51,6 +51,8 @@ final class DictationCoordinator {
     var onError: ((String) -> Void)?
     var onBackendStatus: ((String) -> Void)?
     var onScribeRequested: (() -> Void)?
+    var onScribeReleased: (() -> Void)?
+    var onScribeDoublePressed: (() -> Void)?
     var onTargetPin: ((ApplicationTargetCapture, String?) -> Void)?
     var onTargetClear: ((UUID) -> Void)?
 
@@ -221,6 +223,10 @@ final class DictationCoordinator {
     }
 
     private func handleHotkeyRelease(_ action: HotkeyAction) async {
+        if action == .scribe {
+            onScribeReleased?()
+            return
+        }
         guard action == .holdToTalk, activeTriggerMode == .holdToTalk else { return }
         await finishDictationIfNeeded()
     }
@@ -242,6 +248,10 @@ final class DictationCoordinator {
     }
 
     private func handleHotkeyDoublePress(_ action: HotkeyAction) async {
+        if action == .scribe {
+            onScribeDoublePressed?()
+            return
+        }
         guard action == .holdToTalk else { return }
         holdQuickTapGesture.reset()
         switch state {

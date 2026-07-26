@@ -12,12 +12,27 @@ protocol FeedbackServing: AnyObject {
     var isActivationEnabled: Bool { get set }
     var isCompletionEnabled: Bool { get set }
     func playActivationSound()
+    func playScribeActivationSound()
+    func playScribeProcessingSound()
+    func playScribeCompletionSound()
     func playCompletionSound()
 }
 
 extension FeedbackServing {
+    func playScribeActivationSound() {
+        playActivationSound()
+    }
+
     func playCompletionSound() {
         playActivationSound()
+    }
+
+    func playScribeProcessingSound() {
+        playActivationSound()
+    }
+
+    func playScribeCompletionSound() {
+        playCompletionSound()
     }
 }
 
@@ -99,6 +114,9 @@ final class SoundFeedbackService: FeedbackServing {
 
     private let soundName = "Tink"
     private let completionSoundName = "Pop"
+    private let scribeActivationSoundName = "Hero"
+    private let scribeProcessingSoundName = "Purr"
+    private let scribeCompletionSoundName = "Glass"
 
     init(isActivationEnabled: Bool = true, isCompletionEnabled: Bool = true) {
         self.isActivationEnabled = isActivationEnabled
@@ -119,6 +137,33 @@ final class SoundFeedbackService: FeedbackServing {
         guard let sound = NSSound(named: completionSoundName) else {
             guard let fallback = NSSound(named: soundName) else { return }
             fallback.play()
+            return
+        }
+        sound.play()
+    }
+
+    func playScribeActivationSound() {
+        guard isActivationEnabled else { return }
+        guard let sound = NSSound(named: scribeActivationSoundName) else {
+            playActivationSound()
+            return
+        }
+        sound.play()
+    }
+
+    func playScribeProcessingSound() {
+        guard isActivationEnabled else { return }
+        guard let sound = NSSound(named: scribeProcessingSoundName) else {
+            playActivationSound()
+            return
+        }
+        sound.play()
+    }
+
+    func playScribeCompletionSound() {
+        guard isCompletionEnabled else { return }
+        guard let sound = NSSound(named: scribeCompletionSoundName) else {
+            playCompletionSound()
             return
         }
         sound.play()

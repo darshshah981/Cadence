@@ -195,6 +195,11 @@ final class AdaptiveScribeFeatureGateStore {
             throw StrictPersistenceError.semanticReadbackFailed
         }
     }
+
+    func promoteMigrationBaselineIfScribeEnabled(_ scribeEnabled: Bool) throws {
+        guard scribeEnabled, load() == .valid(.migrationBaseline) else { return }
+        try save(.allEnabled)
+    }
 }
 
 struct AdaptiveScribeLiveReaderService {

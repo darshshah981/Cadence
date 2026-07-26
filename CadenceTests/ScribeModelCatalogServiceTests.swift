@@ -4,6 +4,24 @@ import Testing
 
 struct ScribeModelCatalogServiceTests {
     @Test
+    func exactPastedOpenRouterModelRemainsSelectableWhenDiscoveryHasNoMatch() async {
+        let service = ScribeModelCatalogService(
+            transport: U4RecordingTransport(results: []),
+            credentialLoader: { _ in "key" },
+            consentVerifier: { _ in true }
+        )
+
+        let results = await service.searchModels(
+            for: .openRouter,
+            matching: "deepseek/deepseek-v4-pro"
+        )
+
+        #expect(results.map(\.modelID) == ["deepseek/deepseek-v4-pro"])
+        #expect(results.first?.source == .custom)
+        #expect(results.first?.compatibility == .requiresValidation)
+    }
+
+    @Test
     func missingForgedAndRevokedReceiptsFailBeforeAnyIO() async throws {
         let transport = U4RecordingTransport(results: [])
         let issued = Self.receipt(provider: .openRouter)

@@ -90,6 +90,13 @@ enum ScribeRequestPolicy {
     }
 
     private static func behaviorInstructions(for request: ScribeRequest) -> String {
+        if let guidance = request.resolvedGuidance {
+            var sections = [guidance.compiledPresetInstructions]
+            if let custom = guidance.customGuidance?.rawValue {
+                sections.append("Additional guidance:\n\(custom)")
+            }
+            return sections.joined(separator: "\n\n")
+        }
         if let environment = request.resolvedEnvironment {
             return environment.compiledInstructions
         }

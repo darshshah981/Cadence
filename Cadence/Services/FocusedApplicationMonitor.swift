@@ -194,6 +194,11 @@ final class FocusedApplicationMonitor {
         return source.activate(candidate.process)
     }
 
+    func activateValidatedExternal(_ identity: ApplicationProcessIdentity) -> Bool {
+        guard history.contains(where: { $0.process == identity }) else { return false }
+        return source.activate(identity)
+    }
+
     func requestResample() {
         generation += 1
         let requestedGeneration = generation
@@ -329,6 +334,7 @@ final class FocusedApplicationMonitor {
 protocol ApplicationTargetAuthorizing: AnyObject {
     func capture(source: ApplicationTargetCapture.Source) async throws -> ApplicationTargetCapture
     func verify(_ capture: ApplicationTargetCapture) async throws
+    func activate(_ capture: ApplicationTargetCapture) -> Bool
     func enrich(processIdentifier: Int32, bundleIdentifier: String?) -> ApplicationProcessIdentity?
     func enrichCapture(id: UUID, processIdentifier: Int32, bundleIdentifier: String?) -> ApplicationTargetCapture?
     func matchesCurrent(_ identity: ApplicationProcessIdentity) -> Bool
@@ -346,6 +352,10 @@ final class ApplicationTargetAuthority: ApplicationTargetAuthorizing {
 
     func verify(_ capture: ApplicationTargetCapture) async throws {
         try await monitor.verify(capture)
+    }
+
+    func activate(_ capture: ApplicationTargetCapture) -> Bool {
+        monitor.activateValidatedExternal(capture.process)
     }
 
     func enrich(processIdentifier: Int32, bundleIdentifier: String?) -> ApplicationProcessIdentity? {

@@ -240,6 +240,49 @@ struct ApplicationConfigurationTests {
     }
 
     @Test
+    func appPromptOverrideRoundTripsAndLegacyPayloadDefaultsToNoOverride() throws {
+        let fixture = try ApplicationStoreFixture()
+        defer { fixture.cleanUp() }
+
+        let original = try fixture.configuration()
+        let overridden = try ApplicationConfiguration(
+            id: original.id,
+            application: original.application,
+            isEnabled: original.isEnabled,
+            familyID: original.familyID,
+            presetSelection: original.presetSelection,
+            customGuidance: original.customGuidance,
+            promptOverride: try ScribeCustomGuidance("Use a compact status-update format."),
+            revision: original.revision
+        )
+        try fixture.store.save(.init(revision: 2, configurations: [overridden]))
+        guard case let .valid(saved) = fixture.store.load() else {
+            Issue.record("Expected prompt override to round-trip")
+            return
+        }
+        #expect(
+            saved.configurations.first?.promptOverride?.rawValue
+                == "Use a compact status-update format."
+        )
+
+        let encoded = try JSONEncoder().encode(
+            ApplicationConfigurationEnvelope(
+                library: .init(revision: 1, configurations: [original])
+            )
+        )
+        let object = try #require(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        fixture.defaults.set(legacyData, forKey: fixture.key)
+        guard case let .valid(legacy) = fixture.store.load() else {
+            Issue.record("Expected legacy configuration to remain decodable")
+            return
+        }
+        #expect(legacy.configurations.first?.promptOverride == nil)
+    }
+
+    @Test
     func malformedFutureDuplicateAndInvalidFieldsRejectWholeEnvelopeAndPreserveBytes() throws {
         let fixture = try ApplicationStoreFixture()
         defer { fixture.cleanUp() }

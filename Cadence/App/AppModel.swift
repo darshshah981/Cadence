@@ -179,10 +179,17 @@ final class AppModel: ObservableObject {
     private let installedApplicationLifecycleSource: WorkspaceInstalledApplicationLifecycleSource
     private let scribeDiagnosticsService: ScribeDiagnosticsService
     private let scribePanelWindowController = ScribePanelWindowController()
+    private let scribeNotchWindowController = ScribeNotchWindowController()
     private let voiceSessionArbiter: VoiceSessionArbiter
     let onboardingMicrophoneMonitor: OnboardingMicrophoneMonitor
     private let hudController: HUDWindowController
     private let hudVisibilityController: HUDVisibilityController
+    private var scribeReplacementCompleted = false
+    private var activeScribeTriggerMode: DictationTriggerMode?
+    private var scribeShortcutReleasePending = false
+    private var scribeRecoveryApplication: ApplicationProcessIdentity?
+    private var scribeAudioLevel = 0.0
+    private var scribeWaveformLevels = Array(repeating: 0.0, count: 16)
     private let focusedApplicationSource: WorkspaceFocusedApplicationSource
     private let focusedApplicationMonitor: FocusedApplicationMonitor
     private let applicationTargetAuthority: ApplicationTargetAuthority
@@ -419,18 +426,6 @@ final class AppModel: ObservableObject {
             rememberedURLs: rememberedApplicationURLs
         )
         let installedApplicationLifecycleSource = WorkspaceInstalledApplicationLifecycleSource()
-        let adaptiveScribeLiveReaderService = AdaptiveScribeLiveReaderService(
-            providerStore: scribeProviderLibraryStore,
-            applicationStore: applicationConfigurationStore,
-            presetStore: ScribePresetCatalogStateStore(defaults: defaults),
-            settingsStore: SettingsPresentationStore(defaults: defaults),
-            featureGateStore: AdaptiveScribeFeatureGateStore(defaults: defaults),
-            markerStore: AdaptiveScribeMigrationMarkerStore(defaults: defaults)
-        )
-        let adaptiveScribeReaderMonitor = AdaptiveScribeReaderMonitor(
-            defaults: defaults,
-            readerService: adaptiveScribeLiveReaderService
-        )
         let scribeDiagnosticsService = ScribeDiagnosticsService()
         let migrationResult = try? AdaptiveScribeMigrationService(
             defaults: defaults,
@@ -446,6 +441,25 @@ final class AppModel: ObservableObject {
         ).migrateV2Domains(
             providerConfiguration: scribeConfigurationStore.load(),
             writingEnvironmentPreferences: writingEnvironmentStore.load()
+        )
+        let adaptiveScribeFeatureGateStore = AdaptiveScribeFeatureGateStore(defaults: defaults)
+        if v2MigrationResult != nil {
+            try? adaptiveScribeFeatureGateStore.promoteMigrationBaselineIfScribeEnabled(
+                featureFlags.scribeEnabled
+            )
+        }
+        let adaptiveScribeLiveReaderService = AdaptiveScribeLiveReaderService(
+            providerStore: scribeProviderLibraryStore,
+            applicationStore: applicationConfigurationStore,
+            presetStore: ScribePresetCatalogStateStore(defaults: defaults),
+            settingsStore: SettingsPresentationStore(defaults: defaults),
+            featureGateStore: adaptiveScribeFeatureGateStore,
+            markerStore: AdaptiveScribeMigrationMarkerStore(defaults: defaults),
+            polishedDictationRuntimeAvailable: true
+        )
+        let adaptiveScribeReaderMonitor = AdaptiveScribeReaderMonitor(
+            defaults: defaults,
+            readerService: adaptiveScribeLiveReaderService
         )
         let textInsertionService = TextInsertionService()
         let voiceSessionArbiter = VoiceSessionArbiter()
@@ -473,8 +487,9 @@ final class AppModel: ObservableObject {
         self.installedApplicationLifecycleSource = installedApplicationLifecycleSource
         self.scribeDiagnosticsService = scribeDiagnosticsService
         self.scribeProviderReadiness = scribeProviderV2Controller.readiness
-        self.adaptiveScribeV2Availability = v2MigrationResult?.liveReaderState.scribeAvailability
-            ?? .setupRequired
+        self.adaptiveScribeV2Availability = v2MigrationResult == nil
+            ? .setupRequired
+            : adaptiveScribeLiveReaderService.load().scribeAvailability
         self.showsLegacyWritingProfileNotice = migrationResult?.shouldShowLegacyProfileNotice ?? false
         self.scribeAppAdaptationEnabled = (
             defaults.object(forKey: AdaptiveScribeMigrationService.adaptationEnabledKey) as? Bool
@@ -517,6 +532,29 @@ final class AppModel: ObservableObject {
             contextService: ScribeContextService(targetAuthority: applicationTargetAuthority),
             sessionArbiter: voiceSessionArbiter,
             personalizationStore: personalizationStore,
+            applicationGuidanceResolver: { target, signature in
+                let descriptor = InstalledApplicationDescriptor(
+                    bundleURL: target.process.bundleURL,
+                    bundleIdentifier: target.process.bundleIdentifier,
+                    displayName: target.displayName
+                        ?? target.process.bundleURL.deletingPathExtension().lastPathComponent,
+                    version: nil,
+                    build: nil,
+                    isInstalled: true,
+                    isRunning: true
+                )
+                return ScribeGuidanceResolver.resolve(
+                    application: .exact(descriptor),
+                    adaptationEnabled: (
+                        defaults.object(
+                            forKey: AdaptiveScribeMigrationService.adaptationEnabledKey
+                        ) as? Bool
+                    ) ?? true,
+                    configurationLoadResult: applicationConfigurationStore.load(),
+                    presetState: ScribePresetCatalogStateStore(defaults: defaults).load(),
+                    targetSignature: signature
+                )
+            },
             writingEnvironmentPreferences: { writingEnvironmentStore.load() },
             adaptationEnabled: {
                 (defaults.object(forKey: AdaptiveScribeMigrationService.adaptationEnabledKey) as? Bool) ?? true
@@ -586,6 +624,9 @@ final class AppModel: ObservableObject {
         bindHotkeyDiagnostics()
         bindPermissionRefresh()
         AppDelegate.openMainWindow = { [weak self] in
+            #if DEBUG
+            guard !ScribeLaunchFixtures.usesNotchPresentation else { return }
+            #endif
             self?.showMainWindow()
         }
         AppDelegate.shutdownApplicationServices = {
@@ -599,14 +640,14 @@ final class AppModel: ObservableObject {
         presentScribeLaunchFixtureIfNeeded()
         #endif
         Task {
-            await installedApplicationCatalogService.start(
-                lifecycleSource: installedApplicationLifecycleSource
-            )
             if featureFlags.scribeEnabled {
                 await scribeDiagnosticsService.load()
                 try? await scribeProviderV2Controller.reconcileAtStartup()
                 scribeProviderReadiness = scribeProviderV2Controller.readiness
             }
+            await installedApplicationCatalogService.start(
+                lifecycleSource: installedApplicationLifecycleSource
+            )
             await refreshPermissions()
             await applyTranscriptionConfiguration(prewarm: false)
             await warmBackend()
@@ -614,6 +655,9 @@ final class AppModel: ObservableObject {
         }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(350))
+            #if DEBUG
+            guard !ScribeLaunchFixtures.usesNotchPresentation else { return }
+            #endif
             guard self?.mainWindowController.hasVisibleWindow != true else { return }
             self?.showMainWindow()
         }
@@ -2487,10 +2531,12 @@ final class AppModel: ObservableObject {
 
     func presentScribeProviderSetup() {
         guard featureFlags.scribeEnabled else { return }
+        scribePanelWindowController.close()
+        scribeNotchWindowController.close()
+        restoreIdleHUDAfterScribe()
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.scribeCoordinator.cancel()
-            self.scribePanelWindowController.close()
             self.isScribeProviderSetupPresented = true
             self.showMainWindow()
         }
@@ -2535,14 +2581,10 @@ final class AppModel: ObservableObject {
             )
         }
         guard scribeProviderSetupSession.acceptsCallback(revision: revision) else { return [] }
-        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let models = await scribeModelCatalogService.availableModels(for: provider)
-        guard !normalizedQuery.isEmpty else { return models }
-        return models.filter { entry in
-            ([entry.modelID, entry.displayName] + entry.searchTerms).contains {
-                $0.localizedCaseInsensitiveContains(normalizedQuery)
-            }
-        }
+        return await scribeModelCatalogService.searchModels(
+            for: provider,
+            matching: query
+        )
     }
 
     func switchScribeProviderSetup(to kind: ScribeProviderKind) {
@@ -2900,6 +2942,7 @@ final class AppModel: ObservableObject {
         familyID: ScribeEnvironmentFamilyID,
         presetSelection: ScribePresetSelection = .familyDefault,
         customGuidance: ScribeCustomGuidance? = nil,
+        promptOverride: ScribeCustomGuidance? = nil,
         isEnabled: Bool = true
     ) async throws -> ApplicationConfiguration {
         let configuration = try await applicationConfigurationWriter.upsert(
@@ -2907,6 +2950,7 @@ final class AppModel: ObservableObject {
             familyID: familyID,
             presetSelection: presetSelection,
             customGuidance: customGuidance,
+            promptOverride: promptOverride,
             isEnabled: isEnabled
         )
         refreshApplicationConfigurationState()
@@ -2929,7 +2973,8 @@ final class AppModel: ObservableObject {
             isEnabled: enabled,
             familyID: current.familyID,
             presetSelection: current.presetSelection,
-            customGuidance: current.customGuidance
+            customGuidance: current.customGuidance,
+            promptOverride: current.promptOverride
         )
     }
 
@@ -2938,7 +2983,8 @@ final class AppModel: ObservableObject {
         isEnabled: Bool,
         familyID: ScribeEnvironmentFamilyID,
         presetSelection: ScribePresetSelection,
-        customGuidance: ScribeCustomGuidance?
+        customGuidance: ScribeCustomGuidance?,
+        promptOverride: ScribeCustomGuidance? = nil
     ) async throws -> ApplicationConfiguration {
         guard case let .valid(library) = applicationConfigurationStore.load(),
               let current = library.configurations.first(where: { $0.id == id }) else {
@@ -2950,7 +2996,8 @@ final class AppModel: ObservableObject {
             isEnabled: isEnabled,
             familyID: familyID,
             presetSelection: presetSelection,
-            customGuidance: customGuidance
+            customGuidance: customGuidance,
+            promptOverride: promptOverride
         )
     }
 
@@ -2960,7 +3007,8 @@ final class AppModel: ObservableObject {
         isEnabled: Bool,
         familyID: ScribeEnvironmentFamilyID,
         presetSelection: ScribePresetSelection,
-        customGuidance: ScribeCustomGuidance?
+        customGuidance: ScribeCustomGuidance?,
+        promptOverride: ScribeCustomGuidance?
     ) async throws -> ApplicationConfiguration {
         let updated = try ApplicationConfiguration(
             id: current.id,
@@ -2969,6 +3017,7 @@ final class AppModel: ObservableObject {
             familyID: familyID,
             presetSelection: presetSelection,
             customGuidance: customGuidance,
+            promptOverride: promptOverride,
             revision: current.revision + 1
         )
         try await applicationConfigurationWriter.replaceConfiguration(
@@ -3242,68 +3291,153 @@ final class AppModel: ObservableObject {
     func showScribe() {
         guard featureFlags.scribeEnabled else { return }
         guard revalidateAdaptiveScribeReaders() else { return }
-        guard case .ready = scribeProviderReadiness else {
-            presentScribeProviderSetup()
-            return
-        }
         switch scribeState {
         case .idle, .succeeded, .cancelled, .failed:
-            beginScribe()
+            beginScribe(triggerMode: .tapToStartStop)
+        case .listening:
+            stopScribeRecording()
         default:
-            scribePanelWindowController.update(
-                state: scribeState,
-                failureMessage: scribeFailureMessage,
-                literalTranscript: scribeCoordinator.literalTranscript,
-                environmentCue: scribeCoordinator.resolvedEnvironment?.cue,
-                targetDisplayName: scribeCoordinator.targetDisplayName,
-                exactLiterals: scribeCoordinator.exactLiterals,
-                canRetryGeneration: scribeCoordinator.canRetryGeneration
-            )
+            updateScribePresentation(scribeState)
         }
     }
 
-    private func beginScribe() {
-        guard revalidateAdaptiveScribeReaders() else { return }
-        guard permissions.allRequiredGranted else {
-            presentScribeStartFailure("Finish microphone, Accessibility, and Input Monitoring setup before using Scribe.")
-            return
+    private func handleScribeShortcutPress() {
+        switch scribeState {
+        case .idle, .succeeded, .cancelled, .failed:
+            beginScribe(triggerMode: .holdToTalk)
+        case .listening where activeScribeTriggerMode == .tapToStartStop:
+            activeScribeTriggerMode = nil
+            stopScribeRecording()
+        default:
+            break
         }
+    }
 
+    private func handleScribeShortcutRelease() {
+        guard activeScribeTriggerMode == .holdToTalk else { return }
+        if case .listening = scribeState {
+            activeScribeTriggerMode = nil
+            stopScribeRecording()
+        } else {
+            // Provider resolution and microphone startup are asynchronous. If
+            // the user releases during startup, finish immediately once the
+            // listening state is established instead of leaving Scribe latched.
+            scribeShortcutReleasePending = true
+        }
+    }
+
+    private func handleScribeShortcutDoublePress() {
+        switch scribeState {
+        case .idle, .succeeded, .cancelled, .failed:
+            if activeScribeTriggerMode == .holdToTalk {
+                activeScribeTriggerMode = .tapToStartStop
+                scribeShortcutReleasePending = false
+            } else {
+                beginScribe(triggerMode: .tapToStartStop)
+            }
+        case .listening where activeScribeTriggerMode == .holdToTalk:
+            activeScribeTriggerMode = .tapToStartStop
+            scribeShortcutReleasePending = false
+        case .listening where activeScribeTriggerMode == .tapToStartStop:
+            activeScribeTriggerMode = nil
+            stopScribeRecording()
+        default:
+            break
+        }
+    }
+
+    private func beginScribe(triggerMode: DictationTriggerMode) {
+        guard revalidateAdaptiveScribeReaders() else { return }
+
+        scribeRecoveryApplication = focusedApplicationMonitor.currentExternal?.process
+        activeScribeTriggerMode = triggerMode
+        scribeShortcutReleasePending = false
         Task { @MainActor [weak self] in
             guard let self else { return }
+            let currentPermissions = await ScribePermissionGate.evaluate(using: self.permissionsService)
+            self.permissions = currentPermissions
+            self.permissionGuideWindowController.updatePermissions(currentPermissions)
+            if let permissionMessage = currentPermissions.scribePermissionMessage {
+                self.activeScribeTriggerMode = nil
+                self.scribeShortcutReleasePending = false
+                self.presentScribeStartFailure(
+                    permissionMessage,
+                    failureRecovery: .openPermissions
+                )
+                return
+            }
+
             do {
                 try await self.scribeTranscriptionEngine.updateConfiguration(self.transcriptionConfiguration)
                 try await self.scribeCoordinator.beginDirectDictation()
+                self.feedbackService.playScribeActivationSound()
                 self.lastError = nil
+                if self.activeScribeTriggerMode == .holdToTalk,
+                   self.scribeShortcutReleasePending {
+                    self.activeScribeTriggerMode = nil
+                    self.scribeShortcutReleasePending = false
+                    await self.scribeCoordinator.finishRecording()
+                }
+            } catch let error as ScribeProviderFailure {
+                self.activeScribeTriggerMode = nil
+                self.scribeShortcutReleasePending = false
+                await self.scribeProviderV2Controller.reloadReadiness()
+                self.scribeProviderReadiness = self.scribeProviderV2Controller.readiness
+                self.presentScribeStartFailure(
+                    error.userMessage,
+                    failureRecovery: .providerRecovery(for: error)
+                )
             } catch let error as ScribeContextError {
-                self.presentScribeStartFailure(error.userMessage)
+                self.activeScribeTriggerMode = nil
+                self.scribeShortcutReleasePending = false
+                self.presentScribeStartFailure(
+                    error.userMessage,
+                    failureRecovery: .contextRecovery(for: error)
+                )
             } catch let VoiceSessionArbiterError.busy(activeKind) {
+                self.activeScribeTriggerMode = nil
+                self.scribeShortcutReleasePending = false
                 self.presentScribeStartFailure("Stop the active \(activeKind.rawValue) session before starting Scribe.")
             } catch is CancellationError {
+                self.activeScribeTriggerMode = nil
+                self.scribeShortcutReleasePending = false
                 return
             } catch {
-                self.presentScribeStartFailure("Scribe could not start. Check microphone access and try again.")
+                self.activeScribeTriggerMode = nil
+                self.scribeShortcutReleasePending = false
+                self.presentScribeStartFailure("Scribe could not start recording. Try again.")
             }
         }
     }
 
-    private func presentScribeStartFailure(_ message: String) {
+    private func presentScribeStartFailure(
+        _ message: String,
+        failureRecovery: ScribeNotchFailureRecovery? = nil
+    ) {
         lastError = message
         scribeState = .failed(requestID: nil, error: .unavailable)
-        scribePanelWindowController.update(
-            state: scribeState,
-            failureMessage: message,
-            literalTranscript: nil
+        updateScribePresentation(
+            scribeState,
+            failureMessageOverride: message,
+            failureRecoveryOverride: failureRecovery
         )
     }
 
     private func stopScribeRecording() {
+        activeScribeTriggerMode = nil
+        scribeShortcutReleasePending = false
         Task { @MainActor [weak self] in
             await self?.scribeCoordinator.finishRecording()
         }
     }
 
-    private func cancelScribe() {
+    private func cancelScribe(dismissImmediately: Bool = false) {
+        activeScribeTriggerMode = nil
+        scribeShortcutReleasePending = false
+        if dismissImmediately {
+            scribePanelWindowController.close()
+            restoreIdleHUDAfterScribe()
+        }
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.scribeCoordinator.cancel()
@@ -3311,6 +3445,8 @@ final class AppModel: ObservableObject {
             guard case .cancelled = self.scribeState else { return }
             self.scribeState = .idle
             self.scribePanelWindowController.close()
+            self.scribeNotchWindowController.close()
+            self.restoreIdleHUDAfterScribe()
         }
     }
 
@@ -3330,14 +3466,9 @@ final class AppModel: ObservableObject {
             do {
                 try await self.scribeCoordinator.insertReviewedResult()
             } catch let error as ScribeContextError {
-                self.scribePanelWindowController.update(
-                    state: self.scribeState,
-                    failureMessage: error.userMessage,
-                    literalTranscript: self.scribeCoordinator.literalTranscript,
-                    environmentCue: self.scribeCoordinator.resolvedEnvironment?.cue,
-                    targetDisplayName: self.scribeCoordinator.targetDisplayName,
-                    exactLiterals: self.scribeCoordinator.exactLiterals,
-                    canRetryGeneration: self.scribeCoordinator.canRetryGeneration
+                self.updateScribePresentation(
+                    self.scribeState,
+                    failureMessageOverride: error.userMessage
                 )
             } catch {
                 self.lastError = "Cadence could not safely insert that draft. Copy it instead."
@@ -3351,14 +3482,9 @@ final class AppModel: ObservableObject {
             do {
                 try await self.scribeCoordinator.insertUnpolishedResult()
             } catch let error as ScribeContextError {
-                self.scribePanelWindowController.update(
-                    state: self.scribeState,
-                    failureMessage: error.userMessage,
-                    literalTranscript: self.scribeCoordinator.literalTranscript,
-                    environmentCue: self.scribeCoordinator.resolvedEnvironment?.cue,
-                    targetDisplayName: self.scribeCoordinator.targetDisplayName,
-                    exactLiterals: self.scribeCoordinator.exactLiterals,
-                    canRetryGeneration: self.scribeCoordinator.canRetryGeneration
+                self.updateScribePresentation(
+                    self.scribeState,
+                    failureMessageOverride: error.userMessage
                 )
             } catch {
                 self.lastError = "Cadence could not safely insert the unpolished dictation. Copy it instead."
@@ -3372,9 +3498,15 @@ final class AppModel: ObservableObject {
             do {
                 try await self.scribeCoordinator.reRecord()
             } catch let error as ScribeContextError {
-                self.presentScribeStartFailure(error.userMessage)
+                self.presentScribeStartFailure(
+                    error.userMessage,
+                    failureRecovery: .contextRecovery(for: error)
+                )
             } catch {
-                self.presentScribeStartFailure("Scribe could not start a new recording.")
+                self.presentScribeStartFailure(
+                    "Scribe could not start a new recording.",
+                    failureRecovery: .retryGeneration
+                )
             }
         }
     }
@@ -3382,13 +3514,17 @@ final class AppModel: ObservableObject {
     private func copyPolishedScribeResult() {
         guard let text = scribeCoordinator.takeReviewedDraftForCopy() else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        if NSPasteboard.general.setString(text, forType: .string) {
+            scribeNotchWindowController.showCopyFeedback("Copied to clipboard")
+        }
     }
 
     private func copyUnpolishedScribeResult() {
         guard let text = scribeCoordinator.takeUnpolishedDraftForCopy() else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        if NSPasteboard.general.setString(text, forType: .string) {
+            scribeNotchWindowController.showCopyFeedback("Copied to clipboard")
+        }
     }
 
     private var scribeFailureMessage: String? {
@@ -3410,25 +3546,127 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func updateScribePresentation(
+        _ state: ScribeSessionState,
+        failureMessageOverride: String? = nil,
+        failureRecoveryOverride: ScribeNotchFailureRecovery? = nil
+    ) {
+        switch state {
+        case .listening, .transcribing, .generating, .generatingSlow:
+            scribeReplacementCompleted = false
+        default:
+            break
+        }
+
+        let presentation = ScribeNotchPresentation.project(
+            state: state,
+            literalTranscript: scribeCoordinator.literalTranscript,
+            failureMessage: failureMessageOverride ?? scribeFailureMessage,
+            canRetryGeneration: scribeCoordinator.canRetryGeneration,
+            failureRecovery: failureRecoveryOverride
+                ?? .providerRecovery(for: scribeCoordinator.providerFailure)
+        )
+
+        #if DEBUG
+        if ScribeLaunchFixtures.current != nil,
+           !ScribeLaunchFixtures.usesNotchPresentation {
+            scribeNotchWindowController.close()
+            scribePanelWindowController.update(
+                state: state,
+                failureMessage: failureMessageOverride ?? scribeFailureMessage,
+                literalTranscript: scribeCoordinator.literalTranscript,
+                environmentCue: scribeCoordinator.resolvedEnvironment?.cue,
+                targetDisplayName: scribeCoordinator.targetDisplayName,
+                exactLiterals: scribeCoordinator.exactLiterals,
+                canRetryGeneration: scribeCoordinator.canRetryGeneration
+            )
+        } else {
+            scribePanelWindowController.close()
+            scribeNotchWindowController.update(presentation)
+        }
+        #else
+        scribePanelWindowController.close()
+        scribeNotchWindowController.update(presentation)
+        #endif
+
+        updateScribeHUD(for: state)
+    }
+
+    private func updateScribeHUD(for state: ScribeSessionState) {
+        let visualState = ScribeHUDProjection.visualState(
+            for: state,
+            replacementCompleted: scribeReplacementCompleted
+        )
+
+        guard visualState != .idle else {
+            if case .succeeded = state {
+                hudController.update(with: .idle)
+            } else {
+                restoreIdleHUDAfterScribe()
+            }
+            return
+        }
+
+        hudController.update(with: HUDState(
+            visualState: visualState,
+            subtitle: "",
+            level: scribeAudioLevel,
+            waveformLevels: scribeWaveformLevels,
+            isVisible: true,
+            showsSubtitle: false
+        ))
+    }
+
+    private func updateScribeAudioLevel(_ level: Double) {
+        let normalized = max(0, min(1, level))
+        scribeAudioLevel = normalized
+        if !scribeWaveformLevels.isEmpty {
+            scribeWaveformLevels.removeFirst()
+        }
+        scribeWaveformLevels.append(normalized)
+        guard case .listening = scribeState else { return }
+        updateScribeHUD(for: scribeState)
+    }
+
+    private func restoreIdleHUDAfterScribe() {
+        scribeAudioLevel = 0
+        scribeWaveformLevels = Array(repeating: 0, count: 16)
+        switch ScribeHUDRestorationAction.resolve(
+            requiredPermissionsGranted: permissions.allRequiredGranted,
+            isDictationIdle: isDictationIdle
+        ) {
+        case .leaveCurrentHUD:
+            return
+        case .showIdle:
+            hudController.update(with: .idle)
+        case .showReadyLogo:
+            coordinator.presentLogoIdle()
+        }
+    }
+
     private func bindScribeCoordinator() {
         coordinator.onScribeRequested = { [weak self] in
-            self?.showScribe()
+            self?.handleScribeShortcutPress()
+        }
+        coordinator.onScribeReleased = { [weak self] in
+            self?.handleScribeShortcutRelease()
+        }
+        coordinator.onScribeDoublePressed = { [weak self] in
+            self?.handleScribeShortcutDoublePress()
         }
         scribeCoordinator.onStateChange = { [weak self] state in
             guard let self else { return }
             self.scribeState = state
-            self.scribePanelWindowController.update(
-                state: state,
-                failureMessage: self.scribeFailureMessage,
-                literalTranscript: self.scribeCoordinator.literalTranscript,
-                environmentCue: self.scribeCoordinator.resolvedEnvironment?.cue,
-                targetDisplayName: self.scribeCoordinator.targetDisplayName,
-                exactLiterals: self.scribeCoordinator.exactLiterals,
-                canRetryGeneration: self.scribeCoordinator.canRetryGeneration
-            )
+            if case .transcribing = state {
+                self.playScribeProcessingFeedback()
+            }
+            self.updateScribePresentation(state)
             Task { @MainActor [weak self] in
                 await self?.recordScribeState(state)
             }
+        }
+        scribeCoordinator.onAudioLevel = { [weak self] level in
+            self?.updateScribeAudioLevel(level)
         }
 
         let viewModel = scribePanelWindowController.viewModel
@@ -3446,8 +3684,68 @@ final class AppModel: ObservableObject {
                 guard let self else { return }
                 await self.scribeCoordinator.dismissPanel()
                 self.scribePanelWindowController.close()
+                self.scribeNotchWindowController.close()
+                self.restoreIdleHUDAfterScribe()
             }
         }
+
+        let notchViewModel = scribeNotchWindowController.viewModel
+        notchViewModel.onInsert = { [weak self] in self?.insertScribeResult() }
+        notchViewModel.onCopy = { [weak self] in
+            guard let self else { return }
+            if case .failed = self.scribeState {
+                self.copyUnpolishedScribeResult()
+            } else {
+                self.copyPolishedScribeResult()
+            }
+        }
+        notchViewModel.onDiscard = { [weak self] in self?.cancelScribe() }
+        notchViewModel.onRetry = { [weak self] in self?.retryScribe() }
+        notchViewModel.onConfigureProvider = { [weak self] in
+            self?.presentScribeProviderSetup()
+        }
+        notchViewModel.onReturnToTargetApp = { [weak self] in
+            guard let self else { return }
+            let didActivate = self.scribeRecoveryApplication.map {
+                self.focusedApplicationMonitor.activateValidatedExternal($0)
+            } ?? self.focusedApplicationMonitor.activateMostRecentValidatedExternal()
+            if didActivate {
+                self.cancelScribe(dismissImmediately: true)
+            } else {
+                self.scribeNotchWindowController.showCopyFeedback(
+                    "Open the app where you want to write, place the cursor, and try again."
+                )
+            }
+        }
+        notchViewModel.onOpenPermissions = { [weak self] in
+            self?.cancelScribe(dismissImmediately: true)
+            self?.openPermissionsWizard()
+        }
+        notchViewModel.onReplacementCompleted = { [weak self] in
+            guard let self,
+                  case .reviewing = self.scribeState,
+                  !self.scribeReplacementCompleted else { return }
+            self.scribeReplacementCompleted = true
+            self.playScribeCompletionFeedback()
+            self.updateScribeHUD(for: self.scribeState)
+        }
+        scribeNotchWindowController.onOutsideClickAfterCopy = { [weak self] in
+            self?.cancelScribe(dismissImmediately: true)
+        }
+    }
+
+    private func playScribeProcessingFeedback() {
+        #if DEBUG
+        guard !ScribeLaunchFixtures.usesIsolatedRuntimeStorage else { return }
+        #endif
+        feedbackService.playScribeProcessingSound()
+    }
+
+    private func playScribeCompletionFeedback() {
+        #if DEBUG
+        guard !ScribeLaunchFixtures.usesIsolatedRuntimeStorage else { return }
+        #endif
+        feedbackService.playScribeCompletionSound()
     }
 
     @discardableResult
@@ -3460,6 +3758,8 @@ final class AppModel: ObservableObject {
             cancelActiveCoordinator: { [weak self] in
                 guard let self else { return }
                 self.scribePanelWindowController.close()
+                self.scribeNotchWindowController.close()
+                self.restoreIdleHUDAfterScribe()
                 Task { @MainActor [weak self] in
                     await self?.scribeCoordinator.cancel()
                 }
@@ -3472,8 +3772,13 @@ final class AppModel: ObservableObject {
     }
 
     private func invalidateAdaptiveScribeRuntime() {
+        #if DEBUG
+        guard ScribeLaunchFixtures.current == nil else { return }
+        #endif
         adaptiveScribeV2Availability = .setupRequired
         scribePanelWindowController.close()
+        scribeNotchWindowController.close()
+        restoreIdleHUDAfterScribe()
         scribeCoordinator.invalidateProviderWork()
         Task { @MainActor [weak self] in
             await self?.scribeCoordinator.cancel()
@@ -3657,6 +3962,10 @@ final class AppModel: ObservableObject {
             requestID: UUID(),
             text: "Update `parseID` after reviewing this synthetic fixture draft."
         )
+        if ScribeLaunchFixtures.usesNotchPresentation {
+            presentScribeNotchLaunchFixture(fixture, result: result)
+            return
+        }
         let width = ScribeLaunchFixtures.panelWidth
         switch fixture {
         case .directReady:
@@ -3793,6 +4102,66 @@ final class AppModel: ObservableObject {
             )
         case .setup, .settings:
             break
+        }
+    }
+
+    private func presentScribeNotchLaunchFixture(
+        _ fixture: ScribeLaunchFixture,
+        result: ScribeResult
+    ) {
+        let literal = "Update parse I D after reviewing this synthetic fixture draft."
+        let presentation: ScribeNotchPresentation
+
+        switch fixture {
+        case .listening:
+            scribeState = .listening(requestID: result.requestID)
+            presentation = .project(
+                state: scribeState,
+                literalTranscript: nil,
+                failureMessage: nil
+            )
+        case .transcribing:
+            scribeState = .transcribing(requestID: result.requestID)
+            presentation = .project(
+                state: scribeState,
+                literalTranscript: nil,
+                failureMessage: nil
+            )
+        case .generating, .generatingSlow:
+            scribeState = fixture == .generating
+                ? .generating(requestID: result.requestID)
+                : .generatingSlow(requestID: result.requestID)
+            presentation = .project(
+                state: scribeState,
+                literalTranscript: literal,
+                failureMessage: nil
+            )
+        case .slackReview, .claudeReview, .insertionRecovery:
+            scribeState = fixture == .insertionRecovery
+                ? .insertionRecovery(result)
+                : .reviewing(result)
+            presentation = .project(
+                state: scribeState,
+                literalTranscript: literal,
+                failureMessage: nil
+            )
+        case .literalFailure, .retryableFailure, .nonRetryableFailure:
+            scribeState = .failed(requestID: result.requestID, error: .invalidResult)
+            presentation = .project(
+                state: scribeState,
+                literalTranscript: literal,
+                failureMessage: "Scribe could not finish this draft. Your spoken words are still available."
+            )
+        case .directReady, .success, .controlSemantics, .setup, .settings:
+            return
+        }
+
+        scribePanelWindowController.close()
+        scribeNotchWindowController.update(presentation)
+        updateScribeHUD(for: scribeState)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(120))
+            self?.mainWindowController.window?.orderOut(nil)
         }
     }
     #endif

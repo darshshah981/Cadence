@@ -133,6 +133,169 @@ struct ScribeContextServiceTests {
     }
 
     @Test
+    func insertAllowsCadenceReviewSurfaceWaitsAndReverifiesPinnedTargetFocus() async throws {
+        let target = ScribeTargetIdentity(processIdentifier: 42, bundleIdentifier: "com.apple.TextEdit")
+        let reader = StubScribeAccessibilityReader(snapshot: .init(
+            target: target,
+            verificationToken: "window-a"
+        ))
+        let textInsertion = StubScribeTextInsertionService()
+        let service = Self.makeService(
+            reader,
+            transientControlProcessIdentifier: 99,
+            textInsertion: textInsertion
+        )
+        let capture = try service.capture()
+        reader.currentSnapshot = .init(
+            target: .init(
+                processIdentifier: 99,
+                bundleIdentifier: "com.darshshah.Cadence.debug"
+            ),
+            verificationToken: "scribe-review-window"
+        )
+
+        #expect(throws: ScribeContextError.targetChanged) {
+            try service.verifyTarget(for: capture)
+        }
+        #expect(try await service.insert("Polished draft", for: capture))
+        #expect(reader.restoredProcessIdentifiers == [42, 42])
+        #expect(textInsertion.insertedTexts == ["Polished draft"])
+        #expect(reader.currentFocusReadCount == 3)
+
+        reader.currentSnapshot = .init(
+            target: .init(processIdentifier: 100, bundleIdentifier: "com.apple.Safari"),
+            verificationToken: "unrelated-window"
+        )
+        #expect(throws: ScribeContextError.targetChanged) {
+            try service.verifyTarget(for: capture)
+        }
+    }
+
+    @Test
+    func insertNeverEmitsUnicodeWhenRestoredFocusIsNotTheCapturedApp() async throws {
+        let reader = StubScribeAccessibilityReader(snapshot: .init(
+            target: .init(
+                processIdentifier: 42,
+                bundleIdentifier: "com.apple.TextEdit"
+            ),
+            verificationToken: "window-a"
+        ))
+        reader.restoredTargetOverride = .init(
+            processIdentifier: 100,
+            bundleIdentifier: "com.apple.Safari"
+        )
+        let textInsertion = StubScribeTextInsertionService()
+        let service = Self.makeService(
+            reader,
+            transientControlProcessIdentifier: 99,
+            textInsertion: textInsertion
+        )
+        let capture = try service.capture()
+        reader.currentSnapshot = .init(
+            target: .init(
+                processIdentifier: 99,
+                bundleIdentifier: "com.darshshah.Cadence.debug"
+            ),
+            verificationToken: "scribe-review-window"
+        )
+
+        await #expect(throws: ScribeContextError.targetChanged) {
+            try await service.insert("Do not misdirect this", for: capture)
+        }
+        #expect(textInsertion.insertedTexts.isEmpty)
+    }
+
+    @Test
+    func insertAllowsTheCapturedAppToRebuildItsAccessibilityWrapper() async throws {
+        let target = ScribeTargetIdentity(
+            processIdentifier: 42,
+            bundleIdentifier: "com.apple.TextEdit"
+        )
+        let reader = StubScribeAccessibilityReader(snapshot: .init(
+            target: target,
+            verificationToken: "original-wrapper",
+            recognitionSignature: .init(
+                role: "AXTextArea",
+                subrole: nil,
+                identifierAncestry: ["original-editor"]
+            )
+        ))
+        let textInsertion = StubScribeTextInsertionService()
+        let service = Self.makeService(reader, textInsertion: textInsertion)
+        let capture = try service.capture()
+        reader.currentSnapshot = .init(
+            target: target,
+            verificationToken: "rebuilt-wrapper",
+            recognitionSignature: .init(
+                role: "AXTextArea",
+                subrole: nil,
+                identifierAncestry: ["rebuilt-editor"]
+            )
+        )
+
+        #expect(try await service.insert("Visible draft", for: capture))
+        #expect(textInsertion.insertedTexts == ["Visible draft"])
+    }
+
+    @Test
+    func appTargetKeepsScribeAvailableWhenEditorHasNoFocusedAccessibilityElement() async throws {
+        let reader = StubScribeAccessibilityReader(
+            snapshot: .init(
+                target: .init(processIdentifier: 42, bundleIdentifier: "com.apple.TextEdit"),
+                verificationToken: "unavailable"
+            )
+        )
+        reader.pinError = .noFocusedTarget
+        reader.pinnedReadError = .noFocusedTarget
+        let monitor = ScribeTargetAuthorityFake(pid: 42, bundleID: "com.apple.TextEdit")
+        let textInsertion = StubScribeTextInsertionService()
+        let service = ScribeContextService(
+            reader: reader,
+            processAuthority: ScribeProcessAuthorityFake(
+                pid: 42,
+                bundleID: "com.apple.TextEdit"
+            ),
+            targetAuthority: monitor,
+            insertionFocusSettleDelay: .zero,
+            textInsertion: textInsertion
+        )
+
+        try await service.prepareTarget()
+        let capture = try service.capture()
+
+        #expect(capture.target.processIdentifier == 42)
+        #expect(capture.verificationToken.hasPrefix("application:"))
+        #expect(try service.verifyTarget(for: capture))
+        #expect(try await service.insert("Scribed draft", for: capture))
+        #expect(monitor.activatedCaptures == [capture.applicationTarget])
+        #expect(textInsertion.insertedTexts == ["Scribed draft"])
+    }
+
+    @Test
+    func missingFrontmostApplicationStillProducesActionableContextError() async {
+        let reader = StubScribeAccessibilityReader(
+            snapshot: .init(
+                target: .init(processIdentifier: 42, bundleIdentifier: "com.apple.TextEdit"),
+                verificationToken: "unavailable"
+            )
+        )
+        let monitor = ScribeTargetAuthorityFake(pid: 42, bundleID: "com.apple.TextEdit")
+        monitor.captureError = .noExternalTarget
+        let service = ScribeContextService(
+            reader: reader,
+            processAuthority: ScribeProcessAuthorityFake(
+                pid: 42,
+                bundleID: "com.apple.TextEdit"
+            ),
+            targetAuthority: monitor
+        )
+
+        await #expect(throws: ScribeContextError.noFocusedTarget) {
+            try await service.prepareTarget()
+        }
+    }
+
+    @Test
     func accessibilityCaptureEnrichesOnlyExactRuntimeIdentityAndRejectsPIDReuse() throws {
         let target = ScribeTargetIdentity(processIdentifier: 42, bundleIdentifier: "com.apple.TextEdit")
         let reader = StubScribeAccessibilityReader(snapshot: .init(
@@ -210,7 +373,10 @@ struct ScribeContextServiceTests {
     }
 
     private static func makeService(
-        _ reader: StubScribeAccessibilityReader
+        _ reader: StubScribeAccessibilityReader,
+        transientControlProcessIdentifier: pid_t = ProcessInfo.processInfo.processIdentifier,
+        insertionFocusSettleDelay: Duration = .zero,
+        textInsertion: TextInsertionServing = StubScribeTextInsertionService()
     ) -> ScribeContextService {
         let target = reader.snapshot.target
         return ScribeContextService(
@@ -218,9 +384,23 @@ struct ScribeContextServiceTests {
             processAuthority: ScribeProcessAuthorityFake(
                 pid: target.processIdentifier,
                 bundleID: target.bundleIdentifier ?? "com.apple.TextEdit"
-            )
+            ),
+            transientControlProcessIdentifier: transientControlProcessIdentifier,
+            insertionFocusSettleDelay: insertionFocusSettleDelay,
+            textInsertion: textInsertion
         )
     }
+}
+
+private final class StubScribeTextInsertionService: TextInsertionServing {
+    private(set) var insertedTexts: [String] = []
+
+    func insert(_ text: String) async throws {
+        insertedTexts.append(text)
+    }
+
+    func pressReturn() async throws {}
+    func deleteLastInsertion() async throws {}
 }
 
 @MainActor
@@ -269,17 +449,27 @@ private final class ScribeProcessAuthorityFake: RuntimeApplicationProcessAuthori
 private final class ScribeTargetAuthorityFake: ApplicationTargetAuthorizing {
     let identity: ApplicationProcessIdentity
     var matches = true
+    var captureError: ApplicationTargetAuthorityError?
+    private(set) var activatedCaptures: [ApplicationTargetCapture] = []
     init(pid: Int32, bundleID: String) {
         identity = .init(
             processIdentifier: pid, bundleIdentifier: bundleID,
-            bundleURL: URL(fileURLWithPath: "/Applications/TextEdit.app"), incarnation: UUID()
+            bundleURL: URL(fileURLWithPath: "/Applications/TextEdit.app"),
+            incarnation: UUID(),
+            launchDate: Date(timeIntervalSince1970: 1)
         )
     }
     func capture(source: ApplicationTargetCapture.Source) async throws -> ApplicationTargetCapture {
-        .init(process: identity, identityRevision: 1, captureRevision: 1, source: source)
+        if let captureError { throw captureError }
+        return .init(process: identity, identityRevision: 1, captureRevision: 1, source: source)
     }
     func verify(_ capture: ApplicationTargetCapture) async throws {
         if !matches { throw ApplicationTargetAuthorityError.targetChanged }
+    }
+    func activate(_ capture: ApplicationTargetCapture) -> Bool {
+        guard capture.process == identity, matches else { return false }
+        activatedCaptures.append(capture)
+        return true
     }
     func enrich(processIdentifier: Int32, bundleIdentifier: String?) -> ApplicationProcessIdentity? {
         processIdentifier == identity.processIdentifier && bundleIdentifier == identity.bundleIdentifier
@@ -302,18 +492,25 @@ private final class StubScribeAccessibilityReader: ScribeAccessibilityReading {
     var snapshot: ScribeAccessibilityReadSnapshot
     var currentSnapshot: ScribeAccessibilityReadSnapshot?
     var isTrusted: Bool
+    var restoredTargetOverride: ScribeTargetIdentity?
+    var pinError: ScribeContextError?
+    var pinnedReadError: ScribeContextError?
     private(set) var pinnedReadCount = 0
     private(set) var currentFocusReadCount = 0
+    private(set) var restoredProcessIdentifiers: [pid_t] = []
 
     init(snapshot: ScribeAccessibilityReadSnapshot, isTrusted: Bool = true) {
         self.snapshot = snapshot
         self.isTrusted = isTrusted
     }
 
-    func pinFocusedTarget() throws {}
+    func pinFocusedTarget() throws {
+        if let pinError { throw pinError }
+    }
 
     func readPinnedSnapshot() throws -> ScribeAccessibilityReadSnapshot {
         pinnedReadCount += 1
+        if let pinnedReadError { throw pinnedReadError }
         return snapshot
     }
 
@@ -322,6 +519,13 @@ private final class StubScribeAccessibilityReader: ScribeAccessibilityReading {
         return currentSnapshot ?? snapshot
     }
 
-    func replacePinnedSelection(with text: String) throws -> Bool { true }
+    func restorePinnedTargetFocus(processIdentifier: pid_t) throws {
+        restoredProcessIdentifiers.append(processIdentifier)
+        currentSnapshot = ScribeAccessibilityReadSnapshot(
+            target: restoredTargetOverride ?? snapshot.target,
+            verificationToken: "restored-wrapper"
+        )
+    }
+
     func clearPinnedTarget() {}
 }

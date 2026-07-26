@@ -305,7 +305,7 @@ struct ScribeCoordinatorTests {
             providerActionResolver: { selectedAction }
         )
 
-        try fixture.coordinator.prepareTarget()
+        try await fixture.coordinator.prepareTarget()
         selectedAction = ScribeProviderActionSnapshot(
             provider: replacementProvider,
             destination: .advanced(
@@ -392,20 +392,25 @@ struct ScribeCoordinatorTests {
     }
 
     @Test
-    func copyRoutesReturnTheirOwnBytesAndClearOnlyAfterSelection() async throws {
+    func copyRoutesReturnTheirOwnBytesWithoutClosingTheReview() async throws {
         let polished = ScribeCoordinatorFixture(providerResponses: [.success("Polished draft")])
         try await polished.coordinator.beginDirectDictation()
         await polished.coordinator.finishRecording()
         #expect(polished.coordinator.takeReviewedDraftForCopy() == "Polished draft")
-        #expect(polished.coordinator.reviewedResult == nil)
-        #expect(polished.coordinator.literalTranscript == nil)
+        #expect(polished.coordinator.reviewedResult?.text == "Polished draft")
+        #expect(polished.coordinator.literalTranscript == "Spoken request")
+        if case .reviewing = polished.coordinator.state {} else {
+            Issue.record("Copy must keep the polished review visible")
+        }
 
         let unpolished = ScribeCoordinatorFixture(providerResponses: [.failure(.offline)])
         try await unpolished.coordinator.beginDirectDictation()
         await unpolished.coordinator.finishRecording()
         #expect(unpolished.coordinator.takeUnpolishedDraftForCopy() == "Spoken request")
-        #expect(unpolished.coordinator.reviewedResult == nil)
-        #expect(unpolished.coordinator.literalTranscript == nil)
+        #expect(unpolished.coordinator.literalTranscript == "Spoken request")
+        if case .failed = unpolished.coordinator.state {} else {
+            Issue.record("Copy must keep the recovery review visible")
+        }
     }
 
     @Test
@@ -656,7 +661,7 @@ struct ScribeCoordinatorTests {
     @Test
     func cancellingIntentPickerDiscardsPinnedTarget() async throws {
         let fixture = ScribeCoordinatorFixture()
-        try fixture.coordinator.prepareTarget()
+        try await fixture.coordinator.prepareTarget()
 
         await fixture.coordinator.cancel()
 
@@ -914,7 +919,7 @@ private final class StubScribeContextService: ScribeContextServing {
         )
     }
 
-    func prepareTarget() throws {}
+    func prepareTarget() async throws {}
 
     func capture() throws -> ScribeContextSnapshot {
         captureCount += 1
@@ -934,7 +939,7 @@ private final class StubScribeContextService: ScribeContextServing {
         return true
     }
 
-    func insert(_ text: String, for capture: ScribeContextSnapshot) throws -> Bool {
+    func insert(_ text: String, for capture: ScribeContextSnapshot) async throws -> Bool {
         guard try verifyTarget(for: capture) else { return false }
         insertedTexts.append(text)
         return true
