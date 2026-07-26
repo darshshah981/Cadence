@@ -291,9 +291,9 @@ enum FillerWordPolicy: String, CaseIterable, Identifiable, Sendable {
     var description: String {
         switch self {
         case .preserve:
-            return "Keep filler words like um, uh, and like."
+            return "Keep conversational fillers such as um and uh."
         case .remove:
-            return "Strip common filler words after transcription."
+            return "Remove unambiguous fillers such as um and uh."
         }
     }
 }
@@ -308,6 +308,8 @@ struct TranscriptionConfiguration: Equatable, Sendable {
     var livePreviewEnabled: Bool = false
     var tapStopsOnNextKeyPress: Bool = false
     var appAwarePolishingEnabled: Bool = true
+    var pressEnterCommandEnabled: Bool = false
+    var pressEnterCommandPhrase: String = DictationCommandPhrase.defaultValue
     var vocabularyText: String = ""
 
     var summary: String {
@@ -316,6 +318,60 @@ struct TranscriptionConfiguration: Equatable, Sendable {
         (keepContext ? "context" : "isolated") + " • " +
         (trimSilence ? "trim" : "raw") + " • " +
         (normalizeAudio ? "normalize" : "natural")
+    }
+}
+
+enum DictationCommandPhrase {
+    static let defaultValue = "press enter"
+    static let maximumLength = 48
+
+    static func sanitizedForStorage(_ phrase: String) -> String {
+        let singleLine = phrase
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+        return String(singleLine.prefix(maximumLength))
+    }
+
+    static func normalizedWords(_ phrase: String) -> [Substring] {
+        phrase.split(whereSeparator: \.isWhitespace)
+    }
+}
+
+struct DictationCommandInterpretation: Equatable, Sendable {
+    let text: String
+    let shouldPressReturn: Bool
+}
+
+enum DictationCommandInterpreter {
+    static func interpret(
+        _ text: String,
+        pressEnterEnabled: Bool,
+        commandPhrase: String = DictationCommandPhrase.defaultValue
+    ) -> DictationCommandInterpretation {
+        let phraseWords = DictationCommandPhrase.normalizedWords(commandPhrase)
+        let escapedPhrase = phraseWords
+            .map { NSRegularExpression.escapedPattern(for: String($0)) }
+            .joined(separator: #"\s+"#)
+        let trailingCommandPattern =
+            #"(?:[\s,;:—-]+|^)"# + escapedPhrase + #"[\s.!?]*$"#
+
+        guard pressEnterEnabled,
+              !phraseWords.isEmpty,
+              let commandRange = text.range(
+                of: trailingCommandPattern,
+                options: [.regularExpression, .caseInsensitive]
+              ) else {
+            return DictationCommandInterpretation(
+                text: text,
+                shouldPressReturn: false
+            )
+        }
+
+        return DictationCommandInterpretation(
+            text: String(text[..<commandRange.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            shouldPressReturn: true
+        )
     }
 }
 
@@ -337,6 +393,20 @@ struct DictationTargetApplication: Equatable, Sendable {
 
         self.bundleIdentifier = bundleIdentifier
         self.displayName = application.localizedName ?? bundleIdentifier
+    }
+}
+
+enum TerminalApplication {
+    static let bundleIdentifiers: Set<String> = [
+        "com.apple.terminal",
+        "com.googlecode.iterm2",
+        "dev.warp.warp-stable",
+        "com.github.wez.wezterm",
+        "com.mitchellh.ghostty"
+    ]
+
+    static func matches(bundleIdentifier: String) -> Bool {
+        bundleIdentifiers.contains(bundleIdentifier.lowercased())
     }
 }
 
@@ -450,18 +520,13 @@ struct AppAwareTextPolisher {
         "notion"
     ]
 
-    private static let codeBundleIdentifiers: Set<String> = [
+    private static let codeBundleIdentifiers: Set<String> = Set([
         "com.apple.dt.xcode",
         "com.microsoft.vscode",
         "com.todesktop.230313mzl4w4u92",
-        "com.apple.terminal",
-        "com.googlecode.iterm2",
-        "dev.warp.warp-stable",
-        "com.github.wez.wezterm",
-        "com.mitchellh.ghostty",
         "com.sublimetext.4",
         "com.panic.nova"
-    ]
+    ]).union(TerminalApplication.bundleIdentifiers)
 
     private static let codeBundleFragments = [
         "xcode",
@@ -620,7 +685,6 @@ struct VocabularyPostProcessor {
             "uh",
             "erm",
             "ah",
-            "like",
             "you know",
             "i mean"
         ]
@@ -673,6 +737,8 @@ enum HUDVisualState: Equatable {
     case preparingModel
     case transcribing
     case inserting
+    case copying
+    case copied
     case success
     case cancelled
     case error(message: String)
@@ -689,6 +755,10 @@ enum HUDVisualState: Equatable {
             return "Transcribing dictation"
         case .inserting:
             return "Inserting dictation"
+        case .copying:
+            return "Copying dictation"
+        case .copied:
+            return "Dictation copied"
         case .success:
             return "Dictation inserted"
         case .cancelled:
@@ -712,30 +782,289 @@ enum HUDVisualState: Equatable {
 
 enum HUDMetrics {
     static let idleHitSize = NSSize(width: 44, height: 44)
-    static let idleMarkSize = NSSize(width: 36, height: 28)
+    static let idleMarkSize = NSSize(width: 44, height: 38)
     static let screenInset: CGFloat = 16
-    static let expandedTraySize = NSSize(width: 240, height: 38)
+    static let panelHeight: CGFloat = 44
+    static let expandedTraySize = NSSize(width: 240, height: panelHeight)
     static let pillHeight: CGFloat = 38
-    static let compactWidth: CGFloat = 236
-    static let holdHintWidth: CGFloat = 320
-    static let statusWidth: CGFloat = 236
+    static let compactWidth: CGFloat = 280
+    static let holdHintWidth: CGFloat = 360
+    static let statusWidth: CGFloat = 340
     static let subtitleSize = NSSize(width: 320, height: 36)
     static let subtitleGap: CGFloat = 8
     static let waveformWidth: CGFloat = 112
     static let waveformHeight: CGFloat = 28
     static let waveformBarWidth: CGFloat = 3
     static let waveformBarGap: CGFloat = 3
+    // Deliberately subordinate to the 38 pt listening pill, but close enough
+    // in height to read as a companion surface instead of a tiny badge.
+    static let lockIndicatorSize = NSSize(width: 32, height: 32)
+    static let lockIndicatorGap: CGFloat = 5
+}
+
+enum HUDContentSizing {
+    static let horizontalPadding: CGFloat = 12
+    static let iconSize: CGFloat = 16
+    static let iconNameGap: CGFloat = 4
+    static let contentGap: CGFloat = 8
+    static let applicationNameCharacterLimit = 14
+    static let applicationNameMinimumWidth: CGFloat = 28
+    static let applicationNameMaximumWidth: CGFloat = 84
+    static let statusTextMaximumWidth: CGFloat = 120
+
+    static func applicationNameWidth(_ name: String) -> CGFloat {
+        if name.count > applicationNameCharacterLimit {
+            return applicationNameMaximumWidth
+        }
+        let capped = String(name.prefix(applicationNameCharacterLimit))
+        return min(
+            applicationNameMaximumWidth,
+            max(applicationNameMinimumWidth, measuredWidth(capped, size: 10, weight: .medium))
+        )
+    }
+
+    static func width(
+        for presentation: HUDPresentation,
+        applicationName: String
+    ) -> CGFloat {
+        switch presentation.visualState {
+        case .idle:
+            return presentation.isExpanded
+                ? HUDMetrics.expandedTraySize.width
+                : HUDMetrics.idleHitSize.width
+        case .recording(let triggerMode, let showsHint):
+            return recordingWidth(
+                applicationName: applicationName,
+                triggerMode: triggerMode,
+                showsHint: showsHint
+            )
+        case .error:
+            // Preserve the recording tray's width so feedback replaces the
+            // waveform instead of causing a second geometry change.
+            return activeWidth(applicationName: applicationName)
+        case .preparingModel, .transcribing, .inserting, .copying,
+             .copied, .success, .cancelled:
+            // Once dictation has opened the active pill, every processing and
+            // completion phase keeps that exact footprint. Foreground content
+            // can transition without making the capsule breathe between
+            // waveform, transcribing, inserted, and copied states.
+            return activeWidth(applicationName: applicationName)
+        }
+    }
+
+    private static func activeWidth(applicationName: String) -> CGFloat {
+        recordingWidth(
+            applicationName: applicationName,
+            triggerMode: .holdToTalk,
+            showsHint: false
+        )
+    }
+
+    private static func recordingWidth(
+        applicationName: String,
+        triggerMode: DictationTriggerMode,
+        showsHint: Bool
+    ) -> CGFloat {
+        var width = horizontalPadding * 2
+            + iconSize
+            + iconNameGap
+            + applicationNameWidth(applicationName)
+            + contentGap
+            + HUDMetrics.waveformWidth
+
+        if triggerMode == .holdToTalk, showsHint {
+            width += contentGap + measuredWidth("Release to stop", size: 11, weight: .medium)
+        }
+        return ceil(width)
+    }
+
+    private static func measuredWidth(
+        _ text: String,
+        size: CGFloat,
+        weight: NSFont.Weight
+    ) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: size, weight: weight)
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+}
+
+struct HUDMotionTuning: Equatable, Sendable {
+    static let `default` = HUDMotionTuning(
+        pillResponse: 0.34,
+        micFadeOutDuration: 0.12,
+        appCueFadeInDuration: 0.18,
+        waveformFadeInDuration: 0.24
+    )
+
+    var pillResponse: TimeInterval
+    var micFadeOutDuration: TimeInterval
+    var appCueFadeInDuration: TimeInterval
+    var waveformFadeInDuration: TimeInterval
 }
 
 enum HUDMotion {
-    static let morphDuration: TimeInterval = 0.18
     static let waveformAttackRate = -log(0.6) * 60
     static let waveformReleaseRate = -log(0.92) * 60
     static let stableTolerance = 0.001
+    static let activationSweepDuration: TimeInterval = 0.42
+    static let foregroundTravelDistance: CGFloat = 10
+    private static let waveformCharacter = [
+        0.76, 1.00, 0.68, 0.91, 0.61, 0.84, 0.72, 0.96,
+        0.65, 0.88, 0.74, 0.98, 0.63, 0.82, 0.70, 0.93
+    ]
+    private static let waveformResponseCharacter = [
+        0.86, 1.08, 0.92, 1.16, 0.81, 1.02, 0.89, 1.12,
+        0.84, 1.05, 0.94, 1.14, 0.79, 1.00, 0.88, 1.10
+    ]
 
-    static func easeOutCubic(_ progress: Double) -> Double {
-        let clamped = max(0, min(1, progress))
-        return 1 - pow(1 - clamped, 3)
+    static func smoothProgress(elapsed: TimeInterval, duration: TimeInterval) -> Double {
+        guard duration > 0 else { return 1 }
+        let progress = max(0, min(1, elapsed / duration))
+        // Smootherstep keeps both velocity and acceleration continuous at the
+        // endpoints, which prevents a visible catch as a width morph starts or
+        // settles into a newly measured pill size.
+        return progress * progress * progress
+            * (progress * (progress * 6 - 15) + 10)
+    }
+
+    static func interpolateWidth(from: CGFloat, to: CGFloat, progress: Double) -> CGFloat {
+        let progress = CGFloat(max(0, min(1, progress)))
+        return from + (to - from) * progress
+    }
+
+    static func activationSweepLevels(progress: Double, target: [Double]) -> [Double] {
+        let progress = max(0, min(1, progress))
+        let count = target.count
+        guard count > 0 else { return [] }
+
+        // Begin with a fully formed crest on the first bar. Starting the
+        // Gaussian offscreen exposed only its thin tail before the pulse grew.
+        let center = progress * Double(max(0, count - 1))
+        let settle = smoothProgress(
+            elapsed: max(0, progress - 0.82),
+            duration: 0.18
+        )
+        let pulseStrength = 0.92 * (1 - settle)
+
+        return target.enumerated().map { index, targetLevel in
+            let distance = (Double(index) - center) / 1.18
+            let primary = exp(-0.5 * distance * distance)
+            let trailingDistance = (Double(index) - center + 2.15) / 0.92
+            let trailingCrest = exp(-0.5 * trailingDistance * trailingDistance) * 0.28
+            let character = waveformCharacter[index % waveformCharacter.count]
+            let pulse = max(primary * character, trailingCrest) * pulseStrength
+            return max(0, min(1, targetLevel * settle + pulse))
+        }
+    }
+
+    static func characterizedWaveformLevels(_ levels: [Double]) -> [Double] {
+        guard !levels.isEmpty else { return [] }
+        return levels.enumerated().map { index, level in
+            let left = levels[max(0, index - 1)]
+            let right = levels[min(levels.count - 1, index + 1)]
+            let localEnergy = max(0, min(1, level * 0.68 + left * 0.19 + right * 0.13))
+            let character = waveformCharacter[index % waveformCharacter.count]
+            return max(0, min(1, localEnergy * character))
+        }
+    }
+
+    static func waveformResponseScale(forBar index: Int) -> Double {
+        waveformResponseCharacter[index % waveformResponseCharacter.count]
+    }
+
+    static func incomingOpacity(
+        for presentation: HUDPresentation,
+        hasPreviousPresentation: Bool,
+        elapsed: TimeInterval,
+        duration: TimeInterval
+    ) -> Double {
+        guard hasPreviousPresentation else { return 1 }
+        // The collapsed mic is the HUD's resting affordance. Keeping it fully
+        // visible during the return transition avoids a final-frame cross-fade
+        // race that can otherwise leave the icon transparent after collapse.
+        if presentation.visualState == .idle, !presentation.isExpanded {
+            return 1
+        }
+        return smoothProgress(elapsed: elapsed, duration: duration)
+    }
+
+    static func collapsingContentOpacity(
+        elapsed: TimeInterval,
+        pillResponse: TimeInterval
+    ) -> Double {
+        let duration = min(0.14, pillResponse * 0.42)
+        return 1 - smoothProgress(elapsed: elapsed, duration: duration)
+    }
+}
+
+enum HUDActiveContentTransition {
+    static let duration: TimeInterval = 0.14
+    private static let outgoingFadeDuration: TimeInterval = 0.075
+    private static let incomingFadeDelay: TimeInterval = 0.05
+    private static let incomingFadeDuration: TimeInterval = 0.09
+
+    static func outgoingOpacity(elapsed: TimeInterval) -> Double {
+        1 - HUDMotion.smoothProgress(
+            elapsed: elapsed,
+            duration: outgoingFadeDuration
+        )
+    }
+
+    static func incomingOpacity(elapsed: TimeInterval) -> Double {
+        HUDMotion.smoothProgress(
+            elapsed: max(0, elapsed - incomingFadeDelay),
+            duration: incomingFadeDuration
+        )
+    }
+
+    static func isActive(_ presentation: HUDPresentation) -> Bool {
+        presentation.visualState != .idle
+    }
+
+    static func shouldDefer(
+        current: HUDPresentation,
+        requested: HUDPresentation,
+        isReplacementAnimating: Bool
+    ) -> Bool {
+        guard isReplacementAnimating,
+              current != requested,
+              isActive(current),
+              isActive(requested) else {
+            return false
+        }
+        // A new recording is direct user feedback and must never wait behind a
+        // processing label. Processing/terminal updates may coalesce while the
+        // current short replacement completes.
+        if case .recording = requested.visualState {
+            return false
+        }
+        return true
+    }
+}
+
+enum HUDApplicationCueTransition {
+    static func keepsCueStable(
+        from previous: HUDVisualState,
+        to current: HUDVisualState
+    ) -> Bool {
+        isStatus(previous) && isStatus(current)
+    }
+
+    private static func isStatus(_ state: HUDVisualState) -> Bool {
+        switch state {
+        case .idle, .recording:
+            return false
+        case .preparingModel, .transcribing, .inserting, .copying,
+             .copied, .success, .cancelled, .error:
+            return true
+        }
+    }
+}
+
+enum HUDTerminalTiming {
+    static func displayMilliseconds(for visualState: HUDVisualState) -> Int {
+        guard case .error(let message) = visualState else { return 900 }
+        return min(6_000, max(1_500, 650 + message.count * 55))
     }
 }
 
@@ -754,12 +1083,13 @@ enum HUDPosition: String, CaseIterable, Equatable {
     case bottomRight
 
     static var allCases: [HUDPosition] {
-        [.topLeft, .topRight, .bottomLeft, .bottomRight]
+        [.topLeft, .topRight, .bottomLeft, .bottomCenter, .bottomRight]
     }
 
     var accessibilityName: String {
         switch self {
-        case .bottomCenter, .bottomRight: "Bottom right"
+        case .bottomCenter: "Bottom center"
+        case .bottomRight: "Bottom right"
         case .topLeft: "Top left"
         case .topRight: "Top right"
         case .bottomLeft: "Bottom left"
@@ -788,7 +1118,12 @@ enum HUDPosition: String, CaseIterable, Equatable {
     func origin(screenFrame: NSRect, visibleFrame: NSRect, hudSize: NSSize) -> NSPoint {
         let inset = HUDMetrics.screenInset
         switch self {
-        case .bottomCenter, .bottomRight:
+        case .bottomCenter:
+            return NSPoint(
+                x: screenFrame.midX - hudSize.width / 2,
+                y: visibleFrame.minY + inset
+            )
+        case .bottomRight:
             return NSPoint(x: visibleFrame.maxX - hudSize.width - inset, y: visibleFrame.minY + inset)
         case .topLeft:
             return NSPoint(x: visibleFrame.minX + inset, y: visibleFrame.maxY - hudSize.height - inset)
@@ -891,9 +1226,9 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
     var shortDescription: String {
         switch self {
         case .holdToTalk:
-            return "Press and hold to record, release to finish. Limit this to 1-2 keys total."
+            return "Hold to dictate, or double-press the same shortcut to lock recording. Function (fn) is the default."
         case .tapToStartStop:
-            return "Press once to start, then press the shortcut again to stop. Use 3 or more keys total."
+            return "Press once to start, then press the shortcut again to stop. Use 2 or more keys total."
         case .scribe:
             return "Open Scribe to draft, respond, or edit. Use 2 or more keys total."
         }
@@ -915,7 +1250,7 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
         case .holdToTalk:
             return shortcut.componentCount <= 2
         case .tapToStartStop:
-            return shortcut.componentCount >= 3
+            return shortcut.componentCount >= 2
         case .scribe:
             return shortcut.componentCount >= 2
         }
@@ -926,7 +1261,7 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
         case .holdToTalk:
             return "Use at most 2 keys total."
         case .tapToStartStop:
-            return "Use at least 3 keys total."
+            return "Use at least 2 keys total."
         case .scribe:
             return "Use at least 2 keys total."
         }

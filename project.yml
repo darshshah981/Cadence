@@ -36,7 +36,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Cadence/Cadence.entitlements
       configs:
         Debug:
-          CODE_SIGN_IDENTITY: "Apple Development: darsh.shah@icloud.com (7FKP4PLNZ3)"
+          CODE_SIGN_IDENTITY: "Apple Development"
           CODE_SIGN_STYLE: Manual
           DEVELOPMENT_TEAM: P3MT7UXJ5N
           PRODUCT_NAME: Cadence Debug

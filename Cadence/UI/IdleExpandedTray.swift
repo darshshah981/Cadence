@@ -27,6 +27,7 @@ struct IdleExpandedTray: View {
             }
         }
         .overlay(trayStroke.allowsHitTesting(false))
+        .frame(height: HUDMetrics.panelHeight)
     }
 
     private var copyButton: some View {

@@ -76,6 +76,21 @@ struct CalendarEventDayGroup: Identifiable, Equatable, Sendable {
 }
 
 enum CalendarEventDashboard {
+    static func todayEvents(
+        events: [GoogleCalendarEvent],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [GoogleCalendarEvent] {
+        let startOfToday = calendar.startOfDay(for: now)
+        guard let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday) else {
+            return []
+        }
+
+        return events
+            .filter { $0.startDate >= now && $0.startDate < startOfTomorrow }
+            .sorted { $0.startDate < $1.startDate }
+    }
+
     static func groups(
         events: [GoogleCalendarEvent],
         now: Date = Date(),

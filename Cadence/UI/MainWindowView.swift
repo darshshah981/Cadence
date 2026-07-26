@@ -137,9 +137,8 @@ struct MainWindowView: View {
                 if showsTopToolbar {
                     StenoTopToolbar(
                         appModel: appModel,
-                        isRecording: appModel.meetingCaptureSession?.phase == .recording || appModel.state == .listening,
-                        onNewNote: createAndOpenNote,
-                        onOpenSettings: openSettings
+                        showsNewNote: selection != .speechToText,
+                        onNewNote: createAndOpenNote
                     )
                     .padding(.top, 10)
                     .padding(.trailing, 22)
@@ -186,12 +185,8 @@ struct MainWindowView: View {
                 activeSidebarItem = .allNotes
             } onOpenSettings: {
                 openSettings()
-            } onOpenCalendarEvent: { event in
-                appModel.openCalendarEvent(event)
-            } onStartCalendarEvent: { event in
-                let note = appModel.startCalendarEventCapture(event)
-                selection = .meetingNote(note.id)
-                activeSidebarItem = .allNotes
+            } onJoinCalendarEvent: { event in
+                appModel.joinCalendarEvent(event)
             }
         case .meetings:
             StenoAllNotesContent(appModel: appModel) { note in
@@ -215,7 +210,7 @@ struct MainWindowView: View {
         case .settings:
             SettingsView(
                 appModel: appModel,
-                maxContentWidth: 620,
+                maxContentWidth: .infinity,
                 contentPadding: EdgeInsets(
                     top: StenoLayout.settingsTopPadding,
                     leading: 24,
@@ -255,7 +250,7 @@ private struct StenoSidebar: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Cadence")
                 .font(.system(size: 18, weight: .regular, design: .serif))
-                .foregroundStyle(FlowTheme.textPrimary)
+                .foregroundStyle(FlowTheme.brandText)
             .padding(.top, 18)
             .padding(.horizontal, 16)
             .padding(.bottom, 14)
@@ -302,7 +297,7 @@ private struct StenoSidebar: View {
 
                 StenoSidebarRow(
                     title: "Dictation history",
-                    count: appModel.transcriptHistory.count,
+                    count: nil,
                     systemImage: "clock.arrow.circlepath",
                     isSelected: activeItem == .speechToText,
                     accessibilityIdentifier: "sidebar-speech-to-text"
@@ -385,59 +380,11 @@ private struct StenoSidebarRow: View {
 
 private struct StenoTopToolbar: View {
     @ObservedObject var appModel: AppModel
-    let isRecording: Bool
+    let showsNewNote: Bool
     let onNewNote: () -> Void
-    let onOpenSettings: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
-            Menu {
-                Button {
-                    appModel.refreshUpcomingCalendarMeetingsFromUI()
-                } label: {
-                    Label("Refresh Calendar", systemImage: "arrow.clockwise")
-                }
-
-                if appModel.googleCalendarConnectionState.isConnected {
-                    Button {
-                        appModel.disconnectGoogleCalendar()
-                    } label: {
-                        Label("Sign out of Google", systemImage: "person.crop.circle.badge.minus")
-                    }
-                } else {
-                    Button {
-                        appModel.connectGoogleCalendar()
-                    } label: {
-                        Label("Continue with Google", systemImage: "person.crop.circle.badge.plus")
-                    }
-                    .disabled(!appModel.isGoogleCalendarSignInAvailable)
-                }
-
-                Divider()
-
-                Button(action: onOpenSettings) {
-                    Label("Settings", systemImage: "gearshape")
-                }
-
-                Button(action: onNewNote) {
-                    Label("New Note", systemImage: "square.and.pencil")
-                }
-
-                Divider()
-
-                Button {
-                    NSApp.terminate(nil)
-                } label: {
-                    Label("Quit Cadence", systemImage: "power")
-                }
-            } label: {
-                toolbarIconLabel("ellipsis")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .accessibilityLabel("More")
-            .accessibilityIdentifier("toolbar-more-menu")
-
             Button {
                 appModel.cycleAppearancePreference()
             } label: {
@@ -449,25 +396,19 @@ private struct StenoTopToolbar: View {
             .accessibilityValue(appModel.appearancePreference.displayName)
             .accessibilityIdentifier("toolbar-appearance-toggle")
 
-            Button(action: onNewNote) {
-                HStack(spacing: 8) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 13, weight: .medium))
-                    Text(isRecording ? "Recording" : "New note")
-                        .font(.system(size: 13, weight: .semibold))
+            if showsNewNote {
+                Button(action: onNewNote) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 13, weight: .medium))
+                        Text("New note")
+                    }
                 }
-                .foregroundStyle(isRecording ? Color.white : FlowTheme.textPrimary)
-                .frame(height: 30)
-                .padding(.horizontal, 14)
-                .background(isRecording ? FlowTheme.error : Color.clear, in: Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(isRecording ? Color.clear : FlowTheme.borderStrong.opacity(0.45), lineWidth: 1)
-                )
+                .buttonStyle(CadenceActionButtonStyle(role: .secondary))
+                .controlSize(.large)
+                .accessibilityLabel("New note")
+                .accessibilityIdentifier("toolbar-new-note")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isRecording ? "Recording" : "New note")
-            .accessibilityIdentifier("toolbar-new-note")
         }
     }
 
@@ -482,27 +423,22 @@ private struct StenoTopToolbar: View {
 
 private struct StenoHomeContent: View {
     @ObservedObject var appModel: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showsOtherTodayEvents = false
     let onOpenAllNotes: () -> Void
     let onOpenNote: (MeetingNote) -> Void
     let onOpenSettings: () -> Void
-    let onOpenCalendarEvent: (GoogleCalendarEvent) -> Void
-    let onStartCalendarEvent: (GoogleCalendarEvent) -> Void
+    let onJoinCalendarEvent: (GoogleCalendarEvent) -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                        .font(.system(size: 13))
-                        .foregroundStyle(FlowTheme.textSecondary)
-
-                    Spacer()
-
-                    calendarStatusControl
-                }
+                Text(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                    .font(.system(size: 13))
+                    .foregroundStyle(FlowTheme.textSecondary)
                 .padding(.bottom, 20)
 
-                StenoSectionHeader(title: "Upcoming", count: upcomingEventCount)
+                upcomingSectionHeader
                     .padding(.bottom, 14)
 
                 upcomingContent
@@ -512,6 +448,12 @@ private struct StenoHomeContent: View {
                     .padding(.bottom, 8)
 
                 previousRows
+
+                StenoSectionHeader(title: "Recent dictations", count: appModel.transcriptHistory.count)
+                    .padding(.top, 38)
+                    .padding(.bottom, 8)
+
+                recentDictationRows
             }
             .frame(maxWidth: StenoLayout.contentMaxWidth, alignment: .topLeading)
             .padding(.top, StenoLayout.contentTopPadding)
@@ -523,31 +465,49 @@ private struct StenoHomeContent: View {
     }
 
     @ViewBuilder
-    private var calendarStatusControl: some View {
-        if appModel.googleCalendarConnectionState.isConnected {
-            Button {
-                appModel.refreshUpcomingCalendarMeetingsFromUI()
-            } label: {
-                HStack(spacing: 6) {
+    private var upcomingSectionHeader: some View {
+        HStack(spacing: 10) {
+            Text("Upcoming")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(FlowTheme.textPrimary)
+            Text("\(upcomingEventCount)")
+                .font(.system(size: 13))
+                .foregroundStyle(FlowTheme.textTertiary)
+            Spacer()
+
+            if appModel.googleCalendarConnectionState.isConnected {
+                Button {
+                    appModel.refreshUpcomingCalendarMeetingsFromUI()
+                } label: {
                     Image(systemName: appModel.isRefreshingCalendar ? "hourglass" : "arrow.clockwise")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text(appModel.isRefreshingCalendar ? "Refreshing" : "Refresh")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
-                .foregroundStyle(FlowTheme.textSecondary)
-                .frame(height: 26)
-                .padding(.horizontal, 9)
-                .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .buttonStyle(.plain)
+                .disabled(appModel.isRefreshingCalendar)
+                .help("Refresh calendar")
+                .accessibilityLabel(
+                    appModel.isRefreshingCalendar ? "Refreshing calendar" : "Refresh calendar"
+                )
+                .accessibilityIdentifier("home-calendar-refresh-button")
             }
-            .buttonStyle(.plain)
-            .disabled(appModel.isRefreshingCalendar)
-            .accessibilityLabel("Refresh calendar")
-            .accessibilityIdentifier("home-calendar-refresh-button")
+        }
+        .padding(.bottom, 14)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(FlowTheme.border.opacity(0.55))
+                .frame(height: 1)
         }
     }
 
     private var upcomingEventCount: Int {
-        CalendarEventDashboard.groups(events: appModel.upcomingCalendarMeetings).reduce(0) { $0 + $1.events.count }
+        todayEvents.count
+    }
+
+    private var todayEvents: [GoogleCalendarEvent] {
+        CalendarEventDashboard.todayEvents(events: appModel.upcomingCalendarMeetings)
     }
 
     @ViewBuilder
@@ -561,24 +521,53 @@ private struct StenoHomeContent: View {
         } else if appModel.isRefreshingCalendar && appModel.upcomingCalendarMeetings.isEmpty {
             StenoEmptyLine(text: "Loading calendar...")
         } else {
-            let groups = CalendarEventDashboard.groups(events: appModel.upcomingCalendarMeetings)
-            if groups.isEmpty {
-                StenoEmptyLine(text: "No meetings today or tomorrow")
+            if todayEvents.isEmpty {
+                StenoEmptyLine(text: "No more events today")
             } else {
-                VStack(alignment: .leading, spacing: 22) {
-                    ForEach(groups) { group in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(group.title)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(FlowTheme.textSecondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    if let nextEvent = todayEvents.first {
+                        StenoUpcomingCard(
+                            event: nextEvent,
+                            onJoinCalendarEvent: onJoinCalendarEvent
+                        )
+                    }
 
-                            ForEach(group.events) { event in
-                                StenoUpcomingCard(
-                                    event: event,
-                                    onOpenCalendarEvent: onOpenCalendarEvent,
-                                    onStartCalendarEvent: onStartCalendarEvent
-                                )
+                    if todayEvents.count > 1 {
+                        Button {
+                            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                                showsOtherTodayEvents.toggle()
                             }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text("\(todayEvents.count - 1) others today")
+                                    .font(.system(size: 12.5, weight: .semibold))
+                                Image(systemName: showsOtherTodayEvents ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .foregroundStyle(FlowTheme.textSecondary)
+                            .padding(.horizontal, 4)
+                            .frame(height: 30)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(
+                            showsOtherTodayEvents
+                                ? "Collapse \(todayEvents.count - 1) other events today"
+                                : "Expand \(todayEvents.count - 1) other events today"
+                        )
+                        .accessibilityIdentifier("calendar-other-events-toggle")
+
+                        if showsOtherTodayEvents {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(todayEvents.dropFirst())) { event in
+                                    StenoUpcomingCard(
+                                        event: event,
+                                        onJoinCalendarEvent: onJoinCalendarEvent
+                                    )
+                                }
+                            }
+                            .transition(.opacity)
+                            .accessibilityIdentifier("calendar-other-events-list")
                         }
                     }
                 }
@@ -594,6 +583,23 @@ private struct StenoHomeContent: View {
                 ForEach(Array(appModel.meetingNotes.prefix(8).enumerated()), id: \.element.id) { index, note in
                     StenoPreviousNoteRow(note: note, showsTopSeparator: index > 0) {
                         onOpenNote(note)
+                    }
+                }
+            }
+        }
+    }
+
+    private var recentDictationRows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if appModel.transcriptHistory.isEmpty {
+                StenoEmptyLine(text: "No recent dictations")
+            } else {
+                ForEach(
+                    Array(appModel.transcriptHistory.prefix(6).enumerated()),
+                    id: \.element.id
+                ) { index, item in
+                    StenoTranscriptHistoryRow(item: item, showsTopSeparator: index > 0) {
+                        appModel.copyTranscript(item)
                     }
                 }
             }
@@ -836,16 +842,27 @@ private struct StenoGlobalAskContent: View {
 
 private struct StenoSpeechHistoryContent: View {
     @ObservedObject var appModel: AppModel
+    @State private var showsExpandedHistory = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Dictation history")
-                    .font(.system(size: 26, weight: .regular, design: .serif))
-                    .foregroundStyle(FlowTheme.textPrimary)
-                    .padding(.bottom, 18)
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text("Dictation history")
+                        .font(.system(size: 26, weight: .regular, design: .serif))
+                        .foregroundStyle(FlowTheme.textPrimary)
 
-                if let latest = appModel.transcriptHistory.first {
+                    if !appModel.transcriptHistory.isEmpty {
+                        Text("\(appModel.transcriptHistory.count)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(FlowTheme.textTertiary)
+                    }
+
+                    Spacer()
+                }
+                .padding(.bottom, 18)
+
+                if let latest = visibleTranscripts.first {
                     StenoLatestTranscriptCard(item: latest) {
                         appModel.copyTranscript(latest)
                     }
@@ -858,12 +875,17 @@ private struct StenoSpeechHistoryContent: View {
                     StenoSectionHeader(title: "Earlier", count: earlierTranscripts.count)
                         .padding(.bottom, 4)
 
-                    ForEach(Array(earlierTranscripts.enumerated()), id: \.element.id) { index, item in
-                        StenoTranscriptHistoryRow(item: item, showsTopSeparator: index > 0) {
-                            appModel.copyTranscript(item)
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(earlierTranscripts.enumerated()), id: \.element.id) { index, item in
+                            StenoTranscriptHistoryRow(item: item, showsTopSeparator: index > 0) {
+                                appModel.copyTranscript(item)
+                            }
                         }
                     }
                 }
+
+                historyFooter
+                    .padding(.top, appModel.transcriptHistory.isEmpty ? 0 : 20)
             }
             .frame(maxWidth: StenoLayout.contentMaxWidth, alignment: .topLeading)
             .padding(.top, StenoLayout.contentTopPadding)
@@ -874,8 +896,48 @@ private struct StenoSpeechHistoryContent: View {
         .background(FlowTheme.background)
     }
 
+    @ViewBuilder
+    private var historyFooter: some View {
+        if appModel.transcriptHistory.count > TranscriptHistoryPolicy.initialPreviewCount,
+           !showsExpandedHistory {
+            CadenceActionButton(
+                title: "Show more",
+                role: .secondary,
+                accessibilityIdentifier: "dictation-history-show-more"
+            ) {
+                showsExpandedHistory = true
+            }
+        } else if !appModel.transcriptHistory.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                if appModel.transcriptHistory.count > TranscriptHistoryPolicy.expandedPreviewCount {
+                    Text(
+                        "Showing the newest \(TranscriptHistoryPolicy.expandedPreviewCount). "
+                            + "Export includes all \(appModel.transcriptHistory.count)."
+                    )
+                    .font(.system(size: 12))
+                    .foregroundStyle(FlowTheme.textTertiary)
+                }
+
+                CadenceActionButton(
+                    title: "Export history",
+                    role: .secondary,
+                    accessibilityIdentifier: "dictation-history-export"
+                ) {
+                    appModel.exportTranscriptHistory()
+                }
+            }
+        }
+    }
+
+    private var visibleTranscripts: [TranscriptHistoryItem] {
+        let count = showsExpandedHistory
+            ? TranscriptHistoryPolicy.expandedVisibleCount(totalCount: appModel.transcriptHistory.count)
+            : TranscriptHistoryPolicy.initialVisibleCount(totalCount: appModel.transcriptHistory.count)
+        return Array(appModel.transcriptHistory.prefix(count))
+    }
+
     private var earlierTranscripts: [TranscriptHistoryItem] {
-        Array(appModel.transcriptHistory.dropFirst())
+        Array(visibleTranscripts.dropFirst())
     }
 }
 
@@ -928,26 +990,12 @@ private struct StenoCalendarSignInCard: View {
 
             Spacer()
 
-            Button(action: primaryAction) {
-                HStack(spacing: 6) {
-                    if isConnecting {
-                        ProgressView()
-                            .controlSize(.small)
-                            .scaleEffect(0.58)
-                    }
-                    Text(primaryTitle)
-                        .font(.system(size: 12.5, weight: .semibold))
-                }
-                .foregroundStyle(FlowTheme.background)
-                .padding(.horizontal, 11)
-                .frame(height: 30)
-                .background(FlowTheme.textPrimary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .disabled(isConnecting || !state.isConfigured)
-            .opacity(isConnecting || !state.isConfigured ? 0.62 : 1)
-            .accessibilityLabel("Sign in with Google")
-            .accessibilityIdentifier("google-sign-in-button")
+            GoogleSignInButton(
+                isConnecting: isConnecting,
+                isEnabled: state.isConfigured,
+                accessibilityIdentifier: "google-sign-in-button",
+                action: primaryAction
+            )
         }
         .padding(14)
         .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -969,13 +1017,6 @@ private struct StenoCalendarSignInCard: View {
         return state.errorMessage ?? "Use your Google account to show meetings today and tomorrow."
     }
 
-    private var primaryTitle: String {
-        if isConnecting {
-            return "Opening Google"
-        }
-        return "Continue with Google"
-    }
-
     private func primaryAction() {
         onSignIn()
     }
@@ -983,8 +1024,7 @@ private struct StenoCalendarSignInCard: View {
 
 private struct StenoUpcomingCard: View {
     let event: GoogleCalendarEvent
-    let onOpenCalendarEvent: (GoogleCalendarEvent) -> Void
-    let onStartCalendarEvent: (GoogleCalendarEvent) -> Void
+    let onJoinCalendarEvent: (GoogleCalendarEvent) -> Void
 
     var body: some View {
         HStack(spacing: 18) {
@@ -1018,38 +1058,32 @@ private struct StenoUpcomingCard: View {
 
             Spacer()
 
-            if event.meetingURL != nil {
+            if let provider = event.meetingProvider {
                 Button {
-                    onStartCalendarEvent(event)
+                    onJoinCalendarEvent(event)
                 } label: {
-                    Text("Join + Record")
-                        .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(FlowTheme.background)
-                        .padding(.horizontal, 10)
-                        .frame(height: 28)
-                        .background(FlowTheme.textPrimary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    HStack(spacing: 6) {
+                        MeetingProviderIcon(provider: provider)
+                        Text("Join")
+                            .font(.system(size: 12.5, weight: .semibold))
+                    }
+                    .foregroundStyle(FlowTheme.background)
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .background(FlowTheme.textPrimary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Join and record \(event.title)")
-                .accessibilityIdentifier("calendar-event-join-record-\(accessibilityIdentifierSuffix(event.id))")
-            } else if event.calendarURL != nil {
-                Button {
-                    onOpenCalendarEvent(event)
-                } label: {
-                    Text("Open Event")
-                        .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(FlowTheme.textPrimary)
-                        .padding(.horizontal, 10)
-                        .frame(height: 28)
-                        .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(FlowTheme.border.opacity(0.8), lineWidth: 1)
-                        )
+                .accessibilityLabel("Join \(provider.displayName) meeting \(event.title)")
+                .accessibilityIdentifier("calendar-event-join-\(accessibilityIdentifierSuffix(event.id))")
+            } else {
+                HStack(spacing: 5) {
+                    Image(systemName: "link")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("No meeting link included")
+                        .font(.system(size: 11.5, weight: .medium))
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open event \(event.title)")
-                .accessibilityIdentifier("calendar-event-open-\(accessibilityIdentifierSuffix(event.id))")
+                .foregroundStyle(FlowTheme.textTertiary)
+                .accessibilityIdentifier("calendar-event-no-meeting-link-\(accessibilityIdentifierSuffix(event.id))")
             }
         }
         .padding(.horizontal, 16)
@@ -1087,6 +1121,49 @@ private struct StenoUpcomingCard: View {
             return calendarTitle
         }
         return event.meetingURL == nil ? "Calendar event" : "Video meeting"
+    }
+}
+
+private struct MeetingProviderIcon: View {
+    let provider: GoogleMeetingProvider
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(providerColor)
+
+            if provider == .microsoftTeams {
+                Text("T")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white)
+            } else if let assetName = provider.assetName {
+                Image(assetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 9, height: 9)
+            } else {
+                Image(systemName: "video.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(Color.white)
+                    .frame(width: 8, height: 8)
+            }
+        }
+        .frame(width: 16, height: 16)
+        .accessibilityHidden(true)
+    }
+
+    private var providerColor: Color {
+        switch provider {
+        case .googleMeet:
+            return Color(red: 0.00, green: 0.54, blue: 0.48)
+        case .zoom:
+            return Color(red: 0.04, green: 0.36, blue: 1.00)
+        case .microsoftTeams:
+            return Color(red: 0.39, green: 0.40, blue: 0.66)
+        case .other:
+            return FlowTheme.textSecondary
+        }
     }
 }
 
@@ -1361,6 +1438,7 @@ private struct MainSidebarHeader: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Cadence")
                     .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(FlowTheme.brandText)
                 Text(status)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(statusTint)
@@ -1463,7 +1541,7 @@ private struct DashboardDetailView: View {
             } label: {
                 Label("New Note", systemImage: "square.and.pencil")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(CadenceActionButtonStyle(role: .primary))
             .controlSize(.large)
         }
     }

@@ -14,6 +14,24 @@ Cadence started as a local macOS dictation utility and now has two related produ
 
 The app is a native macOS SwiftUI/AppKit hybrid. SwiftUI owns most views. AppKit is used where macOS requires lower-level control: windows, menu-bar behavior, hotkeys, accessibility insertion, ScreenCaptureKit, and HUD panels.
 
+## Scribe Feature Flag
+
+Scribe is compiled into the app but is disabled by default while the core Dictation and Meeting Capture experience is prepared for release. With the flag off, Cadence omits Scribe from Settings and onboarding, disables its hotkey at runtime, blocks direct launch and provider setup, and does not start its defaults monitor.
+
+For a durable local Debug opt-in:
+
+```zsh
+defaults write com.darshshah.Cadence.debug Cadence.feature.scribe -bool true
+```
+
+Quit and relaunch `Cadence Debug` after changing the value. Remove the override to return to the product default:
+
+```zsh
+defaults delete com.darshshah.Cadence.debug Cadence.feature.scribe
+```
+
+For one launch, pass `--enable-scribe` or `--disable-scribe`. Automation can set `CADENCE_SCRIBE_ENABLED=true` or `false`. Launch arguments take precedence over the environment, which takes precedence over the local preference. `--scribe-fixture` enables Scribe only for the existing Debug fixture path.
+
 ## Top-Level Layout
 
 ```text

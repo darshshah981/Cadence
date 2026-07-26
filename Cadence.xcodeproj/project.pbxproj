@@ -80,6 +80,7 @@
 		712ACE83D5C0855F828E7F34 /* ScribeDiagnosticsExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164913F8C06819E7939FA094 /* ScribeDiagnosticsExportService.swift */; };
 		739F467460A2656315D7DF0C /* ApplicationConfigurationResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C25940005A86A98A7EBF4771 /* ApplicationConfigurationResolver.swift */; };
 		73A550B00AE25142681402D6 /* FocusedApplicationMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AC2755A285EBF89D055BD70 /* FocusedApplicationMonitorTests.swift */; };
+		73DEC0CAE0A2741DB6073732 /* GoogleSignInButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF56CFEA109C013C618C5D17 /* GoogleSignInButton.swift */; };
 		760EAABAB0ED99780F4DAFDB /* MeetingNotesWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */; };
 		76260FD4F0061F8FFE5ACB9E /* UnavailableScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E54A61FAA183DBB172417E /* UnavailableScribeProvider.swift */; };
 		7793765D3F3F0BABF46F4C17 /* CadenceControlSemanticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14AAB6B540E0A37B3128C27F /* CadenceControlSemanticsTests.swift */; };
@@ -99,6 +100,7 @@
 		94661C288BFFBB8CC387F87E /* ScribeModelCatalogServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A096D3AE08EFD1C73E7D2765 /* ScribeModelCatalogServiceTests.swift */; };
 		9A1B5D692714C55AD0F1F4A5 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = A3713BE1986E47AE5FF5CAA9 /* manifest.json */; };
 		9EFC3E8FBCE0432BCC3C00E4 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC22C16A79401A6870742A6E /* HUDWindowController.swift */; };
+		9EFEE954B960BBE3602D013F /* TextInsertionCapabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF3E8D581DC0B0C2AE5D131C /* TextInsertionCapabilityTests.swift */; };
 		9F5E623D08832765F8ED978B /* CustomGuidanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0D74A9C9C9D08BF67669B8 /* CustomGuidanceTests.swift */; };
 		9FF4FC96281540D9441C093A /* ScribeProviderConsentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A99463B7363354D536E247F0 /* ScribeProviderConsentTests.swift */; };
 		A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */; };
@@ -148,7 +150,9 @@
 		E2A51A21F14EA9161C9E8368 /* ScribeRequestModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3812C70EA42C7636C329E2 /* ScribeRequestModels.swift */; };
 		E3C4D8A933ACA71432962FC7 /* ScribeGuidanceCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A26C835556EA94A98E38B2 /* ScribeGuidanceCatalog.swift */; };
 		E488D6C051F788D17B29C304 /* ScribeLaunchFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7347FEC30FD5285909EEAD4 /* ScribeLaunchFixtures.swift */; };
+		E58C89BA9F8C0C4210D91AE2 /* TranscriptHistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F0FFD99B19B1F4066A7912 /* TranscriptHistoryService.swift */; };
 		E793FF1D9AC31F83CA55F3C2 /* DeepSeekScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C93FC144D7ED841B2E7F85 /* DeepSeekScribeProvider.swift */; };
+		E89B804B70C571636B242B2C /* CadenceFeatureFlagTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 271D05E9383898034CCCE7DC /* CadenceFeatureFlagTests.swift */; };
 		E997B3B075C3D2835177D4F3 /* MeetingSummaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62263A742DE5DC2596EF2445 /* MeetingSummaryService.swift */; };
 		EA69A79F6A2EE12FAAD2E044 /* OnboardingMicrophoneMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0F4A27DA91DA33E9400FDB /* OnboardingMicrophoneMonitor.swift */; };
 		EC19295E7863E5D13218C2CD /* ApplicationConfigurationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8568D275C5BC3621348D9865 /* ApplicationConfigurationModels.swift */; };
@@ -158,6 +162,7 @@
 		EF64BC08F2C7F02693F757FF /* ScribeHTTPTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 665F8AA64ED04CA0098D381A /* ScribeHTTPTransportTests.swift */; };
 		EF826D5DA46782A058A62AE8 /* TranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */; };
 		F0B09129DE4578A72441D412 /* InstalledApplicationCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D8EC088DD170378EAA03FD /* InstalledApplicationCatalogTests.swift */; };
+		F0FC8170069FBC7D919AE487 /* CadenceFeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B21123AC58E3ECD07ED4E51 /* CadenceFeatureFlags.swift */; };
 		F316E8969197508BE8B9C084 /* WritingEnvironmentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7C3A6BAEFD6B0313D6D7D2 /* WritingEnvironmentsView.swift */; };
 		F6BE41C43885F2752F862335 /* FixedOriginScribeProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2B1E2C5902AE4CA7E8D12F8 /* FixedOriginScribeProviderTests.swift */; };
 		F9F20047C256A3BBFC793F85 /* OpenAIDirectScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8AB9164EC9EF17F62681407 /* OpenAIDirectScribeProvider.swift */; };
@@ -195,6 +200,7 @@
 		033B2CF865C8DF76F736802F /* VoiceSessionArbiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSessionArbiter.swift; sourceTree = "<group>"; };
 		0738EECF8CC35F6E2FAC3C7B /* MeetingFinalTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingFinalTranscriptionService.swift; sourceTree = "<group>"; };
 		07592451F56FA01E1134A310 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		0B21123AC58E3ECD07ED4E51 /* CadenceFeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceFeatureFlags.swift; sourceTree = "<group>"; };
 		0B270F4E9E0E1CB229615B73 /* ScribeChatCompletionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeChatCompletionClient.swift; sourceTree = "<group>"; };
 		0C16117AB80D4197BE302C96 /* ScribeLiteralNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeLiteralNormalizerTests.swift; sourceTree = "<group>"; };
 		11221647F46E10E7506D3EB2 /* ReleaseFixtureIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseFixtureIsolationTests.swift; sourceTree = "<group>"; };
@@ -212,6 +218,7 @@
 		1DF59AD9CDC1C89E87DB75ED /* OpenRouterScribeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterScribeProvider.swift; sourceTree = "<group>"; };
 		2241AB1EAC2C658906A2DF74 /* PasteboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardService.swift; sourceTree = "<group>"; };
 		261AA12AB448A4E589D2B94F /* AdaptiveScribeContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveScribeContractTests.swift; sourceTree = "<group>"; };
+		271D05E9383898034CCCE7DC /* CadenceFeatureFlagTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceFeatureFlagTests.swift; sourceTree = "<group>"; };
 		2747B5C0BD75EFECA1D2569B /* Cadence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cadence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		28415840D047F93E2D27B2C4 /* ScribeDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeDiagnosticsTests.swift; sourceTree = "<group>"; };
 		2946568228C48A76AFF42F23 /* CustomGuidanceValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomGuidanceValidator.swift; sourceTree = "<group>"; };
@@ -289,6 +296,7 @@
 		9880DDA2B852F0ED7E7ECC0F /* CadenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceTests.swift; sourceTree = "<group>"; };
 		9939AF8E2BE1659663A74ED4 /* ScribePresetCatalogStateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribePresetCatalogStateModels.swift; sourceTree = "<group>"; };
 		9996810D696746CB2E5DA171 /* HUDVisibilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDVisibilityService.swift; sourceTree = "<group>"; };
+		99F0FFD99B19B1F4066A7912 /* TranscriptHistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptHistoryService.swift; sourceTree = "<group>"; };
 		9AB3EA660E7E3BB4BBA7E31C /* ApplicationConfigurationMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationConfigurationMigrationTests.swift; sourceTree = "<group>"; };
 		9AEDC021CB58476A4FB96E92 /* quality-corpus-manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "quality-corpus-manifest.json"; sourceTree = "<group>"; };
 		9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCoordinator.swift; sourceTree = "<group>"; };
@@ -306,6 +314,7 @@
 		A99463B7363354D536E247F0 /* ScribeProviderConsentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderConsentTests.swift; sourceTree = "<group>"; };
 		AA4184D1F8A91858269D49B0 /* ScribeRequestPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeRequestPolicy.swift; sourceTree = "<group>"; };
 		AC6441168A6E582F67C15B17 /* RuntimeApplicationTargetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeApplicationTargetModels.swift; sourceTree = "<group>"; };
+		AF56CFEA109C013C618C5D17 /* GoogleSignInButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInButton.swift; sourceTree = "<group>"; };
 		B4E9CB4DFED2033CA6470E1A /* ScribeProviderLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderLibraryTests.swift; sourceTree = "<group>"; };
 		B5A8C73B4837E38B0677B8E5 /* WhisperKitTranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitTranscriptionEngine.swift; sourceTree = "<group>"; };
 		B82DFA8D72277D8A1A6424D2 /* PersonalizationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalizationModels.swift; sourceTree = "<group>"; };
@@ -345,6 +354,7 @@
 		EBF41CADF917C4FFF0F73654 /* IdleExpandedTray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleExpandedTray.swift; sourceTree = "<group>"; };
 		ED3C6DD8BC26913A0F5ED418 /* FeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackService.swift; sourceTree = "<group>"; };
 		EED0F11BBBF420A81361E68A /* WritingEnvironmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingEnvironmentStore.swift; sourceTree = "<group>"; };
+		EF3E8D581DC0B0C2AE5D131C /* TextInsertionCapabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionCapabilityTests.swift; sourceTree = "<group>"; };
 		F29D9D8149519E0197728D48 /* WritingEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingEnvironmentTests.swift; sourceTree = "<group>"; };
 		F5E855124924D6CDE8135E7B /* ScribeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeTests.swift; sourceTree = "<group>"; };
 		F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionEngine.swift; sourceTree = "<group>"; };
@@ -399,6 +409,7 @@
 				DB30DD1B5E691C7493DD2E19 /* ApplicationConfigurationTests.swift */,
 				88848B213B83D6FD6EB74033 /* ApplicationIconResolverTests.swift */,
 				14AAB6B540E0A37B3128C27F /* CadenceControlSemanticsTests.swift */,
+				271D05E9383898034CCCE7DC /* CadenceFeatureFlagTests.swift */,
 				9880DDA2B852F0ED7E7ECC0F /* CadenceTests.swift */,
 				8C0D74A9C9C9D08BF67669B8 /* CustomGuidanceTests.swift */,
 				E53AF2C6B814A458A5047702 /* DictationCoordinatorTests.swift */,
@@ -431,6 +442,7 @@
 				F8AF04C147DABB2AC208B963 /* ScribeProviderSetupModelTests.swift */,
 				003F11BFAA67440EC3E38F32 /* ScribeProviderTests.swift */,
 				F5E855124924D6CDE8135E7B /* ScribeTests.swift */,
+				EF3E8D581DC0B0C2AE5D131C /* TextInsertionCapabilityTests.swift */,
 				32BF8E2A23E2D860E70D4FAE /* U5TestFixtures.swift */,
 				75833935A2A85450E7280AAA /* WritingEnvironmentRecognizerTests.swift */,
 				F29D9D8149519E0197728D48 /* WritingEnvironmentTests.swift */,
@@ -445,6 +457,7 @@
 				DC6DC8041CF3DCC911E00F24 /* AppAppearance.swift */,
 				8568D275C5BC3621348D9865 /* ApplicationConfigurationModels.swift */,
 				4869863B9DF3D3A7416EF506 /* ApplicationIdentityModels.swift */,
+				0B21123AC58E3ECD07ED4E51 /* CadenceFeatureFlags.swift */,
 				57F88FDABE976A050039E642 /* DictationModels.swift */,
 				78697F1129D556E082D17DAD /* DurablePreferenceKeys.swift */,
 				E578BEB1EADBEB5800402E25 /* MeetingModels.swift */,
@@ -467,6 +480,7 @@
 			children = (
 				DA78B08EF90F4D0ABA0BC2BF /* CadenceActionButton.swift */,
 				E2E1C144AC56A7F8E16B86BB /* CadenceDesignSystem.swift */,
+				AF56CFEA109C013C618C5D17 /* GoogleSignInButton.swift */,
 				015505B1691B6CE2E9F788AB /* HUDDropZoneOverlay.swift */,
 				58943A986FD1C46B9F453ED0 /* HUDView.swift */,
 				EBF41CADF917C4FFF0F73654 /* IdleExpandedTray.swift */,
@@ -593,6 +607,7 @@
 				33A5B98D12ED3F424919D9FC /* StyleProfileResolver.swift */,
 				5DB6392F9F82CF975E2419B0 /* SystemAudioCaptureService.swift */,
 				FF53A70456557098B43E818E /* TextInsertionService.swift */,
+				99F0FFD99B19B1F4066A7912 /* TranscriptHistoryService.swift */,
 				9D8371975360FC8D8C76AB8C /* TranscriptionAudioPreprocessor.swift */,
 				F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */,
 				14E54A61FAA183DBB172417E /* UnavailableScribeProvider.swift */,
@@ -784,6 +799,7 @@
 				FEFCF65E855C4E42926FC404 /* CadenceActionButton.swift in Sources */,
 				43A6653D967FC59ABC91624E /* CadenceApp.swift in Sources */,
 				10EEB44C40CAF4F8C6D1E749 /* CadenceDesignSystem.swift in Sources */,
+				F0FC8170069FBC7D919AE487 /* CadenceFeatureFlags.swift in Sources */,
 				5E268FC2CD9E558B8CEAFCE0 /* CalendarEventCacheStore.swift in Sources */,
 				5FFD8D111D99B04C728DDA8E /* CustomGuidanceValidator.swift in Sources */,
 				E793FF1D9AC31F83CA55F3C2 /* DeepSeekScribeProvider.swift in Sources */,
@@ -795,6 +811,7 @@
 				22FADFE488BFB74F1659675D /* FocusedApplicationMonitor.swift in Sources */,
 				827C3C6F3B9D6355BB6EE82B /* FoundationModelsScribeProvider.swift in Sources */,
 				944F0BE2AB36F33A1A8F3801 /* GoogleCalendarService.swift in Sources */,
+				73DEC0CAE0A2741DB6073732 /* GoogleSignInButton.swift in Sources */,
 				3294D3FAE83F800F084A9845 /* HUDDropZoneOverlay.swift in Sources */,
 				D0ACFD368BDD7CB8693AB2D7 /* HUDView.swift in Sources */,
 				B82920C79585D3EDFDE0F34C /* HUDVisibilityService.swift in Sources */,
@@ -867,6 +884,7 @@
 				21A1017BCC23BECAABA91360 /* StyleProfileResolver.swift in Sources */,
 				ABAD465AB72369B95269DDFA /* SystemAudioCaptureService.swift in Sources */,
 				ABAAF7AD1FA70D69BA85152C /* TextInsertionService.swift in Sources */,
+				E58C89BA9F8C0C4210D91AE2 /* TranscriptHistoryService.swift in Sources */,
 				314837379E746B0738FE0D05 /* TranscriptionAudioPreprocessor.swift in Sources */,
 				EF826D5DA46782A058A62AE8 /* TranscriptionEngine.swift in Sources */,
 				76260FD4F0061F8FFE5ACB9E /* UnavailableScribeProvider.swift in Sources */,
@@ -893,6 +911,7 @@
 				0CE42AE84443FE65E010C1E1 /* ApplicationConfigurationTests.swift in Sources */,
 				B8162C282D751BFBC8934E11 /* ApplicationIconResolverTests.swift in Sources */,
 				7793765D3F3F0BABF46F4C17 /* CadenceControlSemanticsTests.swift in Sources */,
+				E89B804B70C571636B242B2C /* CadenceFeatureFlagTests.swift in Sources */,
 				28E458EF554469DF6A804BC5 /* CadenceTests.swift in Sources */,
 				9F5E623D08832765F8ED978B /* CustomGuidanceTests.swift in Sources */,
 				268D2E2474BD18EF25BA5477 /* DictationCoordinatorTests.swift in Sources */,
@@ -925,6 +944,7 @@
 				4D2F8AE9416F65231F01489E /* ScribeProviderSetupModelTests.swift in Sources */,
 				004D73A6092D5A40BE14465D /* ScribeProviderTests.swift in Sources */,
 				4C6CACBC4A395B70FE3BDC11 /* ScribeTests.swift in Sources */,
+				9EFEE954B960BBE3602D013F /* TextInsertionCapabilityTests.swift in Sources */,
 				62BB3C50263D2EE23D7BBE21 /* U5TestFixtures.swift in Sources */,
 				1A3CE512FA009711B4941E59 /* WritingEnvironmentRecognizerTests.swift in Sources */,
 				67FD464C28A976DAE727586B /* WritingEnvironmentTests.swift in Sources */,
@@ -952,7 +972,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Cadence/Cadence.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development: darsh.shah@icloud.com (7FKP4PLNZ3)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = P3MT7UXJ5N;

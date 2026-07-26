@@ -44,9 +44,15 @@ final class AppModel: ObservableObject {
         static let trimSilence = "FlowState.trimSilence"
         static let normalizeAudio = "FlowState.normalizeAudio"
         static let waveformSensitivity = "Cadence.waveformSensitivity"
+        static let hudPillResponse = "Cadence.debug.hudMotion.pillResponse"
+        static let hudMicFadeOutDuration = "Cadence.debug.hudMotion.micFadeOutDuration"
+        static let hudAppCueFadeInDuration = "Cadence.debug.hudMotion.appCueFadeInDuration"
+        static let hudWaveformFadeInDuration = "Cadence.debug.hudMotion.waveformFadeInDuration"
         static let livePreviewEnabled = "FlowState.livePreviewEnabled"
         static let tapStopsOnNextKeyPress = "FlowState.tapStopsOnNextKeyPress"
         static let appAwarePolishingEnabled = "Cadence.appAwarePolishingEnabled"
+        static let pressEnterCommandEnabled = "Cadence.pressEnterCommandEnabled"
+        static let pressEnterCommandPhrase = "Cadence.pressEnterCommandPhrase"
         static let vocabularyText = "FlowState.vocabularyText"
         static let analyticsEnabled = "Cadence.analyticsEnabled"
         static let googleOAuthClientID = "Cadence.googleOAuthClientID"
@@ -131,10 +137,13 @@ final class AppModel: ObservableObject {
     @Published private(set) var transcriptionConfiguration: TranscriptionConfiguration
     @Published private(set) var analyticsEnabled: Bool
     @Published private(set) var showsShortcutDock: Bool
-    @Published private(set) var dictationSoundFeedbackEnabled: Bool
+    @Published private(set) var dictationActivationSoundEnabled: Bool
+    @Published private(set) var dictationCompletionSoundEnabled: Bool
     @Published private(set) var waveformSensitivity: Double
+    @Published private(set) var hudMotionTuning: HUDMotionTuning
     @Published private(set) var appearancePreference: AppearancePreference
     @Published private(set) var personalizationLibrary: PersonalizationLibrary
+    @Published private(set) var spokenShortcutsEnabled: Bool
     @Published private(set) var onboardingProgress: OnboardingProgress
     @Published private(set) var hudVisibility: HUDVisibilityState
     @Published var menuScreen: MenuScreen = .home
@@ -145,6 +154,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var holdToTalkBinding: HotkeyBinding
     @Published private(set) var tapToStartStopBinding: HotkeyBinding
     @Published private(set) var scribeBinding: HotkeyBinding
+    let featureFlags: CadenceFeatureFlags
 
     private let permissionsService: PermissionsService
     private let permissionGuideWindowController = PermissionGuideWindowController()
@@ -212,6 +222,9 @@ final class AppModel: ObservableObject {
     private var meetingVoiceSessionLease: VoiceSessionLease?
     private var calendarDetectionTimer: Timer?
     private var promptedCalendarEventIDs = Set<String>()
+    #if DEBUG
+    private var hudMotionPreviewTask: Task<Void, Never>?
+    #endif
 
     init() {
         #if DEBUG
@@ -222,13 +235,18 @@ final class AppModel: ObservableObject {
         #if DEBUG
         ScribeLaunchFixtures.apply(to: defaults)
         #endif
+        let featureFlags = CadenceFeatureFlags.resolve(defaults: defaults)
         let hudVisibilityController = HUDVisibilityController(
             store: HUDVisibilityStore(defaults: defaults)
         )
         let initialHoldBinding = AppModel.loadBinding(defaults: defaults, action: .holdToTalk)
         let initialTapBinding = AppModel.loadBinding(defaults: defaults, action: .tapToStartStop)
-        let initialScribeBinding = AppModel.loadBinding(defaults: defaults, action: .scribe)
+        var initialScribeBinding = AppModel.loadBinding(defaults: defaults, action: .scribe)
+        if !featureFlags.scribeEnabled {
+            initialScribeBinding.isEnabled = false
+        }
         self.defaults = defaults
+        self.featureFlags = featureFlags
         self.hudVisibilityController = hudVisibilityController
         self.hudVisibility = hudVisibilityController.state
         self.selectionCaptureService = SelectionCaptureService()
@@ -236,19 +254,24 @@ final class AppModel: ObservableObject {
         self.transcriptionConfiguration = initialTranscriptionConfiguration
         let analyticsEnabled = defaults.bool(forKey: PreferenceKey.analyticsEnabled)
         let showsShortcutDock = (defaults.object(forKey: PreferenceKey.showsShortcutDock) as? Bool) ?? true
-        let dictationSoundFeedbackEnabled = DictationSoundFeedbackPreference.load(from: defaults)
+        let dictationActivationSoundEnabled = DictationSoundFeedbackPreference.loadActivation(from: defaults)
+        let dictationCompletionSoundEnabled = DictationSoundFeedbackPreference.loadCompletion(from: defaults)
         let waveformSensitivity = Self.loadWaveformSensitivity(defaults: defaults)
+        let hudMotionTuning = Self.loadHUDMotionTuning(defaults: defaults)
         let appearancePreference = Self.loadAppearancePreference(defaults: defaults)
         let personalizationStore = PersonalizationStore(defaults: defaults)
         let onboardingProgressStore = OnboardingProgressStore(defaults: defaults)
         let onboardingProgress = onboardingProgressStore.load()
         self.analyticsEnabled = analyticsEnabled
         self.showsShortcutDock = showsShortcutDock
-        self.dictationSoundFeedbackEnabled = dictationSoundFeedbackEnabled
+        self.dictationActivationSoundEnabled = dictationActivationSoundEnabled
+        self.dictationCompletionSoundEnabled = dictationCompletionSoundEnabled
         self.waveformSensitivity = waveformSensitivity
+        self.hudMotionTuning = hudMotionTuning
         self.appearancePreference = appearancePreference
         self.personalizationStore = personalizationStore
         self.personalizationLibrary = personalizationStore.load()
+        self.spokenShortcutsEnabled = personalizationStore.areSpokenShortcutsEnabled()
         self.onboardingProgressStore = onboardingProgressStore
         self.onboardingProgress = onboardingProgress
         self.meetingCaptureSource = AppModel.loadMeetingCaptureSource(defaults: defaults)
@@ -309,7 +332,11 @@ final class AppModel: ObservableObject {
         self.permissionsService = permissionsService
         self.permissions = permissionsService.snapshot()
 
-        let hudController = HUDWindowController()
+        let hudController = HUDWindowController(
+            defaults: defaults,
+            appearancePreference: appearancePreference
+        )
+        hudController.viewModel.setMotionTuning(hudMotionTuning)
         self.hudController = hudController
         let focusedApplicationSource = WorkspaceFocusedApplicationSource()
         let focusedApplicationMonitor = FocusedApplicationMonitor(
@@ -362,7 +389,12 @@ final class AppModel: ObservableObject {
         let settingsPresentationState: SettingsPresentationState
         switch settingsPresentationStore.load() {
         case let .valid(state):
-            settingsPresentationState = state
+            settingsPresentationState = .init(
+                selectedCategory: state.selectedCategory.normalized(
+                    scribeEnabled: featureFlags.scribeEnabled
+                ),
+                isAdvancedExpanded: state.isAdvancedExpanded
+            )
         case .absent:
             settingsPresentationState = .init(selectedCategory: .general, isAdvancedExpanded: false)
         case .rejected:
@@ -457,7 +489,10 @@ final class AppModel: ObservableObject {
         )
         self.hotkeyService = hotkeyService
 
-        let feedbackService = SoundFeedbackService(isEnabled: dictationSoundFeedbackEnabled)
+        let feedbackService = SoundFeedbackService(
+            isActivationEnabled: dictationActivationSoundEnabled,
+            isCompletionEnabled: dictationCompletionSoundEnabled
+        )
         self.feedbackService = feedbackService
 
         self.coordinator = DictationCoordinator(
@@ -537,7 +572,9 @@ final class AppModel: ObservableObject {
         adaptiveScribeReaderMonitor.onInvalidation = { [weak self] in
             self?.invalidateAdaptiveScribeRuntime()
         }
-        adaptiveScribeReaderMonitor.start()
+        if featureFlags.scribeEnabled {
+            adaptiveScribeReaderMonitor.start()
+        }
         focusedApplicationMonitor.start()
         installedApplicationSnapshotStore.onPublish = { [weak self] snapshot in
             self?.handleInstalledApplicationSnapshot(snapshot)
@@ -565,9 +602,11 @@ final class AppModel: ObservableObject {
             await installedApplicationCatalogService.start(
                 lifecycleSource: installedApplicationLifecycleSource
             )
-            await scribeDiagnosticsService.load()
-            try? await scribeProviderV2Controller.reconcileAtStartup()
-            scribeProviderReadiness = scribeProviderV2Controller.readiness
+            if featureFlags.scribeEnabled {
+                await scribeDiagnosticsService.load()
+                try? await scribeProviderV2Controller.reconcileAtStartup()
+                scribeProviderReadiness = scribeProviderV2Controller.readiness
+            }
             await refreshPermissions()
             await applyTranscriptionConfiguration(prewarm: false)
             await warmBackend()
@@ -612,6 +651,10 @@ final class AppModel: ObservableObject {
         case .error:
             return "exclamationmark.triangle.fill"
         }
+    }
+
+    var isActivelyRecording: Bool {
+        state == .listening || meetingCaptureSession?.phase == .recording
     }
 
     var activeShortcutSummary: String {
@@ -666,6 +709,12 @@ final class AppModel: ObservableObject {
         persistPersonalizationLibrary()
     }
 
+    func setSpokenShortcutsEnabled(_ enabled: Bool) {
+        guard spokenShortcutsEnabled != enabled else { return }
+        spokenShortcutsEnabled = enabled
+        personalizationStore.setSpokenShortcutsEnabled(enabled)
+    }
+
     func setPersonalShortcutEnabled(id: UUID, enabled: Bool) {
         guard let index = personalizationLibrary.shortcuts.firstIndex(where: { $0.id == id }) else { return }
         personalizationLibrary.shortcuts[index].isEnabled = enabled
@@ -701,19 +750,41 @@ final class AppModel: ObservableObject {
         persistPersonalizationLibrary()
     }
 
+    var availableOnboardingSteps: [OnboardingStep] {
+        OnboardingStep.availableSteps(scribeEnabled: featureFlags.scribeEnabled)
+    }
+
+    var currentOnboardingStep: OnboardingStep {
+        let storedStep = onboardingProgress.currentStep
+        if availableOnboardingSteps.contains(storedStep) {
+            return storedStep
+        }
+        let storedIndex = OnboardingStep.allCases.firstIndex(of: storedStep) ?? 0
+        return availableOnboardingSteps.first {
+            (OnboardingStep.allCases.firstIndex(of: $0) ?? 0) > storedIndex
+        } ?? .ready
+    }
+
+    var currentOnboardingVisibleIndex: Int {
+        availableOnboardingSteps.firstIndex(of: currentOnboardingStep) ?? 0
+    }
+
     func advanceOnboarding() {
-        let lastIndex = OnboardingStep.allCases.count - 1
-        guard onboardingProgress.stepIndex < lastIndex else {
+        let nextVisibleIndex = currentOnboardingVisibleIndex + 1
+        guard nextVisibleIndex < availableOnboardingSteps.count else {
             completeOnboarding()
             return
         }
-        onboardingProgress.stepIndex += 1
+        let nextStep = availableOnboardingSteps[nextVisibleIndex]
+        onboardingProgress.stepIndex = OnboardingStep.allCases.firstIndex(of: nextStep) ?? 0
         saveOnboardingProgress()
     }
 
     func moveBackInOnboarding() {
-        guard onboardingProgress.stepIndex > 0 else { return }
-        onboardingProgress.stepIndex -= 1
+        let previousVisibleIndex = currentOnboardingVisibleIndex - 1
+        guard previousVisibleIndex >= 0 else { return }
+        let previousStep = availableOnboardingSteps[previousVisibleIndex]
+        onboardingProgress.stepIndex = OnboardingStep.allCases.firstIndex(of: previousStep) ?? 0
         saveOnboardingProgress()
     }
 
@@ -1330,6 +1401,15 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func joinCalendarEvent(_ event: GoogleCalendarEvent) {
+        guard let meetingURL = event.meetingURL else { return }
+        NSWorkspace.shared.open(meetingURL)
+        analytics.track(
+            "calendar_event_join_clicked",
+            properties: ["provider": .string(event.meetingProvider?.rawValue ?? GoogleMeetingProvider.other.rawValue)]
+        )
+    }
+
     private func prepareMeetingNote(for event: GoogleCalendarEvent) -> MeetingNote {
         var note: MeetingNote
         if let existingIndex = meetingNotes.firstIndex(where: { $0.calendarEventID == event.id }) {
@@ -1391,6 +1471,7 @@ final class AppModel: ObservableObject {
         appearancePreference = preference
         defaults.set(preference.rawValue, forKey: PreferenceKey.appearancePreference)
         applyAppearancePreference()
+        hudController.setAppearancePreference(preference)
         analytics.track("setting_changed", properties: ["setting": "appearancePreference", "value": preference.rawValue])
     }
 
@@ -1819,6 +1900,89 @@ final class AppModel: ObservableObject {
         )
     }
 
+    #if DEBUG
+    func setHUDMotionTuning(_ tuning: HUDMotionTuning) {
+        let sanitized = Self.sanitizedHUDMotionTuning(tuning)
+        guard hudMotionTuning != sanitized else { return }
+        hudMotionTuning = sanitized
+        defaults.set(sanitized.pillResponse, forKey: PreferenceKey.hudPillResponse)
+        defaults.set(sanitized.micFadeOutDuration, forKey: PreferenceKey.hudMicFadeOutDuration)
+        defaults.set(sanitized.appCueFadeInDuration, forKey: PreferenceKey.hudAppCueFadeInDuration)
+        defaults.set(sanitized.waveformFadeInDuration, forKey: PreferenceKey.hudWaveformFadeInDuration)
+        hudController.viewModel.setMotionTuning(sanitized)
+    }
+
+    func resetHUDMotionTuning() {
+        setHUDMotionTuning(.default)
+    }
+
+    private var canPreviewHUDMotion: Bool {
+        if state == .idle { return true }
+        if case .error = state { return true }
+        return false
+    }
+
+    func previewHUDMotionTransition() {
+        guard canPreviewHUDMotion else { return }
+        hudMotionPreviewTask?.cancel()
+        let previewBars = [
+            0.10, 0.22, 0.38, 0.58, 0.76, 0.92, 0.68, 0.48,
+            0.34, 0.62, 0.86, 0.72, 0.52, 0.32, 0.20, 0.12
+        ]
+        hudController.update(with: .logoIdle)
+        hudMotionPreviewTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled,
+                  let self,
+                  self.canPreviewHUDMotion else { return }
+            self.hudController.update(with: HUDState(
+                visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+                subtitle: "",
+                level: 0.7,
+                waveformLevels: previewBars,
+                isVisible: true,
+                showsSubtitle: false
+            ))
+            try? await Task.sleep(for: .milliseconds(1_100))
+            guard !Task.isCancelled, self.canPreviewHUDMotion else { return }
+            self.hudController.update(with: HUDState(
+                visualState: .transcribing,
+                subtitle: "",
+                level: 0,
+                waveformLevels: Array(repeating: 0, count: 16),
+                isVisible: true,
+                showsSubtitle: false
+            ))
+            try? await Task.sleep(for: .milliseconds(850))
+            guard !Task.isCancelled, self.canPreviewHUDMotion else { return }
+            self.hudController.update(with: HUDState(
+                visualState: .copied,
+                subtitle: "",
+                level: 0,
+                waveformLevels: Array(repeating: 0, count: 16),
+                isVisible: true,
+                showsSubtitle: false
+            ))
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled, self.canPreviewHUDMotion else { return }
+            let previewError = "Nothing was captured. Check your microphone and try again."
+            self.hudController.update(with: HUDState(
+                visualState: .error(message: previewError),
+                subtitle: "",
+                level: 0,
+                waveformLevels: Array(repeating: 0, count: 16),
+                isVisible: true,
+                showsSubtitle: false
+            ))
+            try? await Task.sleep(for: .milliseconds(
+                HUDTerminalTiming.displayMilliseconds(for: .error(message: previewError))
+            ))
+            guard !Task.isCancelled, self.canPreviewHUDMotion else { return }
+            self.hudController.update(with: .logoIdle)
+        }
+    }
+    #endif
+
     func setLivePreviewEnabled(_ livePreviewEnabled: Bool) {
         analytics.track("setting_changed", properties: ["setting": "livePreviewEnabled", "value": String(livePreviewEnabled)])
         updateTranscriptionConfiguration { $0.livePreviewEnabled = livePreviewEnabled }
@@ -1832,6 +1996,25 @@ final class AppModel: ObservableObject {
     func setAppAwarePolishingEnabled(_ enabled: Bool) {
         analytics.track("setting_changed", properties: ["setting": "appAwarePolishingEnabled", "value": String(enabled)])
         updateTranscriptionConfiguration { $0.appAwarePolishingEnabled = enabled }
+    }
+
+    func setPressEnterCommandEnabled(_ enabled: Bool) {
+        analytics.track("setting_changed", properties: ["setting": "pressEnterCommandEnabled", "value": String(enabled)])
+        updateTranscriptionConfiguration { $0.pressEnterCommandEnabled = enabled }
+    }
+
+    func setPressEnterCommandPhrase(_ phrase: String) {
+        let sanitized = DictationCommandPhrase.sanitizedForStorage(phrase)
+        analytics.track(
+            "setting_changed",
+            properties: [
+                "setting": "pressEnterCommandPhrase",
+                "value": sanitized.trimmingCharacters(in: .whitespaces).isEmpty
+                    ? "empty"
+                    : (sanitized == DictationCommandPhrase.defaultValue ? "default" : "custom")
+            ]
+        )
+        updateTranscriptionConfiguration { $0.pressEnterCommandPhrase = sanitized }
     }
 
     func setVocabularyText(_ vocabularyText: String) {
@@ -1873,6 +2056,7 @@ final class AppModel: ObservableObject {
     }
 
     func setScribeEnabled(_ isEnabled: Bool) {
+        guard featureFlags.scribeEnabled else { return }
         setHotkeyEnabled(isEnabled, for: .scribe)
     }
 
@@ -1895,6 +2079,7 @@ final class AppModel: ObservableObject {
     }
 
     func setShortcut(_ shortcut: HotkeyConfiguration, for action: HotkeyAction) {
+        guard action != .scribe || featureFlags.scribeEnabled else { return }
         guard action.supports(shortcut) else {
             shortcutValidationMessage = "\(action.displayName) shortcut rejected. \(action.shortcutRuleDescription)"
             return
@@ -2001,6 +2186,28 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func exportTranscriptHistory() {
+        guard !transcriptHistory.isEmpty else { return }
+
+        let panel = NSSavePanel()
+        if let markdownType = UTType(filenameExtension: "md") {
+            panel.allowedContentTypes = [markdownType]
+        }
+        panel.nameFieldStringValue = "Cadence-Dictation-History.md"
+        panel.message = "This export is saved only where you choose. Cadence does not upload it."
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try TranscriptHistoryMarkdownFormatter.markdown(for: transcriptHistory)
+                .write(to: url, atomically: true, encoding: .utf8)
+            lastError = nil
+        } catch {
+            lastError = "Cadence could not save your dictation history."
+        }
+    }
+
     func setAnalyticsEnabled(_ isEnabled: Bool) {
         guard analyticsEnabled != isEnabled else { return }
         analyticsEnabled = isEnabled
@@ -2098,10 +2305,20 @@ final class AppModel: ObservableObject {
         return false
     }
 
-    func setDictationSoundFeedbackEnabled(_ enabled: Bool) {
-        guard dictationSoundFeedbackEnabled != enabled else { return }
-        dictationSoundFeedbackEnabled = enabled
-        DictationSoundFeedbackPreference.set(
+    func setDictationActivationSoundEnabled(_ enabled: Bool) {
+        guard dictationActivationSoundEnabled != enabled else { return }
+        dictationActivationSoundEnabled = enabled
+        DictationSoundFeedbackPreference.setActivation(
+            enabled,
+            defaults: defaults,
+            service: feedbackService
+        )
+    }
+
+    func setDictationCompletionSoundEnabled(_ enabled: Bool) {
+        guard dictationCompletionSoundEnabled != enabled else { return }
+        dictationCompletionSoundEnabled = enabled
+        DictationSoundFeedbackPreference.setCompletion(
             enabled,
             defaults: defaults,
             service: feedbackService
@@ -2269,6 +2486,7 @@ final class AppModel: ObservableObject {
     }
 
     func presentScribeProviderSetup() {
+        guard featureFlags.scribeEnabled else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.scribeCoordinator.cancel()
@@ -2658,6 +2876,7 @@ final class AppModel: ObservableObject {
     }
 
     func selectSettingsCategory(_ category: SettingsCategoryID) {
+        let category = category.normalized(scribeEnabled: featureFlags.scribeEnabled)
         updateSettingsPresentation(.init(
             selectedCategory: category,
             isAdvancedExpanded: settingsPresentationState.isAdvancedExpanded
@@ -3021,6 +3240,7 @@ final class AppModel: ObservableObject {
     }
 
     func showScribe() {
+        guard featureFlags.scribeEnabled else { return }
         guard revalidateAdaptiveScribeReaders() else { return }
         guard case .ready = scribeProviderReadiness else {
             presentScribeProviderSetup()
@@ -3599,12 +3819,9 @@ final class AppModel: ObservableObject {
             ]
         )
         trackFirstSuccessfulDictationIfNeeded(item: item, wordCount: wordCount)
-        transcriptHistory.insert(item, at: 0)
+        transcriptHistory = TranscriptHistoryPolicy.inserting(item, into: transcriptHistory)
         lastTrackedCorrectionTranscriptID = nil
         lastTrackedCorrectionSessionID = nil
-        if transcriptHistory.count > 20 {
-            transcriptHistory = Array(transcriptHistory.prefix(20))
-        }
         persistTranscriptHistory()
         refreshHUDCanCopyLast()
     }
@@ -4345,6 +4562,8 @@ final class AppModel: ObservableObject {
         defaults.set(configuration.livePreviewEnabled, forKey: PreferenceKey.livePreviewEnabled)
         defaults.set(configuration.tapStopsOnNextKeyPress, forKey: PreferenceKey.tapStopsOnNextKeyPress)
         defaults.set(configuration.appAwarePolishingEnabled, forKey: PreferenceKey.appAwarePolishingEnabled)
+        defaults.set(configuration.pressEnterCommandEnabled, forKey: PreferenceKey.pressEnterCommandEnabled)
+        defaults.set(configuration.pressEnterCommandPhrase, forKey: PreferenceKey.pressEnterCommandPhrase)
         defaults.set(configuration.vocabularyText, forKey: PreferenceKey.vocabularyText)
     }
 
@@ -4407,6 +4626,18 @@ final class AppModel: ObservableObject {
             configuration.appAwarePolishingEnabled = defaults.bool(forKey: PreferenceKey.appAwarePolishingEnabled)
         }
 
+        if defaults.object(forKey: PreferenceKey.pressEnterCommandEnabled) != nil {
+            configuration.pressEnterCommandEnabled = defaults.bool(forKey: PreferenceKey.pressEnterCommandEnabled)
+        }
+
+        if let pressEnterCommandPhrase = defaults.string(
+            forKey: PreferenceKey.pressEnterCommandPhrase
+        ) {
+            configuration.pressEnterCommandPhrase = DictationCommandPhrase.sanitizedForStorage(
+                pressEnterCommandPhrase
+            )
+        }
+
         if let vocabularyText = defaults.string(forKey: PreferenceKey.vocabularyText) {
             configuration.vocabularyText = vocabularyText
         }
@@ -4443,6 +4674,33 @@ final class AppModel: ObservableObject {
             return WaveformSensitivityTuning.defaultValue
         }
         return sanitizedWaveformSensitivity(defaults.double(forKey: PreferenceKey.waveformSensitivity))
+    }
+
+    private static func loadHUDMotionTuning(defaults: UserDefaults) -> HUDMotionTuning {
+        let fallback = HUDMotionTuning.default
+        return sanitizedHUDMotionTuning(HUDMotionTuning(
+            pillResponse: defaults.object(forKey: PreferenceKey.hudPillResponse) == nil
+                ? fallback.pillResponse
+                : defaults.double(forKey: PreferenceKey.hudPillResponse),
+            micFadeOutDuration: defaults.object(forKey: PreferenceKey.hudMicFadeOutDuration) == nil
+                ? fallback.micFadeOutDuration
+                : defaults.double(forKey: PreferenceKey.hudMicFadeOutDuration),
+            appCueFadeInDuration: defaults.object(forKey: PreferenceKey.hudAppCueFadeInDuration) == nil
+                ? fallback.appCueFadeInDuration
+                : defaults.double(forKey: PreferenceKey.hudAppCueFadeInDuration),
+            waveformFadeInDuration: defaults.object(forKey: PreferenceKey.hudWaveformFadeInDuration) == nil
+                ? fallback.waveformFadeInDuration
+                : defaults.double(forKey: PreferenceKey.hudWaveformFadeInDuration)
+        ))
+    }
+
+    private static func sanitizedHUDMotionTuning(_ tuning: HUDMotionTuning) -> HUDMotionTuning {
+        HUDMotionTuning(
+            pillResponse: min(0.60, max(0.18, tuning.pillResponse)),
+            micFadeOutDuration: min(0.30, max(0.04, tuning.micFadeOutDuration)),
+            appCueFadeInDuration: min(0.40, max(0.04, tuning.appCueFadeInDuration)),
+            waveformFadeInDuration: min(0.50, max(0.06, tuning.waveformFadeInDuration))
+        )
     }
 
     private static func sanitizedWaveformSensitivity(_ sensitivity: Double) -> Double {
@@ -4608,7 +4866,7 @@ final class AppModel: ObservableObject {
             return "Nothing was picked up. Try speaking a little louder or closer to the mic."
         }
         if raw.contains("Press To Start/Stop shortcut rejected") {
-            return "Press to Start/Stop needs 3 or more keys. Try something like Control + Option + Space."
+            return "Toggle Recording needs 2 or more keys. Try Control + Option."
         }
         if raw.contains("Hold To Talk shortcut rejected") {
             return "Hold To Talk works best with 1 or 2 modifier keys."

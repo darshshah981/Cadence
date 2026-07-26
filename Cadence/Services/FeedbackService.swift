@@ -9,8 +9,16 @@ private let feedbackLogger = Logger(
 
 @MainActor
 protocol FeedbackServing: AnyObject {
-    var isEnabled: Bool { get set }
+    var isActivationEnabled: Bool { get set }
+    var isCompletionEnabled: Bool { get set }
     func playActivationSound()
+    func playCompletionSound()
+}
+
+extension FeedbackServing {
+    func playCompletionSound() {
+        playActivationSound()
+    }
 }
 
 enum DictationActivationFeedbackEvent: Equatable {
@@ -45,36 +53,72 @@ final class DictationActivationFeedbackGate {
 }
 
 enum DictationSoundFeedbackPreference {
-    static let key = "Cadence.dictationSoundFeedbackEnabled"
+    static let legacyKey = "Cadence.dictationSoundFeedbackEnabled"
+    static let activationKey = "Cadence.dictationActivationSoundEnabled"
+    static let completionKey = "Cadence.dictationCompletionSoundEnabled"
 
-    static func load(from defaults: UserDefaults) -> Bool {
-        (defaults.object(forKey: key) as? Bool) ?? true
+    static func loadActivation(from defaults: UserDefaults) -> Bool {
+        load(key: activationKey, from: defaults)
+    }
+
+    static func loadCompletion(from defaults: UserDefaults) -> Bool {
+        load(key: completionKey, from: defaults)
+    }
+
+    private static func load(key: String, from defaults: UserDefaults) -> Bool {
+        if let value = defaults.object(forKey: key) as? Bool {
+            return value
+        }
+        return (defaults.object(forKey: legacyKey) as? Bool) ?? true
     }
 
     @MainActor
-    static func set(
+    static func setActivation(
         _ enabled: Bool,
         defaults: UserDefaults,
         service: FeedbackServing
     ) {
-        defaults.set(enabled, forKey: key)
-        service.isEnabled = enabled
+        defaults.set(enabled, forKey: activationKey)
+        service.isActivationEnabled = enabled
+    }
+
+    @MainActor
+    static func setCompletion(
+        _ enabled: Bool,
+        defaults: UserDefaults,
+        service: FeedbackServing
+    ) {
+        defaults.set(enabled, forKey: completionKey)
+        service.isCompletionEnabled = enabled
     }
 }
 
 final class SoundFeedbackService: FeedbackServing {
-    var isEnabled: Bool
+    var isActivationEnabled: Bool
+    var isCompletionEnabled: Bool
 
     private let soundName = "Tink"
+    private let completionSoundName = "Pop"
 
-    init(isEnabled: Bool = true) {
-        self.isEnabled = isEnabled
+    init(isActivationEnabled: Bool = true, isCompletionEnabled: Bool = true) {
+        self.isActivationEnabled = isActivationEnabled
+        self.isCompletionEnabled = isCompletionEnabled
     }
 
     func playActivationSound() {
-        guard isEnabled else { return }
+        guard isActivationEnabled else { return }
         guard let sound = NSSound(named: soundName) else {
             feedbackLogger.warning("Activation sound '\(self.soundName, privacy: .public)' not found")
+            return
+        }
+        sound.play()
+    }
+
+    func playCompletionSound() {
+        guard isCompletionEnabled else { return }
+        guard let sound = NSSound(named: completionSoundName) else {
+            guard let fallback = NSSound(named: soundName) else { return }
+            fallback.play()
             return
         }
         sound.play()

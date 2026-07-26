@@ -7,6 +7,7 @@ enum FlowTheme {
     static let border = Color(dynamicLight: 0xECE8DD, dark: 0x2E2E28)
     static let borderStrong = Color(dynamicLight: 0xC4C0B6, dark: 0x545048)
     static let textPrimary = Color(dynamicLight: 0x1B1B19, dark: 0xEDEAE0)
+    static let brandText = Color(dynamicLight: 0x1B1B19, dark: 0xFFFFFF)
     static let textSecondary = Color(dynamicLight: 0x6B6B66, dark: 0x9A968A)
     static let textTertiary = Color(dynamicLight: 0xA8A8A0, dark: 0x5D5A52)
     static let placeholder = Color(dynamicLight: 0xA8A8A0, dark: 0x5D5A52)
@@ -20,6 +21,35 @@ enum FlowTheme {
     static let tealSubtle = Color(dynamicLight: 0xE0EAE0, dark: 0x243328)
     static let error = Color(dynamicLight: 0xB84A3A, dark: 0xD17563)
     static let errorSubtle = Color(dynamicLight: 0xF5E3DE, dark: 0x33201C)
+}
+
+struct HUDChromeStyle: Equatable, Sendable {
+    let surfaceHex: UInt32
+    let surfaceOpacity: Double
+    let borderHex: UInt32
+    let borderOpacity: Double
+
+    static func resolve(
+        isDark: Bool,
+        reduceTransparency: Bool,
+        increasedContrast: Bool
+    ) -> HUDChromeStyle {
+        if isDark {
+            return HUDChromeStyle(
+                surfaceHex: increasedContrast ? 0x151619 : 0x202124,
+                surfaceOpacity: reduceTransparency ? 1 : (increasedContrast ? 0.96 : 0.88),
+                borderHex: 0xFFFFFF,
+                borderOpacity: increasedContrast ? 0.24 : 0.14
+            )
+        }
+
+        return HUDChromeStyle(
+            surfaceHex: increasedContrast ? 0xFFFFFF : 0xF8F7F3,
+            surfaceOpacity: reduceTransparency ? 1 : (increasedContrast ? 0.96 : 0.78),
+            borderHex: 0x000000,
+            borderOpacity: increasedContrast ? 0.20 : 0.10
+        )
+    }
 }
 
 enum FlowMotion {
@@ -167,6 +197,7 @@ extension View {
 
 enum CadenceControlInteraction: Equatable, Sendable {
     case discreteMenu
+    case segmentedSelector
     case continuousSlider
 }
 
@@ -176,9 +207,10 @@ struct CadenceControlSemantic: Equatable, Sendable {
 }
 
 enum CadenceControlSemantics {
-    static let quality = CadenceControlSemantic(interaction: .discreteMenu, isAccessibilityAdjustable: false)
-    static let searchDepth = CadenceControlSemantic(interaction: .discreteMenu, isAccessibilityAdjustable: false)
-    static let fillerWords = CadenceControlSemantic(interaction: .discreteMenu, isAccessibilityAdjustable: false)
+    static let quality = CadenceControlSemantic(interaction: .segmentedSelector, isAccessibilityAdjustable: false)
+    static let meetingCaptureSource = CadenceControlSemantic(interaction: .segmentedSelector, isAccessibilityAdjustable: false)
+    static let searchDepth = CadenceControlSemantic(interaction: .segmentedSelector, isAccessibilityAdjustable: false)
+    static let fillerWords = CadenceControlSemantic(interaction: .segmentedSelector, isAccessibilityAdjustable: false)
     static let recognitionModel = CadenceControlSemantic(interaction: .discreteMenu, isAccessibilityAdjustable: false)
     static let slackBehavior = CadenceControlSemantic(interaction: .discreteMenu, isAccessibilityAdjustable: false)
     static let waveformSensitivity = CadenceControlSemantic(interaction: .continuousSlider, isAccessibilityAdjustable: true)
@@ -192,6 +224,7 @@ struct CadenceDiscretePicker<SelectionValue: Hashable, Content: View>: View {
     var body: some View {
         Picker(title, selection: $selection) { content }
             .pickerStyle(.menu)
+            .controlSize(.small)
     }
 }
 
@@ -203,7 +236,7 @@ struct CadenceToggle: View {
     var body: some View {
         Toggle(title, isOn: $isOn)
             .toggleStyle(.switch)
-            .tint(FlowTheme.teal)
+            .controlSize(.small)
             .modifier(OptionalAccessibilityIdentifier(identifier: accessibilityIdentifier))
     }
 }
@@ -216,18 +249,18 @@ struct CadenceSettingsPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(FlowTheme.background)
-            .padding(.horizontal, 14)
-            .frame(minHeight: 32)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 28)
             .background(
                 configuration.isPressed
                     ? FlowTheme.accentPressed
                     : (isHovered ? FlowTheme.accent.opacity(0.86) : FlowTheme.accent),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .stroke(
                         isFocused ? FlowTheme.teal : FlowTheme.accentBorder.opacity(configuration.isPressed ? 0.8 : 0.35),
                         lineWidth: isFocused ? 2 : 1
@@ -293,6 +326,7 @@ struct CadenceDropdownRow<SelectionValue: Hashable, Content: View>: View {
             Picker(title, selection: $selection) { content }
                 .labelsHidden()
                 .pickerStyle(.menu)
+                .controlSize(.small)
                 .accessibilityLabel(title)
                 .accessibilityIdentifier(accessibilityIdentifier)
         }
@@ -324,7 +358,8 @@ struct CadenceFieldRow: View {
     var body: some View {
         CadenceLabeledControl(title: title, detail: detail) {
             TextField(placeholder, text: $text)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .cadenceSettingsFieldChrome()
                 .accessibilityLabel(title)
                 .accessibilityIdentifier(accessibilityIdentifier)
         }
@@ -355,7 +390,8 @@ struct CadenceSecureFieldRow: View {
     var body: some View {
         CadenceLabeledControl(title: title, detail: detail) {
             SecureField(placeholder, text: $text)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .cadenceSettingsFieldChrome()
                 .accessibilityLabel(title)
                 .accessibilityIdentifier(accessibilityIdentifier)
         }
@@ -375,10 +411,10 @@ struct CadenceTextEditorRow: View {
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: minimumHeight)
                 .padding(CadenceDesignMetrics.spacingS)
-                .background(FlowTheme.background, in: RoundedRectangle(cornerRadius: CadenceDesignMetrics.radiusS))
+                .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: CadenceDesignMetrics.radiusS))
                 .overlay {
                     RoundedRectangle(cornerRadius: CadenceDesignMetrics.radiusS)
-                        .stroke(FlowTheme.border, lineWidth: 1)
+                        .stroke(FlowTheme.borderStrong.opacity(0.72), lineWidth: 1)
                 }
                 .accessibilityLabel(title)
                 .accessibilityIdentifier(accessibilityIdentifier)
@@ -473,6 +509,7 @@ struct CadenceSensitivitySlider: View {
     let minimumLabel: String
     let maximumLabel: String
     let accessibilityIdentifier: String
+    let showsTitle: Bool
 
     init(
         title: String,
@@ -481,7 +518,8 @@ struct CadenceSensitivitySlider: View {
         step: Double,
         minimumLabel: String,
         maximumLabel: String,
-        accessibilityIdentifier: String = "cadence-sensitivity-slider"
+        accessibilityIdentifier: String = "cadence-sensitivity-slider",
+        showsTitle: Bool = true
     ) {
         self.title = title
         _value = value
@@ -490,11 +528,14 @@ struct CadenceSensitivitySlider: View {
         self.minimumLabel = minimumLabel
         self.maximumLabel = maximumLabel
         self.accessibilityIdentifier = accessibilityIdentifier
+        self.showsTitle = showsTitle
     }
 
     var body: some View {
         Slider(value: $value, in: range, step: step) {
-            Text(title)
+            if showsTitle {
+                Text(title)
+            }
         } minimumValueLabel: {
             Text(minimumLabel)
         } maximumValueLabel: {
@@ -502,6 +543,31 @@ struct CadenceSensitivitySlider: View {
         }
         .accessibilityLabel(title)
         .accessibilityIdentifier(accessibilityIdentifier)
+        .controlSize(.small)
+    }
+}
+
+private struct CadenceSettingsFieldChrome: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: 12))
+            .foregroundStyle(FlowTheme.textPrimary)
+            .padding(.horizontal, 10)
+            .frame(minHeight: 30)
+            .background(
+                FlowTheme.elevated,
+                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(FlowTheme.borderStrong.opacity(0.72), lineWidth: 1)
+            )
+    }
+}
+
+extension View {
+    func cadenceSettingsFieldChrome() -> some View {
+        modifier(CadenceSettingsFieldChrome())
     }
 }
 

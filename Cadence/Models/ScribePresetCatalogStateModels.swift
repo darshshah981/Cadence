@@ -44,10 +44,31 @@ enum SettingsCategoryID: String, CaseIterable, Codable, Equatable, Sendable {
     case general
     case dictation
     case scribe
+    case meetings
     case apps
     case providers
     case privacy
     case advanced
+
+    static func visibleCategories(scribeEnabled: Bool) -> [SettingsCategoryID] {
+        var categories: [SettingsCategoryID] = [.general, .dictation]
+        if scribeEnabled {
+            categories.append(.scribe)
+        }
+        categories.append(contentsOf: [.meetings, .apps, .privacy, .advanced])
+        return categories
+    }
+
+    func normalized(scribeEnabled: Bool) -> SettingsCategoryID {
+        switch self {
+        case .providers:
+            return .apps
+        case .scribe where !scribeEnabled:
+            return .general
+        default:
+            return self
+        }
+    }
 }
 
 struct SettingsPresentationState: Codable, Equatable, Sendable {

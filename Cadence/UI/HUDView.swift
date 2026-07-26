@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct HUDAdaptiveShape: Shape {
@@ -57,31 +58,105 @@ struct HUDContentAttachment {
     }
 }
 
+enum HUDForegroundMaskLayout {
+    static func frame(
+        position: HUDPosition,
+        targetWidth: CGFloat,
+        renderedWidth: CGFloat
+    ) -> CGRect {
+        let visibleWidth = max(0, min(targetWidth, renderedWidth))
+        let paddedWidth = max(0, visibleWidth - HUDContentSizing.horizontalPadding)
+        let visibleOriginX: CGFloat
+        switch position {
+        case .topLeft, .bottomLeft:
+            visibleOriginX = 0
+        case .topRight, .bottomRight:
+            visibleOriginX = targetWidth - visibleWidth
+        case .bottomCenter:
+            visibleOriginX = (targetWidth - visibleWidth) / 2
+        }
+
+        let x: CGFloat
+        switch position {
+        case .topLeft, .bottomLeft, .bottomCenter:
+            x = visibleOriginX
+        case .topRight, .bottomRight:
+            x = visibleOriginX + HUDContentSizing.horizontalPadding
+        }
+
+        return CGRect(
+            x: x,
+            y: (HUDMetrics.panelHeight - HUDMetrics.pillHeight) / 2,
+            width: paddedWidth,
+            height: HUDMetrics.pillHeight
+        )
+    }
+}
+
+enum HUDRestingMicrophoneLayout {
+    static func centerX(position: HUDPosition, containerWidth: CGFloat) -> CGFloat {
+        switch position {
+        case .topLeft, .bottomLeft:
+            return HUDMetrics.idleHitSize.width / 2
+        case .topRight, .bottomRight:
+            return containerWidth - HUDMetrics.idleHitSize.width / 2
+        case .bottomCenter:
+            return containerWidth / 2
+        }
+    }
+}
+
 struct HUDView: View {
     @ObservedObject var model: HUDViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
         ZStack(alignment: attachment.alignment) {
-            if let previous = model.previousPresentation {
-                content(for: previous)
-                    .opacity(1 - model.morphProgress)
-                    .scaleEffect(
-                        x: 1 - 0.04 * model.morphProgress,
-                        y: 1,
-                        anchor: attachment.anchor
-                    )
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
+            if !model.presentation.isExpanded {
+                pillChrome
+                    .frame(width: morphWidth, height: HUDMetrics.pillHeight)
+                    .frame(width: morphWidth, height: HUDMetrics.panelHeight, alignment: .center)
             }
 
-            content(for: model.presentation)
-                .opacity(model.previousPresentation == nil ? 1 : model.morphProgress)
-                .scaleEffect(
-                    x: model.previousPresentation == nil ? 1 : 0.96 + 0.04 * model.morphProgress,
-                    y: 1,
-                    anchor: attachment.anchor
+            if let previous = model.previousPresentation,
+               model.isReplacingStatusContent {
+                replacingStatusPill(
+                    from: previous,
+                    to: model.presentation,
+                    renderedWidth: morphWidth
                 )
+            } else {
+                if let previous = model.previousPresentation {
+                    content(
+                        for: previous,
+                        isIncoming: false,
+                        renderedWidth: morphWidth,
+                        hidesApplicationMark: model.isCollapsingToRestingMic
+                    )
+                        .opacity(outgoingOpacity(for: previous))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+
+                content(
+                    for: model.presentation,
+                    isIncoming: model.previousPresentation != nil,
+                    renderedWidth: morphWidth,
+                    hidesApplicationMark: false
+                )
+                    .opacity(incomingOpacity)
+            }
+
+            if let previous = model.previousPresentation,
+               model.isCollapsingToRestingMic {
+                reverseMorphingApplicationMark(
+                    sourceWidth: model.targetWidth(for: previous),
+                    renderedWidth: morphWidth
+                )
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: attachment.alignment)
         .clipped()
@@ -95,47 +170,145 @@ struct HUDView: View {
     }
 
     @ViewBuilder
-    private func content(for presentation: HUDPresentation) -> some View {
+    private func content(
+        for presentation: HUDPresentation,
+        isIncoming: Bool,
+        renderedWidth: CGFloat,
+        hidesApplicationMark: Bool
+    ) -> some View {
         switch presentation.visualState {
         case .idle:
             if presentation.isExpanded {
                 IdleExpandedTray(model: model)
             } else {
-                microphonePill
+                microphonePill(
+                    iconOpacity: model.isCollapsingToRestingMic ? 0 : 1
+                )
             }
         case .recording(let triggerMode, let showsHint):
-            recordingPill(triggerMode: triggerMode, showsHint: showsHint)
+            recordingPill(
+                triggerMode: triggerMode,
+                showsHint: showsHint,
+                revealsContent: isIncoming && model.shouldMorphApplicationMark,
+                hidesApplicationMark: hidesApplicationMark,
+                renderedWidth: renderedWidth
+            )
         case .preparingModel:
-            statusPill(icon: .spinner, text: "Setting up speech model…")
+            statusPill(
+                icon: .spinner,
+                text: "Setting up speech model…",
+                targetWidth: model.targetWidth(for: presentation),
+                renderedWidth: renderedWidth,
+                hidesApplicationMark: hidesApplicationMark
+            )
         case .transcribing:
-            statusPill(icon: .spinner, text: "Transcribing…")
+            statusPill(
+                icon: .spinner,
+                text: "Transcribing",
+                targetWidth: model.targetWidth(for: presentation),
+                renderedWidth: renderedWidth,
+                hidesApplicationMark: hidesApplicationMark
+            )
         case .inserting:
-            statusPill(icon: .spinner, text: "Inserting…")
+            statusPill(
+                icon: .spinner,
+                text: "Inserting…",
+                targetWidth: model.targetWidth(for: presentation),
+                renderedWidth: renderedWidth,
+                hidesApplicationMark: hidesApplicationMark
+            )
+        case .copying:
+            statusPill(
+                icon: .spinner,
+                text: "Copying…",
+                targetWidth: model.targetWidth(for: presentation),
+                renderedWidth: renderedWidth,
+                hidesApplicationMark: hidesApplicationMark
+            )
+        case .copied:
+            statusPill(
+                icon: .success,
+                text: "Copied",
+                targetWidth: model.targetWidth(for: presentation),
+                renderedWidth: renderedWidth,
+                hidesApplicationMark: hidesApplicationMark
+            )
         case .success:
-            statusPill(icon: .success, text: "Inserted")
+            statusPill(
+                icon: .success,
+                text: "Inserted",
+                targetWidth: model.targetWidth(for: presentation),
+                renderedWidth: renderedWidth,
+                hidesApplicationMark: hidesApplicationMark
+            )
         case .cancelled:
-            statusPill(icon: .cancelled, text: "Cancelled")
+            statusPill(
+                icon: .cancelled,
+                text: "Cancelled",
+                targetWidth: model.targetWidth(for: presentation),
+                renderedWidth: renderedWidth,
+                hidesApplicationMark: hidesApplicationMark
+            )
         case .error(let message):
-            statusPill(icon: .error, text: message)
+            statusPill(
+                icon: .error,
+                text: message,
+                targetWidth: model.targetWidth(for: presentation),
+                renderedWidth: renderedWidth,
+                hidesApplicationMark: hidesApplicationMark
+            )
         }
     }
 
-    private var microphonePill: some View {
+    private var morphWidth: CGFloat {
+        model.renderedWidth
+    }
+
+    private func outgoingOpacity(for presentation: HUDPresentation) -> Double {
+        if model.isCollapsingToRestingMic {
+            // The padded mask supplies the physical wipe while this shorter
+            // fade prevents text and waveform fragments from looking clipped.
+            // The moving app-icon-to-mic crossfade continues after this ends.
+            return HUDMotion.collapsingContentOpacity(
+                elapsed: model.morphElapsed,
+                pillResponse: model.motionTuning.pillResponse
+            )
+        }
+        if model.isReplacingActiveContent {
+            return HUDActiveContentTransition.outgoingOpacity(
+                elapsed: model.morphElapsed
+            )
+        }
+        guard presentation.visualState == .idle else {
+            return 1 - model.morphProgress
+        }
+        return 1 - HUDMotion.smoothProgress(
+            elapsed: model.morphElapsed,
+            duration: model.motionTuning.micFadeOutDuration
+        )
+    }
+
+    private var incomingOpacity: Double {
+        if model.isReplacingActiveContent {
+            return HUDActiveContentTransition.incomingOpacity(
+                elapsed: model.morphElapsed
+            )
+        }
+        return HUDMotion.incomingOpacity(
+            for: model.presentation,
+            hasPreviousPresentation: model.previousPresentation != nil,
+            elapsed: model.morphElapsed,
+            duration: min(0.16, model.motionTuning.pillResponse)
+        )
+    }
+
+    private func microphonePill(iconOpacity: Double) -> some View {
         ZStack {
             Color.clear
-            Capsule(style: .continuous)
-                .fill(.ultraThinMaterial)
-                .frame(width: HUDMetrics.idleMarkSize.width, height: HUDMetrics.idleMarkSize.height)
-                .overlay {
-                    Capsule(style: .continuous)
-                        .stroke(Color.primary.opacity(0.14), lineWidth: 0.75)
-                }
-                .shadow(color: .black.opacity(0.16), radius: 8, y: 3)
-                .overlay {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(FlowTheme.textPrimary)
-                }
+            Image(systemName: "mic.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(FlowTheme.textPrimary)
+                .opacity(iconOpacity)
         }
             .frame(width: HUDMetrics.idleHitSize.width, height: HUDMetrics.idleHitSize.height)
             .overlay {
@@ -173,38 +346,331 @@ struct HUDView: View {
         HUDContentAttachment.forPosition(model.position)
     }
 
-    private func recordingPill(triggerMode: DictationTriggerMode, showsHint: Bool) -> some View {
-        HStack(spacing: 10) {
-            applicationCue
+    private func recordingPill(
+        triggerMode: DictationTriggerMode,
+        showsHint: Bool,
+        revealsContent: Bool,
+        hidesApplicationMark: Bool,
+        renderedWidth: CGFloat
+    ) -> some View {
+        let targetWidth = pillWidth(triggerMode: triggerMode, showsHint: showsHint)
+        return ZStack(alignment: horizontalAlignment) {
+            HStack(spacing: HUDContentSizing.contentGap) {
+                if usesTrailingAttachment {
+                    applicationCue(hidesIcon: revealsContent || hidesApplicationMark)
+                        .opacity(revealsContent ? applicationCueReveal : 1)
 
-            if triggerMode.showsLockIndicator {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(FlowTheme.accent)
-                    .accessibilityHidden(true)
+                    recordingActivity(
+                        triggerMode: triggerMode,
+                        showsHint: showsHint,
+                        revealsContent: revealsContent
+                    )
+                } else {
+                    recordingActivity(
+                        triggerMode: triggerMode,
+                        showsHint: showsHint,
+                        revealsContent: revealsContent
+                    )
+
+                    applicationCue(hidesIcon: revealsContent || hidesApplicationMark)
+                        .opacity(revealsContent ? applicationCueReveal : 1)
+                }
+            }
+            .padding(.horizontal, HUDContentSizing.horizontalPadding)
+            .frame(width: targetWidth, height: HUDMetrics.pillHeight)
+            .offset(x: foregroundTravelOffset(revealsContent: revealsContent))
+            .compositingGroup()
+            .mask {
+                foregroundMask(targetWidth: targetWidth, renderedWidth: renderedWidth)
             }
 
-            WaveformCanvasView(levels: model.displayBars)
-                .frame(width: HUDMetrics.waveformWidth, height: HUDMetrics.waveformHeight)
-
-            if triggerMode == .holdToTalk, showsHint {
-                Text("Release to stop")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(FlowTheme.textSecondary)
-                    .lineLimit(1)
-                    .fixedSize()
+            if revealsContent {
+                morphingApplicationMark(targetWidth: targetWidth, renderedWidth: renderedWidth)
             }
         }
-        .padding(.horizontal, 14)
-        .frame(width: pillWidth(triggerMode: triggerMode, showsHint: showsHint), height: HUDMetrics.pillHeight)
-        .background(pillBackground)
-        .overlay(pillStroke)
+        .frame(width: targetWidth, height: HUDMetrics.panelHeight, alignment: horizontalAlignment)
     }
 
-    private func statusPill(icon: StatusIcon, text: String) -> some View {
-        HStack(spacing: 8) {
-            applicationCue
+    private var horizontalAlignment: Alignment {
+        switch model.position {
+        case .bottomCenter:
+            return .center
+        case .topLeft, .bottomLeft:
+            return .leading
+        case .topRight, .bottomRight:
+            return .trailing
+        }
+    }
 
+    private var usesTrailingAttachment: Bool {
+        switch model.position {
+        case .topRight, .bottomRight:
+            return true
+        case .bottomCenter, .topLeft, .bottomLeft:
+            return false
+        }
+    }
+
+    @ViewBuilder
+    private func recordingActivity(
+        triggerMode: DictationTriggerMode,
+        showsHint: Bool,
+        revealsContent: Bool
+    ) -> some View {
+        if triggerMode == .holdToTalk, showsHint {
+            Text("Release to stop")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(FlowTheme.textSecondary)
+                .lineLimit(1)
+                .fixedSize()
+        }
+
+        WaveformCanvasView(levels: model.displayBars)
+            .frame(width: HUDMetrics.waveformWidth, height: HUDMetrics.waveformHeight)
+            .opacity(revealsContent ? waveformReveal : 1)
+    }
+
+    private var applicationCueReveal: Double {
+        HUDMotion.smoothProgress(
+            elapsed: model.morphElapsed,
+            duration: model.motionTuning.appCueFadeInDuration
+        )
+    }
+
+    private var waveformReveal: Double {
+        HUDMotion.smoothProgress(
+            elapsed: model.morphElapsed,
+            duration: model.motionTuning.waveformFadeInDuration
+        )
+    }
+
+    private func foregroundTravelOffset(revealsContent: Bool) -> CGFloat {
+        guard revealsContent, !model.isReducedMotionEnabled else { return 0 }
+        let remaining = CGFloat(1 - model.morphProgress)
+        switch model.position {
+        case .topLeft, .bottomLeft:
+            return -HUDMotion.foregroundTravelDistance * remaining
+        case .topRight, .bottomRight:
+            return HUDMotion.foregroundTravelDistance * remaining
+        case .bottomCenter:
+            return 0
+        }
+    }
+
+    private func foregroundMask(
+        targetWidth: CGFloat,
+        renderedWidth: CGFloat
+    ) -> some View {
+        let frame = HUDForegroundMaskLayout.frame(
+            position: model.position,
+            targetWidth: targetWidth,
+            renderedWidth: renderedWidth
+        )
+        return ZStack(alignment: .topLeading) {
+            Rectangle()
+                .frame(width: frame.width, height: frame.height)
+                .offset(x: frame.minX, y: frame.minY)
+        }
+        .frame(width: targetWidth, height: HUDMetrics.panelHeight)
+    }
+
+    private func morphingApplicationMark(
+        targetWidth: CGFloat,
+        renderedWidth: CGFloat
+    ) -> some View {
+        let progress = model.morphProgress
+        let edgeIconCenter = HUDContentSizing.horizontalPadding
+            + HUDContentSizing.iconSize / 2
+        let startX: CGFloat
+        let endX: CGFloat
+        switch model.position {
+        case .topRight, .bottomRight:
+            startX = targetWidth - HUDMetrics.idleHitSize.width / 2
+            endX = edgeIconCenter
+        case .topLeft, .bottomLeft:
+            startX = HUDMetrics.idleHitSize.width / 2
+            endX = targetWidth - edgeIconCenter
+        case .bottomCenter:
+            startX = targetWidth / 2
+            endX = edgeIconCenter
+        }
+        let iconX = HUDMotion.interpolateWidth(from: startX, to: endX, progress: progress)
+
+        return ZStack(alignment: .topLeading) {
+            applicationMark(size: NSSize(width: 16, height: 16))
+                .scaleEffect(0.82 + 0.18 * progress)
+                .opacity(applicationCueReveal)
+                .position(x: iconX, y: HUDMetrics.panelHeight / 2)
+        }
+        .frame(width: targetWidth, height: HUDMetrics.panelHeight)
+        .frame(width: renderedWidth, alignment: horizontalAlignment)
+        .clipped()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func reverseMorphingApplicationMark(
+        sourceWidth: CGFloat,
+        renderedWidth: CGFloat
+    ) -> some View {
+        let progress = model.morphProgress
+        let micProgress = HUDMotion.smoothProgress(
+            elapsed: model.morphElapsed,
+            duration: min(0.22, model.motionTuning.pillResponse * 0.72)
+        )
+        let edgeIconCenter = HUDContentSizing.horizontalPadding
+            + HUDContentSizing.iconSize / 2
+        let startX: CGFloat
+        let endX = HUDRestingMicrophoneLayout.centerX(
+            position: model.position,
+            containerWidth: sourceWidth
+        )
+        switch model.position {
+        case .topRight, .bottomRight:
+            startX = edgeIconCenter
+        case .topLeft, .bottomLeft:
+            startX = sourceWidth - edgeIconCenter
+        case .bottomCenter:
+            startX = sourceWidth - edgeIconCenter
+        }
+        let iconX = HUDMotion.interpolateWidth(from: startX, to: endX, progress: progress)
+
+        return ZStack(alignment: .topLeading) {
+            ZStack {
+                applicationMark(size: NSSize(width: 16, height: 16))
+                    .opacity(1 - micProgress)
+
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                    .opacity(micProgress)
+            }
+            .position(x: iconX, y: HUDMetrics.panelHeight / 2)
+        }
+        .frame(width: sourceWidth, height: HUDMetrics.panelHeight)
+        .frame(width: renderedWidth, alignment: horizontalAlignment)
+        .clipped()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func statusPill(
+        icon: StatusIcon,
+        text: String,
+        targetWidth: CGFloat,
+        renderedWidth: CGFloat,
+        hidesApplicationMark: Bool
+    ) -> some View {
+        ZStack(alignment: horizontalAlignment) {
+            HStack(spacing: HUDContentSizing.contentGap) {
+                if usesTrailingAttachment {
+                    applicationCue(hidesIcon: hidesApplicationMark)
+                    statusActivity(icon: icon, text: text)
+                } else {
+                    statusActivity(icon: icon, text: text)
+                    applicationCue(hidesIcon: hidesApplicationMark)
+                }
+            }
+            .padding(.horizontal, HUDContentSizing.horizontalPadding)
+            .frame(width: targetWidth, height: HUDMetrics.pillHeight)
+            .compositingGroup()
+            .mask {
+                foregroundMask(targetWidth: targetWidth, renderedWidth: renderedWidth)
+            }
+        }
+        .frame(width: targetWidth, height: HUDMetrics.panelHeight, alignment: horizontalAlignment)
+    }
+
+    @ViewBuilder
+    private func replacingStatusPill(
+        from previous: HUDPresentation,
+        to current: HUDPresentation,
+        renderedWidth: CGFloat
+    ) -> some View {
+        if let outgoing = statusDescriptor(for: previous.visualState),
+           let incoming = statusDescriptor(for: current.visualState) {
+            let targetWidth = model.targetWidth(for: current)
+            ZStack(alignment: horizontalAlignment) {
+                HStack(spacing: HUDContentSizing.contentGap) {
+                    if usesTrailingAttachment {
+                        applicationCue()
+                        replacingStatusActivity(
+                            outgoing: outgoing,
+                            incoming: incoming
+                        )
+                    } else {
+                        replacingStatusActivity(
+                            outgoing: outgoing,
+                            incoming: incoming
+                        )
+                        applicationCue()
+                    }
+                }
+                .padding(.horizontal, HUDContentSizing.horizontalPadding)
+                .frame(width: targetWidth, height: HUDMetrics.pillHeight)
+                .compositingGroup()
+                .mask {
+                    foregroundMask(
+                        targetWidth: targetWidth,
+                        renderedWidth: renderedWidth
+                    )
+                }
+            }
+            .frame(
+                width: targetWidth,
+                height: HUDMetrics.panelHeight,
+                alignment: horizontalAlignment
+            )
+        }
+    }
+
+    private func replacingStatusActivity(
+        outgoing: StatusDescriptor,
+        incoming: StatusDescriptor
+    ) -> some View {
+        ZStack {
+            statusActivity(icon: outgoing.icon, text: outgoing.text)
+                .opacity(HUDActiveContentTransition.outgoingOpacity(
+                    elapsed: model.morphElapsed
+                ))
+            statusActivity(icon: incoming.icon, text: incoming.text)
+                .opacity(HUDActiveContentTransition.incomingOpacity(
+                    elapsed: model.morphElapsed
+                ))
+        }
+        .frame(
+            width: HUDMetrics.waveformWidth,
+            height: HUDMetrics.waveformHeight,
+            alignment: .center
+        )
+    }
+
+    private func statusDescriptor(for state: HUDVisualState) -> StatusDescriptor? {
+        switch state {
+        case .idle, .recording:
+            return nil
+        case .preparingModel:
+            return StatusDescriptor(icon: .spinner, text: "Setting up speech model…")
+        case .transcribing:
+            return StatusDescriptor(icon: .spinner, text: "Transcribing")
+        case .inserting:
+            return StatusDescriptor(icon: .spinner, text: "Inserting…")
+        case .copying:
+            return StatusDescriptor(icon: .spinner, text: "Copying…")
+        case .copied:
+            return StatusDescriptor(icon: .success, text: "Copied")
+        case .success:
+            return StatusDescriptor(icon: .success, text: "Inserted")
+        case .cancelled:
+            return StatusDescriptor(icon: .cancelled, text: "Cancelled")
+        case .error(let message):
+            return StatusDescriptor(icon: .error, text: message)
+        }
+    }
+
+    @ViewBuilder
+    private func statusActivity(icon: StatusIcon, text: String) -> some View {
+        HStack(spacing: HUDContentSizing.contentGap) {
             switch icon {
             case .spinner:
                 HUDSpinnerView()
@@ -222,39 +688,46 @@ struct HUDView: View {
                     .foregroundStyle(FlowTheme.textSecondary)
             }
 
-            Text(text)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(icon == .error ? FlowTheme.error : FlowTheme.textSecondary)
-                .lineLimit(1)
+            if icon == .error {
+                HUDMarqueeText(text: text)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 16)
+            } else {
+                Text(text)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
         }
-        .padding(.horizontal, 12)
-        .frame(height: 38)
-        .background(pillBackground)
-        .overlay(pillStroke)
+        .frame(
+            width: HUDMetrics.waveformWidth,
+            height: HUDMetrics.waveformHeight,
+            alignment: .center
+        )
     }
 
     private func pillWidth(triggerMode: DictationTriggerMode, showsHint: Bool) -> CGFloat {
-        switch triggerMode {
-        case .tapToStartStop:
-            return HUDMetrics.compactWidth
-        case .holdToTalk:
-            return showsHint ? HUDMetrics.holdHintWidth : HUDMetrics.compactWidth
-        }
+        HUDContentSizing.width(
+            for: HUDPresentation(
+                visualState: .recording(triggerMode: triggerMode, showsHint: showsHint),
+                isExpanded: false
+            ),
+            applicationName: model.applicationPresentation.displayName
+        )
     }
 
     private var adaptiveClipShape: HUDAdaptiveShape {
         HUDAdaptiveShape(position: model.position)
     }
 
-    private var pillBackground: some View {
-        adaptiveClipShape
-            .fill(.ultraThinMaterial)
-            .shadow(color: .black.opacity(0.16), radius: 10, y: 4)
-    }
-
-    private var pillStroke: some View {
-        adaptiveClipShape
-            .stroke(FlowTheme.border, lineWidth: 1)
+    private var pillChrome: some View {
+        HUDChromeSurface(
+            shape: adaptiveClipShape,
+            isDark: colorScheme == .dark,
+            reduceTransparency: reduceTransparency,
+            increasedContrast: colorSchemeContrast == .increased
+        )
     }
 
     private enum StatusIcon {
@@ -264,18 +737,142 @@ struct HUDView: View {
         case cancelled
     }
 
-    private var applicationCue: some View {
-        HStack(spacing: 5) {
-            applicationMark(size: NSSize(width: 16, height: 16))
-            Text(model.applicationPresentation.displayName)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(FlowTheme.textTertiary)
-                .lineLimit(1)
-                .frame(maxWidth: 72, alignment: .leading)
+    private struct StatusDescriptor {
+        let icon: StatusIcon
+        let text: String
+    }
+
+    private func applicationCue(hidesIcon: Bool = false) -> some View {
+        HStack(spacing: HUDContentSizing.iconNameGap) {
+            if usesTrailingAttachment {
+                applicationMark(size: NSSize(width: 16, height: 16))
+                    .opacity(hidesIcon ? 0 : 1)
+                applicationName
+            } else {
+                applicationName
+                applicationMark(size: NSSize(width: 16, height: 16))
+                    .opacity(hidesIcon ? 0 : 1)
+            }
         }
         .accessibilityHidden(true)
     }
 
+    private var applicationName: some View {
+        HUDMarqueeText(
+            text: model.applicationPresentation.displayName,
+            fontSize: 10,
+            weight: .medium,
+            color: FlowTheme.textTertiary,
+            pause: 0.6,
+            pointsPerSecond: 28
+        )
+        .frame(
+            width: HUDContentSizing.applicationNameWidth(
+                model.applicationPresentation.displayName
+            ),
+            height: 16
+        )
+    }
+
+}
+
+struct HUDLockIndicatorView: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+
+    var body: some View {
+        Image(systemName: "lock.fill")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(FlowTheme.accent)
+            .frame(
+                width: HUDMetrics.lockIndicatorSize.width,
+                height: HUDMetrics.lockIndicatorSize.height
+            )
+            .background {
+                HUDChromeSurface(
+                    shape: Capsule(),
+                    isDark: colorScheme == .dark,
+                    reduceTransparency: reduceTransparency,
+                    increasedContrast: colorSchemeContrast == .increased
+                )
+            }
+            .accessibilityLabel("Listening locked")
+    }
+}
+
+private struct HUDChromeSurface<ChromeShape: Shape>: View {
+    let shape: ChromeShape
+    let isDark: Bool
+    let reduceTransparency: Bool
+    let increasedContrast: Bool
+
+    var body: some View {
+        let style = HUDChromeStyle.resolve(
+            isDark: isDark,
+            reduceTransparency: reduceTransparency,
+            increasedContrast: increasedContrast
+        )
+
+        ZStack {
+            if !reduceTransparency {
+                shape.fill(.ultraThinMaterial)
+            }
+            shape.fill(
+                Color(nsColor: NSColor(
+                    hex: style.surfaceHex,
+                    alpha: style.surfaceOpacity
+                ))
+            )
+            shape.stroke(
+                Color(nsColor: NSColor(
+                    hex: style.borderHex,
+                    alpha: style.borderOpacity
+                )),
+                lineWidth: 0.75
+            )
+        }
+    }
+}
+
+private struct HUDMarqueeText: View {
+    let text: String
+    var fontSize: CGFloat = 12
+    var weight: Font.Weight = .medium
+    var color: Color = FlowTheme.error
+    var pause: TimeInterval = 0.42
+    var pointsPerSecond: CGFloat = 42
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var startedAt = Date()
+
+    var body: some View {
+        GeometryReader { geometry in
+            TimelineView(.animation(minimumInterval: 1 / 120, paused: reduceMotion)) { timeline in
+                let availableWidth = geometry.size.width
+                let overflow = max(0, measuredTextWidth - availableWidth)
+                let elapsed = max(0, timeline.date.timeIntervalSince(startedAt) - pause)
+                let travel = min(overflow, CGFloat(elapsed) * pointsPerSecond)
+
+                Text(text)
+                    .font(.system(size: fontSize, weight: weight))
+                    .foregroundStyle(color)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .offset(x: reduceMotion ? 0 : -travel)
+                    .frame(height: geometry.size.height, alignment: .center)
+            }
+        }
+        .clipped()
+        .onAppear { startedAt = Date() }
+        .onChange(of: text) { _, _ in startedAt = Date() }
+        .accessibilityLabel(text)
+    }
+
+    private var measuredTextWidth: CGFloat {
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
 }
 
 private struct HUDRootAccessibilityModifier: ViewModifier {
@@ -298,6 +895,7 @@ private struct HUDRootAccessibilityModifier: ViewModifier {
                 .accessibilityAction(named: "Move to top left") { model.requestMove(to: .topLeft) }
                 .accessibilityAction(named: "Move to top right") { model.requestMove(to: .topRight) }
                 .accessibilityAction(named: "Move to bottom left") { model.requestMove(to: .bottomLeft) }
+                .accessibilityAction(named: "Move to bottom center") { model.requestMove(to: .bottomCenter) }
                 .accessibilityAction(named: "Move to bottom right") { model.requestMove(to: .bottomRight) }
         }
     }
@@ -377,32 +975,31 @@ final class HUDLogoInteractionView: NSView {
 
 struct HUDSpinnerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isAnimating = false
 
     var body: some View {
-        Image(systemName: "arrow.triangle.2.circlepath")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(FlowTheme.accent)
-            .rotationEffect(.degrees(isAnimating ? 360 : 0))
-            .frame(width: 14, height: 14)
-            .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
-                    isAnimating = true
-                }
-            }
-            .onChange(of: reduceMotion) { _, reduced in
-                guard !reduced else {
-                    isAnimating = false
-                    return
-                }
-                withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
-                    isAnimating = true
-                }
-            }
-            .onDisappear {
-                isAnimating = false
-            }
+        TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { context in
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(FlowTheme.accent)
+                .rotationEffect(.degrees(
+                    reduceMotion
+                        ? 0
+                        : HUDSpinnerMotion.degrees(
+                            at: context.date.timeIntervalSinceReferenceDate
+                        )
+                ))
+                .frame(width: 14, height: 14)
+        }
+    }
+}
+
+enum HUDSpinnerMotion {
+    static let cycleDuration: TimeInterval = 0.9
+
+    static func degrees(at time: TimeInterval) -> Double {
+        guard time.isFinite else { return 0 }
+        let phase = time.truncatingRemainder(dividingBy: cycleDuration)
+        return (phase / cycleDuration) * 360
     }
 }
 
@@ -417,13 +1014,17 @@ private struct WaveformCanvasView: View {
             let barWidth = HUDMetrics.waveformBarWidth
             let barGap = HUDMetrics.waveformBarGap
             let maxHeight = max(22, size.height - 2)
-            let minHeight: CGFloat = 4
+            // The resting stroke and the pulse's first frame share this visual
+            // baseline, avoiding a hairline that suddenly thickens on start.
+            let minHeight: CGFloat = 6
             let totalWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barGap
             let startX = max(0, (size.width - totalWidth) / 2)
 
             for (index, level) in levels.enumerated() {
                 let clamped = max(0, min(1, level))
-                let boosted = sqrt(clamped)
+            // Preserve more contrast between neighboring envelope samples than
+            // a square-root curve, which made quiet speech look nearly flat.
+            let boosted = pow(clamped, 0.72)
                 let barHeight = minHeight + CGFloat(boosted) * (maxHeight - minHeight)
                 let x = startX + CGFloat(index) * (barWidth + barGap)
                 let y = (size.height - barHeight) / 2

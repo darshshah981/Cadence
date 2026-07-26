@@ -127,20 +127,52 @@ struct CadenceTests {
     }
 
     @Test
-    func pressToStartStopRequiresAtLeastThreeKeys() {
-        let invalidShortcut = HotkeyConfiguration(
+    func toggleRecordingSupportsTwoKeyShortcut() {
+        let validTwoKeyShortcut = HotkeyConfiguration(
             keyCode: HotkeyConfiguration.modifierOnlyKeyCode,
             carbonModifiers: UInt32(controlKey) | UInt32(optionKey),
             keyDisplay: ""
         )
-        let validShortcut = HotkeyConfiguration(
+        let validThreeKeyShortcut = HotkeyConfiguration(
             keyCode: 49,
             carbonModifiers: UInt32(controlKey) | UInt32(optionKey),
             keyDisplay: "Space"
         )
+        let invalidOneKeyShortcut = HotkeyConfiguration(
+            keyCode: HotkeyConfiguration.modifierOnlyKeyCode,
+            carbonModifiers: UInt32(controlKey),
+            keyDisplay: ""
+        )
 
-        #expect(!HotkeyAction.tapToStartStop.supports(invalidShortcut))
-        #expect(HotkeyAction.tapToStartStop.supports(validShortcut))
+        #expect(HotkeyAction.tapToStartStop.supports(validTwoKeyShortcut))
+        #expect(HotkeyAction.tapToStartStop.supports(validThreeKeyShortcut))
+        #expect(!HotkeyAction.tapToStartStop.supports(invalidOneKeyShortcut))
+    }
+
+    @Test
+    func toggleRecordingKeyDownIsNotTreatedAsStopOnNextKey() {
+        let binding = HotkeyBinding(
+            action: .tapToStartStop,
+            isEnabled: true,
+            shortcut: HotkeyConfiguration(
+                keyCode: 49,
+                carbonModifiers: UInt32(controlKey) | UInt32(optionKey),
+                keyDisplay: "Space"
+            )
+        )
+
+        #expect(HotkeyAnyKeyPressPolicy.matchesManagedShortcut(
+            keyCode: 49,
+            modifiers: [.control, .option],
+            activeModifierKeyCodes: [],
+            bindings: [binding]
+        ))
+        #expect(!HotkeyAnyKeyPressPolicy.matchesManagedShortcut(
+            keyCode: 0,
+            modifiers: [],
+            activeModifierKeyCodes: [],
+            bindings: [binding]
+        ))
     }
 
     @Test
@@ -245,6 +277,41 @@ struct CadenceTests {
             activeModifierKeyCodes: [],
             releasedKeyCode: 63
         ) == [.cancelScheduled(.holdToTalk), .quickTap(.holdToTalk)])
+    }
+
+    @Test
+    func secondFnPressLocksImmediatelyWithoutWaitingForSecondRelease() {
+        var engine = ModifierOnlyGestureEngine()
+        let bindings = [HotkeyBinding.defaultHoldToTalk]
+
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function],
+            activeModifierKeyCodes: [63],
+            releasedKeyCode: 63,
+            at: 10
+        ) == [.schedule(.holdToTalk)])
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [],
+            activeModifierKeyCodes: [],
+            releasedKeyCode: 63,
+            at: 10.08
+        ) == [.cancelScheduled(.holdToTalk), .quickTap(.holdToTalk)])
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [.function],
+            activeModifierKeyCodes: [63],
+            releasedKeyCode: 63,
+            at: 10.22
+        ) == [.doublePress(.holdToTalk)])
+        #expect(engine.flagsChanged(
+            bindings: bindings,
+            flags: [],
+            activeModifierKeyCodes: [],
+            releasedKeyCode: 63,
+            at: 10.30
+        ).isEmpty)
     }
 
     @Test
@@ -376,11 +443,21 @@ struct CadenceTests {
     @Test
     func fillerWordPolicyCanRemoveCommonFillers() {
         let result = VocabularyPostProcessor.apply(
-            to: "Um, I mean, this is, like, a test.",
+            to: "Um, I mean, this is a test.",
             configuration: TranscriptionConfiguration(fillerWordPolicy: .remove)
         )
 
         #expect(result == "this is a test.")
+    }
+
+    @Test
+    func cleanedFillerPolicyPreservesMeaningfulLike() {
+        let result = VocabularyPostProcessor.apply(
+            to: "I like this approach.",
+            configuration: TranscriptionConfiguration(fillerWordPolicy: .remove)
+        )
+
+        #expect(result == "I like this approach.")
     }
 
     @Test
@@ -2403,6 +2480,56 @@ struct CadenceTests {
     }
 
     @Test
+    func calendarDashboardTodayEventsShowsOnlyFutureEventsToday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = ISO8601DateFormatter().date(from: "2026-07-03T10:00:00Z")!
+        let ongoing = GoogleCalendarEvent(
+            id: "ongoing",
+            title: "Ongoing",
+            startDate: ISO8601DateFormatter().date(from: "2026-07-03T09:30:00Z")!,
+            endDate: ISO8601DateFormatter().date(from: "2026-07-03T10:30:00Z")!,
+            meetingURL: nil,
+            calendarURL: nil,
+            attendeeEmails: []
+        )
+        let laterToday = GoogleCalendarEvent(
+            id: "later",
+            title: "Later",
+            startDate: ISO8601DateFormatter().date(from: "2026-07-03T12:00:00Z")!,
+            endDate: ISO8601DateFormatter().date(from: "2026-07-03T12:30:00Z")!,
+            meetingURL: nil,
+            calendarURL: nil,
+            attendeeEmails: []
+        )
+        let tomorrow = GoogleCalendarEvent(
+            id: "tomorrow",
+            title: "Tomorrow",
+            startDate: ISO8601DateFormatter().date(from: "2026-07-04T09:00:00Z")!,
+            endDate: ISO8601DateFormatter().date(from: "2026-07-04T09:30:00Z")!,
+            meetingURL: nil,
+            calendarURL: nil,
+            attendeeEmails: []
+        )
+
+        let events = CalendarEventDashboard.todayEvents(
+            events: [tomorrow, laterToday, ongoing],
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(events.map(\.id) == ["later"])
+    }
+
+    @Test
+    func googleMeetingProviderRecognizesSupportedMeetingHosts() throws {
+        #expect(GoogleMeetingProvider(url: try #require(URL(string: "https://meet.google.com/abc-defg-hij"))) == .googleMeet)
+        #expect(GoogleMeetingProvider(url: try #require(URL(string: "https://company.zoom.us/j/123"))) == .zoom)
+        #expect(GoogleMeetingProvider(url: try #require(URL(string: "https://teams.microsoft.com/l/meetup-join/123"))) == .microsoftTeams)
+        #expect(GoogleMeetingProvider(url: try #require(URL(string: "https://example.com/call"))) == .other)
+    }
+
+    @Test
     func calendarMeetingNoteTitlePrefixesEventDate() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -2574,7 +2701,7 @@ struct CadenceTests {
         let sz = NSSize(width: 44, height: 44)
         #expect(HUDPosition.nearest(to: NSPoint(x: 30, y: 1060), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .topLeft)
         #expect(HUDPosition.nearest(to: NSPoint(x: 1900, y: 20), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomRight)
-        #expect(HUDPosition.nearest(to: NSPoint(x: 960, y: 80), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomLeft)
+        #expect(HUDPosition.nearest(to: NSPoint(x: 960, y: 80), screenFrame: sf, visibleFrame: vf, hudSize: sz) == .bottomCenter)
     }
 
     @Test
@@ -2727,14 +2854,19 @@ struct CadenceTests {
     @MainActor
     func soundFeedbackServiceDefaultsToEnabled() {
         let service = SoundFeedbackService()
-        #expect(service.isEnabled)
+        #expect(service.isActivationEnabled)
+        #expect(service.isCompletionEnabled)
     }
 
     @Test
     @MainActor
     func soundFeedbackServiceRespectsDisabledFlag() {
-        let service = SoundFeedbackService(isEnabled: false)
-        #expect(!service.isEnabled)
+        let service = SoundFeedbackService(
+            isActivationEnabled: false,
+            isCompletionEnabled: false
+        )
+        #expect(!service.isActivationEnabled)
+        #expect(!service.isCompletionEnabled)
         service.playActivationSound()
     }
 
@@ -2742,7 +2874,7 @@ struct CadenceTests {
     @MainActor
     func capturingFeedbackServiceRecordsActivationWhenEnabled() {
         let service = CapturingFeedbackService()
-        service.isEnabled = true
+        service.isActivationEnabled = true
         service.playActivationSound()
         #expect(service.activationSoundCallCount == 1)
     }
@@ -2751,7 +2883,7 @@ struct CadenceTests {
     @MainActor
     func capturingFeedbackServiceSkipsActivationWhenDisabled() {
         let service = CapturingFeedbackService()
-        service.isEnabled = false
+        service.isActivationEnabled = false
         service.playActivationSound()
         #expect(service.activationSoundCallCount == 0)
     }
@@ -2773,6 +2905,7 @@ struct CadenceTests {
             showsSubtitle: false
         )
         viewModel.apply(recordingState)
+        _ = viewModel.advanceWaveform(deltaTime: 0.34)
 
         #expect(viewModel.displayBars.contains { $0 > 0.1 })
     }
@@ -2793,6 +2926,7 @@ struct CadenceTests {
         )
         viewModel.apply(HUDState.logoIdle)
         viewModel.apply(recordingState)
+        _ = viewModel.advanceWaveform(deltaTime: 0.34)
 
         let firstBars = viewModel.displayBars
 
@@ -2820,6 +2954,7 @@ struct CadenceTests {
         )
         viewModel.apply(HUDState.logoIdle)
         viewModel.apply(recordingState)
+        _ = viewModel.advanceWaveform(deltaTime: 0.34)
         #expect(viewModel.displayBars.contains { $0 > 0.1 })
 
         viewModel.apply(HUDState(
@@ -2836,6 +2971,7 @@ struct CadenceTests {
         viewModel.setReducedMotion(false)
 
         viewModel.apply(recordingState)
+        _ = viewModel.advanceWaveform(deltaTime: 0.34)
         #expect(viewModel.displayBars.contains { $0 > 0.1 })
     }
 
@@ -2861,11 +2997,12 @@ struct CadenceTests {
 }
 
 private final class CapturingFeedbackService: FeedbackServing {
-    var isEnabled: Bool = true
+    var isActivationEnabled = true
+    var isCompletionEnabled = true
     private(set) var activationSoundCallCount = 0
 
     func playActivationSound() {
-        guard isEnabled else { return }
+        guard isActivationEnabled else { return }
         activationSoundCallCount += 1
     }
 }
@@ -3168,7 +3305,7 @@ struct IdleExpandedTrayTests {
     func toggleExpandedFlipsStateAndFiresCallback() {
         let model = HUDViewModel()
         var callbacks: [Bool] = []
-        model.onExpandToggle = { callbacks.append($0) }
+        model.onExpandToggle = { expanded, _ in callbacks.append(expanded) }
 
         model.toggleExpanded()
         #expect(model.isExpanded == true)
@@ -3182,7 +3319,7 @@ struct IdleExpandedTrayTests {
     func setExpandedOnlyFiresWhenChanged() {
         let model = HUDViewModel()
         var callCount = 0
-        model.onExpandToggle = { _ in callCount += 1 }
+        model.onExpandToggle = { _, _ in callCount += 1 }
 
         model.setExpanded(false)
         #expect(callCount == 0)
@@ -3305,7 +3442,7 @@ struct HUDPanelLayoutTests {
         )
 
         #expect(frame == NSRect(
-            x: visible.maxX - 240 - HUDMetrics.screenInset,
+            x: screen.midX - 120,
             y: visible.minY + HUDMetrics.screenInset,
             width: 240,
             height: 38
@@ -3418,5 +3555,41 @@ struct HUDHideDurationTests {
         #expect(HUDHideDuration.tenMinutes.displayName == "Hide for 10 minutes")
         #expect(HUDHideDuration.oneHour.displayName == "Hide for 1 hour")
         #expect(HUDHideDuration.untilNextSession.displayName == "Hide until next session")
+    }
+}
+
+struct TranscriptHistoryPolicyTests {
+    @Test
+    func keepsTheCompleteArchiveAndExpandsThePreviewToOneHundredItems() {
+        let existing = (0..<225).map {
+            TranscriptHistoryItem(text: "Dictation \($0)")
+        }
+        let newest = TranscriptHistoryItem(text: "Newest dictation")
+
+        let archive = TranscriptHistoryPolicy.inserting(newest, into: existing)
+
+        #expect(archive.count == 226)
+        #expect(archive.first == newest)
+        #expect(TranscriptHistoryPolicy.initialVisibleCount(totalCount: archive.count) == 20)
+        #expect(TranscriptHistoryPolicy.expandedVisibleCount(totalCount: archive.count) == 100)
+        #expect(TranscriptHistoryPolicy.expandedVisibleCount(totalCount: 72) == 72)
+    }
+
+    @Test
+    func markdownExportContainsDictationsButNotInternalAnalyticsIdentifiers() {
+        let item = TranscriptHistoryItem(
+            text: "A private local dictation",
+            createdAt: Date(timeIntervalSince1970: 0),
+            analyticsSessionID: "internal-session-id"
+        )
+
+        let markdown = TranscriptHistoryMarkdownFormatter.markdown(
+            for: [item],
+            exportedAt: Date(timeIntervalSince1970: 60)
+        )
+
+        #expect(markdown.contains("A private local dictation"))
+        #expect(markdown.contains("Cadence Dictation History"))
+        #expect(!markdown.contains("internal-session-id"))
     }
 }

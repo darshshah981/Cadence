@@ -80,9 +80,10 @@ struct CadenceControlSemanticsTests {
 
     @Test
     func semanticControlsPreserveNativeInteractionKinds() {
-        #expect(CadenceControlSemantics.quality.interaction == .discreteMenu)
-        #expect(CadenceControlSemantics.searchDepth.interaction == .discreteMenu)
-        #expect(CadenceControlSemantics.fillerWords.interaction == .discreteMenu)
+        #expect(CadenceControlSemantics.quality.interaction == .segmentedSelector)
+        #expect(CadenceControlSemantics.meetingCaptureSource.interaction == .segmentedSelector)
+        #expect(CadenceControlSemantics.searchDepth.interaction == .segmentedSelector)
+        #expect(CadenceControlSemantics.fillerWords.interaction == .segmentedSelector)
         #expect(CadenceControlSemantics.recognitionModel.interaction == .discreteMenu)
         #expect(CadenceControlSemantics.slackBehavior.interaction == .discreteMenu)
         #expect(CadenceControlSemantics.waveformSensitivity.interaction == .continuousSlider)

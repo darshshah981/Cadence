@@ -7,6 +7,7 @@ private let personalizationLogger = Logger(
 )
 
 final class PersonalizationStore {
+    private static let spokenShortcutsEnabledKey = "Cadence.spokenShortcutsEnabled"
     private let defaults: UserDefaults
     private let key: String
 
@@ -31,5 +32,13 @@ final class PersonalizationStore {
             styleProfiles: library.styleProfiles
         )
         defaults.set(try JSONEncoder().encode(normalized), forKey: key)
+    }
+
+    func areSpokenShortcutsEnabled() -> Bool {
+        (defaults.object(forKey: Self.spokenShortcutsEnabledKey) as? Bool) ?? true
+    }
+
+    func setSpokenShortcutsEnabled(_ enabled: Bool) {
+        defaults.set(enabled, forKey: Self.spokenShortcutsEnabledKey)
     }
 }

@@ -41,6 +41,56 @@ struct GoogleCalendarEvent: Codable, Equatable, Identifiable, Sendable {
     func startsWithin(_ interval: TimeInterval, from date: Date = Date()) -> Bool {
         startDate.timeIntervalSince(date) >= 0 && startDate.timeIntervalSince(date) <= interval
     }
+
+    var meetingProvider: GoogleMeetingProvider? {
+        meetingURL.flatMap(GoogleMeetingProvider.init(url:))
+    }
+}
+
+enum GoogleMeetingProvider: String, Equatable, Sendable {
+    case googleMeet
+    case zoom
+    case microsoftTeams
+    case other
+
+    init(url: URL) {
+        let host = url.host()?.lowercased() ?? ""
+        if host == "meet.google.com" {
+            self = .googleMeet
+        } else if host == "zoom.us" || host.hasSuffix(".zoom.us") {
+            self = .zoom
+        } else if host == "teams.microsoft.com" || host == "teams.live.com" {
+            self = .microsoftTeams
+        } else {
+            self = .other
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .googleMeet:
+            return "Google Meet"
+        case .zoom:
+            return "Zoom"
+        case .microsoftTeams:
+            return "Microsoft Teams"
+        case .other:
+            return "meeting"
+        }
+    }
+
+    var assetName: String? {
+        switch self {
+        case .googleMeet:
+            return "GoogleMeet"
+        case .zoom:
+            return "Zoom"
+        case .microsoftTeams:
+            return nil
+        case .other:
+            return nil
+        }
+    }
 }
 
 struct GoogleCalendarOAuthConfiguration: Equatable, Sendable {

@@ -41,6 +41,18 @@ struct PersonalizationTests {
     }
 
     @Test
+    func spokenShortcutsMasterPreferenceDefaultsOnAndPersists() {
+        let suiteName = "CadenceTests.Personalization.enabled.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = PersonalizationStore(defaults: defaults, key: "personalization")
+
+        #expect(store.areSpokenShortcutsEnabled())
+        store.setSpokenShortcutsEnabled(false)
+        #expect(!store.areSpokenShortcutsEnabled())
+    }
+
+    @Test
     func shortcutExpansionUsesAppScopeLongestMatchAndTokenBoundaries() {
         let global = PersonalShortcut(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,

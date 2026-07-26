@@ -88,6 +88,111 @@ struct CadenceActionDescriptor: Equatable, Identifiable, Sendable {
     }
 }
 
+struct CadenceActionButtonStyle: ButtonStyle {
+    let role: CadenceActionRole
+
+    @Environment(\.controlSize) private var controlSize
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: fontSize, weight: .semibold))
+            .foregroundStyle(foregroundColor)
+            .padding(.horizontal, horizontalPadding)
+            .frame(minWidth: role == .icon ? minimumHeight : nil)
+            .frame(minHeight: minimumHeight)
+            .background(
+                backgroundColor(isPressed: configuration.isPressed),
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+            .overlay {
+                if showsBorder {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(borderColor, lineWidth: 1)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .opacity(isEnabled ? 1 : 0.45)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(
+                FlowMotion.enabled(FlowMotion.quick, reduceMotion: reduceMotion),
+                value: configuration.isPressed
+            )
+    }
+
+    private var minimumHeight: CGFloat {
+        switch controlSize {
+        case .mini: 22
+        case .small: 26
+        case .large: 34
+        default: 28
+        }
+    }
+
+    private var horizontalPadding: CGFloat {
+        guard role != .icon else { return 0 }
+        return switch controlSize {
+        case .mini: 7
+        case .small: 9
+        case .large: 14
+        default: 11
+        }
+    }
+
+    private var fontSize: CGFloat {
+        switch controlSize {
+        case .mini: 10
+        case .small: 11
+        case .large: 13
+        default: 12
+        }
+    }
+
+    private var cornerRadius: CGFloat {
+        controlSize == .large ? 9 : 7
+    }
+
+    private var foregroundColor: Color {
+        switch role {
+        case .primary:
+            FlowTheme.background
+        case .destructive:
+            FlowTheme.error
+        case .quiet:
+            FlowTheme.textSecondary
+        default:
+            FlowTheme.textPrimary
+        }
+    }
+
+    private func backgroundColor(isPressed: Bool) -> Color {
+        switch role {
+        case .primary:
+            isPressed ? FlowTheme.accentPressed : FlowTheme.accent
+        case .secondary, .navigation, .menu, .icon:
+            isPressed ? FlowTheme.accentSubtle.opacity(0.72) : FlowTheme.accentSubtle
+        case .destructive:
+            isPressed ? FlowTheme.errorSubtle.opacity(0.72) : FlowTheme.errorSubtle
+        case .quiet:
+            isPressed ? FlowTheme.subtle : .clear
+        }
+    }
+
+    private var showsBorder: Bool {
+        switch role {
+        case .secondary, .navigation, .menu, .icon:
+            true
+        default:
+            false
+        }
+    }
+
+    private var borderColor: Color {
+        role == .destructive ? FlowTheme.error.opacity(0.38) : FlowTheme.accentBorder
+    }
+}
+
 struct CadenceActionButton: View {
     let actionID: CadenceActionID
     let title: String
@@ -163,17 +268,16 @@ struct CadenceActionButton: View {
         switch role {
         case .primary:
             Button(action: action) { label }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(CadenceActionButtonStyle(role: role))
         case .secondary, .navigation, .menu:
             Button(action: action) { label }
-                .buttonStyle(.bordered)
-                .tint(FlowTheme.accent)
+                .buttonStyle(CadenceActionButtonStyle(role: role))
         case .quiet, .icon:
             Button(action: action) { label }
-                .buttonStyle(.borderless)
+                .buttonStyle(CadenceActionButtonStyle(role: role))
         case .destructive:
             Button(role: .destructive, action: action) { label }
-                .buttonStyle(.borderless)
+                .buttonStyle(CadenceActionButtonStyle(role: role))
         }
     }
 

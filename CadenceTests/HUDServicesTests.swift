@@ -175,9 +175,368 @@ struct HUDVisualGeometryTests {
     @Test
     func idlePillFitsInsideFullHitTarget() {
         #expect(HUDMetrics.idleHitSize == NSSize(width: 44, height: 44))
-        #expect(HUDMetrics.idleMarkSize == NSSize(width: 36, height: 28))
-        #expect(HUDMetrics.idleMarkSize.width < HUDMetrics.idleHitSize.width)
+        #expect(HUDMetrics.idleMarkSize == NSSize(width: 44, height: 38))
+        #expect(HUDMetrics.idleMarkSize.width == HUDMetrics.idleHitSize.width)
         #expect(HUDMetrics.idleMarkSize.height < HUDMetrics.idleHitSize.height)
+    }
+
+    @Test
+    func everyPillPresentationUsesAStablePanelHeight() {
+        let presentations = [
+            HUDPresentation(visualState: .idle, isExpanded: false),
+            HUDPresentation(visualState: .idle, isExpanded: true),
+            HUDPresentation(
+                visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+                isExpanded: false
+            ),
+            HUDPresentation(visualState: .transcribing, isExpanded: false)
+        ]
+
+        for presentation in presentations {
+            #expect(HUDPanelLayout.size(for: presentation).height == HUDMetrics.panelHeight)
+        }
+    }
+
+    @Test
+    func errorFeedbackReusesTheRecordingPillWidth() {
+        let recording = HUDPresentation(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            isExpanded: false
+        )
+        let error = HUDPresentation(
+            visualState: .error(message: "Nothing picked up"),
+            isExpanded: false
+        )
+
+        #expect(HUDPanelLayout.size(for: recording).width < HUDMetrics.compactWidth)
+        #expect(HUDPanelLayout.size(for: error).width == HUDPanelLayout.size(for: recording).width)
+    }
+
+    @Test
+    func activeDictationPhasesKeepTheRecordingPillWidth() {
+        let applicationName = "Microsoft Word"
+        let recording = HUDPresentation(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            isExpanded: false
+        )
+        let expectedWidth = HUDPanelLayout.size(
+            for: recording,
+            applicationName: applicationName
+        ).width
+        let phases: [HUDVisualState] = [
+            .preparingModel,
+            .transcribing,
+            .inserting,
+            .copying,
+            .copied,
+            .success,
+            .cancelled,
+            .error(message: "Nothing captured")
+        ]
+
+        for phase in phases {
+            let presentation = HUDPresentation(visualState: phase, isExpanded: false)
+            #expect(HUDPanelLayout.size(
+                for: presentation,
+                applicationName: applicationName
+            ).width == expectedWidth)
+        }
+    }
+
+    @Test
+    func recordingWidthTracksAppNameUntilTheMarqueeCap() {
+        let recording = HUDPresentation(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            isExpanded: false
+        )
+        let short = HUDPanelLayout.size(for: recording, applicationName: "Dia").width
+        let medium = HUDPanelLayout.size(for: recording, applicationName: "Microsoft Word").width
+        let long = HUDPanelLayout.size(
+            for: recording,
+            applicationName: "An Extremely Long Application Name"
+        ).width
+
+        #expect(short < medium)
+        #expect(medium <= long)
+        #expect(HUDContentSizing.applicationNameWidth(
+            "An Extremely Long Application Name"
+        ) == HUDContentSizing.applicationNameMaximumWidth)
+    }
+
+    @Test
+    func lockedListeningUsesTheSameMainPillWidthAsOrdinaryRecording() {
+        let applicationName = "Dia"
+        let ordinary = HUDPresentation(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            isExpanded: false
+        )
+        let locked = HUDPresentation(
+            visualState: .recording(triggerMode: .tapToStartStop, showsHint: false),
+            isExpanded: false
+        )
+
+        #expect(HUDPanelLayout.size(
+            for: locked,
+            applicationName: applicationName
+        ).width == HUDPanelLayout.size(
+            for: ordinary,
+            applicationName: applicationName
+        ).width)
+    }
+
+    @Test
+    func lockAccessoryOnlyAppearsForLockedListening() {
+        #expect(HUDLockIndicatorLayout.shouldShow(
+            for: .recording(triggerMode: .tapToStartStop, showsHint: false)
+        ))
+        #expect(!HUDLockIndicatorLayout.shouldShow(
+            for: .recording(triggerMode: .holdToTalk, showsHint: false)
+        ))
+        #expect(!HUDLockIndicatorLayout.shouldShow(for: .transcribing))
+        #expect(!HUDLockIndicatorLayout.shouldShow(for: .idle))
+    }
+
+    @Test
+    func lockAccessoryWaitsOnlyWhenTheListeningPillIsStillExpanding() {
+        let idle = HUDPresentation(visualState: .idle, isExpanded: false)
+        let held = HUDPresentation(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            isExpanded: false
+        )
+        let locked = HUDPresentation(
+            visualState: .recording(triggerMode: .tapToStartStop, showsHint: false),
+            isExpanded: false
+        )
+
+        #expect(HUDLockIndicatorLayout.waitsForPillExpansion(
+            previous: idle,
+            current: locked,
+            hasActiveMorph: true
+        ))
+        #expect(!HUDLockIndicatorLayout.waitsForPillExpansion(
+            previous: held,
+            current: locked,
+            hasActiveMorph: true
+        ))
+        #expect(!HUDLockIndicatorLayout.waitsForPillExpansion(
+            previous: idle,
+            current: locked,
+            hasActiveMorph: false
+        ))
+    }
+
+    @Test
+    func lockAccessorySplitsTowardTheInsideOfTheScreen() {
+        let pillFrame = NSRect(x: 100, y: 200, width: 220, height: HUDMetrics.panelHeight)
+
+        for position in [HUDPosition.bottomCenter, .topLeft, .bottomLeft] {
+            let origin = HUDLockIndicatorLayout.origin(position: position, pillFrame: pillFrame)
+            let start = HUDLockIndicatorLayout.emergenceFrame(position: position, pillFrame: pillFrame)
+            #expect(origin.x == pillFrame.maxX + HUDMetrics.lockIndicatorGap)
+            #expect(start.midX < origin.x + HUDMetrics.lockIndicatorSize.width / 2)
+            #expect(origin.y + HUDMetrics.lockIndicatorSize.height / 2 == pillFrame.midY)
+        }
+
+        for position in [HUDPosition.topRight, .bottomRight] {
+            let origin = HUDLockIndicatorLayout.origin(position: position, pillFrame: pillFrame)
+            let start = HUDLockIndicatorLayout.emergenceFrame(position: position, pillFrame: pillFrame)
+            #expect(origin.x + HUDMetrics.lockIndicatorSize.width + HUDMetrics.lockIndicatorGap == pillFrame.minX)
+            #expect(start.midX > origin.x + HUDMetrics.lockIndicatorSize.width / 2)
+            #expect(origin.y + HUDMetrics.lockIndicatorSize.height / 2 == pillFrame.midY)
+        }
+    }
+
+    @Test
+    func motionProgressStartsAndEndsSmoothly() {
+        #expect(HUDMotion.smoothProgress(elapsed: 0, duration: 0.34) == 0)
+        #expect(HUDMotion.smoothProgress(elapsed: 0.34, duration: 0.34) == 1)
+        #expect(HUDMotion.smoothProgress(elapsed: 0.17, duration: 0.34) == 0.5)
+        #expect(HUDMotion.interpolateWidth(from: 44, to: 280, progress: 0) == 44)
+        #expect(HUDMotion.interpolateWidth(from: 44, to: 280, progress: 0.5) == 162)
+        #expect(HUDMotion.interpolateWidth(from: 44, to: 280, progress: 1) == 280)
+    }
+
+    @Test
+    func activationWaveTravelsLeftToRightThenSettlesToLiveLevels() {
+        let target = Array(repeating: 0.08, count: 16)
+        let starting = HUDMotion.activationSweepLevels(progress: 0, target: target)
+        let early = HUDMotion.activationSweepLevels(progress: 0.15, target: target)
+        let late = HUDMotion.activationSweepLevels(progress: 0.72, target: target)
+        let settled = HUDMotion.activationSweepLevels(progress: 1, target: target)
+
+        #expect(starting[0] > 0.5)
+        #expect(Set(starting.map { Int(($0 * 100).rounded()) }).count > 2)
+        let earlyPeak = early.enumerated().max(by: { $0.element < $1.element })?.offset
+        let latePeak = late.enumerated().max(by: { $0.element < $1.element })?.offset
+        #expect(earlyPeak != nil)
+        #expect(latePeak != nil)
+        #expect(earlyPeak! < latePeak!)
+        #expect(settled == target)
+    }
+
+    @Test
+    func uniformVoiceEnergyProducesAStableUnevenWaveform() {
+        let input = Array(repeating: 0.6, count: 16)
+        let first = HUDMotion.characterizedWaveformLevels(input)
+        let second = HUDMotion.characterizedWaveformLevels(input)
+
+        #expect(first == second)
+        #expect((first.max() ?? 0) - (first.min() ?? 0) > 0.15)
+        #expect(first.allSatisfy { $0 >= 0 && $0 <= 1 })
+    }
+
+    @Test
+    func errorTimingLeavesEnoughTimeForOneMarqueePass() {
+        #expect(HUDTerminalTiming.displayMilliseconds(for: .success) == 900)
+        #expect(HUDTerminalTiming.displayMilliseconds(
+            for: .error(message: "Nothing captured")
+        ) >= 1_500)
+        #expect(HUDTerminalTiming.displayMilliseconds(
+            for: .error(message: String(repeating: "x", count: 200))
+        ) == 6_000)
+    }
+
+    @Test
+    func collapsedMicRemainsVisibleThroughoutReturnTransition() {
+        let idle = HUDPresentation(visualState: .idle, isExpanded: false)
+        #expect(HUDMotion.incomingOpacity(
+            for: idle,
+            hasPreviousPresentation: true,
+            elapsed: 0,
+            duration: 0.16
+        ) == 1)
+        #expect(HUDMotion.incomingOpacity(
+            for: idle,
+            hasPreviousPresentation: true,
+            elapsed: 0.16,
+            duration: 0.16
+        ) == 1)
+    }
+
+    @Test
+    func collapsingTextAndWaveformFadeBeforeTheIconHandoffCompletes() {
+        let response: TimeInterval = 0.34
+        #expect(HUDMotion.collapsingContentOpacity(
+            elapsed: 0,
+            pillResponse: response
+        ) == 1)
+        #expect(HUDMotion.collapsingContentOpacity(
+            elapsed: 0.14,
+            pillResponse: response
+        ) == 0)
+
+        let iconHandoffDuration = min(0.22, response * 0.72)
+        #expect(iconHandoffDuration > 0.14)
+    }
+
+    @Test
+    func activeContentUsesAShortNonStackingFadeSequence() {
+        #expect(HUDActiveContentTransition.outgoingOpacity(elapsed: 0) == 1)
+        #expect(HUDActiveContentTransition.incomingOpacity(elapsed: 0) == 0)
+        #expect(HUDActiveContentTransition.outgoingOpacity(elapsed: 0.075) == 0)
+        #expect(HUDActiveContentTransition.incomingOpacity(elapsed: 0.14) == 1)
+
+        for elapsed in stride(from: 0.0, through: 0.14, by: 0.01) {
+            let combined = HUDActiveContentTransition.outgoingOpacity(elapsed: elapsed)
+                + HUDActiveContentTransition.incomingOpacity(elapsed: elapsed)
+            #expect(combined <= 1.05)
+        }
+    }
+
+    @Test
+    func activeContentReplacementUsesItsOwnDurationAndCoalescesFastStatuses() {
+        let recording = HUDPresentation(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            isExpanded: false
+        )
+        let transcribing = HUDPresentation(visualState: .transcribing, isExpanded: false)
+        let inserted = HUDPresentation(visualState: .success, isExpanded: false)
+        let idle = HUDPresentation(visualState: .idle, isExpanded: false)
+
+        #expect(HUDPanelTransition.duration(
+            from: recording,
+            to: transcribing,
+            motionTuning: .default
+        ) == HUDActiveContentTransition.duration)
+        #expect(HUDPanelTransition.duration(
+            from: inserted,
+            to: idle,
+            motionTuning: .default
+        ) == HUDMotionTuning.default.pillResponse)
+        #expect(HUDActiveContentTransition.shouldDefer(
+            current: transcribing,
+            requested: inserted,
+            isReplacementAnimating: true
+        ))
+        #expect(!HUDActiveContentTransition.shouldDefer(
+            current: inserted,
+            requested: recording,
+            isReplacementAnimating: true
+        ))
+    }
+
+    @Test
+    func spinnerPhaseComesFromSharedTimeInsteadOfViewLifetime() {
+        #expect(HUDSpinnerMotion.degrees(at: 0) == 0)
+        #expect(HUDSpinnerMotion.degrees(at: 0.45) == 180)
+        #expect(HUDSpinnerMotion.degrees(at: 0.9) == 0)
+        #expect(HUDSpinnerMotion.degrees(at: 12.345) == HUDSpinnerMotion.degrees(at: 12.345))
+    }
+
+    @Test
+    func panelBoundsExpandBeforeMorphButCollapseAfterContentFinishes() {
+        #expect(HUDPanelBoundsPolicy.appliesTargetBeforeMorph(currentWidth: 44, targetWidth: 252))
+        #expect(!HUDPanelBoundsPolicy.appliesTargetBeforeMorph(currentWidth: 252, targetWidth: 44))
+    }
+
+    @Test
+    func collapsingForegroundWipesAtTheInsidePaddingEdge() {
+        let targetWidth: CGFloat = 252
+        let renderedWidth: CGFloat = 180
+        let padding = HUDContentSizing.horizontalPadding
+
+        let left = HUDForegroundMaskLayout.frame(
+            position: .bottomLeft,
+            targetWidth: targetWidth,
+            renderedWidth: renderedWidth
+        )
+        #expect(left.minX == 0)
+        #expect(left.maxX == renderedWidth - padding)
+
+        let right = HUDForegroundMaskLayout.frame(
+            position: .bottomRight,
+            targetWidth: targetWidth,
+            renderedWidth: renderedWidth
+        )
+        #expect(right.minX == targetWidth - renderedWidth + padding)
+        #expect(right.maxX == targetWidth)
+
+        let center = HUDForegroundMaskLayout.frame(
+            position: .bottomCenter,
+            targetWidth: targetWidth,
+            renderedWidth: renderedWidth
+        )
+        #expect(center.minX == (targetWidth - renderedWidth) / 2)
+        #expect(center.maxX == (targetWidth + renderedWidth) / 2 - padding)
+    }
+
+    @Test
+    func animatedMicrophoneEndsAtThePermanentRestingMicrophoneCenter() {
+        let sourceSize = NSSize(width: 252, height: HUDMetrics.panelHeight)
+
+        for position in HUDPosition.allCases {
+            let restingOrigin = HUDContentAttachment.appKitOrigin(
+                position: position,
+                contentSize: HUDMetrics.idleHitSize,
+                containerSize: sourceSize
+            )
+            let permanentCenterX = restingOrigin.x + HUDMetrics.idleHitSize.width / 2
+
+            #expect(HUDRestingMicrophoneLayout.centerX(
+                position: position,
+                containerWidth: sourceSize.width
+            ) == permanentCenterX)
+        }
     }
 
     @Test
@@ -305,12 +664,17 @@ struct HUDVisualGeometryTests {
             for: .topLeft,
             screenFrame: screen,
             visibleFrame: visible
-        ) == CGRect(x: 20, y: 48, width: 36, height: 28))
+        ) == CGRect(x: 16, y: 43, width: 44, height: 38))
         #expect(HUDDropZoneGeometry.canvasRect(
             for: .bottomRight,
             screenFrame: screen,
             visibleFrame: visible
-        ) == CGRect(x: 1864, y: 958, width: 36, height: 28))
+        ) == CGRect(x: 1860, y: 953, width: 44, height: 38))
+        #expect(HUDDropZoneGeometry.canvasRect(
+            for: .bottomCenter,
+            screenFrame: screen,
+            visibleFrame: visible
+        ) == CGRect(x: 938, y: 953, width: 44, height: 38))
     }
 
     @Test
@@ -322,7 +686,7 @@ struct HUDVisualGeometryTests {
             for: .topRight,
             screenFrame: negativeScreen,
             visibleFrame: negativeVisible
-        ) == CGRect(x: 1384, y: 48, width: 36, height: 28))
+        ) == CGRect(x: 1380, y: 43, width: 44, height: 38))
     }
 
     @Test
@@ -543,6 +907,34 @@ struct HUDVisualGeometryTests {
 
 struct HUDAnimationClockTests {
     @Test
+    func darkChromeUsesStableGraphiteAndAccessibilityFallbacks() {
+        let standard = HUDChromeStyle.resolve(
+            isDark: true,
+            reduceTransparency: false,
+            increasedContrast: false
+        )
+        let accessible = HUDChromeStyle.resolve(
+            isDark: true,
+            reduceTransparency: true,
+            increasedContrast: true
+        )
+
+        #expect(standard.surfaceHex == 0x202124)
+        #expect(standard.surfaceOpacity >= 0.85)
+        #expect(accessible.surfaceOpacity == 1)
+        #expect(accessible.borderOpacity > standard.borderOpacity)
+    }
+
+    @Test
+    func menuBarMarkKeepsCadenceDotSubtleUntilRecording() {
+        #expect(CadenceMenuBarIconMetrics.frameSize == 18)
+        #expect(CadenceMenuBarIconMetrics.dotCenter.x
+            < CadenceMenuBarIconMetrics.frameSize)
+        #expect(CadenceMenuBarIconMetrics.dotDiameter(isRecording: true)
+            > CadenceMenuBarIconMetrics.dotDiameter(isRecording: false))
+    }
+
+    @Test
     func diagnosticsMeasureAHealthy120HzSample() {
         let diagnostics = HUDFrameDiagnostics(warmUpDuration: 0)
         diagnostics.begin(targetFramesPerSecond: 120)
@@ -582,15 +974,34 @@ struct HUDAnimationClockTests {
     }
 
     @Test
+    func adjacentBarsDoNotRespondInLockstep() {
+        let first = HUDWaveformSmoother.step(
+            current: 0,
+            target: 1,
+            deltaTime: 1 / 60,
+            responseScale: HUDMotion.waveformResponseScale(forBar: 0)
+        )
+        let second = HUDWaveformSmoother.step(
+            current: 0,
+            target: 1,
+            deltaTime: 1 / 60,
+            responseScale: HUDMotion.waveformResponseScale(forBar: 1)
+        )
+
+        #expect(abs(first - second) > 0.01)
+    }
+
+    @Test
     func displayRefreshPolicyUsesActualMaximumFrameRate() {
         let promotion = HUDDisplayRefreshPolicy.preferredRange(maximumFramesPerSecond: 120)
         let standard = HUDDisplayRefreshPolicy.preferredRange(maximumFramesPerSecond: 60)
 
         #expect(promotion.maximum == 120)
         #expect(promotion.preferred == 120)
-        #expect(promotion.minimum == 60)
+        #expect(promotion.minimum == 120)
         #expect(standard.maximum == 60)
         #expect(standard.preferred == 60)
+        #expect(standard.minimum == 60)
     }
 
     @Test
@@ -632,7 +1043,9 @@ struct HUDAnimationClockTests {
             showsSubtitle: false
         ))
 
-        #expect(model.displayBars == Array(repeating: 0.7, count: 16))
+        #expect(model.displayBars == HUDMotion.characterizedWaveformLevels(
+            Array(repeating: 0.7, count: 16)
+        ))
         #expect(!model.hasPendingWaveformAnimation)
     }
 
@@ -641,7 +1054,7 @@ struct HUDAnimationClockTests {
     func reducedMotionFinishesActiveContentMorphImmediately() {
         let model = HUDViewModel()
         let idle = HUDPresentation(visualState: .idle, isExpanded: false)
-        model.beginMorph(from: idle)
+        model.beginMorph(from: idle, startWidth: HUDMetrics.idleHitSize.width)
         model.onReducedMotionChanged = { reduced in
             if reduced { model.finishMorph() }
         }
@@ -650,6 +1063,144 @@ struct HUDAnimationClockTests {
 
         #expect(model.previousPresentation == nil)
         #expect(model.morphProgress == 1)
+    }
+
+    @Test
+    @MainActor
+    func interruptedMorphContinuesFromCurrentlyRenderedWidth() {
+        let model = HUDViewModel()
+        model.apply(.logoIdle)
+        let idle = model.presentation
+        model.apply(HUDState(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            subtitle: "",
+            level: 0.5,
+            waveformLevels: Array(repeating: 0.5, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        ))
+        model.beginMorph(from: idle, startWidth: HUDMetrics.idleHitSize.width)
+        model.setMorphProgress(0.5, elapsed: 0.17)
+        let interruptedWidth = model.renderedWidth
+
+        let recording = model.presentation
+        model.apply(.logoIdle)
+        model.beginMorph(from: recording, startWidth: interruptedWidth)
+
+        #expect(model.renderedWidth == interruptedWidth)
+        model.setMorphProgress(0.5, elapsed: 0.17)
+        #expect(model.renderedWidth == HUDMotion.interpolateWidth(
+            from: interruptedWidth,
+            to: HUDMetrics.idleHitSize.width,
+            progress: 0.5
+        ))
+    }
+
+    @Test
+    @MainActor
+    func applicationIconMorphRunsOnlyFromTheRestingMic() {
+        let recordingState = HUDState(
+            visualState: .recording(triggerMode: .holdToTalk, showsHint: false),
+            subtitle: "",
+            level: 0.5,
+            waveformLevels: Array(repeating: 0.5, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        )
+
+        let fromIdle = HUDViewModel()
+        fromIdle.apply(.logoIdle)
+        let idle = fromIdle.presentation
+        fromIdle.apply(recordingState)
+        fromIdle.beginMorph(from: idle, startWidth: HUDMetrics.idleHitSize.width)
+        #expect(fromIdle.shouldMorphApplicationMark)
+
+        let fromError = HUDViewModel()
+        fromError.apply(HUDState(
+            visualState: .error(message: "Try again"),
+            subtitle: "",
+            level: 0,
+            waveformLevels: Array(repeating: 0, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        ))
+        let error = fromError.presentation
+        fromError.apply(recordingState)
+        fromError.beginMorph(from: error, startWidth: fromError.targetWidth(for: error))
+        #expect(!fromError.shouldMorphApplicationMark)
+    }
+
+    @Test
+    @MainActor
+    func terminalPresentationReversesIntoTheRestingMic() {
+        let model = HUDViewModel()
+        model.apply(HUDState(
+            visualState: .success,
+            subtitle: "",
+            level: 0,
+            waveformLevels: Array(repeating: 0, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        ))
+        let success = model.presentation
+        model.apply(.logoIdle)
+        model.beginMorph(from: success, startWidth: model.targetWidth(for: success))
+
+        #expect(model.isCollapsingToRestingMic)
+
+        model.finishMorph()
+        #expect(!model.isCollapsingToRestingMic)
+    }
+
+    @Test
+    @MainActor
+    func activeStatusReplacementUsesTheDedicatedContentTransition() {
+        let model = HUDViewModel()
+        model.apply(HUDState(
+            visualState: .transcribing,
+            subtitle: "",
+            level: 0,
+            waveformLevels: Array(repeating: 0, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        ))
+        let transcribing = model.presentation
+        model.apply(HUDState(
+            visualState: .copied,
+            subtitle: "",
+            level: 0,
+            waveformLevels: Array(repeating: 0, count: 16),
+            isVisible: true,
+            showsSubtitle: false
+        ))
+        model.beginMorph(
+            from: transcribing,
+            startWidth: model.targetWidth(for: transcribing)
+        )
+
+        #expect(model.isReplacingActiveContent)
+        #expect(model.isReplacingStatusContent)
+        #expect(!model.isCollapsingToRestingMic)
+    }
+
+    @Test
+    func appCueStaysPersistentOnlyAcrossStatusToStatusReplacement() {
+        #expect(HUDApplicationCueTransition.keepsCueStable(
+            from: .transcribing,
+            to: .success
+        ))
+        #expect(HUDApplicationCueTransition.keepsCueStable(
+            from: .transcribing,
+            to: .copied
+        ))
+        #expect(!HUDApplicationCueTransition.keepsCueStable(
+            from: .recording(triggerMode: .holdToTalk, showsHint: false),
+            to: .transcribing
+        ))
+        #expect(!HUDApplicationCueTransition.keepsCueStable(
+            from: .success,
+            to: .idle
+        ))
     }
 
     @Test
@@ -704,22 +1255,29 @@ struct HUDReleaseHardeningTests {
 
     @Test
     @MainActor
-    func soundPreferenceDefaultsOnAndPersistsIntoInjectedService() {
+    func soundPreferencesDefaultOnMigrateAndPersistIndependently() {
         let suite = "HUDReleaseHardening.sound.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         defer { defaults.removePersistentDomain(forName: suite) }
         let service = HardeningCapturingFeedbackService()
 
-        #expect(DictationSoundFeedbackPreference.load(from: defaults))
-        DictationSoundFeedbackPreference.set(false, defaults: defaults, service: service)
-        #expect(!DictationSoundFeedbackPreference.load(from: defaults))
-        #expect(defaults.object(forKey: DictationSoundFeedbackPreference.key) as? Bool == false)
-        #expect(!service.isEnabled)
+        #expect(DictationSoundFeedbackPreference.loadActivation(from: defaults))
+        #expect(DictationSoundFeedbackPreference.loadCompletion(from: defaults))
 
-        DictationSoundFeedbackPreference.set(true, defaults: defaults, service: service)
-        #expect(DictationSoundFeedbackPreference.load(from: defaults))
-        #expect(service.isEnabled)
+        defaults.set(false, forKey: DictationSoundFeedbackPreference.legacyKey)
+        #expect(!DictationSoundFeedbackPreference.loadActivation(from: defaults))
+        #expect(!DictationSoundFeedbackPreference.loadCompletion(from: defaults))
+
+        DictationSoundFeedbackPreference.setActivation(true, defaults: defaults, service: service)
+        #expect(DictationSoundFeedbackPreference.loadActivation(from: defaults))
+        #expect(!DictationSoundFeedbackPreference.loadCompletion(from: defaults))
+        #expect(service.isActivationEnabled)
+        #expect(service.isCompletionEnabled)
+
+        DictationSoundFeedbackPreference.setCompletion(false, defaults: defaults, service: service)
+        #expect(!DictationSoundFeedbackPreference.loadCompletion(from: defaults))
+        #expect(!service.isCompletionEnabled)
     }
 
     @Test
@@ -885,14 +1443,14 @@ struct HUDReleaseHardeningTests {
     }
 
     @Test
-    func legacyBottomCenterMigratesOnceAndValidCornersRemainStable() {
+    func bottomCenterPersistsAsAFirstClassPosition() {
         let suite = "HUDPositionStoreMigrationTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(HUDPosition.bottomCenter.rawValue, forKey: "Cadence.hudPosition")
 
         let store = HUDPositionStore(defaults: defaults)
-        #expect(store.load() == .bottomRight)
+        #expect(store.load() == .bottomCenter)
         store.save(.topLeft)
         #expect(store.load() == .topLeft)
     }
@@ -997,11 +1555,12 @@ struct HUDApplicationPresentationTests {
 
 @MainActor
 private final class HardeningCapturingFeedbackService: FeedbackServing {
-    var isEnabled = true
+    var isActivationEnabled = true
+    var isCompletionEnabled = true
     private(set) var activationCount = 0
 
     func playActivationSound() {
-        guard isEnabled else { return }
+        guard isActivationEnabled else { return }
         activationCount += 1
     }
 }

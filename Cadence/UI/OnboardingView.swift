@@ -13,12 +13,12 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 7) {
-                ForEach(Array(OnboardingStep.allCases.enumerated()), id: \.element.id) { index, step in
+                ForEach(Array(appModel.availableOnboardingSteps.enumerated()), id: \.element.id) { index, step in
                     Capsule()
-                        .fill(index <= appModel.onboardingProgress.stepIndex ? FlowTheme.accent : FlowTheme.border)
+                        .fill(index <= appModel.currentOnboardingVisibleIndex ? FlowTheme.accent : FlowTheme.border)
                         .frame(height: 4)
                         .accessibilityLabel(stepTitle(step))
-                        .accessibilityValue(index < appModel.onboardingProgress.stepIndex ? "Complete" : index == appModel.onboardingProgress.stepIndex ? "Current" : "Upcoming")
+                        .accessibilityValue(index < appModel.currentOnboardingVisibleIndex ? "Complete" : index == appModel.currentOnboardingVisibleIndex ? "Current" : "Upcoming")
                 }
             }
             .padding(.horizontal, 28)
@@ -30,7 +30,7 @@ struct OnboardingView: View {
                 Divider()
                 stepContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .id(appModel.onboardingProgress.currentStep)
+                    .id(appModel.currentOnboardingStep)
                     .transition(reduceMotion ? .identity : .opacity.combined(with: .move(edge: .trailing)))
             }
 
@@ -41,8 +41,8 @@ struct OnboardingView: View {
         .background(FlowTheme.background)
         .preferredColorScheme(appModel.appearancePreference.colorScheme)
         .interactiveDismissDisabled()
-        .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: appModel.onboardingProgress.stepIndex)
-        .onChange(of: appModel.onboardingProgress.currentStep) { _, step in
+        .animation(FlowMotion.enabled(FlowMotion.section, reduceMotion: reduceMotion), value: appModel.currentOnboardingVisibleIndex)
+        .onChange(of: appModel.currentOnboardingStep) { _, step in
             if step != .microphone { microphoneMonitor.stop() }
         }
         .onDisappear { microphoneMonitor.stop() }
@@ -78,16 +78,16 @@ struct OnboardingView: View {
     @ViewBuilder
     private var stepContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: stepIcon(appModel.onboardingProgress.currentStep))
+            Image(systemName: stepIcon(appModel.currentOnboardingStep))
                 .font(.system(size: 28, weight: .medium))
                 .foregroundStyle(FlowTheme.accent)
                 .frame(width: 52, height: 52)
                 .background(FlowTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
 
-            Text(stepTitle(appModel.onboardingProgress.currentStep))
+            Text(stepTitle(appModel.currentOnboardingStep))
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundStyle(FlowTheme.textPrimary)
-            Text(stepDetail(appModel.onboardingProgress.currentStep))
+            Text(stepDetail(appModel.currentOnboardingStep))
                 .font(.system(size: 14))
                 .foregroundStyle(FlowTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -100,20 +100,11 @@ struct OnboardingView: View {
 
     @ViewBuilder
     private var stepSpecificContent: some View {
-        switch appModel.onboardingProgress.currentStep {
+        switch appModel.currentOnboardingStep {
         case .welcome:
-            featureRows([
-                ("waveform", "Dictation", "Speak into any text field and insert the transcript."),
-                ("sparkles", "Scribe", "Dictate a request, then review the polished result before insertion."),
-                ("person.2.wave.2", "Meeting capture", "Keep durable audio and recoverable transcripts for calls.")
-            ])
+            featureRows(welcomeFeatures)
         case .privacy:
-            featureRows([
-                ("lock.shield", "Local transcription", "Cadence transcribes microphone audio on this Mac and never sends audio to a Scribe provider."),
-                ("network", "Optional cloud drafting", "Cloud Scribe sends current-session text only after you choose and validate a provider."),
-                ("eye.slash", "Direct dictation only", "Scribe sends only processed dictation, writing guidance, and protected literal metadata to the provider you approve."),
-                ("checkmark.circle", "Review before insert", "Generated drafts never replace text until you approve them.")
-            ])
+            featureRows(privacyFeatures)
         case .permissions:
             VStack(alignment: .leading, spacing: 12) {
                 permissionRow("Microphone", granted: appModel.permissions.microphoneGranted)
@@ -172,29 +163,121 @@ struct OnboardingView: View {
                 }
             }
         case .personalization:
-            featureRows([
-                ("text.badge.plus", "Spoken shortcuts", "Turn a short phrase into a longer reusable response."),
-                ("textformat", "Writing profiles", "Set tone, length, punctuation, and formatting globally or per app."),
-                ("character.book.closed", "Custom words", "Teach Cadence names and phrases without sending them away.")
-            ])
+            featureRows(personalizationFeatures)
         case .ready:
-            featureRows([
-                (appModel.permissions.allRequiredGranted ? "checkmark.circle.fill" : "exclamationmark.circle", appModel.permissions.allRequiredGranted ? "Core permissions ready" : "Permissions still need attention", appModel.setupProgressLabel),
-                ("keyboard", "Dictation shortcut", appModel.holdToTalkBinding.shortcut.symbolDisplayName),
-                ("sparkles", "Scribe shortcut", appModel.scribeBinding.shortcut.symbolDisplayName)
-            ])
+            featureRows(readyFeatures)
         }
+    }
+
+    private var welcomeFeatures: [(String, String, String)] {
+        var features = [
+            ("waveform", "Dictation", "Speak into any text field and insert the transcript.")
+        ]
+        if appModel.featureFlags.scribeEnabled {
+            features.append((
+                "sparkles",
+                "Scribe",
+                "Dictate a request, then review the polished result before insertion."
+            ))
+        }
+        features.append((
+            "person.2.wave.2",
+            "Meeting capture",
+            "Keep durable audio and recoverable transcripts for calls."
+        ))
+        return features
+    }
+
+    private var privacyFeatures: [(String, String, String)] {
+        var features = [
+            (
+                "lock.shield",
+                "Local transcription",
+                "Cadence transcribes microphone audio on this Mac."
+            )
+        ]
+        if appModel.featureFlags.scribeEnabled {
+            features.append(contentsOf: [
+                (
+                    "network",
+                    "Optional cloud drafting",
+                    "Scribe sends current-session text only after you choose and validate a provider."
+                ),
+                (
+                    "checkmark.circle",
+                    "Review before insert",
+                    "Generated drafts never replace text until you approve them."
+                )
+            ])
+        } else {
+            features.append((
+                "eye.slash",
+                "Private by default",
+                "Dictation and meeting files stay on this Mac unless you choose to export or copy them."
+            ))
+        }
+        return features
+    }
+
+    private var readyFeatures: [(String, String, String)] {
+        var features = [
+            (
+                appModel.permissions.allRequiredGranted
+                    ? "checkmark.circle.fill"
+                    : "exclamationmark.circle",
+                appModel.permissions.allRequiredGranted
+                    ? "Core permissions ready"
+                    : "Permissions still need attention",
+                appModel.setupProgressLabel
+            ),
+            (
+                "keyboard",
+                "Dictation shortcut",
+                appModel.holdToTalkBinding.shortcut.symbolDisplayName
+            )
+        ]
+        if appModel.featureFlags.scribeEnabled {
+            features.append((
+                "sparkles",
+                "Scribe shortcut",
+                appModel.scribeBinding.shortcut.symbolDisplayName
+            ))
+        }
+        return features
+    }
+
+    private var personalizationFeatures: [(String, String, String)] {
+        var features = [
+            (
+                "text.badge.plus",
+                "Spoken shortcuts",
+                "Turn a short phrase into a longer reusable response."
+            )
+        ]
+        if appModel.featureFlags.scribeEnabled {
+            features.append((
+                "textformat",
+                "Writing profiles",
+                "Set tone, length, punctuation, and formatting globally or per app."
+            ))
+        }
+        features.append((
+            "character.book.closed",
+            "Custom words",
+            "Teach Cadence names and phrases without sending them away."
+        ))
+        return features
     }
 
     private var footer: some View {
         HStack {
             CadenceActionButton(title: "Skip for now", role: .quiet) { appModel.skipOnboarding() }
             Spacer()
-            if appModel.onboardingProgress.stepIndex > 0 {
+            if appModel.currentOnboardingVisibleIndex > 0 {
                 CadenceActionButton(title: "Back", role: .secondary) { appModel.moveBackInOnboarding() }
             }
             CadenceActionButton(
-                title: appModel.onboardingProgress.currentStep == .ready ? "Start using Cadence" : "Continue",
+                title: appModel.currentOnboardingStep == .ready ? "Start using Cadence" : "Continue",
                 role: .primary,
                 keyboardShortcut: .defaultAction
             ) {
@@ -268,14 +351,20 @@ struct OnboardingView: View {
 
     private func stepDetail(_ step: OnboardingStep) -> String {
         switch step {
-        case .welcome: return "Three focused workflows share one calm, native Mac experience."
+        case .welcome:
+            return appModel.featureFlags.scribeEnabled
+                ? "Three focused workflows share one calm, native Mac experience."
+                : "Dictation and meeting capture share one calm, native Mac experience."
         case .privacy: return "Cadence minimizes what it reads, saves, and sends. You stay in control at every handoff."
         case .permissions: return "Dictation needs microphone, Accessibility, and Input Monitoring. Each permission has one clear purpose."
         case .microphone: return "See that Cadence can hear you without recording a transcript or saving audio."
         case .dictation: return "Use push-to-talk for fast text insertion without opening a window."
         case .scribe: return "Turn spoken intent into a reviewable draft, separate from fast Dictation."
         case .personalization: return "Keep reusable language and writing preferences locally on this Mac."
-        case .ready: return "Review your setup, then start with Dictation or Scribe from any app."
+        case .ready:
+            return appModel.featureFlags.scribeEnabled
+                ? "Review your setup, then start with Dictation or Scribe from any app."
+                : "Review your setup, then start dictating from any app."
         }
     }
 

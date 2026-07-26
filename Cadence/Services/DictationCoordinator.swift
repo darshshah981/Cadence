@@ -13,6 +13,7 @@ enum CadenceError: LocalizedError {
     case accessibilityPermissionMissing
     case eventSourceUnavailable
     case dictationAlreadyRunning
+    case clipboardWriteFailed
 
     var errorDescription: String? {
         switch self {
@@ -26,6 +27,8 @@ enum CadenceError: LocalizedError {
             return "Cadence could not post keyboard events."
         case .dictationAlreadyRunning:
             return "A dictation session is already in progress."
+        case .clipboardWriteFailed:
+            return "Cadence could not copy the dictation."
         }
     }
 }
@@ -51,7 +54,7 @@ final class DictationCoordinator {
     var onTargetPin: ((ApplicationTargetCapture, String?) -> Void)?
     var onTargetClear: ((UUID) -> Void)?
 
-    private let hotkeyService: HotkeyService
+    private let hotkeyService: any HotkeyServing
     private let permissionsService: any DictationPermissionsServing
     private let audioCaptureService: AudioCaptureServing
     private let transcriptionEngine: TranscriptionEngine
@@ -59,6 +62,9 @@ final class DictationCoordinator {
     private let hudController: HUDWindowController
     private let analytics: AnalyticsService
     private let activationFeedbackGate: DictationActivationFeedbackGate
+    private let feedbackService: FeedbackServing
+    private let pasteboardWriter: TextPasteboardWriting
+    private let targetCapability: any DictationTargetCapabilityServing
     private let sessionArbiter: VoiceSessionArbiter
     private let personalizationStore: PersonalizationStore
     private let targetAuthority: any ApplicationTargetAuthorizing
@@ -76,6 +82,7 @@ final class DictationCoordinator {
     private var activeSessionID: String?
     private var activeTargetApplication: DictationTargetApplication?
     private var activeTargetCapture: ApplicationTargetCapture?
+    private var isClipboardOnlySession = false
     private var firstPreviewTracked = false
     private var lastSuccessfulCompletionAt: Date?
     private var terminalHUDTask: Task<Void, Never>?
@@ -88,7 +95,7 @@ final class DictationCoordinator {
     }
 
     init(
-        hotkeyService: HotkeyService,
+        hotkeyService: any HotkeyServing,
         permissionsService: any DictationPermissionsServing,
         audioCaptureService: AudioCaptureServing,
         transcriptionEngine: TranscriptionEngine,
@@ -99,6 +106,8 @@ final class DictationCoordinator {
         sessionArbiter: VoiceSessionArbiter,
         targetAuthority: any ApplicationTargetAuthorizing,
         personalizationStore: PersonalizationStore = PersonalizationStore(),
+        pasteboardWriter: TextPasteboardWriting? = nil,
+        targetCapability: (any DictationTargetCapabilityServing)? = nil,
         waveformSensitivity: Double = 1.0
     ) {
         self.hotkeyService = hotkeyService
@@ -109,6 +118,10 @@ final class DictationCoordinator {
         self.hudController = hudController
         self.analytics = analytics
         self.activationFeedbackGate = DictationActivationFeedbackGate(service: feedbackService)
+        self.feedbackService = feedbackService
+        self.pasteboardWriter = pasteboardWriter ?? SystemTextPasteboardWriter()
+        self.targetCapability = targetCapability
+            ?? SystemDictationTargetCapabilityService()
         self.sessionArbiter = sessionArbiter
         self.targetAuthority = targetAuthority
         self.personalizationStore = personalizationStore
@@ -124,6 +137,10 @@ final class DictationCoordinator {
 
         self.hotkeyService.onQuickTap = { [weak self] action in
             Task { await self?.handleHotkeyQuickTap(action) }
+        }
+
+        self.hotkeyService.onDoublePress = { [weak self] action in
+            Task { await self?.handleHotkeyDoublePress(action) }
         }
 
         self.hotkeyService.onAnyKeyPress = { [weak self] in
@@ -224,6 +241,28 @@ final class DictationCoordinator {
         }
     }
 
+    private func handleHotkeyDoublePress(_ action: HotkeyAction) async {
+        guard action == .holdToTalk else { return }
+        holdQuickTapGesture.reset()
+        switch state {
+        case .idle, .error:
+            await beginDictationIfPossible(triggerMode: .tapToStartStop)
+        case .listening where activeTriggerMode == .holdToTalk:
+            activeTriggerMode = .tapToStartStop
+            publishHUD(
+                visualState: .recording(triggerMode: .tapToStartStop, showsHint: false),
+                subtitle: latestPreview.composedText,
+                level: max(latestAudioLevel, 0.2),
+                waveformLevels: latestWaveformLevels,
+                showsSubtitle: !latestPreview.composedText.isEmpty
+            )
+        case .listening where activeTriggerMode == .tapToStartStop:
+            await finishDictationIfNeeded()
+        case .listening, .finalizing, .inserting:
+            break
+        }
+    }
+
     private func handleAnyKeyPress() async {
         guard stopTapDictationOnNextKeyPress else { return }
         guard activeTriggerMode == .tapToStartStop, state == .listening else { return }
@@ -240,6 +279,7 @@ final class DictationCoordinator {
         do {
             invalidateTerminalHUD()
             clearActiveTargetCapture()
+            isClipboardOnlySession = false
             var permissions = permissionsService.snapshot()
             if !permissions.microphoneGranted {
                 _ = await permissionsService.requestMicrophoneAccess()
@@ -253,13 +293,22 @@ final class DictationCoordinator {
 
             voiceSessionLease = try sessionArbiter.acquire(for: .dictation)
 
-            let targetCapture = try await targetAuthority.capture(source: .dictation)
-            activeTargetCapture = targetCapture
-            activeTargetApplication = DictationTargetApplication(
-                bundleIdentifier: targetCapture.process.bundleIdentifier,
-                displayName: targetCapture.displayName ?? "Application"
-            )
-            onTargetPin?(targetCapture, targetCapture.displayName)
+            do {
+                let targetCapture = try await targetAuthority.capture(source: .dictation)
+                activeTargetCapture = targetCapture
+                activeTargetApplication = DictationTargetApplication(
+                    bundleIdentifier: targetCapture.process.bundleIdentifier,
+                    displayName: targetCapture.displayName ?? "Application"
+                )
+                onTargetPin?(targetCapture, targetCapture.displayName)
+            } catch ApplicationTargetAuthorityError.noExternalTarget {
+                // Dictating while Cadence itself is frontmost has no safe
+                // external insertion target. Keep the full transcription flow,
+                // then copy the result instead of presenting a technical error.
+                activeTargetCapture = nil
+                activeTargetApplication = nil
+                isClipboardOnlySession = true
+            }
 
             activeTriggerMode = triggerMode
             let sessionID = Self.makeAnalyticsSessionID()
@@ -287,8 +336,9 @@ final class DictationCoordinator {
                         guard let self else { return }
                         await transcriptionEngine.appendAudio(chunk)
                         latestAudioLevel = level
-                        latestWaveformLevels = Self.waveformLevels(
-                            from: chunk.samples,
+                        latestWaveformLevels = Self.updatedWaveformLevels(
+                            previous: latestWaveformLevels,
+                            samples: chunk.samples,
                             sensitivity: waveformSensitivity
                         )
                         if level >= PreviewTuning.activeSpeechThreshold {
@@ -341,6 +391,7 @@ final class DictationCoordinator {
             releaseVoiceSessionLease()
             activeTriggerMode = nil
             activeTargetApplication = nil
+            isClipboardOnlySession = false
             publishError(error.localizedDescription)
         }
     }
@@ -353,7 +404,7 @@ final class DictationCoordinator {
                 _ = try await self.prewarmBackend()
             } catch {
                 dictationLogger.error(
-                    "Cadence timing backgroundPrepare failed error=\(error.localizedDescription, privacy: .public)"
+                    "Cadence timing backgroundPrepare failed reason=\(Self.analyticsErrorReason(for: error), privacy: .public)"
                 )
             }
         }
@@ -423,14 +474,24 @@ final class DictationCoordinator {
             let personalizedText = ShortcutExpansionService.expand(
                 correctedText,
                 bundleIdentifier: activeTargetApplication?.bundleIdentifier,
-                shortcuts: personalizationStore.load().shortcuts
+                shortcuts: personalizationStore.areSpokenShortcutsEnabled()
+                    ? personalizationStore.load().shortcuts
+                    : []
+            )
+            let commandInterpretation = DictationCommandInterpreter.interpret(
+                personalizedText,
+                pressEnterEnabled: transcriptionConfiguration.pressEnterCommandEnabled,
+                commandPhrase: transcriptionConfiguration.pressEnterCommandPhrase
             )
             let polishResult = AppAwareTextPolisher.apply(
-                to: personalizedText,
+                to: commandInterpretation.text,
                 configuration: transcriptionConfiguration,
                 targetApplication: activeTargetApplication
             )
             let finalText = polishResult.text
+            let insertionText = commandInterpretation.shouldPressReturn
+                ? polishResult.text
+                : polishResult.insertionText
             let finalTranscriptLatency = Date().timeIntervalSince(transcriptReadyStartedAt)
             let wordCount = Self.wordCount(in: finalText)
 
@@ -438,22 +499,44 @@ final class DictationCoordinator {
             incrementSuccessfulRecordingCount()
             checkAndShowDragTooltip()
 
-            state = .inserting
-            publishHUD(
-                visualState: .inserting,
-                subtitle: "",
-                level: 0.6,
-                waveformLevels: latestWaveformLevels,
-                showsSubtitle: false
-            )
-
-            let insertionStartedAt = Date()
-            do {
+            var copiesToClipboard = isClipboardOnlySession
+            var targetAssessment: DictationTargetCapabilityAssessment?
+            if !copiesToClipboard {
                 guard let activeTargetCapture else {
                     throw ApplicationTargetAuthorityError.noExternalTarget
                 }
                 try await targetAuthority.verify(activeTargetCapture)
-                try await textInsertionService.insert(polishResult.insertionText)
+                let assessment = targetCapability.assessFocusedElement(
+                    for: activeTargetCapture
+                )
+                targetAssessment = assessment
+                copiesToClipboard = assessment.isDefinitelyNotEditable
+                dictationLogger.info(
+                    "Cadence insertion target assessment=\(assessment.reason.rawValue, privacy: .public)"
+                )
+            }
+            state = .inserting
+            // Text insertion is normally shorter than a HUD content
+            // transition. Keep the visible sequence stable—Transcribing moves
+            // directly to Inserted instead of flashing an ephemeral label.
+
+            let insertionStartedAt = Date()
+            do {
+                if copiesToClipboard || targetAssessment?.needsClipboardBackup == true {
+                    guard pasteboardWriter.replaceContents(with: insertionText) else {
+                        throw CadenceError.clipboardWriteFailed
+                    }
+                }
+                if !copiesToClipboard {
+                    if !insertionText.isEmpty {
+                        try await textInsertionService.insert(insertionText)
+                    }
+                    if commandInterpretation.shouldPressReturn,
+                       targetAssessment?.supportsCommandReturn != false {
+                        try await textInsertionService.pressReturn()
+                    }
+                }
+                feedbackService.playCompletionSound()
             } catch {
                 analytics.track(
                     "text_insertion_failed",
@@ -501,14 +584,15 @@ final class DictationCoordinator {
 
             activeTriggerMode = nil
             activeTargetApplication = nil
+            isClipboardOnlySession = false
             sessionStartedAt = nil
             activeSessionID = nil
             releaseVoiceSessionLease()
             state = .idle
-            publishTerminalHUD(.success)
+            publishTerminalHUD(copiesToClipboard ? .copied : .success)
         } catch {
             dictationLogger.error(
-                "Cadence timing finalize failed total=\(Self.formatSeconds(Date().timeIntervalSince(finalizeStartedAt)), privacy: .public)s error=\(error.localizedDescription, privacy: .public)"
+                "Cadence timing finalize failed total=\(Self.formatSeconds(Date().timeIntervalSince(finalizeStartedAt)), privacy: .public)s reason=\(Self.analyticsErrorReason(for: error), privacy: .public)"
             )
             analytics.track(
                 "dictation_failed",
@@ -533,6 +617,7 @@ final class DictationCoordinator {
             }
             activeTriggerMode = nil
             activeTargetApplication = nil
+            isClipboardOnlySession = false
             sessionStartedAt = nil
             activeSessionID = nil
             releaseVoiceSessionLease()
@@ -586,8 +671,9 @@ final class DictationCoordinator {
             waveformLevels: Array(repeating: 0, count: 16),
             showsSubtitle: false
         )
+        let displayMilliseconds = HUDTerminalTiming.displayMilliseconds(for: visualState)
         terminalHUDTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(900))
+            try? await Task.sleep(for: .milliseconds(displayMilliseconds))
             guard let self, !Task.isCancelled, self.hudPresentationGeneration == generation else { return }
             self.transitionToLogoIdle()
             self.terminalHUDTask = nil
@@ -598,9 +684,10 @@ final class DictationCoordinator {
         activationFeedbackGate.handle(.failed)
         stopPreviewLoop()
         activeTriggerMode = nil
-        state = .error(message)
-        onError?(message)
-        publishTerminalHUD(.error(message: humanizedHUDMessage(for: message)))
+        let friendlyMessage = humanizedHUDMessage(for: message)
+        state = .error(friendlyMessage)
+        onError?(friendlyMessage)
+        publishTerminalHUD(.error(message: friendlyMessage))
     }
 
     private var isErrorState: Bool {
@@ -861,39 +948,70 @@ final class DictationCoordinator {
     }
 
     private func humanizedHUDMessage(for raw: String) -> String {
-        if raw.contains("Whisper did not return any transcript text") {
-            return "Nothing picked up"
+        let message = raw.lowercased()
+        if message.contains("whisper did not return any transcript text") ||
+            message.contains("no transcript") ||
+            message.contains("empty audio") {
+            return "No voice detected — try again"
         }
-        if raw.contains("Transcription backend unavailable") ||
-            raw.contains("Loading transcription backend") {
-            return "Model not loaded yet"
+        if message.contains("transcription backend unavailable") ||
+            message.contains("loading transcription backend") {
+            return "Getting speech recognition ready…"
         }
-        if raw.contains("Microphone") {
-            return "Mic access needed"
+        if message.contains("microphone") {
+            return "Microphone access is needed"
         }
-        return raw
+        if message.contains("clipboard") || message.contains("copy the dictation") {
+            return "Couldn’t copy that — try again"
+        }
+        if message.contains("applicationtargetauthorityerror") ||
+            message.contains("no external target") ||
+            message.contains("target changed") {
+            return "The destination changed — try again"
+        }
+        if message.contains("permission") {
+            return "Cadence needs permission to continue"
+        }
+        return "Couldn’t finish that — try again"
     }
 
-    private static func waveformLevels(from samples: [Float], sensitivity: Double) -> [Double] {
+    static func updatedWaveformLevels(
+        previous: [Double],
+        samples: [Float],
+        sensitivity: Double
+    ) -> [Double] {
         let barCount = 16
-        guard !samples.isEmpty else {
-            return Array(repeating: 0, count: barCount)
+        var history = Array(previous.suffix(barCount))
+        if history.count < barCount {
+            history.insert(
+                contentsOf: Array(repeating: 0, count: barCount - history.count),
+                at: 0
+            )
         }
+        history.removeFirst()
+        history.append(waveformLevel(from: samples, sensitivity: sensitivity))
+        return history
+    }
 
+    static func waveformLevel(from samples: [Float], sensitivity: Double) -> Double {
+        guard !samples.isEmpty else { return 0 }
         let sanitizedSensitivity = sanitizedWaveformSensitivity(sensitivity)
-        let bucketSize = max(1, samples.count / barCount)
-        return (0..<barCount).map { index in
-            let start = index * bucketSize
-            let end = min(samples.count, start + bucketSize)
-            guard start < end else { return 0 }
-
-            var sum: Float = 0
-            for sample in samples[start..<end] {
-                sum += abs(sample)
-            }
-            let average = Double(sum / Float(end - start))
-            return min(1, sqrt(average) * 7 * sanitizedSensitivity)
+        var absoluteSum = 0.0
+        var peak = 0.0
+        for sample in samples {
+            let magnitude = abs(Double(sample))
+            absoluteSum += magnitude
+            peak = max(peak, magnitude)
         }
+        let average = absoluteSum / Double(samples.count)
+
+        // A calm sensitivity should still communicate the cadence of speech.
+        // The slider adjusts the gain above a visible floor instead of
+        // multiplying the signal toward zero. A small peak contribution keeps
+        // consonants and transients livelier than steady vowels.
+        let envelope = sqrt(average) * 0.82 + sqrt(peak) * 0.18
+        let gain = 2.2 + 1.8 * sanitizedSensitivity
+        return min(1, envelope * gain)
     }
 
     private static func sanitizedWaveformSensitivity(_ sensitivity: Double) -> Double {

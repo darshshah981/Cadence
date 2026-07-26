@@ -11,6 +11,10 @@ enum OnboardingStep: String, CaseIterable, Codable, Identifiable, Sendable {
     case ready
 
     var id: String { rawValue }
+
+    static func availableSteps(scribeEnabled: Bool) -> [OnboardingStep] {
+        scribeEnabled ? allCases : allCases.filter { $0 != .scribe }
+    }
 }
 
 struct OnboardingProgress: Codable, Equatable, Sendable {

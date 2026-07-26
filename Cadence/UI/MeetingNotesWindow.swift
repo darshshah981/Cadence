@@ -360,7 +360,7 @@ private struct GoogleCalendarConnectionCard: View {
                         Image(systemName: "arrow.clockwise")
                             .frame(width: 24, height: 24)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(CadenceActionButtonStyle(role: .icon))
                     .help("Refresh calendar")
                     .accessibilityLabel("Refresh calendar")
                     .accessibilityIdentifier("calendar-refresh-button")
@@ -369,15 +369,17 @@ private struct GoogleCalendarConnectionCard: View {
                         Image(systemName: "xmark")
                             .frame(width: 24, height: 24)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(CadenceActionButtonStyle(role: .icon))
                     .help("Disconnect calendar")
                     .accessibilityLabel("Disconnect calendar")
                     .accessibilityIdentifier("calendar-disconnect-button")
                 } else if state.isConfigured {
-                    CadenceActionButton(title: "Continue with Google", role: .primary, action: onConnect)
-                        .controlSize(.small)
-                        .accessibilityLabel("Sign in with Google")
-                        .accessibilityIdentifier("calendar-sign-in-button")
+                    GoogleSignInButton(
+                        isConnecting: false,
+                        isEnabled: true,
+                        accessibilityIdentifier: "calendar-sign-in-button",
+                        action: onConnect
+                    )
                 }
             }
         }
@@ -1186,7 +1188,7 @@ private struct MeetingNoteEditor: View {
             Button("Retry") {
                 onRetryFinalTranscription(challenge.recordingID)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(CadenceActionButtonStyle(role: .secondary))
             .controlSize(.small)
             .accessibilityIdentifier("final-pass-retry-\(challenge.recordingID.uuidString)")
 
@@ -1194,14 +1196,14 @@ private struct MeetingNoteEditor: View {
                 Button("Revert") {
                     onRevertFinalPass(challenge.recordingID)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(CadenceActionButtonStyle(role: .secondary))
                 .controlSize(.small)
                 .accessibilityIdentifier("final-pass-revert-\(challenge.recordingID.uuidString)")
 
                 Button("Keep") {
                     onAcceptFinalPass(challenge.recordingID)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(CadenceActionButtonStyle(role: .primary))
                 .controlSize(.small)
                 .accessibilityIdentifier("final-pass-keep-\(challenge.recordingID.uuidString)")
             }
