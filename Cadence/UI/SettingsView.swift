@@ -97,7 +97,8 @@ struct SettingsView: View {
 
     private var visibleCategories: [SettingsCategoryID] {
         SettingsCategoryID.visibleCategories(
-            scribeEnabled: appModel.featureFlags.scribeEnabled
+            scribeEnabled: appModel.featureFlags.scribeEnabled,
+            granolaEnabled: appModel.featureFlags.granolaEnabled
         )
     }
 
@@ -161,7 +162,9 @@ struct SettingsView: View {
                         scribeSection
                     }
                 case .meetings:
-                    meetingsSection
+                    if appModel.featureFlags.granolaEnabled {
+                        meetingsSection
+                    }
                 case .apps:
                     integrationsSection
                 case .providers:
@@ -184,9 +187,11 @@ struct SettingsView: View {
 
     private var integrationsSection: some View {
         Group {
-            settingsSection(title: "Calendar") {
-                FlowSectionCard {
-                    calendarControls
+            if appModel.featureFlags.granolaEnabled {
+                settingsSection(title: "Calendar") {
+                    FlowSectionCard {
+                        calendarControls
+                    }
                 }
             }
 

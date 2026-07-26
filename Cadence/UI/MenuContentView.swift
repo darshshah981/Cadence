@@ -437,7 +437,9 @@ private struct HomeDashboardView: View {
             if !appModel.permissions.allRequiredGranted {
                 attentionCard
             }
-            meetingSection
+            if appModel.featureFlags.granolaEnabled {
+                meetingSection
+            }
             transcriptSection
         }
     }

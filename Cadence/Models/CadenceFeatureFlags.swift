@@ -3,31 +3,65 @@ import Foundation
 struct CadenceFeatureFlags: Equatable, Sendable {
     static let scribeDefaultsKey = "Cadence.feature.scribe"
     static let scribeEnvironmentKey = "CADENCE_SCRIBE_ENABLED"
+    static let granolaDefaultsKey = "Cadence.feature.granola"
+    static let granolaEnvironmentKey = "CADENCE_GRANOLA_ENABLED"
 
     let scribeEnabled: Bool
+    let granolaEnabled: Bool
 
     static func resolve(
         defaults: UserDefaults = .standard,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> CadenceFeatureFlags {
-        if arguments.contains("--disable-scribe") {
-            return CadenceFeatureFlags(scribeEnabled: false)
-        }
-        if arguments.contains("--enable-scribe")
-            || arguments.contains("--scribe-fixture") {
-            return CadenceFeatureFlags(scribeEnabled: true)
-        }
-        if let environmentValue = environment[scribeEnvironmentKey],
-           let enabled = parseBoolean(environmentValue) {
-            return CadenceFeatureFlags(scribeEnabled: enabled)
-        }
-        if defaults.object(forKey: scribeDefaultsKey) != nil {
-            return CadenceFeatureFlags(
-                scribeEnabled: defaults.bool(forKey: scribeDefaultsKey)
+        CadenceFeatureFlags(
+            scribeEnabled: resolveFeature(
+                defaults: defaults,
+                environment: environment,
+                arguments: arguments,
+                defaultsKey: scribeDefaultsKey,
+                environmentKey: scribeEnvironmentKey,
+                enableArguments: ["--enable-scribe", "--scribe-fixture"],
+                disableArgument: "--disable-scribe",
+                defaultValue: true
+            ),
+            granolaEnabled: resolveFeature(
+                defaults: defaults,
+                environment: environment,
+                arguments: arguments,
+                defaultsKey: granolaDefaultsKey,
+                environmentKey: granolaEnvironmentKey,
+                enableArguments: ["--enable-granola"],
+                disableArgument: "--disable-granola",
+                defaultValue: false
             )
+        )
+    }
+
+    private static func resolveFeature(
+        defaults: UserDefaults,
+        environment: [String: String],
+        arguments: [String],
+        defaultsKey: String,
+        environmentKey: String,
+        enableArguments: Set<String>,
+        disableArgument: String,
+        defaultValue: Bool
+    ) -> Bool {
+        if arguments.contains(disableArgument) {
+            return false
         }
-        return CadenceFeatureFlags(scribeEnabled: true)
+        if !enableArguments.isDisjoint(with: arguments) {
+            return true
+        }
+        if let environmentValue = environment[environmentKey],
+           let enabled = parseBoolean(environmentValue) {
+            return enabled
+        }
+        if defaults.object(forKey: defaultsKey) != nil {
+            return defaults.bool(forKey: defaultsKey)
+        }
+        return defaultValue
     }
 
     private static func parseBoolean(_ value: String) -> Bool? {

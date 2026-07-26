@@ -118,9 +118,10 @@ private struct CadenceMenuBarMenu: View {
             }
         }
 
-        Divider()
-
-        upcomingSection
+        if appModel.featureFlags.granolaEnabled {
+            Divider()
+            upcomingSection
+        }
 
         Divider()
 

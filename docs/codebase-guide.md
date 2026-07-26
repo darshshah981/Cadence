@@ -7,10 +7,10 @@ This guide explains how the Cadence codebase is organized, how the major runtime
 
 ## Product Shape
 
-Cadence started as a local macOS dictation utility and now has two related product surfaces:
+Cadence started as a local macOS dictation utility and contains two related product surfaces:
 
 - Fast local dictation: press a shortcut, capture microphone audio, transcribe locally with WhisperKit, and insert text into the app the user was already using.
-- Meeting capture: create meeting notes, capture system audio or microphone audio, show live transcript drafts, save the raw captured audio, run a final transcription pass, summarize, and export Markdown. System audio capture requires Screen Recording permission.
+- Granola (disabled by default): calendar context, meeting notes, Ask Notes, system or microphone meeting capture, live transcript drafts, saved raw audio, final transcription, summaries, and Markdown export.
 
 The app is a native macOS SwiftUI/AppKit hybrid. SwiftUI owns most views. AppKit is used where macOS requires lower-level control: windows, menu-bar behavior, hotkeys, accessibility insertion, ScreenCaptureKit, and HUD panels.
 
@@ -33,6 +33,26 @@ defaults delete com.darshshah.Cadence.debug Cadence.feature.scribe
 ```
 
 For one launch, pass `--enable-scribe` or `--disable-scribe`. Automation can set `CADENCE_SCRIBE_ENABLED=true` or `false`. Launch arguments take precedence over the environment, which takes precedence over the local preference. `--scribe-fixture` enables Scribe only for the existing Debug fixture path.
+
+## Granola Feature Flag
+
+The future calendar and meeting workspace is compiled into the app but disabled by default. While disabled, Cadence omits calendar UI, Meeting Notes, Ask Notes, meeting capture, Today notes, meeting settings, and calendar polling or detection. Existing OAuth tokens, notes, and recordings are preserved locally.
+
+Enable it only for development:
+
+```zsh
+defaults write com.darshshah.Cadence Cadence.feature.granola -bool true
+defaults write com.darshshah.Cadence.debug Cadence.feature.granola -bool true
+```
+
+Quit and relaunch Cadence after changing the value. Remove the override to restore the default:
+
+```zsh
+defaults delete com.darshshah.Cadence Cadence.feature.granola
+defaults delete com.darshshah.Cadence.debug Cadence.feature.granola
+```
+
+For one launch, pass `--enable-granola` or `--disable-granola`. Automation can set `CADENCE_GRANOLA_ENABLED=true` or `false`. Launch arguments take precedence over the environment, which takes precedence over the local preference.
 
 ## Top-Level Layout
 

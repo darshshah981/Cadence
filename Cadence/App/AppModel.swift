@@ -310,22 +310,35 @@ final class AppModel: ObservableObject {
         let meetingAudioStore = AppModel.makeMeetingAudioStore()
         self.meetingStore = meetingStore
         self.meetingAudioStore = meetingAudioStore
-        let meetingLoadResult = (try? meetingStore.loadNotesWithDiagnostics()) ?? .empty
-        let recovery = meetingAudioStore.recover(notes: meetingLoadResult.notes)
-        let loadedMeetingNotes = recovery.notes
-        let acknowledgedOrphanIDs = OrphanRecordingAcknowledgements.load(
-            defaults.stringArray(forKey: PreferenceKey.acknowledgedOrphanRecordingIDs)
-        )
-        let activeAcknowledgements = OrphanRecordingAcknowledgements.reconcile(
-            acknowledgedOrphanIDs,
-            detectedOrphans: recovery.recoverableOrphans
-        )
-        defaults.set(activeAcknowledgements.map(\.uuidString), forKey: PreferenceKey.acknowledgedOrphanRecordingIDs)
+        let meetingLoadResult: MeetingStoreLoadResult
+        let loadedMeetingNotes: [MeetingNote]
+        let visibleRecoverableOrphans: [OrphanedMeetingRecording]
+        if featureFlags.granolaEnabled {
+            meetingLoadResult = (try? meetingStore.loadNotesWithDiagnostics()) ?? .empty
+            let recovery = meetingAudioStore.recover(notes: meetingLoadResult.notes)
+            loadedMeetingNotes = recovery.notes
+            let acknowledgedOrphanIDs = OrphanRecordingAcknowledgements.load(
+                defaults.stringArray(forKey: PreferenceKey.acknowledgedOrphanRecordingIDs)
+            )
+            let activeAcknowledgements = OrphanRecordingAcknowledgements.reconcile(
+                acknowledgedOrphanIDs,
+                detectedOrphans: recovery.recoverableOrphans
+            )
+            defaults.set(
+                activeAcknowledgements.map(\.uuidString),
+                forKey: PreferenceKey.acknowledgedOrphanRecordingIDs
+            )
+            visibleRecoverableOrphans = recovery.recoverableOrphans.filter {
+                !activeAcknowledgements.contains($0.id)
+            }
+        } else {
+            meetingLoadResult = .empty
+            loadedMeetingNotes = []
+            visibleRecoverableOrphans = []
+        }
         self.meetingNotes = loadedMeetingNotes
         self.selectedMeetingNoteID = loadedMeetingNotes.first?.id
-        self.recoverableOrphanedRecordings = recovery.recoverableOrphans.filter {
-            !activeAcknowledgements.contains($0.id)
-        }
+        self.recoverableOrphanedRecordings = visibleRecoverableOrphans
         self.systemAudioCaptureService = SystemAudioCaptureService()
         self.meetingMicrophoneCaptureService = AudioCaptureService()
         self.meetingTranscriptionService = Self.makeMeetingTranscriptionService()
@@ -398,7 +411,8 @@ final class AppModel: ObservableObject {
         case let .valid(state):
             settingsPresentationState = .init(
                 selectedCategory: state.selectedCategory.normalized(
-                    scribeEnabled: featureFlags.scribeEnabled
+                    scribeEnabled: featureFlags.scribeEnabled,
+                    granolaEnabled: featureFlags.granolaEnabled
                 ),
                 isAdvancedExpanded: state.isAdvancedExpanded
             )
@@ -651,7 +665,9 @@ final class AppModel: ObservableObject {
             await refreshPermissions()
             await applyTranscriptionConfiguration(prewarm: false)
             await warmBackend()
-            await refreshTodayTomorrowCalendarEvents()
+            if featureFlags.granolaEnabled {
+                await refreshTodayTomorrowCalendarEvents()
+            }
         }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(350))
@@ -669,7 +685,9 @@ final class AppModel: ObservableObject {
                 await self?.runSystemAudioSmoke(resultPath: resultPath)
             }
         }
-        startCalendarDetectionLoop()
+        if featureFlags.granolaEnabled {
+            startCalendarDetectionLoop()
+        }
         analytics.track(
             "app_launched",
             properties: [
@@ -1106,6 +1124,7 @@ final class AppModel: ObservableObject {
     }
 
     func showMeetingNotesWindow() {
+        guard featureFlags.granolaEnabled else { return }
         refreshDerivedMeetingTitles()
         pruneBlankMeetingDrafts(keepingMostRecentIfOnlyDrafts: true)
         if selectedMeetingNoteID == nil {
@@ -1116,7 +1135,8 @@ final class AppModel: ObservableObject {
     }
 
     @discardableResult
-    func createMeetingNote(openWindow: Bool = true) -> MeetingNote {
+    func createMeetingNote(openWindow: Bool = true) -> MeetingNote? {
+        guard featureFlags.granolaEnabled else { return nil }
         pruneBlankMeetingDrafts(keepingMostRecentIfOnlyDrafts: false)
         var note = MeetingNote()
         note.updatedAt = note.createdAt
@@ -1156,6 +1176,7 @@ final class AppModel: ObservableObject {
     }
 
     func openMeetingNote(id: UUID) {
+        guard featureFlags.granolaEnabled else { return }
         selectedMeetingNoteID = id
         showMeetingNotesWindow()
     }
@@ -1282,6 +1303,7 @@ final class AppModel: ObservableObject {
     }
 
     func connectGoogleCalendar() {
+        guard featureFlags.granolaEnabled else { return }
         guard let googleCalendarConfiguration else {
             googleCalendarConnectionState = GoogleCalendarConnectionState(
                 isConfigured: false,
@@ -1365,6 +1387,12 @@ final class AppModel: ObservableObject {
     }
 
     func refreshTodayTomorrowCalendarEvents() async {
+        guard featureFlags.granolaEnabled else {
+            upcomingCalendarMeetings = []
+            detectedCalendarMeeting = nil
+            isRefreshingCalendar = false
+            return
+        }
         googleCalendarConnectionState = googleCalendarService.connectionState(configuration: googleCalendarConfiguration)
         guard googleCalendarConnectionState.isConnected else {
             isRefreshingCalendar = false
@@ -1411,10 +1439,14 @@ final class AppModel: ObservableObject {
     }
 
     func calendarMeetingCandidates(startingWithin interval: TimeInterval = 5 * 60, from date: Date = Date()) -> [GoogleCalendarEvent] {
-        upcomingCalendarMeetings.filter { $0.isMeetingCandidate && $0.startsWithin(interval, from: date) }
+        guard featureFlags.granolaEnabled else { return [] }
+        return upcomingCalendarMeetings.filter {
+            $0.isMeetingCandidate && $0.startsWithin(interval, from: date)
+        }
     }
 
     func startDetectedCalendarMeetingCapture() {
+        guard featureFlags.granolaEnabled else { return }
         guard let event = detectedCalendarMeeting else { return }
         _ = startCalendarEventCapture(event)
         detectedCalendarMeeting = nil
@@ -1422,8 +1454,9 @@ final class AppModel: ObservableObject {
     }
 
     @discardableResult
-    func startCalendarEventCapture(_ event: GoogleCalendarEvent) -> MeetingNote {
-        let note = prepareMeetingNote(for: event)
+    func startCalendarEventCapture(_ event: GoogleCalendarEvent) -> MeetingNote? {
+        guard featureFlags.granolaEnabled else { return nil }
+        guard let note = prepareMeetingNote(for: event) else { return nil }
         selectedMeetingNoteID = note.id
 
         if let meetingURL = event.meetingURL {
@@ -1454,13 +1487,14 @@ final class AppModel: ObservableObject {
         )
     }
 
-    private func prepareMeetingNote(for event: GoogleCalendarEvent) -> MeetingNote {
+    private func prepareMeetingNote(for event: GoogleCalendarEvent) -> MeetingNote? {
         var note: MeetingNote
         if let existingIndex = meetingNotes.firstIndex(where: { $0.calendarEventID == event.id }) {
             note = meetingNotes[existingIndex]
             selectedMeetingNoteID = note.id
         } else {
-            note = createMeetingNote(openWindow: false)
+            guard let createdNote = createMeetingNote(openWindow: false) else { return nil }
+            note = createdNote
         }
 
         if note.usesDefaultTitle || note.title == "Untitled Meeting" {
@@ -1490,6 +1524,7 @@ final class AppModel: ObservableObject {
     }
 
     func requestMeetingCaptureSourcePermissions() {
+        guard featureFlags.granolaEnabled else { return }
         if meetingCaptureSource.requiresMicrophone, !permissions.microphoneGranted {
             requestMicrophoneAccess()
         }
@@ -1539,6 +1574,7 @@ final class AppModel: ObservableObject {
     }
 
     func startMeetingCaptureForSelectedMeeting() {
+        guard featureFlags.granolaEnabled else { return }
         guard meetingCaptureStopTask == nil else { return }
         guard !systemAudioCaptureState.isCaptureBusy else { return }
         if selectedMeetingNoteID == nil {
@@ -2464,6 +2500,7 @@ final class AppModel: ObservableObject {
     }
 
     private func startCalendarDetectionLoop() {
+        guard featureFlags.granolaEnabled else { return }
         calendarDetectionTimer?.invalidate()
         calendarDetectionTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -2475,6 +2512,10 @@ final class AppModel: ObservableObject {
     }
 
     private func evaluateCalendarMeetingDetection(now: Date = Date()) {
+        guard featureFlags.granolaEnabled else {
+            detectedCalendarMeeting = nil
+            return
+        }
         guard detectedCalendarMeeting == nil,
               let event = meetingDetectionService.nextPrompt(
                 from: upcomingCalendarMeetings,
@@ -2918,7 +2959,10 @@ final class AppModel: ObservableObject {
     }
 
     func selectSettingsCategory(_ category: SettingsCategoryID) {
-        let category = category.normalized(scribeEnabled: featureFlags.scribeEnabled)
+        let category = category.normalized(
+            scribeEnabled: featureFlags.scribeEnabled,
+            granolaEnabled: featureFlags.granolaEnabled
+        )
         updateSettingsPresentation(.init(
             selectedCategory: category,
             isAdvancedExpanded: settingsPresentationState.isAdvancedExpanded

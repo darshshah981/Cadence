@@ -16,14 +16,16 @@ struct CadenceFeatureFlagTests {
         )
 
         #expect(flags.scribeEnabled)
+        #expect(flags.granolaEnabled == false)
     }
 
     @Test
-    func scribeCanBeEnabledWithTheDurableFeatureFlag() throws {
+    func productFeaturesCanBeEnabledWithDurableFeatureFlags() throws {
         let suite = "CadenceFeatureFlagTests.defaults.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: CadenceFeatureFlags.scribeDefaultsKey)
+        defaults.set(true, forKey: CadenceFeatureFlags.granolaDefaultsKey)
 
         let flags = CadenceFeatureFlags.resolve(
             defaults: defaults,
@@ -32,6 +34,7 @@ struct CadenceFeatureFlagTests {
         )
 
         #expect(flags.scribeEnabled)
+        #expect(flags.granolaEnabled)
     }
 
     @Test
@@ -51,18 +54,52 @@ struct CadenceFeatureFlagTests {
             environment: ["CADENCE_SCRIBE_ENABLED": "1"],
             arguments: ["--enable-scribe"]
         ).scribeEnabled)
+        #expect(CadenceFeatureFlags.resolve(
+            defaults: defaults,
+            environment: ["CADENCE_GRANOLA_ENABLED": "1"],
+            arguments: ["--disable-granola"]
+        ).granolaEnabled == false)
+        #expect(CadenceFeatureFlags.resolve(
+            defaults: defaults,
+            environment: ["CADENCE_GRANOLA_ENABLED": "1"],
+            arguments: []
+        ).granolaEnabled)
     }
 
     @Test
-    func settingsCategoriesHideScribeAndNormalizeLegacySelections() {
-        #expect(SettingsCategoryID.visibleCategories(scribeEnabled: false) == [
-            .general, .dictation, .meetings, .apps, .privacy, .advanced
+    func settingsCategoriesHideDisabledFeaturesAndNormalizeLegacySelections() {
+        #expect(SettingsCategoryID.visibleCategories(
+            scribeEnabled: false,
+            granolaEnabled: false
+        ) == [
+            .general, .dictation, .privacy, .advanced
         ])
-        #expect(SettingsCategoryID.visibleCategories(scribeEnabled: true) == [
+        #expect(SettingsCategoryID.visibleCategories(
+            scribeEnabled: true,
+            granolaEnabled: true
+        ) == [
             .general, .dictation, .scribe, .meetings, .apps, .privacy, .advanced
         ])
-        #expect(SettingsCategoryID.scribe.normalized(scribeEnabled: false) == .general)
-        #expect(SettingsCategoryID.providers.normalized(scribeEnabled: true) == .apps)
+        #expect(SettingsCategoryID.scribe.normalized(
+            scribeEnabled: false,
+            granolaEnabled: true
+        ) == .general)
+        #expect(SettingsCategoryID.meetings.normalized(
+            scribeEnabled: true,
+            granolaEnabled: false
+        ) == .general)
+        #expect(SettingsCategoryID.providers.normalized(
+            scribeEnabled: true,
+            granolaEnabled: true
+        ) == .apps)
+        #expect(SettingsCategoryID.apps.normalized(
+            scribeEnabled: false,
+            granolaEnabled: false
+        ) == .general)
+        #expect(SettingsCategoryID.apps.normalized(
+            scribeEnabled: true,
+            granolaEnabled: false
+        ) == .apps)
     }
 
     @Test

@@ -137,7 +137,8 @@ struct MainWindowView: View {
                 if showsTopToolbar {
                     StenoTopToolbar(
                         appModel: appModel,
-                        showsNewNote: selection != .speechToText,
+                        showsNewNote: appModel.featureFlags.granolaEnabled
+                            && selection != .speechToText,
                         onNewNote: createAndOpenNote
                     )
                     .padding(.top, 10)
@@ -263,7 +264,7 @@ struct MainWindowView: View {
     }
 
     private func createAndOpenNote() {
-        let note = appModel.createMeetingNote(openWindow: false)
+        guard let note = appModel.createMeetingNote(openWindow: false) else { return }
         selection = .meetingNote(note.id)
         activeSidebarItem = .allNotes
     }
@@ -307,26 +308,28 @@ private struct StenoSidebar: View {
                     activeItem = .home
                 }
 
-                StenoSidebarRow(
-                    title: "All notes",
-                    count: appModel.meetingNotes.count,
-                    systemImage: "tray",
-                    isSelected: activeItem == .allNotes,
-                    accessibilityIdentifier: "sidebar-all-notes"
-                ) {
-                    selection = .meetings
-                    activeItem = .allNotes
-                }
+                if appModel.featureFlags.granolaEnabled {
+                    StenoSidebarRow(
+                        title: "All notes",
+                        count: appModel.meetingNotes.count,
+                        systemImage: "tray",
+                        isSelected: activeItem == .allNotes,
+                        accessibilityIdentifier: "sidebar-all-notes"
+                    ) {
+                        selection = .meetings
+                        activeItem = .allNotes
+                    }
 
-                StenoSidebarRow(
-                    title: "Ask notes",
-                    count: nil,
-                    systemImage: "sparkle.magnifyingglass",
-                    isSelected: activeItem == .ask,
-                    accessibilityIdentifier: "sidebar-ask"
-                ) {
-                    selection = .ask
-                    activeItem = .ask
+                    StenoSidebarRow(
+                        title: "Ask notes",
+                        count: nil,
+                        systemImage: "sparkle.magnifyingglass",
+                        isSelected: activeItem == .ask,
+                        accessibilityIdentifier: "sidebar-ask"
+                    ) {
+                        selection = .ask
+                        activeItem = .ask
+                    }
                 }
 
                 StenoSidebarRow(
@@ -470,21 +473,23 @@ private struct StenoHomeContent: View {
                 Text(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                     .font(.system(size: 13))
                     .foregroundStyle(FlowTheme.textSecondary)
-                .padding(.bottom, 20)
+                    .padding(.bottom, appModel.featureFlags.granolaEnabled ? 20 : 30)
 
-                upcomingSectionHeader
-                    .padding(.bottom, 14)
+                if appModel.featureFlags.granolaEnabled {
+                    upcomingSectionHeader
+                        .padding(.bottom, 14)
 
-                upcomingContent
-                    .padding(.bottom, 46)
+                    upcomingContent
+                        .padding(.bottom, 46)
 
-                StenoSectionHeader(title: "Recent notes", count: appModel.meetingNotes.count)
-                    .padding(.bottom, 8)
+                    StenoSectionHeader(title: "Recent notes", count: appModel.meetingNotes.count)
+                        .padding(.bottom, 8)
 
-                previousRows
+                    previousRows
+                }
 
                 StenoSectionHeader(title: "Recent dictations", count: appModel.transcriptHistory.count)
-                    .padding(.top, 38)
+                    .padding(.top, appModel.featureFlags.granolaEnabled ? 38 : 0)
                     .padding(.bottom, 8)
 
                 recentDictationRows

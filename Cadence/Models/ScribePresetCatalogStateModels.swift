@@ -50,20 +50,38 @@ enum SettingsCategoryID: String, CaseIterable, Codable, Equatable, Sendable {
     case privacy
     case advanced
 
-    static func visibleCategories(scribeEnabled: Bool) -> [SettingsCategoryID] {
+    static func visibleCategories(
+        scribeEnabled: Bool,
+        granolaEnabled: Bool
+    ) -> [SettingsCategoryID] {
         var categories: [SettingsCategoryID] = [.general, .dictation]
         if scribeEnabled {
             categories.append(.scribe)
         }
-        categories.append(contentsOf: [.meetings, .apps, .privacy, .advanced])
+        if granolaEnabled {
+            categories.append(.meetings)
+        }
+        if scribeEnabled || granolaEnabled {
+            categories.append(.apps)
+        }
+        categories.append(contentsOf: [.privacy, .advanced])
         return categories
     }
 
-    func normalized(scribeEnabled: Bool) -> SettingsCategoryID {
+    func normalized(
+        scribeEnabled: Bool,
+        granolaEnabled: Bool
+    ) -> SettingsCategoryID {
         switch self {
+        case .apps where !scribeEnabled && !granolaEnabled:
+            return .general
+        case .providers where !scribeEnabled && !granolaEnabled:
+            return .general
         case .providers:
             return .apps
         case .scribe where !scribeEnabled:
+            return .general
+        case .meetings where !granolaEnabled:
             return .general
         default:
             return self
