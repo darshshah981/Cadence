@@ -15,6 +15,21 @@ DMG_STAGING_DIR="$BUILD_DIR/DMG"
 FINAL_DMG="$BUILD_DIR/Cadence.dmg"
 SKIP_NOTARIZATION=0
 
+load_optional_env_file() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    . "$path"
+    set +a
+  fi
+}
+
+load_optional_env_file "$HOME/.cadence/google-oauth.env"
+load_optional_env_file "$ROOT_DIR/local/google-oauth.env"
+
+GOOGLE_OAUTH_REDIRECT_SCHEME="${GOOGLE_OAUTH_REDIRECT_SCHEME:-com.darshshah.Cadence}"
+
 usage() {
   cat <<EOF
 Usage: scripts/package_release.sh [--skip-notarization]
@@ -91,6 +106,16 @@ EOF
 require_developer_id_certificate
 require_notary_profile
 
+if [[ -z "${GOOGLE_OAUTH_CLIENT_ID:-}" ]]; then
+  cat >&2 <<EOF
+Missing GOOGLE_OAUTH_CLIENT_ID for the Release build.
+
+Create the ignored local/google-oauth.env or ~/.cadence/google-oauth.env, then
+rerun so the packaged Cadence app retains Google sign-in.
+EOF
+  exit 1
+fi
+
 cd "$ROOT_DIR"
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "Refusing to package from a dirty worktree. Commit or stash first so CadenceSourceCommit is exact." >&2
@@ -130,7 +155,10 @@ xcodebuild archive \
   -configuration "$CONFIGURATION" \
   -destination "generic/platform=macOS" \
   -archivePath "$ARCHIVE_PATH" \
-  CADENCE_SOURCE_COMMIT="$CADENCE_SOURCE_COMMIT"
+  CADENCE_SOURCE_COMMIT="$CADENCE_SOURCE_COMMIT" \
+  GOOGLE_OAUTH_CLIENT_ID="$GOOGLE_OAUTH_CLIENT_ID" \
+  GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-}" \
+  GOOGLE_OAUTH_REDIRECT_SCHEME="$GOOGLE_OAUTH_REDIRECT_SCHEME"
 
 echo "Exporting Developer ID app..."
 xcodebuild -exportArchive \
@@ -155,6 +183,9 @@ DISPLAY_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$APP_PA
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Contents/Info.plist" 2>/dev/null || true)"
 EXECUTABLE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Contents/Info.plist" 2>/dev/null || true)"
 EMBEDDED_COMMIT="$(/usr/libexec/PlistBuddy -c 'Print :CadenceSourceCommit' "$APP_PATH/Contents/Info.plist" 2>/dev/null || true)"
+EMBEDDED_GOOGLE_OAUTH_CLIENT_ID="$(
+  /usr/libexec/PlistBuddy -c 'Print :CadenceGoogleOAuthClientID' "$APP_PATH/Contents/Info.plist" 2>/dev/null || true
+)"
 
 if [[ "$DISPLAY_NAME" == *Debug* || "$BUNDLE_ID" == *debug* || "$EXECUTABLE_NAME" == *Debug* ]]; then
   cat >&2 <<EOF
@@ -170,6 +201,11 @@ fi
 
 if [[ "$EMBEDDED_COMMIT" != "$CADENCE_SOURCE_COMMIT" ]]; then
   echo "Embedded CadenceSourceCommit ($EMBEDDED_COMMIT) does not match packaging commit ($CADENCE_SOURCE_COMMIT)." >&2
+  exit 1
+fi
+
+if [[ -z "$EMBEDDED_GOOGLE_OAUTH_CLIENT_ID" ]]; then
+  echo "Exported Release app is missing CadenceGoogleOAuthClientID." >&2
   exit 1
 fi
 
