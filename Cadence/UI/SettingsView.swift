@@ -480,9 +480,13 @@ struct SettingsView: View {
             settingsSection(title: "Status") {
                 FlowSectionCard {
                     HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: appModel.scribeReadiness.canGenerate ? "sparkles" : "lock.fill")
+                        Image(systemName: appModel.scribeReadiness.canGenerate
+                            ? CadenceIconography.scribe
+                            : "lock.fill")
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(appModel.scribeReadiness.canGenerate ? FlowTheme.success : FlowTheme.textTertiary)
+                            .foregroundStyle(appModel.scribeReadiness.canGenerate
+                                ? FlowTheme.success
+                                : FlowTheme.textTertiary)
                             .frame(width: 20)
 
                         SettingsLabelRow(
@@ -1707,10 +1711,10 @@ private extension SettingsCategoryID {
     var systemImage: String {
         switch self {
         case .general: "gearshape"
-        case .dictation: "waveform"
-        case .scribe: "sparkles"
+        case .dictation: CadenceIconography.dictation
+        case .scribe: CadenceIconography.scribe
         case .meetings: "person.2.wave.2"
-        case .apps, .providers: "sparkles"
+        case .apps, .providers: CadenceIconography.scribe
         case .privacy: "lock"
         case .advanced: "slider.horizontal.3"
         }

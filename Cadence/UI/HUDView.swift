@@ -349,7 +349,7 @@ struct HUDView: View {
     private func microphonePill(iconOpacity: Double) -> some View {
         ZStack {
             Color.clear
-            Image(systemName: "mic.fill")
+            Image(systemName: CadenceIconography.dictation)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(FlowTheme.textPrimary)
                 .opacity(iconOpacity)
@@ -584,7 +584,7 @@ struct HUDView: View {
                 applicationMark(size: NSSize(width: 16, height: 16))
                     .opacity(1 - micProgress)
 
-                Image(systemName: "mic.fill")
+                Image(systemName: CadenceIconography.dictation)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(FlowTheme.textPrimary)
                     .opacity(micProgress)

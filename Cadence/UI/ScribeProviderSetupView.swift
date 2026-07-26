@@ -335,7 +335,7 @@ struct ScribeProviderSetupView: View {
 
     private var ready: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Scribe is ready", systemImage: "checkmark.circle.fill")
+            Label("Scribe is ready", systemImage: CadenceIconography.scribe)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(FlowTheme.success)
             Text("Connection test succeeded. Cadence received one compatible, non-streaming text completion from this endpoint and model configuration.")

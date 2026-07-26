@@ -848,7 +848,7 @@ private struct ScribeScribingStatusView: View {
                 : 0.96 + (0.06 * ((sin(phase * .pi * 2) + 1) / 2))
 
             HStack(spacing: 7) {
-                Image(systemName: "wand.and.stars")
+                Image(systemName: CadenceIconography.scribe)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(
                         LinearGradient(

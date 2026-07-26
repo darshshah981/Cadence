@@ -1593,7 +1593,7 @@ private struct DictationPanel: View {
     var body: some View {
         MainPanel {
             VStack(alignment: .leading, spacing: 18) {
-                PanelTitle(title: "Dictation", systemImage: "mic")
+                PanelTitle(title: "Dictation", systemImage: CadenceIconography.dictation)
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(statusTitle)

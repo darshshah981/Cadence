@@ -23,6 +23,11 @@ enum FlowTheme {
     static let errorSubtle = Color(dynamicLight: 0xF5E3DE, dark: 0x33201C)
 }
 
+enum CadenceIconography {
+    static let dictation = "mic.fill"
+    static let scribe = "wand.and.stars"
+}
+
 struct HUDChromeStyle: Equatable, Sendable {
     let surfaceHex: UInt32
     let surfaceOpacity: Double

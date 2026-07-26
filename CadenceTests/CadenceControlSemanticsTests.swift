@@ -98,6 +98,12 @@ struct CadenceControlSemanticsTests {
         #expect(ScribeLaunchFixtures.supportedPanelWidths == [520, 559, 560, 720])
     }
 
+    @Test
+    func canonicalFeatureIconNamesAreStable() {
+        #expect(CadenceIconography.dictation == "mic.fill")
+        #expect(CadenceIconography.scribe == "wand.and.stars")
+    }
+
     @Test(arguments: [false, true])
     func disclosureChevronIsCenteredForOneAndTwoLineRows(isExpanded: Bool) {
         for labelHeight in [17.0, 34.0] {

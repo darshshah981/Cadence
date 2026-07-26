@@ -93,7 +93,9 @@ struct ScribeProviderManagementView: View {
     }
 
     private var statusSymbol: String {
-        if case .ready = appModel.scribeProviderReadiness { return "checkmark.circle.fill" }
+        if case .ready = appModel.scribeProviderReadiness {
+            return CadenceIconography.scribe
+        }
         if case .validating = appModel.scribeProviderReadiness { return "clock.arrow.circlepath" }
         return "exclamationmark.triangle.fill"
     }

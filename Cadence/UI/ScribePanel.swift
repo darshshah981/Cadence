@@ -156,7 +156,7 @@ struct ScribePanelView: View {
             )
         case .generating:
             cancellableStatus(
-                icon: "sparkles",
+                icon: CadenceIconography.scribe,
                 title: "Drafting…",
                 detail: "You can cancel generation at any time."
             )

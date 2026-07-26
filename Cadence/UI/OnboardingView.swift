@@ -171,11 +171,11 @@ struct OnboardingView: View {
 
     private var welcomeFeatures: [(String, String, String)] {
         var features = [
-            ("waveform", "Dictation", "Speak into any text field and insert the transcript.")
+            (CadenceIconography.dictation, "Dictation", "Speak into any text field and insert the transcript.")
         ]
         if appModel.featureFlags.scribeEnabled {
             features.append((
-                "sparkles",
+                CadenceIconography.scribe,
                 "Scribe",
                 "Dictate a request, then review the polished result before insertion."
             ))
@@ -231,14 +231,14 @@ struct OnboardingView: View {
                 appModel.setupProgressLabel
             ),
             (
-                "keyboard",
+                CadenceIconography.dictation,
                 "Dictation shortcut",
                 appModel.holdToTalkBinding.shortcut.symbolDisplayName
             )
         ]
         if appModel.featureFlags.scribeEnabled {
             features.append((
-                "sparkles",
+                CadenceIconography.scribe,
                 "Scribe shortcut",
                 appModel.scribeBinding.shortcut.symbolDisplayName
             ))
@@ -374,8 +374,8 @@ struct OnboardingView: View {
         case .privacy: return "lock.shield.fill"
         case .permissions: return "checkmark.seal"
         case .microphone: return "mic.fill"
-        case .dictation: return "keyboard"
-        case .scribe: return "sparkles"
+        case .dictation: return CadenceIconography.dictation
+        case .scribe: return CadenceIconography.scribe
         case .personalization: return "person.crop.circle.badge.checkmark"
         case .ready: return "checkmark.circle.fill"
         }
