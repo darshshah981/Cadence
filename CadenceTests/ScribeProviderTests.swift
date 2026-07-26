@@ -18,11 +18,11 @@ struct ScribeProviderTests {
 
         #expect(
             missingProvider.userMessage
-                == "Scribe needs an AI provider. Connect one in Settings, Apps & Integrations."
+                == "Scribe needs an AI provider. Connect one in Scribe settings."
         )
         #expect(
             invalidProvider.userMessage
-                == "The saved Scribe provider needs attention. Reconnect it in Settings, Apps & Integrations."
+                == "The saved Scribe provider needs attention. Reconnect it in Scribe settings."
         )
     }
 

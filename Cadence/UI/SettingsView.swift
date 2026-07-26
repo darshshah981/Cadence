@@ -160,15 +160,14 @@ struct SettingsView: View {
                 case .scribe:
                     if appModel.featureFlags.scribeEnabled {
                         scribeSection
+                        scribeIntegrationsSection
                     }
                 case .meetings:
                     if appModel.featureFlags.granolaEnabled {
                         meetingsSection
                     }
-                case .apps:
-                    integrationsSection
-                case .providers:
-                    integrationsSection
+                case .apps, .providers:
+                    EmptyView()
                 case .privacy:
                     privacySection
                     if appModel.featureFlags.scribeEnabled {
@@ -185,25 +184,15 @@ struct SettingsView: View {
         .accessibilityIdentifier("settings-category-content-\(appModel.settingsPresentationState.selectedCategory.rawValue)")
     }
 
-    private var integrationsSection: some View {
+    private var scribeIntegrationsSection: some View {
         Group {
-            if appModel.featureFlags.granolaEnabled {
-                settingsSection(title: "Calendar") {
-                    FlowSectionCard {
-                        calendarControls
-                    }
+            settingsSection(title: "Writing provider") {
+                FlowSectionCard {
+                    ScribeProviderManagementView(appModel: appModel)
+                        .padding(12)
                 }
             }
-
-            if appModel.featureFlags.scribeEnabled {
-                settingsSection(title: "Writing provider") {
-                    FlowSectionCard {
-                        ScribeProviderManagementView(appModel: appModel)
-                            .padding(12)
-                    }
-                }
-                appsSection
-            }
+            appsSection
         }
     }
 
@@ -480,7 +469,7 @@ struct SettingsView: View {
 
             settingsSection(title: "Calendar context") {
                 FlowSectionCard {
-                    calendarConnectionSummaryRow
+                    calendarControls
                 }
             }
         }
@@ -1099,35 +1088,6 @@ struct SettingsView: View {
         .accessibilityIdentifier("settings-google-calendar-account")
     }
 
-    private var calendarConnectionSummaryRow: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: appModel.googleCalendarConnectionState.isConnected
-                ? "checkmark.circle.fill"
-                : "calendar.badge.exclamationmark")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(appModel.googleCalendarConnectionState.isConnected
-                    ? FlowTheme.success
-                    : FlowTheme.textTertiary)
-                .frame(width: 20)
-
-            SettingsLabelRow(
-                title: appModel.googleCalendarConnectionState.isConnected
-                    ? "Google Calendar connected"
-                    : "Calendar not connected",
-                description: calendarDescription
-            )
-
-            Spacer()
-
-            Button("Manage") {
-                selectCategory(.apps)
-            }
-            .buttonStyle(CadenceActionButtonStyle(role: .secondary))
-            .controlSize(.small)
-        }
-        .padding(12)
-    }
-
     private var privacyControls: some View {
         VStack(spacing: 0) {
             SettingsToggleRow(
@@ -1719,7 +1679,7 @@ private extension SettingsCategoryID {
         case .dictation: "Dictation"
         case .scribe: "Scribe"
         case .meetings: "Meetings"
-        case .apps, .providers: "Apps & Integrations"
+        case .apps, .providers: "Scribe"
         case .privacy: "Privacy"
         case .advanced: "Advanced"
         }
@@ -1736,7 +1696,7 @@ private extension SettingsCategoryID {
         case .meetings:
             "Choose what Cadence captures and how meeting notes are created."
         case .apps, .providers:
-            "Manage connected accounts and app-specific writing behavior."
+            "Configure Scribe's provider and app-specific writing behavior."
         case .privacy:
             "See what Cadence can access and where your data lives."
         case .advanced:
@@ -1750,7 +1710,7 @@ private extension SettingsCategoryID {
         case .dictation: "waveform"
         case .scribe: "sparkles"
         case .meetings: "person.2.wave.2"
-        case .apps, .providers: "square.grid.2x2"
+        case .apps, .providers: "sparkles"
         case .privacy: "lock"
         case .advanced: "slider.horizontal.3"
         }

@@ -61,9 +61,6 @@ enum SettingsCategoryID: String, CaseIterable, Codable, Equatable, Sendable {
         if granolaEnabled {
             categories.append(.meetings)
         }
-        if scribeEnabled || granolaEnabled {
-            categories.append(.apps)
-        }
         categories.append(contentsOf: [.privacy, .advanced])
         return categories
     }
@@ -73,12 +70,16 @@ enum SettingsCategoryID: String, CaseIterable, Codable, Equatable, Sendable {
         granolaEnabled: Bool
     ) -> SettingsCategoryID {
         switch self {
-        case .apps where !scribeEnabled && !granolaEnabled:
-            return .general
-        case .providers where !scribeEnabled && !granolaEnabled:
+        case .apps:
+            if scribeEnabled {
+                return .scribe
+            }
+            if granolaEnabled {
+                return .meetings
+            }
             return .general
         case .providers:
-            return .apps
+            return scribeEnabled ? .scribe : .general
         case .scribe where !scribeEnabled:
             return .general
         case .meetings where !granolaEnabled:

@@ -78,7 +78,13 @@ struct CadenceFeatureFlagTests {
             scribeEnabled: true,
             granolaEnabled: true
         ) == [
-            .general, .dictation, .scribe, .meetings, .apps, .privacy, .advanced
+            .general, .dictation, .scribe, .meetings, .privacy, .advanced
+        ])
+        #expect(SettingsCategoryID.visibleCategories(
+            scribeEnabled: true,
+            granolaEnabled: false
+        ) == [
+            .general, .dictation, .scribe, .privacy, .advanced
         ])
         #expect(SettingsCategoryID.scribe.normalized(
             scribeEnabled: false,
@@ -91,7 +97,7 @@ struct CadenceFeatureFlagTests {
         #expect(SettingsCategoryID.providers.normalized(
             scribeEnabled: true,
             granolaEnabled: true
-        ) == .apps)
+        ) == .scribe)
         #expect(SettingsCategoryID.apps.normalized(
             scribeEnabled: false,
             granolaEnabled: false
@@ -99,7 +105,36 @@ struct CadenceFeatureFlagTests {
         #expect(SettingsCategoryID.apps.normalized(
             scribeEnabled: true,
             granolaEnabled: false
-        ) == .apps)
+        ) == .scribe)
+        #expect(SettingsCategoryID.apps.normalized(
+            scribeEnabled: false,
+            granolaEnabled: true
+        ) == .meetings)
+        #expect(SettingsCategoryID.providers.normalized(
+            scribeEnabled: false,
+            granolaEnabled: true
+        ) == .general)
+    }
+
+    @Test
+    func legacyAppsSelectionIsDurablyMigratedIntoScribe() throws {
+        let suite = "CadenceFeatureFlagTests.settings-migration.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = SettingsPresentationStore(defaults: defaults, key: "settings")
+        try store.save(.init(selectedCategory: .apps, isAdvancedExpanded: true))
+
+        let result = store.loadNormalizingCategories(
+            scribeEnabled: true,
+            granolaEnabled: false
+        )
+
+        let expected = SettingsPresentationState(
+            selectedCategory: .scribe,
+            isAdvancedExpanded: true
+        )
+        #expect(result == .valid(expected))
+        #expect(store.load() == .valid(expected))
     }
 
     @Test

@@ -407,15 +407,12 @@ final class AppModel: ObservableObject {
         let writingEnvironmentStore = WritingEnvironmentStore(defaults: defaults)
         let settingsPresentationStore = SettingsPresentationStore(defaults: defaults)
         let settingsPresentationState: SettingsPresentationState
-        switch settingsPresentationStore.load() {
+        switch settingsPresentationStore.loadNormalizingCategories(
+            scribeEnabled: featureFlags.scribeEnabled,
+            granolaEnabled: featureFlags.granolaEnabled
+        ) {
         case let .valid(state):
-            settingsPresentationState = .init(
-                selectedCategory: state.selectedCategory.normalized(
-                    scribeEnabled: featureFlags.scribeEnabled,
-                    granolaEnabled: featureFlags.granolaEnabled
-                ),
-                isAdvancedExpanded: state.isAdvancedExpanded
-            )
+            settingsPresentationState = state
         case .absent:
             settingsPresentationState = .init(selectedCategory: .general, isAdvancedExpanded: false)
         case .rejected:

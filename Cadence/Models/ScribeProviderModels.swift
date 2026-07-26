@@ -821,9 +821,9 @@ extension ScribeProviderFailure {
     var userMessage: String {
         switch category {
         case .setupRequired:
-            return "Scribe needs an AI provider. Connect one in Settings, Apps & Integrations."
+            return "Scribe needs an AI provider. Connect one in Scribe settings."
         case .configurationInvalid:
-            return "The saved Scribe provider needs attention. Reconnect it in Settings, Apps & Integrations."
+            return "The saved Scribe provider needs attention. Reconnect it in Scribe settings."
         case .credentialRejected:
             return "The provider rejected this API key or account access."
         case .balanceRequired:

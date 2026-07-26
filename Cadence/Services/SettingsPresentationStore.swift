@@ -25,6 +25,27 @@ final class SettingsPresentationStore {
         return .valid(envelope.state)
     }
 
+    func loadNormalizingCategories(
+        scribeEnabled: Bool,
+        granolaEnabled: Bool
+    ) -> SettingsPresentationLoadResult {
+        let result = load()
+        guard case let .valid(state) = result else {
+            return result
+        }
+        let normalizedState = SettingsPresentationState(
+            selectedCategory: state.selectedCategory.normalized(
+                scribeEnabled: scribeEnabled,
+                granolaEnabled: granolaEnabled
+            ),
+            isAdvancedExpanded: state.isAdvancedExpanded
+        )
+        if normalizedState != state {
+            try? save(normalizedState)
+        }
+        return .valid(normalizedState)
+    }
+
     func save(_ state: SettingsPresentationState) throws {
         let previous = defaults.data(forKey: key)
         defaults.set(try JSONEncoder().encode(SettingsPresentationEnvelope(state: state)), forKey: key)
