@@ -612,12 +612,26 @@ struct TranscriptHistoryItem: Identifiable, Codable, Equatable, Sendable {
     let text: String
     let createdAt: Date
     let analyticsSessionID: String?
+    /// Present only when `text` is the final Compose result. Optionality keeps
+    /// history written by earlier Cadence builds backward-compatible.
+    let composeOriginalText: String?
 
-    init(id: UUID = UUID(), text: String, createdAt: Date = .now, analyticsSessionID: String? = nil) {
+    init(
+        id: UUID = UUID(),
+        text: String,
+        createdAt: Date = .now,
+        analyticsSessionID: String? = nil,
+        composeOriginalText: String? = nil
+    ) {
         self.id = id
         self.text = text
         self.createdAt = createdAt
         self.analyticsSessionID = analyticsSessionID
+        self.composeOriginalText = composeOriginalText
+    }
+
+    var isComposeResult: Bool {
+        composeOriginalText != nil
     }
 }
 

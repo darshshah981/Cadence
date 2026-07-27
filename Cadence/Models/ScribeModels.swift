@@ -1,5 +1,17 @@
 import Foundation
 
+struct ComposeHistoryDraft: Equatable, Sendable {
+    let requestID: UUID
+    let originalText: String
+    /// Nil when the user chose the unpolished fallback rather than a generated
+    /// Compose result.
+    let composedText: String?
+
+    var finalText: String {
+        composedText ?? originalText
+    }
+}
+
 /// Legacy source compatibility only. Scribe has one direct-dictation flow and
 /// never uses an intent or selected text at runtime.
 @available(*, deprecated, message: "Compose is direct dictation only")

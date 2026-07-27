@@ -182,6 +182,7 @@ Key files:
 Core invariant:
 
 - Dictation should be short and responsive. It should not depend on meeting-note storage or meeting final-pass transcription.
+- A successfully inserted or copied Compose result may reuse the local transcript-history store as one linked record containing final composed text plus the original dictation. Failed, discarded, cancelled, and review-only Compose drafts remain memory-only.
 
 ## Meeting Capture Flow
 

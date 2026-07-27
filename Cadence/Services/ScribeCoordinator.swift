@@ -519,10 +519,32 @@ final class ScribeCoordinator {
         reviewedResult?.text
     }
 
+    func reviewedHistoryDraft() -> ComposeHistoryDraft? {
+        guard let reviewedResult,
+              let literalTranscript,
+              !literalTranscript.isEmpty else { return nil }
+        return ComposeHistoryDraft(
+            requestID: reviewedResult.requestID,
+            originalText: literalTranscript,
+            composedText: reviewedResult.text
+        )
+    }
+
     func takeUnpolishedDraftForCopy() -> String? {
         guard let literalTranscript,
               !literalTranscript.isEmpty else { return nil }
         return literalTranscript
+    }
+
+    func unpolishedHistoryDraft() -> ComposeHistoryDraft? {
+        guard let requestID = activeRequestID,
+              let literalTranscript,
+              !literalTranscript.isEmpty else { return nil }
+        return ComposeHistoryDraft(
+            requestID: requestID,
+            originalText: literalTranscript,
+            composedText: nil
+        )
     }
 
     func cancel() async {

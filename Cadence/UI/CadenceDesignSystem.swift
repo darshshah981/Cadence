@@ -82,6 +82,19 @@ struct CadenceComposeIcon: View {
     }
 }
 
+struct CadenceComposeLabel: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            CadenceComposeIcon(size: 10)
+            Text("Compose")
+                .font(.system(size: 10.5, weight: .semibold))
+        }
+        .foregroundStyle(FlowTheme.textSecondary)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Compose")
+    }
+}
+
 struct HUDChromeStyle: Equatable, Sendable {
     let surfaceHex: UInt32
     let surfaceOpacity: Double

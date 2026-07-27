@@ -2227,27 +2227,29 @@ final class AppModel: ObservableObject {
     @discardableResult
     func copyTranscript(_ item: TranscriptHistoryItem) -> Bool {
         TranscriptCopyCommit.perform(item.text) { [self] in
-            let wordCount = Self.wordCount(in: item.text)
-            analytics.track(
-                "transcript_copied",
-                properties: [
-                    "sessionID": .string(item.analyticsSessionID ?? "history-only"),
-                    "charactersBucket": .string(Self.countBucket(item.text.count)),
-                    "characterCount": .int(item.text.count),
-                    "wordsBucket": .string(Self.countBucket(wordCount)),
-                    "wordCount": .int(wordCount)
-                ]
-            )
-            if Date().timeIntervalSince(item.createdAt) <= AnalyticsTuning.followUpWindow {
+            if !item.isComposeResult {
+                let wordCount = Self.wordCount(in: item.text)
                 analytics.track(
-                    "manual_copy_after_dictation",
+                    "transcript_copied",
                     properties: [
                         "sessionID": .string(item.analyticsSessionID ?? "history-only"),
-                        "secondsSinceTranscript": .double(Self.analyticsSeconds(Date().timeIntervalSince(item.createdAt))),
+                        "charactersBucket": .string(Self.countBucket(item.text.count)),
                         "characterCount": .int(item.text.count),
+                        "wordsBucket": .string(Self.countBucket(wordCount)),
                         "wordCount": .int(wordCount)
                     ]
                 )
+                if Date().timeIntervalSince(item.createdAt) <= AnalyticsTuning.followUpWindow {
+                    analytics.track(
+                        "manual_copy_after_dictation",
+                        properties: [
+                            "sessionID": .string(item.analyticsSessionID ?? "history-only"),
+                            "secondsSinceTranscript": .double(Self.analyticsSeconds(Date().timeIntervalSince(item.createdAt))),
+                            "characterCount": .int(item.text.count),
+                            "wordCount": .int(wordCount)
+                        ]
+                    )
+                }
             }
             copiedTranscriptID = item.id
 
@@ -3501,8 +3503,12 @@ final class AppModel: ObservableObject {
     private func insertScribeResult() {
         Task { @MainActor [weak self] in
             guard let self else { return }
+            let historyDraft = self.scribeCoordinator.reviewedHistoryDraft()
             do {
                 try await self.scribeCoordinator.insertReviewedResult()
+                if let historyDraft {
+                    self.appendComposeDraftToHistory(historyDraft)
+                }
             } catch let error as ScribeContextError {
                 self.updateScribePresentation(
                     self.scribeState,
@@ -3517,8 +3523,12 @@ final class AppModel: ObservableObject {
     private func insertUnpolishedScribeResult() {
         Task { @MainActor [weak self] in
             guard let self else { return }
+            let historyDraft = self.scribeCoordinator.unpolishedHistoryDraft()
             do {
                 try await self.scribeCoordinator.insertUnpolishedResult()
+                if let historyDraft {
+                    self.appendComposeDraftToHistory(historyDraft)
+                }
             } catch let error as ScribeContextError {
                 self.updateScribePresentation(
                     self.scribeState,
@@ -3550,17 +3560,21 @@ final class AppModel: ObservableObject {
     }
 
     private func copyPolishedScribeResult() {
-        guard let text = scribeCoordinator.takeReviewedDraftForCopy() else { return }
+        guard let text = scribeCoordinator.takeReviewedDraftForCopy(),
+              let historyDraft = scribeCoordinator.reviewedHistoryDraft() else { return }
         NSPasteboard.general.clearContents()
         if NSPasteboard.general.setString(text, forType: .string) {
+            appendComposeDraftToHistory(historyDraft)
             scribeNotchWindowController.showCopyFeedback("Copied to clipboard")
         }
     }
 
     private func copyUnpolishedScribeResult() {
-        guard let text = scribeCoordinator.takeUnpolishedDraftForCopy() else { return }
+        guard let text = scribeCoordinator.takeUnpolishedDraftForCopy(),
+              let historyDraft = scribeCoordinator.unpolishedHistoryDraft() else { return }
         NSPasteboard.general.clearContents()
         if NSPasteboard.general.setString(text, forType: .string) {
+            appendComposeDraftToHistory(historyDraft)
             scribeNotchWindowController.showCopyFeedback("Copied to clipboard")
         }
     }
@@ -4234,6 +4248,16 @@ final class AppModel: ObservableObject {
         transcriptHistory = TranscriptHistoryPolicy.inserting(item, into: transcriptHistory)
         lastTrackedCorrectionTranscriptID = nil
         lastTrackedCorrectionSessionID = nil
+        persistTranscriptHistory()
+        refreshHUDCanCopyLast()
+    }
+
+    private func appendComposeDraftToHistory(_ draft: ComposeHistoryDraft) {
+        guard let item = TranscriptHistoryPolicy.historyItem(
+            for: draft,
+            existing: transcriptHistory
+        ) else { return }
+        transcriptHistory = TranscriptHistoryPolicy.upserting(item, into: transcriptHistory)
         persistTranscriptHistory()
         refreshHUDCanCopyLast()
     }

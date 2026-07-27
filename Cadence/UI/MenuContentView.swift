@@ -855,13 +855,34 @@ private struct TranscriptCardView: View {
                 .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
+                if item.isComposeResult {
+                    CadenceComposeLabel()
+                }
+
                 Button(action: onToggleExpanded) {
-                    Text(item.text)
-                        .font(.system(size: 13.5))
-                        .foregroundStyle(FlowTheme.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineLimit(isExpanded ? nil : 2)
-                        .multilineTextAlignment(.leading)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(item.text)
+                            .font(.system(size: 13.5))
+                            .foregroundStyle(FlowTheme.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .lineLimit(isExpanded ? nil : 2)
+                            .multilineTextAlignment(.leading)
+
+                        if isExpanded, let originalText = item.composeOriginalText {
+                            Divider()
+                                .overlay(FlowTheme.border)
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("Original dictation")
+                                    .font(.system(size: 10.5, weight: .semibold))
+                                    .foregroundStyle(FlowTheme.textSecondary)
+                                Text(originalText)
+                                    .font(.system(size: 12.5))
+                                    .foregroundStyle(FlowTheme.textSecondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .multilineTextAlignment(.leading)
+                            }
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
 

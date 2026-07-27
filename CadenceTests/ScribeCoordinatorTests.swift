@@ -182,6 +182,8 @@ struct ScribeCoordinatorTests {
         await fixture.coordinator.finishRecording()
 
         #expect(fixture.coordinator.reviewedResult?.text == "A polished update.")
+        #expect(fixture.coordinator.reviewedHistoryDraft()?.originalText == "Spoken request")
+        #expect(fixture.coordinator.reviewedHistoryDraft()?.composedText == "A polished update.")
         #expect(fixture.arbiter.activeKind == nil)
 
         try await fixture.coordinator.insertReviewedResult()
@@ -405,6 +407,8 @@ struct ScribeCoordinatorTests {
         try await polished.coordinator.beginDirectDictation()
         await polished.coordinator.finishRecording()
         #expect(polished.coordinator.takeReviewedDraftForCopy() == "Polished draft")
+        #expect(polished.coordinator.reviewedHistoryDraft()?.originalText == "Spoken request")
+        #expect(polished.coordinator.reviewedHistoryDraft()?.composedText == "Polished draft")
         #expect(polished.coordinator.reviewedResult?.text == "Polished draft")
         #expect(polished.coordinator.literalTranscript == "Spoken request")
         if case .reviewing = polished.coordinator.state {} else {
@@ -415,6 +419,9 @@ struct ScribeCoordinatorTests {
         try await unpolished.coordinator.beginDirectDictation()
         await unpolished.coordinator.finishRecording()
         #expect(unpolished.coordinator.takeUnpolishedDraftForCopy() == "Spoken request")
+        #expect(unpolished.coordinator.unpolishedHistoryDraft()?.originalText == "Spoken request")
+        #expect(unpolished.coordinator.unpolishedHistoryDraft()?.composedText == nil)
+        #expect(unpolished.coordinator.unpolishedHistoryDraft()?.finalText == "Spoken request")
         #expect(unpolished.coordinator.literalTranscript == "Spoken request")
         if case .failed = unpolished.coordinator.state {} else {
             Issue.record("Copy must keep the recovery review visible")

@@ -8,9 +8,9 @@ Cadence records audio only while you are using Dictation, Compose voice capture,
 
 ## Transcripts
 
-Cadence stores recent dictation transcripts locally on your Mac so you can copy them again from the menu bar. Meeting notes, saved meeting audio, transcripts, and summaries stay local on your Mac. Transcript text is not sent to analytics.
+Cadence stores dictation transcripts locally on your Mac so you can copy them again from the menu bar. When you successfully insert or copy a generated Compose result, Cadence also stores the final composed text and its original dictation together in local Dictation history. This lets the history preview show the final result while the entry detail preserves both versions. Choosing an unpolished fallback stores it as an ordinary dictation rather than labeling it as composed. Meeting notes, saved meeting audio, transcripts, and summaries stay local on your Mac. Transcript text is not sent to analytics.
 
-Current Compose speech, selected text, provider request, generated draft, and retry payload remain only in the active in-memory Compose session. Cadence clears them after insert, copy-and-finish, discard, cancel, provider removal, review dismissal, or app termination. Release one does not write a content-bearing Compose recovery journal. Dictation history and meeting recovery remain separate and unchanged.
+Current Compose speech, provider request, generated draft, and retry payload remain only in the active in-memory Compose session until you successfully insert or copy the result. At that point, Cadence saves only the original dictation and chosen output to local Dictation history. Cadence does not save failed, discarded, cancelled, or merely reviewed Compose drafts, and it does not write a separate content-bearing Compose recovery journal.
 
 ## Optional Cloud Compose
 

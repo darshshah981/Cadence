@@ -3709,4 +3709,71 @@ struct TranscriptHistoryPolicyTests {
         #expect(markdown.contains("Cadence Dictation History"))
         #expect(!markdown.contains("internal-session-id"))
     }
+
+    @Test
+    func olderDictationHistoryDecodesWithoutComposeMetadata() throws {
+        let id = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+        let json = """
+        {
+          "id": "\(id.uuidString)",
+          "text": "An older dictation",
+          "createdAt": 0,
+          "analyticsSessionID": null
+        }
+        """.data(using: .utf8)!
+
+        let item = try JSONDecoder().decode(TranscriptHistoryItem.self, from: json)
+
+        #expect(item.text == "An older dictation")
+        #expect(item.composeOriginalText == nil)
+        #expect(!item.isComposeResult)
+    }
+
+    @Test
+    func composeHistoryShowsFinalTextAndExportsTheOriginalDictation() throws {
+        let requestID = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+        let item = try #require(TranscriptHistoryPolicy.historyItem(
+            for: ComposeHistoryDraft(
+                requestID: requestID,
+                originalText: "send a polished update about the project",
+                composedText: "Send the polished project update."
+            ),
+            existing: [],
+            createdAt: Date(timeIntervalSince1970: 0)
+        ))
+
+        let archive = TranscriptHistoryPolicy.upserting(item, into: [
+            TranscriptHistoryItem(id: requestID, text: "Stale result")
+        ])
+        let markdown = TranscriptHistoryMarkdownFormatter.markdown(
+            for: archive,
+            exportedAt: Date(timeIntervalSince1970: 60)
+        )
+
+        #expect(archive.count == 1)
+        #expect(archive.first?.text == "Send the polished project update.")
+        #expect(archive.first?.isComposeResult == true)
+        #expect(markdown.contains("**Compose result**"))
+        #expect(markdown.contains("Send the polished project update."))
+        #expect(markdown.contains("**Original dictation**"))
+        #expect(markdown.contains("send a polished update about the project"))
+    }
+
+    @Test
+    func unpolishedComposeFallbackRemainsAnOrdinaryDictation() throws {
+        let requestID = UUID(uuidString: "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC")!
+        let item = try #require(TranscriptHistoryPolicy.historyItem(
+            for: ComposeHistoryDraft(
+                requestID: requestID,
+                originalText: "keep my exact words",
+                composedText: nil
+            ),
+            existing: [],
+            createdAt: Date(timeIntervalSince1970: 0)
+        ))
+
+        #expect(item.text == "keep my exact words")
+        #expect(item.composeOriginalText == nil)
+        #expect(!item.isComposeResult)
+    }
 }

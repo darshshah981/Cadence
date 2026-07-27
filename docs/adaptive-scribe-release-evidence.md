@@ -25,7 +25,7 @@ Run `scripts/collect_adaptive_scribe_evidence.sh` only from the clean candidate 
 - [ ] `./script/build_and_run.sh --verify` proves the installed Debug app launches and shows its main window.
 - [ ] `./script/build_and_run.sh --audio-smoke` preserves meeting system-audio frames.
 - [ ] The recursive privacy-canary scan passes over xcresults, captured logs, defaults/app-support snapshots, diagnostics exports, and collected evidence, including transcript, selection, credential, origin, model, app, prompt, response, process-ID, filesystem-path, and bundle-identifier canaries.
-- [ ] Independent source review confirms no Compose content enters analytics, OSLog, Dictation history, meeting stores, caches, or crash/support payloads.
+- [ ] Independent source review confirms Compose content enters only local Dictation history after a successful user-selected Insert or Copy; it never enters analytics, OSLog, meeting stores, caches, or crash/support payloads.
 
 ### Credential Accessibility Compatibility Decision
 

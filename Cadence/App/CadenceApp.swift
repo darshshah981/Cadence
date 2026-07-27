@@ -208,7 +208,8 @@ private struct CadenceMenuBarMenu: View {
 
     private func transcriptMenuTitle(for item: TranscriptHistoryItem) -> String {
         let prefix = appModel.copiedTranscriptID == item.id ? "Copied " : ""
-        return Self.menuText(prefix + item.text)
+        let composeLabel = item.isComposeResult ? "Compose · " : ""
+        return Self.menuText(prefix + composeLabel + item.text)
     }
 
     private static func menuText(_ raw: String, maxLength: Int = 30) -> String {
