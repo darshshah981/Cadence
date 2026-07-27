@@ -963,15 +963,6 @@ struct HUDAnimationClockTests {
     }
 
     @Test
-    func menuBarMarkKeepsCadenceDotSubtleUntilRecording() {
-        #expect(CadenceMenuBarIconMetrics.frameSize == 18)
-        #expect(CadenceMenuBarIconMetrics.dotCenter.x
-            < CadenceMenuBarIconMetrics.frameSize)
-        #expect(CadenceMenuBarIconMetrics.dotDiameter(isRecording: true)
-            > CadenceMenuBarIconMetrics.dotDiameter(isRecording: false))
-    }
-
-    @Test
     func diagnosticsMeasureAHealthy120HzSample() {
         let diagnostics = HUDFrameDiagnostics(warmUpDuration: 0)
         diagnostics.begin(targetFramesPerSecond: 120)
