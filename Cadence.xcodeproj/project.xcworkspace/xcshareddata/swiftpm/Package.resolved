@@ -1,5 +1,5 @@
 {
-  "originHash" : "2389911104b1a357989ed775d470e0e4ebbbba38477bc27aecd499586fcb4ff2",
+  "originHash" : "6276a6a317d4eee6a5e7c1edfef9330921ab60772a5c2a4f40c06e7f29661027",
   "pins" : [
     {
       "identity" : "argmax-oss-swift",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "e2adabbe7d98dc4d0ab9a5b75424ecc42a9cdbef",
         "version" : "0.18.0"
+      }
+    },
+    {
+      "identity" : "permissionflow",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jaywcjlove/PermissionFlow.git",
+      "state" : {
+        "revision" : "0a41fa791470f6923c907e3c887d93609da63875",
+        "version" : "2.7.0"
       }
     },
     {

@@ -24,11 +24,10 @@ enum ScribePermissionGate {
 
 @MainActor
 final class PermissionsService: DictationPermissionsServing {
-    private enum PrivacyPane {
-        static let microphone = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
-        static let accessibility = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-        static let inputMonitoring = "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
-        static let screenRecording = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+    private let permissionGuidance: any PermissionGuidanceServing
+
+    init(permissionGuidance: (any PermissionGuidanceServing)? = nil) {
+        self.permissionGuidance = permissionGuidance ?? PermissionFlowGuidanceService()
     }
 
     func snapshot() -> PermissionsSnapshot {
@@ -47,14 +46,14 @@ final class PermissionsService: DictationPermissionsServing {
         case .notDetermined:
             let granted = await AVCaptureDevice.requestAccess(for: .audio)
             if !granted {
-                openPrivacyPane(PrivacyPane.microphone)
+                permissionGuidance.present(.microphone)
             }
             return granted
         case .denied, .restricted:
-            openPrivacyPane(PrivacyPane.microphone)
+            permissionGuidance.present(.microphone)
             return false
         @unknown default:
-            openPrivacyPane(PrivacyPane.microphone)
+            permissionGuidance.present(.microphone)
             return false
         }
     }
@@ -62,13 +61,13 @@ final class PermissionsService: DictationPermissionsServing {
     func requestAccessibilityAccess() {
         let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
-        openPrivacyPane(PrivacyPane.accessibility)
+        permissionGuidance.present(.accessibility)
     }
 
     func requestInputMonitoringAccess() {
         _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
         _ = CGRequestListenEventAccess()
-        openPrivacyPane(PrivacyPane.inputMonitoring)
+        permissionGuidance.present(.inputMonitoring)
     }
 
     func requestScreenRecordingAccess() -> Bool {
@@ -78,18 +77,13 @@ final class PermissionsService: DictationPermissionsServing {
 
         let granted = CGRequestScreenCaptureAccess()
         if !granted {
-            openPrivacyPane(PrivacyPane.screenRecording)
+            permissionGuidance.present(.screenRecording)
         }
         return granted
     }
 
     func appLocationSummary() -> String {
         Bundle.main.bundleURL.path
-    }
-
-    private func openPrivacyPane(_ string: String) {
-        guard let url = URL(string: string) else { return }
-        NSWorkspace.shared.open(url)
     }
 
     private func inputMonitoringGranted() -> Bool {

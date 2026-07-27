@@ -9,7 +9,7 @@ on:
 jobs:
   macos:
     name: macOS build and tests
-    runs-on: macos-15
+    runs-on: macos-26
     env:
       DERIVED_DATA_PATH: ${{ github.workspace }}/.derived-data
       UI_DERIVED_DATA_PATH: ${{ github.workspace }}/.derived-data-ui

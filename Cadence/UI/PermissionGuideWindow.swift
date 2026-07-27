@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 @MainActor
 final class PermissionWizardState: ObservableObject {
@@ -18,7 +17,7 @@ final class PermissionGuideWindowController: NSWindowController {
 
     convenience init() {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 620),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 460),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -27,12 +26,12 @@ final class PermissionGuideWindowController: NSWindowController {
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.hidesOnDeactivate = false
+        panel.hidesOnDeactivate = true
         panel.isReleasedWhenClosed = false
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
-        panel.minSize = NSSize(width: 460, height: 620)
-        panel.maxSize = NSSize(width: 460, height: 620)
+        panel.minSize = NSSize(width: 460, height: 460)
+        panel.maxSize = NSSize(width: 460, height: 460)
 
         self.init(window: panel)
     }
@@ -43,7 +42,6 @@ final class PermissionGuideWindowController: NSWindowController {
         onRequestMicrophone: @escaping () -> Void,
         onRequestAccessibility: @escaping () -> Void,
         onRequestInputMonitoring: @escaping () -> Void,
-        onRequestScreenRecording: @escaping () -> Void,
         onRefresh: @escaping () -> Void
     ) {
         let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
@@ -58,11 +56,7 @@ final class PermissionGuideWindowController: NSWindowController {
             onRequestMicrophone: onRequestMicrophone,
             onRequestAccessibility: onRequestAccessibility,
             onRequestInputMonitoring: onRequestInputMonitoring,
-            onRequestScreenRecording: onRequestScreenRecording,
             onRefresh: onRefresh,
-            onRevealApp: {
-                NSWorkspace.shared.activateFileViewerSelecting([appURL])
-            },
             onRestartApp: {
                 Self.relaunch(appURL: appURL)
             },
@@ -75,7 +69,7 @@ final class PermissionGuideWindowController: NSWindowController {
         self.hostingController = hostingController
         window?.title = "Set Up \(appName)"
         window?.contentViewController = hostingController
-        window?.setContentSize(NSSize(width: 460, height: 620))
+        window?.setContentSize(NSSize(width: 460, height: 460))
         window?.center()
         showWindow(nil)
         window?.orderFrontRegardless()
@@ -110,9 +104,7 @@ private struct PermissionWizardView: View {
     let onRequestMicrophone: () -> Void
     let onRequestAccessibility: () -> Void
     let onRequestInputMonitoring: () -> Void
-    let onRequestScreenRecording: () -> Void
     let onRefresh: () -> Void
-    let onRevealApp: () -> Void
     let onRestartApp: () -> Void
     let onClose: () -> Void
 
@@ -121,29 +113,20 @@ private struct PermissionWizardView: View {
             header
             instruction
             permissionList
-            appPath
             Spacer(minLength: 0)
             actions
         }
         .padding(18)
-        .frame(width: 460, height: 620, alignment: .topLeading)
+        .frame(width: 460, height: 460, alignment: .topLeading)
         .background(FlowTheme.background)
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
-            ZStack(alignment: .bottomTrailing) {
-                AppBundleDragView(appURL: appURL)
-                    .frame(width: 66, height: 66)
-
-                Image(systemName: "arrow.up.forward")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(FlowTheme.background)
-                    .frame(width: 24, height: 24)
-                    .background(FlowTheme.accent, in: Circle())
-                    .offset(x: 5, y: 5)
-            }
-            .frame(width: 74, height: 74)
+            Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 58, height: 58)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Set up \(appName)")
@@ -158,7 +141,7 @@ private struct PermissionWizardView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(height: 78)
+        .frame(height: 64)
     }
 
     private var instruction: some View {
@@ -181,7 +164,7 @@ private struct PermissionWizardView: View {
                 title: "Microphone",
                 description: "Allow recording when you dictate.",
                 isGranted: state.permissions.microphoneGranted,
-                actionTitle: "Open Settings",
+                actionTitle: "Grant",
                 action: onRequestMicrophone
             )
             divider
@@ -189,7 +172,7 @@ private struct PermissionWizardView: View {
                 title: "Accessibility",
                 description: "Allow Cadence to insert text into the focused app.",
                 isGranted: state.permissions.accessibilityGranted,
-                actionTitle: "Open Settings",
+                actionTitle: "Grant",
                 action: onRequestAccessibility
             )
             divider
@@ -197,16 +180,8 @@ private struct PermissionWizardView: View {
                 title: "Input Monitoring",
                 description: "Allow global shortcuts to work while other apps are active.",
                 isGranted: state.permissions.inputMonitoringGranted,
-                actionTitle: "Open Settings",
+                actionTitle: "Grant",
                 action: onRequestInputMonitoring
-            )
-            divider
-            PermissionWizardRow(
-                title: "Screen Recording",
-                description: "Allow system audio capture for meeting notes.",
-                isGranted: state.permissions.screenRecordingGranted,
-                actionTitle: "Open Settings",
-                action: onRequestScreenRecording
             )
         }
         .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -216,41 +191,12 @@ private struct PermissionWizardView: View {
         )
     }
 
-    private var appPath: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("If Cadence is missing from System Settings, drag the app icon above into the list.")
-                .font(.system(size: 12))
-                .foregroundStyle(FlowTheme.textSecondary)
-                .lineLimit(2)
-
-            Text(appURL.path)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(FlowTheme.textTertiary)
-                .lineLimit(2)
-                .truncationMode(.middle)
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-    }
-
     private var actions: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                CadenceActionButton(title: "Reveal App", role: .secondary, action: onRevealApp)
-
-                CadenceActionButton(title: "Check Again", role: .secondary, action: onRefresh)
-
-                Spacer()
-            }
-
-            HStack(spacing: 8) {
-                CadenceActionButton(title: "Restart \(appName)", role: .secondary, action: onRestartApp)
-
-                Spacer()
-
-                CadenceActionButton(title: "Done", role: .primary, isDefault: true, action: onClose)
-            }
+        HStack(spacing: 8) {
+            CadenceActionButton(title: "Check Again", role: .secondary, action: onRefresh)
+            CadenceActionButton(title: "Restart \(appName)", role: .secondary, action: onRestartApp)
+            Spacer()
+            CadenceActionButton(title: "Done", role: .primary, isDefault: true, action: onClose)
         }
         .controlSize(.regular)
         .padding(12)
@@ -270,19 +216,15 @@ private struct PermissionWizardView: View {
 
     private var activeInstruction: String {
         if !state.permissions.microphoneGranted {
-            return "Start with Microphone. Click Request, then allow Cadence when macOS asks."
+            return "Choose Grant. Cadence will open the correct macOS permission screen for you."
         }
 
         if !state.permissions.accessibilityGranted {
-            return "Open Accessibility, turn on Cadence, or drag this Cadence icon into the list if it is missing."
+            return "Choose Grant, then use the floating Cadence card beside System Settings."
         }
 
         if !state.permissions.inputMonitoringGranted {
-            return "Open Input Monitoring, turn on Cadence, or drag this Cadence icon into the list if it is missing."
-        }
-
-        if !state.permissions.screenRecordingGranted {
-            return "Core dictation is ready. Open Screen Recording if you want Cadence to capture system audio for meeting notes."
+            return "Choose Grant, then use the floating Cadence card beside System Settings."
         }
 
         return "All permissions are enabled. Restart Cadence if macOS asked you to relaunch."
@@ -298,9 +240,9 @@ private struct PermissionWizardRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            Image(systemName: isGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
+            Image(systemName: isGranted ? "checkmark.circle.fill" : "arrow.up.right.circle")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(isGranted ? FlowTheme.success : FlowTheme.error)
+                .foregroundStyle(isGranted ? FlowTheme.success : FlowTheme.textSecondary)
                 .frame(width: 20, height: 20)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -323,57 +265,5 @@ private struct PermissionWizardRow: View {
         }
         .padding(12)
         .frame(minHeight: 66)
-    }
-}
-
-private struct AppBundleDragView: NSViewRepresentable {
-    let appURL: URL
-
-    func makeNSView(context: Context) -> DraggableAppIconView {
-        DraggableAppIconView(appURL: appURL)
-    }
-
-    func updateNSView(_ nsView: DraggableAppIconView, context: Context) {
-        nsView.appURL = appURL
-    }
-}
-
-private final class DraggableAppIconView: NSImageView {
-    var appURL: URL {
-        didSet {
-            image = NSWorkspace.shared.icon(forFile: appURL.path)
-        }
-    }
-
-    init(appURL: URL) {
-        self.appURL = appURL
-        super.init(frame: .zero)
-        image = NSWorkspace.shared.icon(forFile: appURL.path)
-        imageScaling = .scaleProportionallyUpOrDown
-        wantsLayer = true
-        layer?.cornerRadius = 8
-    }
-
-    required init?(coder: NSCoder) {
-        return nil
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        let pasteboardItem = NSPasteboardItem()
-        pasteboardItem.setString(appURL.absoluteString, forType: .fileURL)
-        pasteboardItem.setString(appURL.path, forType: .string)
-
-        let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
-        draggingItem.setDraggingFrame(bounds, contents: image)
-        beginDraggingSession(with: [draggingItem], event: event, source: self)
-    }
-}
-
-extension DraggableAppIconView: NSDraggingSource {
-    func draggingSession(
-        _ session: NSDraggingSession,
-        sourceOperationMaskFor context: NSDraggingContext
-    ) -> NSDragOperation {
-        .copy
     }
 }

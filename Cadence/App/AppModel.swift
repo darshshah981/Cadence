@@ -1087,9 +1087,6 @@ final class AppModel: ObservableObject {
             onRequestInputMonitoring: { [weak self] in
                 self?.requestInputMonitoringAccess()
             },
-            onRequestScreenRecording: { [weak self] in
-                self?.requestScreenRecordingAccess()
-            },
             onRefresh: { [weak self] in
                 Task { await self?.refreshPermissions() }
             }

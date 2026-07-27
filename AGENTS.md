@@ -34,7 +34,7 @@ xcodebuild test -project Cadence.xcodeproj -scheme Cadence -configuration Debug 
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
 ```
 
-CI (`.github/workflows/ci.yml`) runs `xcodegen generate` → build → test on macOS 15. Keep `project.yml` + `CadenceTests/` passing. Code signing is disabled in CI (`CODE_SIGNING_ALLOWED=NO`).
+CI (`.github/workflows/ci.yml`) runs `xcodegen generate` → build → test on macOS 26 because PermissionFlow requires Swift tools 6.2. Keep `project.yml` + `CadenceTests/` passing. Code signing is disabled in CI (`CODE_SIGNING_ALLOWED=NO`).
 
 ## Architecture & Layer Rules
 

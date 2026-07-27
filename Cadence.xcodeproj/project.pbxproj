@@ -24,6 +24,7 @@
 		1A1A0414379C0E271BA31433 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6DC8041CF3DCC911E00F24 /* AppAppearance.swift */; };
 		1A3CE512FA009711B4941E59 /* WritingEnvironmentRecognizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75833935A2A85450E7280AAA /* WritingEnvironmentRecognizerTests.swift */; };
 		1BDB85799A6EF2B230C44C95 /* MeetingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E82B6E6F4A16C4CBB239C15 /* MeetingStore.swift */; };
+		1C8971956411096DAF40A666 /* PermissionFlowGuidanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 013378DEEBCB9C96B1ED1074 /* PermissionFlowGuidanceTests.swift */; };
 		1CDB067AE55C50756D353CBB /* WindowPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6C2C428CF23A53801181BE /* WindowPlacement.swift */; };
 		21A1017BCC23BECAABA91360 /* StyleProfileResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A5B98D12ED3F424919D9FC /* StyleProfileResolver.swift */; };
 		22FADFE488BFB74F1659675D /* FocusedApplicationMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FAEC624BCBA87683E3DCD73 /* FocusedApplicationMonitor.swift */; };
@@ -34,6 +35,7 @@
 		2A358E9C7831AAE52E72BA44 /* ScribeCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E21E0D44209E1D489BD2A475 /* ScribeCredentialStore.swift */; };
 		2ABF954B4606A476AFD59B24 /* ScribeDiagnosticModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149842A517DF930900048ED2 /* ScribeDiagnosticModels.swift */; };
 		2CD9752BAEFA8592DD2216F3 /* ApplicationConfigurationMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 431F691FE2431240289F29F3 /* ApplicationConfigurationMigrationService.swift */; };
+		2D3268B0FAA15E263B51DAF9 /* PermissionFlow-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 18CDBDBD8A60B4D5C95D9DC4 /* PermissionFlow-LICENSE.txt */; };
 		2D950BB2549846B4C6E7BF2F /* ScribeContextServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D75497C3F44A3081C0A107D3 /* ScribeContextServiceTests.swift */; };
 		314837379E746B0738FE0D05 /* TranscriptionAudioPreprocessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8371975360FC8D8C76AB8C /* TranscriptionAudioPreprocessor.swift */; };
 		3294D3FAE83F800F084A9845 /* HUDDropZoneOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015505B1691B6CE2E9F788AB /* HUDDropZoneOverlay.swift */; };
@@ -60,6 +62,7 @@
 		54A92CC0B1038FB507FFEE10 /* ScribeProviderSetupSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A66E30E921DDEF50028694D /* ScribeProviderSetupSession.swift */; };
 		565802BC12300CB87A5E4A76 /* quality-corpus-manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 9AEDC021CB58476A4FB96E92 /* quality-corpus-manifest.json */; };
 		57F06125EB560A0004973BDA /* MeetingDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAE902E9A7F2F2906C91892 /* MeetingDetectionService.swift */; };
+		5951A6617228CCDF460ABB54 /* PermissionFlowGuidanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 098242C51E2FE5EC1D47C809 /* PermissionFlowGuidanceService.swift */; };
 		5AD53269E2F3698F85A01036 /* DurablePreferenceKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78697F1129D556E082D17DAD /* DurablePreferenceKeys.swift */; };
 		5B459732BF97D90537C75E4A /* ScribeRequestPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA4184D1F8A91858269D49B0 /* ScribeRequestPolicy.swift */; };
 		5E268FC2CD9E558B8CEAFCE0 /* CalendarEventCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A485E597733F3F0F173BF23 /* CalendarEventCacheStore.swift */; };
@@ -106,6 +109,7 @@
 		9EFEE954B960BBE3602D013F /* TextInsertionCapabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF3E8D581DC0B0C2AE5D131C /* TextInsertionCapabilityTests.swift */; };
 		9F5E623D08832765F8ED978B /* CustomGuidanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0D74A9C9C9D08BF67669B8 /* CustomGuidanceTests.swift */; };
 		9FF4FC96281540D9441C093A /* ScribeProviderConsentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A99463B7363354D536E247F0 /* ScribeProviderConsentTests.swift */; };
+		A0B10965E26138F42C677BE1 /* PermissionFlow in Frameworks */ = {isa = PBXBuildFile; productRef = 3C7BACB08B94F26F53E30C60 /* PermissionFlow */; };
 		A39F63A36F95685029B6753B /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B84BC5ABABEC140A56D89DD /* DictationCoordinator.swift */; };
 		A431EC194F3DAB38251D91B5 /* legacy-application-preferences.json in Resources */ = {isa = PBXBuildFile; fileRef = 4A806C1F045050D4BE94DCF1 /* legacy-application-preferences.json */; };
 		A5F36020AF84151664929781 /* MeetingAudioStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB40F5DFBCB574CACFAFA572 /* MeetingAudioStore.swift */; };
@@ -200,10 +204,12 @@
 /* Begin PBXFileReference section */
 		000F18EAE6F79A44656A0048 /* ScribeHTTPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeHTTPTransport.swift; sourceTree = "<group>"; };
 		003F11BFAA67440EC3E38F32 /* ScribeProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderTests.swift; sourceTree = "<group>"; };
+		013378DEEBCB9C96B1ED1074 /* PermissionFlowGuidanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionFlowGuidanceTests.swift; sourceTree = "<group>"; };
 		015505B1691B6CE2E9F788AB /* HUDDropZoneOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDDropZoneOverlay.swift; sourceTree = "<group>"; };
 		033B2CF865C8DF76F736802F /* VoiceSessionArbiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSessionArbiter.swift; sourceTree = "<group>"; };
 		0738EECF8CC35F6E2FAC3C7B /* MeetingFinalTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingFinalTranscriptionService.swift; sourceTree = "<group>"; };
 		07592451F56FA01E1134A310 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		098242C51E2FE5EC1D47C809 /* PermissionFlowGuidanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionFlowGuidanceService.swift; sourceTree = "<group>"; };
 		0B21123AC58E3ECD07ED4E51 /* CadenceFeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceFeatureFlags.swift; sourceTree = "<group>"; };
 		0B270F4E9E0E1CB229615B73 /* ScribeChatCompletionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeChatCompletionClient.swift; sourceTree = "<group>"; };
 		0C16117AB80D4197BE302C96 /* ScribeLiteralNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeLiteralNormalizerTests.swift; sourceTree = "<group>"; };
@@ -214,6 +220,7 @@
 		14E54A61FAA183DBB172417E /* UnavailableScribeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnavailableScribeProvider.swift; sourceTree = "<group>"; };
 		16029181741E78FDC22FD716 /* legacy-provider-library.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "legacy-provider-library.json"; sourceTree = "<group>"; };
 		164913F8C06819E7939FA094 /* ScribeDiagnosticsExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeDiagnosticsExportService.swift; sourceTree = "<group>"; };
+		18CDBDBD8A60B4D5C95D9DC4 /* PermissionFlow-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "PermissionFlow-LICENSE.txt"; sourceTree = "<group>"; };
 		19004982898DC1FD2A4774E4 /* ScribeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProvider.swift; sourceTree = "<group>"; };
 		1947EF0EC7977800EEC5E3B3 /* ScribeLiteralNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeLiteralNormalizer.swift; sourceTree = "<group>"; };
 		1D090C352A07AE85748852F1 /* ReleaseEvidenceContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseEvidenceContractTests.swift; sourceTree = "<group>"; };
@@ -381,6 +388,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CA7DEBC92273F86FC09DB926 /* WhisperKit in Frameworks */,
+				A0B10965E26138F42C677BE1 /* PermissionFlow in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -426,6 +434,7 @@
 				7C4E7B75CF2690446DD7057A /* HUDServicesTests.swift */,
 				51D8EC088DD170378EAA03FD /* InstalledApplicationCatalogTests.swift */,
 				393D34EA2315483D46C808AC /* OnboardingTests.swift */,
+				013378DEEBCB9C96B1ED1074 /* PermissionFlowGuidanceTests.swift */,
 				92617578D8E7278F00452C6A /* PersonalizationTests.swift */,
 				1D090C352A07AE85748852F1 /* ReleaseEvidenceContractTests.swift */,
 				11221647F46E10E7506D3EB2 /* ReleaseFixtureIsolationTests.swift */,
@@ -588,6 +597,7 @@
 				A8AB9164EC9EF17F62681407 /* OpenAIDirectScribeProvider.swift */,
 				1DF59AD9CDC1C89E87DB75ED /* OpenRouterScribeProvider.swift */,
 				2241AB1EAC2C658906A2DF74 /* PasteboardService.swift */,
+				098242C51E2FE5EC1D47C809 /* PermissionFlowGuidanceService.swift */,
 				37031AF8A914D482FABFFD6B /* PermissionsService.swift */,
 				8F79D43E58B9D94CA1C36BFB /* PersonalizationStore.swift */,
 				5307DCE6084B0FE6AF821039 /* ProviderLibraryMigrationService.swift */,
@@ -638,6 +648,7 @@
 			isa = PBXGroup;
 			children = (
 				9E85A25830748F1DB17D21DB /* Info.plist */,
+				18CDBDBD8A60B4D5C95D9DC4 /* PermissionFlow-LICENSE.txt */,
 			);
 			path = Supporting;
 			sourceTree = "<group>";
@@ -674,6 +685,7 @@
 			name = Cadence;
 			packageProductDependencies = (
 				C989632B526AB096BA7C8AAB /* WhisperKit */,
+				3C7BACB08B94F26F53E30C60 /* PermissionFlow */,
 			);
 			productName = Cadence;
 			productReference = 2747B5C0BD75EFECA1D2569B /* Cadence.app */;
@@ -744,6 +756,7 @@
 			mainGroup = 6A9F1C3B6267176F20AE4B03;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				5C74CE7C48A0170B7AFE589C /* XCRemoteSwiftPackageReference "PermissionFlow" */,
 				5AA91E44175587E60289FC93 /* XCRemoteSwiftPackageReference "argmax-oss-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -776,6 +789,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8006F55E629A70E7ED335961 /* Assets.xcassets in Resources */,
+				2D3268B0FAA15E263B51DAF9 /* PermissionFlow-LICENSE.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -851,6 +865,7 @@
 				F9F20047C256A3BBFC793F85 /* OpenAIDirectScribeProvider.swift in Sources */,
 				DFE8D51DF1415E2B93218BA6 /* OpenRouterScribeProvider.swift in Sources */,
 				888734B0BC05B1231663DF8C /* PasteboardService.swift in Sources */,
+				5951A6617228CCDF460ABB54 /* PermissionFlowGuidanceService.swift in Sources */,
 				04CDBB1AEFDB09993E1867FF /* PermissionGuideWindow.swift in Sources */,
 				878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */,
 				FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */,
@@ -935,6 +950,7 @@
 				DAE77FD0811C32B029EEC678 /* HUDServicesTests.swift in Sources */,
 				F0B09129DE4578A72441D412 /* InstalledApplicationCatalogTests.swift in Sources */,
 				8C3A810CDD019ABE9195E199 /* OnboardingTests.swift in Sources */,
+				1C8971956411096DAF40A666 /* PermissionFlowGuidanceTests.swift in Sources */,
 				6441E942D018DF9194C80446 /* PersonalizationTests.swift in Sources */,
 				A6560304C67D2DC9EF97D0E2 /* ReleaseEvidenceContractTests.swift in Sources */,
 				849587550D65089855C22B54 /* ReleaseFixtureIsolationTests.swift in Sources */,
@@ -1281,9 +1297,22 @@
 				minimumVersion = 0.18.0;
 			};
 		};
+		5C74CE7C48A0170B7AFE589C /* XCRemoteSwiftPackageReference "PermissionFlow" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jaywcjlove/PermissionFlow.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.7.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		3C7BACB08B94F26F53E30C60 /* PermissionFlow */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5C74CE7C48A0170B7AFE589C /* XCRemoteSwiftPackageReference "PermissionFlow" */;
+			productName = PermissionFlow;
+		};
 		C989632B526AB096BA7C8AAB /* WhisperKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 5AA91E44175587E60289FC93 /* XCRemoteSwiftPackageReference "argmax-oss-swift" */;

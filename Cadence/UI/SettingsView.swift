@@ -746,7 +746,7 @@ struct SettingsView: View {
             Spacer()
 
             Button("Screen Recording") {
-                appModel.openPermissionsWizard()
+                appModel.requestScreenRecordingAccess()
             }
             .buttonStyle(CadenceActionButtonStyle(role: .secondary))
             .controlSize(.small)

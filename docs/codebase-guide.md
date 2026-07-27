@@ -250,6 +250,8 @@ Cadence tracks four macOS permissions in `PermissionsSnapshot`:
 
 The first-run permission wizard and Settings setup row currently cover the three dictation permissions. Meeting capture asks for Screen Recording contextually through `AppModel.requestMeetingCaptureSourcePermissions()` and the meeting-note capture bar shows a source-specific missing-permission message.
 
+`PermissionsService` keeps ownership of the native permission checks and request APIs. When macOS System Settings is needed, it delegates navigation and visual guidance to `PermissionFlowGuidanceService`, which maps Cadence permissions to the typed panes provided by the PermissionFlow package. PermissionFlow opens the correct pane and, where supported, presents the draggable Cadence app card beside System Settings. The Cadence wizard intentionally hides while another app is active so the two guidance surfaces do not overlap.
+
 ## Transcription Engine Boundary
 
 `TranscriptionEngine` is a protocol in `Cadence/Services/TranscriptionEngine.swift`.
@@ -326,8 +328,8 @@ HUD:
 
 Permissions wizard:
 
-- Files: `Cadence/UI/PermissionGuideWindow.swift`, `Cadence/UI/PermissionsView.swift`
-- Purpose: guided setup for macOS permissions.
+- Files: `Cadence/UI/PermissionGuideWindow.swift`, `Cadence/UI/PermissionsView.swift`, `Cadence/Services/PermissionFlowGuidanceService.swift`
+- Purpose: compact permission status hub plus PermissionFlow-guided System Settings setup.
 
 ## Persistence And Local State
 
