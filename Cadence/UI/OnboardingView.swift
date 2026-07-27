@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct OnboardingView: View {
@@ -50,9 +51,12 @@ struct OnboardingView: View {
 
     private var onboardingRail: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Label("Cadence", systemImage: "waveform.and.mic")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(FlowTheme.textPrimary)
+            HStack(spacing: 9) {
+                cadenceAppIcon(size: 28)
+                Text("Cadence")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+            }
 
             VStack(alignment: .leading, spacing: 10) {
                 Text("VOICE, WITH CONTROL")
@@ -78,11 +82,18 @@ struct OnboardingView: View {
     @ViewBuilder
     private var stepContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: stepIcon(appModel.currentOnboardingStep))
-                .font(.system(size: 28, weight: .medium))
-                .foregroundStyle(FlowTheme.accent)
-                .frame(width: 52, height: 52)
-                .background(FlowTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            if appModel.currentOnboardingStep == .welcome {
+                cadenceAppIcon(size: 52)
+            } else {
+                Image(systemName: stepIcon(appModel.currentOnboardingStep))
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(FlowTheme.accent)
+                    .frame(width: 52, height: 52)
+                    .background(
+                        FlowTheme.accent.opacity(0.12),
+                        in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    )
+            }
 
             Text(stepTitle(appModel.currentOnboardingStep))
                 .font(.system(size: 28, weight: .semibold))
@@ -113,9 +124,11 @@ struct OnboardingView: View {
                 CadenceActionButton(title: "Review permissions", role: .primary) {
                     appModel.openPermissionsWizard()
                 }
-                Text("Screen Recording is requested later only if you capture system audio in a meeting.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(FlowTheme.textTertiary)
+                if appModel.featureFlags.granolaEnabled {
+                    Text("Screen Recording is requested later only if you capture system audio in a meeting.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(FlowTheme.textTertiary)
+                }
             }
         case .microphone:
             VStack(alignment: .leading, spacing: 14) {
@@ -180,11 +193,13 @@ struct OnboardingView: View {
                 "Dictate a request, then review the polished result before insertion."
             ))
         }
-        features.append((
-            "person.2.wave.2",
-            "Meeting capture",
-            "Keep durable audio and recoverable transcripts for calls."
-        ))
+        if appModel.featureFlags.granolaEnabled {
+            features.append((
+                "person.2.wave.2",
+                "Meeting capture",
+                "Keep durable audio and recoverable transcripts for calls."
+            ))
+        }
         return features
     }
 
@@ -336,6 +351,15 @@ struct OnboardingView: View {
         .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
+    private func cadenceAppIcon(size: CGFloat) -> some View {
+        Image(nsImage: NSApplication.shared.applicationIconImage)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+
     private func stepTitle(_ step: OnboardingStep) -> String {
         switch step {
         case .welcome: return "Meet Cadence"
@@ -352,9 +376,16 @@ struct OnboardingView: View {
     private func stepDetail(_ step: OnboardingStep) -> String {
         switch step {
         case .welcome:
-            return appModel.featureFlags.scribeEnabled
-                ? "Three focused workflows share one calm, native Mac experience."
-                : "Dictation and meeting capture share one calm, native Mac experience."
+            if appModel.featureFlags.scribeEnabled, appModel.featureFlags.granolaEnabled {
+                return "Three focused workflows share one calm, native Mac experience."
+            }
+            if appModel.featureFlags.scribeEnabled {
+                return "Dictation and Scribe share one calm, native Mac experience."
+            }
+            if appModel.featureFlags.granolaEnabled {
+                return "Dictation and meeting capture share one calm, native Mac experience."
+            }
+            return "Fast, private Dictation in one calm, native Mac experience."
         case .privacy: return "Cadence minimizes what it reads, saves, and sends. You stay in control at every handoff."
         case .permissions: return "Dictation needs microphone, Accessibility, and Input Monitoring. Each permission has one clear purpose."
         case .microphone: return "See that Cadence can hear you without recording a transcript or saving audio."

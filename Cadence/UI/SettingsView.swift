@@ -189,7 +189,6 @@ struct SettingsView: View {
             settingsSection(title: "Writing provider") {
                 FlowSectionCard {
                     ScribeProviderManagementView(appModel: appModel)
-                        .padding(12)
                 }
             }
             appsSection
@@ -202,7 +201,8 @@ struct SettingsView: View {
                 SettingsToggleRow(
                     title: "Adapt Scribe to the app",
                     description: nil,
-                    isOn: scribeAppAdaptationBinding
+                    isOn: scribeAppAdaptationBinding,
+                    accessibilityIdentifier: "scribe-adaptation-toggle"
                 )
                 .help("Use the enabled profile for the app where a Scribe recording begins.")
                 insetDivider
@@ -476,42 +476,38 @@ struct SettingsView: View {
     }
 
     private var scribeSection: some View {
-        Group {
-            settingsSection(title: "Status") {
-                FlowSectionCard {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: appModel.scribeReadiness.canGenerate
-                            ? CadenceIconography.scribe
-                            : "lock.fill")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(appModel.scribeReadiness.canGenerate
-                                ? FlowTheme.success
-                                : FlowTheme.textTertiary)
-                            .frame(width: 20)
+        settingsSection(title: "Scribe") {
+            FlowSectionCard {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: appModel.scribeReadiness.canGenerate
+                        ? CadenceIconography.scribe
+                        : "lock.fill")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(appModel.scribeReadiness.canGenerate
+                            ? FlowTheme.textPrimary
+                            : FlowTheme.textTertiary)
+                        .frame(width: 20)
 
-                        SettingsLabelRow(
-                            title: appModel.scribeReadiness.canGenerate ? "Ready to draft" : "Literal Dictation remains available",
-                            description: appModel.scribeProviderStatus
-                        )
-
-                        Spacer()
-                    }
-                    .padding(12)
-                }
-            }
-
-            settingsSection(title: "Shortcut") {
-                FlowSectionCard {
-                    ShortcutSettingRow(
-                        title: "Open Scribe",
-                        description: nil,
-                        hint: nil,
-                        isEnabled: scribeEnabledBinding,
-                        shortcut: scribeShortcutBinding,
-                        onRecordingChange: appModel.setShortcutRecordingActive
+                    SettingsLabelRow(
+                        title: appModel.scribeReadiness.canGenerate ? "Ready to draft" : "Setup needed",
+                        description: appModel.scribeProviderStatus
                     )
-                    .help("Hold to speak. Double-press to keep listening without holding.")
+
+                    Spacer()
                 }
+                .padding(12)
+
+                insetDivider
+
+                ShortcutSettingRow(
+                    title: "Shortcut",
+                    description: nil,
+                    hint: nil,
+                    isEnabled: scribeEnabledBinding,
+                    shortcut: scribeShortcutBinding,
+                    onRecordingChange: appModel.setShortcutRecordingActive
+                )
+                .help("Hold to speak. Double-press to keep listening without holding.")
             }
         }
     }
@@ -1936,10 +1932,11 @@ private struct FlowSegmentedControl<Option: Identifiable & Equatable>: View {
     }
 }
 
-private struct SettingsToggleRow: View {
+struct SettingsToggleRow: View {
     let title: String
     let description: String?
     @Binding var isOn: Bool
+    var accessibilityIdentifier: String? = nil
 
     var body: some View {
         HStack(alignment: description == nil ? .center : .top, spacing: 12) {
@@ -1957,11 +1954,25 @@ private struct SettingsToggleRow: View {
 
             Spacer()
 
-            CadenceToggle(title: title, isOn: $isOn)
-                .labelsHidden()
-                .controlSize(.small)
+            toggle
         }
         .padding(12)
+    }
+
+    @ViewBuilder
+    private var toggle: some View {
+        if let accessibilityIdentifier {
+            baseToggle
+                .accessibilityIdentifier(accessibilityIdentifier)
+        } else {
+            baseToggle
+        }
+    }
+
+    private var baseToggle: some View {
+        CadenceToggle(title: title, isOn: $isOn)
+            .labelsHidden()
+            .controlSize(.small)
     }
 }
 

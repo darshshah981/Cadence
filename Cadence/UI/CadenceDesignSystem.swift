@@ -25,7 +25,7 @@ enum FlowTheme {
 
 enum CadenceIconography {
     static let dictation = "mic.fill"
-    static let scribe = "wand.and.stars"
+    static let scribe = "wand.and.sparkles"
 }
 
 struct HUDChromeStyle: Equatable, Sendable {

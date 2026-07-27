@@ -5,8 +5,8 @@ struct ScribeProviderManagementView: View {
     @State private var confirmsRemoval = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 10) {
                 Image(systemName: statusSymbol)
                     .foregroundStyle(statusColor)
                     .frame(width: 20)
@@ -25,18 +25,23 @@ struct ScribeProviderManagementView: View {
                 ) { appModel.presentScribeProviderSetup() }
                 .accessibilityIdentifier("scribe-provider-setup")
             }
+            .padding(12)
 
             if let kind = appModel.configuredScribeProviderKind {
-                Divider()
-                CadenceToggle(
-                    title: "Enable \(kind.displayName) for new Scribe requests",
+                insetDivider
+
+                SettingsToggleRow(
+                    title: "Use \(kind.displayName)",
+                    description: "Use this provider for new Scribe drafts.",
                     isOn: Binding(
                         get: { appModel.configuredScribeProviderIsEnabled },
                         set: { appModel.setConfiguredScribeProviderEnabled($0) }
                     )
                 )
 
-                DisclosureGroup("Review data sent to \(kind.displayName)") {
+                insetDivider
+
+                DisclosureGroup {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(ScribeProviderDisclosure.directDictationSummary)
                         if let recipient = appModel.configuredScribeRecipient {
@@ -52,16 +57,27 @@ struct ScribeProviderManagementView: View {
                     }
                     .font(.caption)
                     .foregroundStyle(FlowTheme.textSecondary)
-                    .padding(.top, 4)
+                    .padding(.top, 8)
+                } label: {
+                    Text("Data sent to \(kind.displayName)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(FlowTheme.textPrimary)
                 }
+                .padding(12)
 
-                HStack {
+                insetDivider
+
+                HStack(spacing: 8) {
+                    Text("Provider connection")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(FlowTheme.textPrimary)
                     Spacer()
                     CadenceActionButton(
-                        title: "Remove \(kind.displayName) from Cadence",
+                        title: "Remove",
                         role: .destructive
                     ) { confirmsRemoval = true }
                 }
+                .padding(12)
                 .confirmationDialog(
                     "Remove \(kind.displayName) from Cadence",
                     isPresented: $confirmsRemoval,
@@ -77,6 +93,13 @@ struct ScribeProviderManagementView: View {
             }
 
         }
+    }
+
+    private var insetDivider: some View {
+        Rectangle()
+            .fill(FlowTheme.border)
+            .frame(height: 1)
+            .padding(.leading, 12)
     }
 
     private var statusTitle: String {
@@ -101,7 +124,7 @@ struct ScribeProviderManagementView: View {
     }
 
     private var statusColor: Color {
-        if case .ready = appModel.scribeProviderReadiness { return FlowTheme.success }
+        if case .ready = appModel.scribeProviderReadiness { return FlowTheme.textPrimary }
         return FlowTheme.textTertiary
     }
 }

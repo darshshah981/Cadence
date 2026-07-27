@@ -34,11 +34,11 @@ final class AdaptiveScribeUITests: XCTestCase {
         openSettings(in: app)
         selectSettingsCategory("scribe", in: app)
         let setup = app.buttons["scribe-provider-setup"]
+        scrollToExistence(setup, in: app)
         XCTAssertTrue(setup.waitForExistence(timeout: 5))
         setup.click()
 
-        XCTAssertTrue(app.staticTexts["Set up Scribe"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["DeepSeek"].exists)
+        XCTAssertTrue(app.buttons["DeepSeek"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Advanced OpenAI-compatible"].exists)
         app.buttons["DeepSeek"].click()
 
@@ -60,8 +60,11 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.launch()
 
         openSettings(in: app)
-        selectSettingsCategory("providers", in: app)
-        app.buttons["scribe-provider-setup"].click()
+        selectSettingsCategory("scribe", in: app)
+        let setup = app.buttons["scribe-provider-setup"]
+        scrollToExistence(setup, in: app)
+        XCTAssertTrue(setup.waitForExistence(timeout: 3))
+        setup.click()
         XCTAssertTrue(app.buttons["Advanced OpenAI-compatible"].waitForExistence(timeout: 5))
         app.buttons["Advanced OpenAI-compatible"].click()
         let baseURL = app.textFields["scribe-advanced-base-url"]
@@ -92,20 +95,15 @@ final class AdaptiveScribeUITests: XCTestCase {
         openSettings(in: app)
         selectSettingsCategory("scribe", in: app)
         let adaptationToggle = app.descendants(matching: .any)["scribe-adaptation-toggle"]
+        scrollToExistence(adaptationToggle, in: app)
         XCTAssertTrue(adaptationToggle.waitForExistence(timeout: 3))
         let initialToggleValue = String(describing: adaptationToggle.value!)
         adaptationToggle.click()
         XCTAssertNotEqual(String(describing: adaptationToggle.value!), initialToggleValue)
-        let slack = app.staticTexts["Slack"]
-        XCTAssertTrue(slack.exists)
-        let claudeCode = app.staticTexts["Claude Code"]
-        XCTAssertTrue(claudeCode.exists)
-        let claudeDetail = app.descendants(matching: .any)["scribe-environment-detail-claude-code"]
-        XCTAssertTrue(claudeDetail.exists)
-        let otherApps = app.staticTexts["Other apps"]
-        XCTAssertTrue(otherApps.exists)
+        XCTAssertTrue(app.buttons["settings-add-application"].exists)
+        XCTAssertTrue(app.buttons["scribe-provider-setup"].exists)
 
-        attachScreenshot(app: app, name: "writing-environments")
+        attachScreenshot(app: app, name: "scribe-app-profiles")
     }
 
     @MainActor
@@ -358,25 +356,20 @@ final class AdaptiveScribeUITests: XCTestCase {
     }
 
     @MainActor
-    func testSettingsUseNativeMenusAndContinuousWaveformSlider() throws {
+    func testSettingsUseCurrentControlsAndContinuousWaveformSlider() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--scribe-fixture", "settings"]
         app.launch()
 
         openSettings(in: app)
         selectSettingsCategory("dictation", in: app)
-        let qualityMenu = app.descendants(matching: .any)["settings-quality-menu"]
-        XCTAssertTrue(qualityMenu.waitForExistence(timeout: 3))
+        let qualitySelector = app.descendants(matching: .any)["settings-quality-selector"]
+        XCTAssertTrue(qualitySelector.waitForExistence(timeout: 3))
         selectSettingsCategory("scribe", in: app)
-        let slackMenu = app.descendants(matching: .any)["scribe-environment-behavior-slack"]
-        XCTAssertTrue(slackMenu.exists)
-        slackMenu.click()
-        let formal = app.menuItems["Formal"]
-        XCTAssertTrue(formal.waitForExistence(timeout: 2))
-        formal.click()
-        XCTAssertTrue(String(describing: slackMenu.value!).localizedCaseInsensitiveContains("formal"))
-        slackMenu.click()
-        app.typeKey(.escape, modifierFlags: [])
+        let adaptationToggle = app.descendants(matching: .any)["scribe-adaptation-toggle"]
+        scrollToExistence(adaptationToggle, in: app)
+        XCTAssertTrue(adaptationToggle.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["settings-add-application"].exists)
 
         selectSettingsCategory("advanced", in: app)
         let disclosure = app.descendants(matching: .any)["settings-advanced-disclosure"]
@@ -386,7 +379,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         disclosure.click()
         XCTAssertEqual(disclosureState.value as? String, "Expanded")
         XCTAssertTrue(app.descendants(matching: .any)["settings-recognition-model-menu"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["settings-search-depth-menu"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["settings-search-depth-selector"].exists)
         let slider = app.sliders["settings-waveform-sensitivity-slider"]
         XCTAssertTrue(slider.exists)
         app.activate()
@@ -452,7 +445,7 @@ final class AdaptiveScribeUITests: XCTestCase {
             } else {
                 XCTAssertTrue(app.descendants(matching: .any)["settings-category-rail"].exists)
             }
-            for category in ["general", "dictation", "scribe", "apps", "providers", "privacy", "advanced"] {
+            for category in ["general", "dictation", "scribe", "privacy", "advanced"] {
                 selectSettingsCategory(category, in: app)
                 XCTAssertTrue(app.descendants(matching: .any)["settings-category-content-\(category)"].waitForExistence(timeout: 2))
             }
@@ -476,8 +469,11 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.launchArguments = ["--scribe-fixture", "setup", "--scribe-fixture-width", "720"]
         app.launch()
         openSettings(in: app)
-        selectSettingsCategory("providers", in: app)
-        app.buttons["scribe-provider-setup"].click()
+        selectSettingsCategory("scribe", in: app)
+        let setup = app.buttons["scribe-provider-setup"]
+        scrollToExistence(setup, in: app)
+        XCTAssertTrue(setup.waitForExistence(timeout: 3))
+        setup.click()
         app.buttons["OpenAI Direct"].click()
         app.buttons["I understand"].click()
         let key = app.secureTextFields["scribe-provider-api-key"]
