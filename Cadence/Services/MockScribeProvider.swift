@@ -15,7 +15,7 @@ actor MockScribeProvider: ScribeProvider {
 
     init(
         capabilities: ScribeProviderCapabilities = .mock,
-        responses: [Response] = [.success("Cadence mock Scribe result.")]
+        responses: [Response] = [.success("Cadence mock Compose result.")]
     ) {
         self.capabilities = capabilities
         self.responses = responses
@@ -34,7 +34,7 @@ actor MockScribeProvider: ScribeProvider {
 
         generationCount += 1
         let response = responses.isEmpty
-            ? Response.success("Cadence mock Scribe result.")
+            ? Response.success("Cadence mock Compose result.")
             : responses.removeFirst()
 
         switch response {

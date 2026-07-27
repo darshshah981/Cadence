@@ -7,10 +7,16 @@ struct ScribeProviderManagementView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 10) {
-                Image(systemName: statusSymbol)
-                    .foregroundStyle(statusColor)
-                    .frame(width: 20)
-                    .accessibilityHidden(true)
+                Group {
+                    if case .ready = appModel.scribeProviderReadiness {
+                        CadenceComposeIcon(size: 20)
+                    } else {
+                        Image(systemName: statusSymbol)
+                            .frame(width: 20)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .foregroundStyle(statusColor)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(statusTitle)
                         .font(.headline)
@@ -32,7 +38,7 @@ struct ScribeProviderManagementView: View {
 
                 SettingsToggleRow(
                     title: "Use \(kind.displayName)",
-                    description: "Use this provider for new Scribe drafts.",
+                    description: "Use this provider for new Compose drafts.",
                     isOn: Binding(
                         get: { appModel.configuredScribeProviderIsEnabled },
                         set: { appModel.setConfiguredScribeProviderEnabled($0) }
@@ -116,9 +122,6 @@ struct ScribeProviderManagementView: View {
     }
 
     private var statusSymbol: String {
-        if case .ready = appModel.scribeProviderReadiness {
-            return CadenceIconography.scribe
-        }
         if case .validating = appModel.scribeProviderReadiness { return "clock.arrow.circlepath" }
         return "exclamationmark.triangle.fill"
     }

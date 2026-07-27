@@ -99,9 +99,8 @@ struct CadenceControlSemanticsTests {
     }
 
     @Test
-    func canonicalFeatureIconNamesAreStable() {
+    func dictationIconNameIsStable() {
         #expect(CadenceIconography.dictation == "mic.fill")
-        #expect(CadenceIconography.scribe == "wand.and.sparkles")
     }
 
     @Test(arguments: [false, true])

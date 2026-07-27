@@ -131,7 +131,7 @@ struct ScribeNotchPresentation: Equatable, Sendable {
         case .failed:
             return Self(
                 content: .failure(
-                    message: failureMessage ?? "Scribe could not finish this draft.",
+                    message: failureMessage ?? "Compose could not finish this draft.",
                     literalTranscript: literal,
                     recovery: failureRecovery
                         ?? (canRetryGeneration ? .retryGeneration : .none)

@@ -117,7 +117,7 @@ struct ScribePanelView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("Scribe")
+                Text("Compose")
                     .font(.headline)
                     .foregroundStyle(FlowTheme.textPrimary)
                 Text(model.providerStatus)
@@ -136,7 +136,7 @@ struct ScribePanelView: View {
             CadenceActionButton(title: "Close", role: .icon, accessibilityIdentifier: "scribe-close") {
                 requestClose()
             }
-            .accessibilityLabel("Cancel Scribe")
+            .accessibilityLabel("Cancel Compose")
             .accessibilityHint(closeAccessibilityHint)
         }
     }
@@ -150,19 +150,16 @@ struct ScribePanelView: View {
             listening
         case .transcribing:
             cancellableStatus(
-                icon: "waveform",
                 title: "Transcribing request…",
                 detail: "Your speech stays on this Mac."
             )
         case .generating:
             cancellableStatus(
-                icon: CadenceIconography.scribe,
                 title: "Drafting…",
                 detail: "You can cancel generation at any time."
             )
         case .generatingSlow:
             cancellableStatus(
-                icon: "clock.arrow.circlepath",
                 title: "Still drafting…",
                 detail: "The provider is taking longer than usual. You can keep waiting or cancel safely."
             )
@@ -175,7 +172,7 @@ struct ScribePanelView: View {
         case .succeeded:
             successView
         case .cancelled:
-            statusView(icon: "xmark.circle", title: "Scribe cancelled", detail: "No text was inserted.")
+            statusView(icon: "xmark.circle", title: "Compose cancelled", detail: "No text was inserted.")
         case .failed:
             failureView
         }
@@ -270,8 +267,8 @@ struct ScribePanelView: View {
         VStack(alignment: .leading, spacing: 12) {
             statusView(
                 icon: "exclamationmark.triangle",
-                title: "Scribe needs attention",
-                detail: model.failureMessage ?? "Scribe could not finish this request."
+                title: "Compose needs attention",
+                detail: model.failureMessage ?? "Compose could not finish this request."
             )
             actionGroup
         }
@@ -282,7 +279,7 @@ struct ScribePanelView: View {
             statusView(
                 icon: "checkmark.circle.fill",
                 title: "Inserted into \(model.targetDisplayName)",
-                detail: "The Scribe draft was inserted successfully."
+                detail: "The Compose draft was inserted successfully."
             )
             actionGroup
         }
@@ -292,7 +289,7 @@ struct ScribePanelView: View {
         CadenceStatusRow(symbol: icon, title: title, detail: detail)
     }
 
-    private func cancellableStatus(icon: String, title: String, detail: String) -> some View {
+    private func cancellableStatus(title: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             CadenceLoadingRow(
                 title: title,
@@ -366,7 +363,7 @@ struct ScribePanelView: View {
             hasRecoverableContent: hasRecoverableContent
         )
             ? "Ask before discarding this draft."
-            : "Cancel this Scribe request and close the panel."
+            : "Cancel this Compose request and close the panel."
     }
 
     private var hasRecoverableContent: Bool {

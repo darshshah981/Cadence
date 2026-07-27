@@ -209,7 +209,7 @@ final class ScribeProviderController {
     var statusText: String {
         switch readiness {
         case .disabled:
-            return "Scribe is disabled · provider key retained"
+            return "Compose is disabled · provider key retained"
         case .setupRequired:
             return "Provider setup required · literal Dictation remains available"
         case .validating:

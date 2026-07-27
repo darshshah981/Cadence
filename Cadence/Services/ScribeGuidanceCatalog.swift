@@ -120,7 +120,7 @@ enum ApplicationPromptProjection {
         catalog: ScribeGuidanceCatalog = .releaseOne
     ) -> ScribeGuidancePresetDefinition {
         guard let family = catalog.family(configuration.familyID) else {
-            preconditionFailure("Scribe guidance catalog is missing a configured family")
+            preconditionFailure("Compose guidance catalog is missing a configured family")
         }
         let presetID: ScribePresetID
         switch configuration.presetSelection {

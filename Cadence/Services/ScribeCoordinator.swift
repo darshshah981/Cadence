@@ -412,7 +412,7 @@ final class ScribeCoordinator {
             releaseVoiceLease()
             guard runGeneration == generation else { return }
             retainReviewedDraftOrFail(.transcription, requestID: requestID)
-            scribeLogger.error("Scribe transcription failed category=transcription")
+            scribeLogger.error("Compose transcription failed category=transcription")
         }
     }
 

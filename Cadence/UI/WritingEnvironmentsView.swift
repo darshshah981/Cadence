@@ -6,7 +6,7 @@ struct WritingEnvironmentsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             CadenceToggle(
-                title: "Adapt Scribe to the app",
+                title: "Adapt Compose to the app",
                 isOn: Binding(
                     get: { appModel.scribeAppAdaptationEnabled },
                     set: { appModel.setScribeAppAdaptationEnabled($0) }
@@ -35,7 +35,7 @@ struct WritingEnvironmentsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Writing environment preferences could not be loaded", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
-            Text("Scribe uses Other apps · Neutral until you restore defaults. Provider credentials, shortcuts, Dictation, meetings, and legacy profiles are untouched.")
+            Text("Compose uses Other apps · Neutral until you restore defaults. Provider credentials, shortcuts, Dictation, meetings, and legacy profiles are untouched.")
                 .font(.caption)
                 .foregroundStyle(FlowTheme.textSecondary)
             CadenceActionButton(title: "Restore writing environment defaults", role: .secondary) {

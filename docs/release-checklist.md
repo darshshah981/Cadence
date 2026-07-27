@@ -44,9 +44,9 @@ Include:
 - Permission setup note.
 - Known issues.
 
-## Adaptive Scribe Release Gate
+## Adaptive Compose Release Gate
 
-A green pull request proves deterministic implementation checks; it does not certify Cloud Scribe for release. Before describing Adaptive Scribe as release-ready, complete `docs/adaptive-scribe-release-evidence.md` on one immutable candidate and attach its manifest.
+A green pull request proves deterministic implementation checks; it does not certify Cloud Compose for release. Before describing Adaptive Compose as release-ready, complete `docs/adaptive-scribe-release-evidence.md` on one immutable candidate and attach its manifest.
 
 The same candidate must prove:
 

@@ -1,6 +1,6 @@
-# Adaptive Scribe Release Evidence
+# Adaptive Compose Release Evidence
 
-This is the release-owner runbook for Adaptive Scribe. Pull-request CI exercises deterministic, credential-free fixtures. The live, signed, real-app, accessibility, and dogfood rows below remain **NOT RUN** until one release owner runs them on the same candidate DMG.
+This is the release-owner runbook for Adaptive Compose. Pull-request CI exercises deterministic, credential-free fixtures. The live, signed, real-app, accessibility, and dogfood rows below remain **NOT RUN** until one release owner runs them on the same candidate DMG.
 
 ## Candidate Identity
 
@@ -19,17 +19,17 @@ Run `scripts/collect_adaptive_scribe_evidence.sh` only from the clean candidate 
 ## Deterministic Pull-Request Evidence
 
 - [ ] `xcodegen generate` is idempotent.
-- [ ] `scripts/test_adaptive_scribe_contracts.sh` passes the focused Adaptive Scribe contract wrapper (provider, migration, app, identity, guidance, lifecycle, control, diagnostic, privacy, domain isolation, release-fixture isolation) without credentials or live network.
+- [ ] `scripts/test_adaptive_scribe_contracts.sh` passes the focused Adaptive Compose contract wrapper (provider, migration, app, identity, guidance, lifecycle, control, diagnostic, privacy, domain isolation, release-fixture isolation) without credentials or live network.
 - [ ] Full `xcodebuild test` passes with signing disabled.
 - [ ] Ad-hoc-signed `CadenceUITests` passes against synthetic DEBUG launch fixtures and attaches privacy-safe screenshots.
 - [ ] `./script/build_and_run.sh --verify` proves the installed Debug app launches and shows its main window.
 - [ ] `./script/build_and_run.sh --audio-smoke` preserves meeting system-audio frames.
 - [ ] The recursive privacy-canary scan passes over xcresults, captured logs, defaults/app-support snapshots, diagnostics exports, and collected evidence, including transcript, selection, credential, origin, model, app, prompt, response, process-ID, filesystem-path, and bundle-identifier canaries.
-- [ ] Independent source review confirms no Scribe content enters analytics, OSLog, Dictation history, meeting stores, caches, or crash/support payloads.
+- [ ] Independent source review confirms no Compose content enters analytics, OSLog, Dictation history, meeting stores, caches, or crash/support payloads.
 
 ### Credential Accessibility Compatibility Decision
 
-Accepted for the compatibility release based on PR #34 commit `04391d3`: Scribe provider credentials remain in the data-protection Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` and synchronization disabled. This preserves existing credentials and behavior without introducing an unplanned credential migration. New provider credential paths must retain these exact attributes and their characterization coverage for this release line. Any move to `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` or another accessibility class requires a separately planned credential migration and security review.
+Accepted for the compatibility release based on PR #34 commit `04391d3`: Compose provider credentials remain in the data-protection Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` and synchronization disabled. This preserves existing credentials and behavior without introducing an unplanned credential migration. New provider credential paths must retain these exact attributes and their characterization coverage for this release line. Any move to `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` or another accessibility class requires a separately planned credential migration and security review.
 
 ## Signed Candidate and Distribution
 
@@ -40,7 +40,7 @@ Accepted for the compatibility release based on PR #34 commit `04391d3`: Scribe 
 - [ ] Notarization succeeds and the ticket is stapled.
 - [ ] `spctl` accepts the DMG.
 - [ ] Release—not Debug—bundle identity, display name, and executable are present.
-- [ ] Minimum and current macOS launch, Dictation, Scribe, and meeting-capture regressions pass on every packaged architecture.
+- [ ] Minimum and current macOS launch, Dictation, Compose, and meeting-capture regressions pass on every packaged architecture.
 
 ## Live OpenAI Direct and OpenRouter
 
@@ -94,7 +94,7 @@ Primary targets for this release line: **Cursor**, **Slack**, and **Codex/OpenAI
 - [ ] Replacement is validate-stage-commit-cleanup; failure preserves the working item.
 - [ ] Every redirect is refused and Authorization is never resent.
 - [ ] Direct-dictation egress captures match the allowlist; selected text and every other denylisted field are absent.
-- [ ] Disable retains the key; removal clears only provider state and current Scribe buffers.
+- [ ] Disable retains the key; removal clears only provider state and current Compose buffers.
 - [ ] Privacy policy, setup disclosure, Settings disclosure, and observed payload agree.
 
 ## Five-Workday Dogfood

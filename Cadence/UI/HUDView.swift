@@ -248,7 +248,7 @@ struct HUDView: View {
         case .scribed:
             statusPill(
                 icon: .success,
-                text: "Scribed",
+                text: "Composed",
                 targetWidth: model.targetWidth(for: presentation),
                 renderedWidth: renderedWidth,
                 hidesApplicationMark: hidesApplicationMark
@@ -700,7 +700,7 @@ struct HUDView: View {
         case .scribeTranscribing:
             return StatusDescriptor(icon: .spinner, text: "Transcribing")
         case .scribed:
-            return StatusDescriptor(icon: .success, text: "Scribed")
+            return StatusDescriptor(icon: .success, text: "Composed")
         case .inserting:
             return StatusDescriptor(icon: .spinner, text: "Inserting…")
         case .copying:

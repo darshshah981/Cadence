@@ -5,6 +5,15 @@ enum VoiceSessionKind: String, Equatable, Sendable {
     case scribe
     case meeting
     case microphoneCheck
+
+    var displayName: String {
+        switch self {
+        case .dictation: return "dictation"
+        case .scribe: return "Compose"
+        case .meeting: return "meeting"
+        case .microphoneCheck: return "microphone check"
+        }
+    }
 }
 
 struct VoiceSessionLease: Equatable, Sendable {

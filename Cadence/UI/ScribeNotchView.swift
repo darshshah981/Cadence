@@ -231,7 +231,7 @@ final class ScribeNotchViewModel: ObservableObject {
             completedSourceTypeOn = false
             clearText()
         case let .typingTranscript(text, isSlow):
-            statusText = isSlow ? "Still scribing" : "Scribing"
+            statusText = isSlow ? "Still composing" : "Composing"
             completedSourceTypeOn = false
             actionsOpacity = 0
             resultOpacity = 0
@@ -246,7 +246,7 @@ final class ScribeNotchViewModel: ObservableObject {
                 )
             }
         case let .replacing(source, result):
-            statusText = "Scribing"
+            statusText = "Composing"
             displayedResult = ""
             sourceOpacity = 1
             resultOpacity = 0
@@ -287,7 +287,7 @@ final class ScribeNotchViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
             }
 
-            statusText = "Scribed"
+            statusText = "Composed"
             insertEmphasisRevision += 1
             withAnimation(reducedMotion ? nil : ScribeNotchMotion.content) {
                 actionsOpacity = 1
@@ -295,7 +295,7 @@ final class ScribeNotchViewModel: ObservableObject {
             onInteractionAvailabilityChanged?(true)
             onReplacementCompleted?()
         case let .ready(result):
-            statusText = "Scribed"
+            statusText = "Composed"
             displayedSource = ""
             displayedResult = result.text
             sourceOpacity = 0
@@ -321,7 +321,7 @@ final class ScribeNotchViewModel: ObservableObject {
                 actionsOpacity = 0
             }
         case let .failure(message, _, _):
-            statusText = "Scribe needs attention"
+            statusText = "Compose needs attention"
             displayedSource = ""
             displayedResult = message
             sourceOpacity = 0
@@ -545,12 +545,12 @@ struct ScribeNotchView: View {
     private var phaseStatus: some View {
         if model.statusText == "Transcribing" {
             ScribeTranscribingStatusView(fontSize: 10, spacing: 7)
-        } else if model.statusText == "Scribing"
-                    || model.statusText == "Still scribing" {
-            ScribeScribingStatusView(isSlow: model.statusText == "Still scribing")
+        } else if model.statusText == "Composing"
+                    || model.statusText == "Still composing" {
+            ScribeScribingStatusView(isSlow: model.statusText == "Still composing")
         } else {
             HStack(spacing: 7) {
-                if model.statusText == "Scribed" {
+                if model.statusText == "Composed" {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(FlowTheme.textPrimary)
@@ -624,12 +624,12 @@ struct ScribeNotchView: View {
                     .frame(height: 28)
                     .padding(.horizontal, 8)
                     .contentShape(Rectangle())
-                    .help("Try Scribe again")
+                    .help("Try Compose again")
                     .accessibilityIdentifier("scribe-notch-retry")
                 case .setUpProvider:
                     recoveryButton(
                         "Set up provider",
-                        help: "Set up an AI provider for Scribe",
+                        help: "Set up an AI provider for Compose",
                         accessibilityIdentifier: "scribe-notch-setup-provider"
                     ) {
                         model.onConfigureProvider?()
@@ -848,8 +848,7 @@ private struct ScribeScribingStatusView: View {
                 : 0.96 + (0.06 * ((sin(phase * .pi * 2) + 1) / 2))
 
             HStack(spacing: 7) {
-                Image(systemName: CadenceIconography.scribe)
-                    .font(.system(size: 11, weight: .semibold))
+                CadenceComposeIcon(size: 14)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [
@@ -867,13 +866,13 @@ private struct ScribeScribingStatusView: View {
                         radius: 4
                     )
 
-                Text(isSlow ? "Still scribing" : "Scribing")
+                Text(isSlow ? "Still composing" : "Composing")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(FlowTheme.textPrimary)
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(isSlow ? "Still scribing" : "Scribing")
+        .accessibilityLabel(isSlow ? "Still composing" : "Composing")
     }
 }
 

@@ -167,6 +167,14 @@ struct ScribeCoordinatorTests {
     }
 
     @Test
+    func voiceSessionKindsKeepInternalScribeIdentityOutOfUserFacingErrors() {
+        #expect(VoiceSessionKind.dictation.displayName == "dictation")
+        #expect(VoiceSessionKind.scribe.displayName == "Compose")
+        #expect(VoiceSessionKind.meeting.displayName == "meeting")
+        #expect(VoiceSessionKind.microphoneCheck.displayName == "microphone check")
+    }
+
+    @Test
     func composeRunsThroughReviewAndInsertsExactlyOnce() async throws {
         let fixture = ScribeCoordinatorFixture(providerResponses: [.success("A polished update.")])
 

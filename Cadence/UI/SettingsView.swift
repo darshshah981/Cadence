@@ -109,8 +109,11 @@ struct SettingsView: View {
                 Button {
                     selectCategory(category)
                 } label: {
-                    Label(category.title, systemImage: category.systemImage)
-                        .font(.system(size: 12, weight: .medium))
+                    HStack(spacing: 7) {
+                        CadenceFeatureIconView(icon: category.icon, size: 16)
+                        Text(category.title)
+                    }
+                    .font(.system(size: 12, weight: .medium))
                 }
                     .buttonStyle(.plain)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -199,12 +202,12 @@ struct SettingsView: View {
         settingsSection(title: "App profiles") {
             FlowSectionCard {
                 SettingsToggleRow(
-                    title: "Adapt Scribe to the app",
+                    title: "Adapt Compose to the app",
                     description: nil,
                     isOn: scribeAppAdaptationBinding,
                     accessibilityIdentifier: "scribe-adaptation-toggle"
                 )
-                .help("Use the enabled profile for the app where a Scribe recording begins.")
+                .help("Use the enabled profile for the app where a Compose recording begins.")
                 insetDivider
 
                 if appModel.applicationConfigurations.isEmpty {
@@ -346,7 +349,7 @@ struct SettingsView: View {
         settingsSection(title: "Local diagnostics") {
             FlowSectionCard {
                 VStack(alignment: .leading, spacing: 8) {
-                    SettingsLabelRow(title: "Scribe diagnostics", description: "Content-free local setup and recovery outcomes. Never uploaded automatically.")
+                    SettingsLabelRow(title: "Compose diagnostics", description: "Content-free local setup and recovery outcomes. Never uploaded automatically.")
                     HStack { CadenceActionButton(title: "Clear", role: .destructive) { appModel.clearScribeDiagnostics() }; CadenceActionButton(title: "Export…", role: .secondary) { appModel.exportScribeDiagnostics() } }
                 }.padding(12)
             }
@@ -476,17 +479,21 @@ struct SettingsView: View {
     }
 
     private var scribeSection: some View {
-        settingsSection(title: "Scribe") {
+        settingsSection(title: "Compose") {
             FlowSectionCard {
                 HStack(alignment: .center, spacing: 10) {
-                    Image(systemName: appModel.scribeReadiness.canGenerate
-                        ? CadenceIconography.scribe
-                        : "lock.fill")
-                        .font(.system(size: 15, weight: .medium))
+                    Group {
+                        if appModel.scribeReadiness.canGenerate {
+                            CadenceComposeIcon(size: 20)
+                        } else {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 15, weight: .medium))
+                                .frame(width: 20, height: 20)
+                        }
+                    }
                         .foregroundStyle(appModel.scribeReadiness.canGenerate
                             ? FlowTheme.textPrimary
                             : FlowTheme.textTertiary)
-                        .frame(width: 20)
 
                     SettingsLabelRow(
                         title: appModel.scribeReadiness.canGenerate ? "Ready to draft" : "Setup needed",
@@ -1677,9 +1684,9 @@ private extension SettingsCategoryID {
         switch self {
         case .general: "General"
         case .dictation: "Dictation"
-        case .scribe: "Scribe"
+        case .scribe: "Compose"
         case .meetings: "Meetings"
-        case .apps, .providers: "Scribe"
+        case .apps, .providers: "Compose"
         case .privacy: "Privacy"
         case .advanced: "Advanced"
         }
@@ -1692,11 +1699,11 @@ private extension SettingsCategoryID {
         case .dictation:
             "Control how recording starts and how Cadence writes."
         case .scribe:
-            "Configure reviewable, app-aware drafts when Scribe is enabled."
+            "Configure reviewable, app-aware drafts when Compose is enabled."
         case .meetings:
             "Choose what Cadence captures and how meeting notes are created."
         case .apps, .providers:
-            "Configure Scribe's provider and app-specific writing behavior."
+            "Configure Compose's provider and app-specific writing behavior."
         case .privacy:
             "See what Cadence can access and where your data lives."
         case .advanced:
@@ -1704,15 +1711,15 @@ private extension SettingsCategoryID {
         }
     }
 
-    var systemImage: String {
+    var icon: CadenceFeatureIcon {
         switch self {
-        case .general: "gearshape"
-        case .dictation: CadenceIconography.dictation
-        case .scribe: CadenceIconography.scribe
-        case .meetings: "person.2.wave.2"
-        case .apps, .providers: CadenceIconography.scribe
-        case .privacy: "lock"
-        case .advanced: "slider.horizontal.3"
+        case .general: .system("gearshape")
+        case .dictation: .system(CadenceIconography.dictation)
+        case .scribe: .compose
+        case .meetings: .system("person.2.wave.2")
+        case .apps, .providers: .compose
+        case .privacy: .system("lock")
+        case .advanced: .system("slider.horizontal.3")
         }
     }
 }

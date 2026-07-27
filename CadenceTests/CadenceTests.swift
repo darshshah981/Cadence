@@ -49,7 +49,7 @@ struct CadenceTests {
         )
 
         #expect(permissions.missingRequiredPermissionNames == ["Accessibility"])
-        #expect(permissions.scribePermissionMessage == "Allow Accessibility access before using Scribe.")
+        #expect(permissions.scribePermissionMessage == "Allow Accessibility access before using Compose.")
     }
 
     @Test

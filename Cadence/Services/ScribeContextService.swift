@@ -32,7 +32,7 @@ enum ScribeContextError: String, Error, Equatable, Sendable {
         case .targetChanged:
             return "Return to the original app before inserting."
         case .captureCleared:
-            return "This Scribe request has ended. Start a new request to continue."
+            return "This Compose request has ended. Start a new request to continue."
         }
     }
 }

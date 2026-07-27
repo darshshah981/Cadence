@@ -25,7 +25,61 @@ enum FlowTheme {
 
 enum CadenceIconography {
     static let dictation = "mic.fill"
-    static let scribe = "wand.and.sparkles"
+}
+
+enum CadenceFeatureIcon: Equatable {
+    case system(String)
+    case compose
+}
+
+struct CadenceFeatureIconView: View {
+    let icon: CadenceFeatureIcon
+    var size: CGFloat = 20
+
+    var body: some View {
+        Group {
+            switch icon {
+            case let .system(name):
+                Image(systemName: name)
+                    .font(.system(size: size * 0.72, weight: .medium))
+            case .compose:
+                CadenceComposeIcon(size: size)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Cadence's Compose mark: spoken words resolving into structured text.
+///
+/// This intentionally remains a lightweight SwiftUI mark rather than a
+/// bundled bitmap so it inherits tint, contrast, and display scale everywhere.
+struct CadenceComposeIcon: View {
+    var size: CGFloat = 20
+
+    var body: some View {
+        HStack(spacing: size * 0.08) {
+            Image(systemName: "quote.opening")
+                .font(.system(size: size * 0.34, weight: .semibold))
+                .frame(width: size * 0.34)
+
+            VStack(alignment: .leading, spacing: size * 0.10) {
+                composeLine(width: size * 0.46)
+                composeLine(width: size * 0.37)
+                composeLine(width: size * 0.28)
+            }
+            .frame(width: size * 0.46, alignment: .leading)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    private func composeLine(width: CGFloat) -> some View {
+        Capsule(style: .continuous)
+            .fill(.foreground)
+            .frame(width: width, height: max(1.5, size * 0.075))
+    }
 }
 
 struct HUDChromeStyle: Equatable, Sendable {

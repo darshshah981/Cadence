@@ -2,7 +2,7 @@ import Foundation
 
 /// Legacy source compatibility only. Scribe has one direct-dictation flow and
 /// never uses an intent or selected text at runtime.
-@available(*, deprecated, message: "Scribe is direct dictation only")
+@available(*, deprecated, message: "Compose is direct dictation only")
 enum ScribeIntent: String, CaseIterable, Codable, Identifiable, Sendable {
     case compose
     case respond
@@ -67,7 +67,7 @@ enum ScribePrivacyMode: String, CaseIterable, Codable, Identifiable, Sendable {
         case .privateMode:
             return "Private mode"
         case .approvedProvider:
-            return "Scribe enabled"
+            return "Compose enabled"
         }
     }
 }

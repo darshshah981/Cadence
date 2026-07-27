@@ -753,15 +753,15 @@ enum HUDVisualState: Equatable {
         case .recording(let triggerMode, _):
             return triggerMode == .tapToStartStop ? "Continuous dictation is listening" : "Dictation is listening"
         case .scribeRecording:
-            return "Scribe is listening"
+            return "Compose is listening"
         case .preparingModel:
             return "Preparing the speech model"
         case .transcribing:
             return "Transcribing dictation"
         case .scribeTranscribing:
-            return "Transcribing for Scribe"
+            return "Transcribing for Compose"
         case .scribed:
-            return "Scribe draft ready"
+            return "Compose draft ready"
         case .inserting:
             return "Inserting dictation"
         case .copying:
@@ -784,7 +784,7 @@ enum HUDVisualState: Equatable {
         case .recording(.holdToTalk, _):
             return "Release the shortcut to finish dictating."
         case .scribeRecording:
-            return "Press the Scribe shortcut again when you finish speaking."
+            return "Press the Compose shortcut again when you finish speaking."
         default:
             return nil
         }
@@ -1236,7 +1236,7 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
         case .tapToStartStop:
             return "Toggle Recording"
         case .scribe:
-            return "Scribe"
+            return "Compose"
         }
     }
 
@@ -1247,7 +1247,7 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Sendable {
         case .tapToStartStop:
             return "Press once to start, then press the shortcut again to stop. Use 2 or more keys total."
         case .scribe:
-            return "Open Scribe to draft, respond, or edit. Use 2 or more keys total."
+            return "Open Compose to draft, respond, or edit. Use 2 or more keys total."
         }
     }
 
@@ -1769,6 +1769,6 @@ struct PermissionsSnapshot: Equatable {
         default:
             list = names.dropLast().joined(separator: ", ") + ", and " + names.last!
         }
-        return "Allow \(list) access before using Scribe."
+        return "Allow \(list) access before using Compose."
     }
 }

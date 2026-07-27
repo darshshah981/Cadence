@@ -569,11 +569,11 @@ struct ScribeNotchViewModelTests {
         }
         #expect(viewModel.completedSourceTypeOn)
 
-        for _ in 0..<80 where viewModel.statusText != "Scribed" {
+        for _ in 0..<80 where viewModel.statusText != "Composed" {
             try? await Task.sleep(for: .milliseconds(40))
         }
         #expect(viewModel.displayedResult == result.text)
-        #expect(viewModel.statusText == "Scribed")
+        #expect(viewModel.statusText == "Composed")
     }
 
     @Test
@@ -593,7 +593,7 @@ struct ScribeNotchViewModelTests {
 
         #expect(viewModel.displayedSource.isEmpty)
         #expect(viewModel.displayedResult == result.text)
-        #expect(viewModel.statusText == "Scribed")
+        #expect(viewModel.statusText == "Composed")
         #expect(viewModel.showsReviewActions)
         #expect(completionCount == 1)
     }

@@ -85,8 +85,10 @@ struct OnboardingView: View {
             if appModel.currentOnboardingStep == .welcome {
                 cadenceAppIcon(size: 52)
             } else {
-                Image(systemName: stepIcon(appModel.currentOnboardingStep))
-                    .font(.system(size: 28, weight: .medium))
+                CadenceFeatureIconView(
+                    icon: stepIcon(appModel.currentOnboardingStep),
+                    size: 32
+                )
                     .foregroundStyle(FlowTheme.accent)
                     .frame(width: 52, height: 52)
                     .background(
@@ -162,7 +164,7 @@ struct OnboardingView: View {
         case .scribe:
             VStack(alignment: .leading, spacing: 12) {
                 shortcutCard(
-                    title: "Open Scribe",
+                    title: "Open Compose",
                     shortcut: appModel.scribeBinding.shortcut.symbolDisplayName,
                     detail: "Dictate what you want to write, then review the polished result before you insert it."
                 )
@@ -170,7 +172,7 @@ struct OnboardingView: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(FlowTheme.textTertiary)
                 if !appModel.scribeReadiness.canGenerate {
-                    CadenceActionButton(title: "Set up Scribe provider", role: .primary) {
+                    CadenceActionButton(title: "Set up Compose provider", role: .primary) {
                         appModel.presentScribeProviderSetup()
                     }
                 }
@@ -182,20 +184,24 @@ struct OnboardingView: View {
         }
     }
 
-    private var welcomeFeatures: [(String, String, String)] {
+    private var welcomeFeatures: [(CadenceFeatureIcon, String, String)] {
         var features = [
-            (CadenceIconography.dictation, "Dictation", "Speak into any text field and insert the transcript.")
+            (
+                CadenceFeatureIcon.system(CadenceIconography.dictation),
+                "Dictation",
+                "Speak into any text field and insert the transcript."
+            )
         ]
         if appModel.featureFlags.scribeEnabled {
             features.append((
-                CadenceIconography.scribe,
-                "Scribe",
+                .compose,
+                "Compose",
                 "Dictate a request, then review the polished result before insertion."
             ))
         }
         if appModel.featureFlags.granolaEnabled {
             features.append((
-                "person.2.wave.2",
+                .system("person.2.wave.2"),
                 "Meeting capture",
                 "Keep durable audio and recoverable transcripts for calls."
             ))
@@ -203,10 +209,10 @@ struct OnboardingView: View {
         return features
     }
 
-    private var privacyFeatures: [(String, String, String)] {
+    private var privacyFeatures: [(CadenceFeatureIcon, String, String)] {
         var features = [
             (
-                "lock.shield",
+                CadenceFeatureIcon.system("lock.shield"),
                 "Local transcription",
                 "Cadence transcribes microphone audio on this Mac."
             )
@@ -214,19 +220,19 @@ struct OnboardingView: View {
         if appModel.featureFlags.scribeEnabled {
             features.append(contentsOf: [
                 (
-                    "network",
+                    .system("network"),
                     "Optional cloud drafting",
-                    "Scribe sends current-session text only after you choose and validate a provider."
+                    "Compose sends current-session text only after you choose and validate a provider."
                 ),
                 (
-                    "checkmark.circle",
+                    .system("checkmark.circle"),
                     "Review before insert",
                     "Generated drafts never replace text until you approve them."
                 )
             ])
         } else {
             features.append((
-                "eye.slash",
+                .system("eye.slash"),
                 "Private by default",
                 "Dictation and meeting files stay on this Mac unless you choose to export or copy them."
             ))
@@ -234,50 +240,52 @@ struct OnboardingView: View {
         return features
     }
 
-    private var readyFeatures: [(String, String, String)] {
+    private var readyFeatures: [(CadenceFeatureIcon, String, String)] {
         var features = [
             (
-                appModel.permissions.allRequiredGranted
-                    ? "checkmark.circle.fill"
-                    : "exclamationmark.circle",
+                CadenceFeatureIcon.system(
+                    appModel.permissions.allRequiredGranted
+                        ? "checkmark.circle.fill"
+                        : "exclamationmark.circle"
+                ),
                 appModel.permissions.allRequiredGranted
                     ? "Core permissions ready"
                     : "Permissions still need attention",
                 appModel.setupProgressLabel
             ),
             (
-                CadenceIconography.dictation,
+                .system(CadenceIconography.dictation),
                 "Dictation shortcut",
                 appModel.holdToTalkBinding.shortcut.symbolDisplayName
             )
         ]
         if appModel.featureFlags.scribeEnabled {
             features.append((
-                CadenceIconography.scribe,
-                "Scribe shortcut",
+                .compose,
+                "Compose shortcut",
                 appModel.scribeBinding.shortcut.symbolDisplayName
             ))
         }
         return features
     }
 
-    private var personalizationFeatures: [(String, String, String)] {
+    private var personalizationFeatures: [(CadenceFeatureIcon, String, String)] {
         var features = [
             (
-                "text.badge.plus",
+                CadenceFeatureIcon.system("text.badge.plus"),
                 "Spoken shortcuts",
                 "Turn a short phrase into a longer reusable response."
             )
         ]
         if appModel.featureFlags.scribeEnabled {
             features.append((
-                "textformat",
+                .system("textformat"),
                 "Writing profiles",
                 "Set tone, length, punctuation, and formatting globally or per app."
             ))
         }
         features.append((
-            "character.book.closed",
+            .system("character.book.closed"),
             "Custom words",
             "Teach Cadence names and phrases without sending them away."
         ))
@@ -303,11 +311,12 @@ struct OnboardingView: View {
         .padding(.vertical, 16)
     }
 
-    private func featureRows(_ rows: [(String, String, String)]) -> some View {
+    private func featureRows(_ rows: [(CadenceFeatureIcon, String, String)]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: row.0).frame(width: 20).foregroundStyle(FlowTheme.accent)
+                    CadenceFeatureIconView(icon: row.0, size: 20)
+                        .foregroundStyle(FlowTheme.accent)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(row.1).font(.system(size: 13, weight: .medium)).foregroundStyle(FlowTheme.textPrimary)
                         Text(row.2).font(.system(size: 11)).foregroundStyle(FlowTheme.textSecondary)
@@ -367,7 +376,7 @@ struct OnboardingView: View {
         case .permissions: return "Connect only what is needed"
         case .microphone: return "Check your microphone"
         case .dictation: return "Speak anywhere"
-        case .scribe: return "Draft with Scribe"
+        case .scribe: return "Draft with Compose"
         case .personalization: return "Make it sound like you"
         case .ready: return "You are ready"
         }
@@ -380,7 +389,7 @@ struct OnboardingView: View {
                 return "Three focused workflows share one calm, native Mac experience."
             }
             if appModel.featureFlags.scribeEnabled {
-                return "Dictation and Scribe share one calm, native Mac experience."
+                return "Dictation and Compose share one calm, native Mac experience."
             }
             if appModel.featureFlags.granolaEnabled {
                 return "Dictation and meeting capture share one calm, native Mac experience."
@@ -394,21 +403,21 @@ struct OnboardingView: View {
         case .personalization: return "Keep reusable language and writing preferences locally on this Mac."
         case .ready:
             return appModel.featureFlags.scribeEnabled
-                ? "Review your setup, then start with Dictation or Scribe from any app."
+                ? "Review your setup, then start with Dictation or Compose from any app."
                 : "Review your setup, then start dictating from any app."
         }
     }
 
-    private func stepIcon(_ step: OnboardingStep) -> String {
+    private func stepIcon(_ step: OnboardingStep) -> CadenceFeatureIcon {
         switch step {
-        case .welcome: return "waveform.and.mic"
-        case .privacy: return "lock.shield.fill"
-        case .permissions: return "checkmark.seal"
-        case .microphone: return "mic.fill"
-        case .dictation: return CadenceIconography.dictation
-        case .scribe: return CadenceIconography.scribe
-        case .personalization: return "person.crop.circle.badge.checkmark"
-        case .ready: return "checkmark.circle.fill"
+        case .welcome: return .system("waveform.and.mic")
+        case .privacy: return .system("lock.shield.fill")
+        case .permissions: return .system("checkmark.seal")
+        case .microphone: return .system("mic.fill")
+        case .dictation: return .system(CadenceIconography.dictation)
+        case .scribe: return .compose
+        case .personalization: return .system("person.crop.circle.badge.checkmark")
+        case .ready: return .system("checkmark.circle.fill")
         }
     }
 }

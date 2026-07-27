@@ -119,7 +119,7 @@ private final class CarbonScribeReviewKeyboardShortcutMonitor:
         )
         guard installStatus == noErr else {
             scribeNotchWindowLogger.error(
-                "Could not install Scribe review keyboard handler status=\(installStatus, privacy: .public)"
+                "Could not install Compose review keyboard handler status=\(installStatus, privacy: .public)"
             )
             self.handler = nil
             return
@@ -143,7 +143,7 @@ private final class CarbonScribeReviewKeyboardShortcutMonitor:
                 hotKeyReferences[command] = reference
             } else {
                 scribeNotchWindowLogger.error(
-                    "Could not register Scribe review shortcut command=\(command.logName, privacy: .public) status=\(status, privacy: .public)"
+                    "Could not register Compose review shortcut command=\(command.logName, privacy: .public) status=\(status, privacy: .public)"
                 )
             }
         }

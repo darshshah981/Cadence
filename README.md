@@ -2,7 +2,7 @@
 
 Fast local dictation for macOS.
 
-Cadence is a small menu bar app for push-to-talk dictation. Hold a shortcut, speak, release, and Cadence inserts the text into the app you were already using. Optional Scribe mode can refine a transcript with a model provider you configure before you insert, copy, or discard it.
+Cadence is a small menu bar app for push-to-talk dictation. Hold a shortcut, speak, release, and Cadence inserts the text into the app you were already using. Optional Compose mode can refine a transcript with a model provider you configure before you insert, copy, or discard it.
 
 ## Design
 
@@ -15,7 +15,7 @@ Cadence is designed as a quiet menu bar utility: recent transcripts stay front a
 - Hold-to-talk and press-to-start dictation modes, enabled separately or together with different shortcuts.
 - Local WhisperKit transcription.
 - Direct text insertion into the focused Mac app.
-- Optional app-aware Scribe rewriting with user-configured model providers.
+- Optional app-aware Compose rewriting with user-configured model providers.
 - Guided setup for Microphone, Accessibility, and Input Monitoring permissions.
 - Simple quality presets with advanced model/audio controls when needed.
 - Optional privacy-safe analytics. Audio and transcript text are not sent to analytics.
@@ -69,7 +69,7 @@ Cadence uses [PermissionFlow](https://github.com/jaywcjlove/PermissionFlow) to o
 
 ## Privacy
 
-Cadence transcribes dictation locally. Scribe sends transcript text only to the model provider you explicitly configure. Optional analytics are disabled by default and do not include audio, transcript text, vocabulary terms, exact shortcut keys, or dictated app names.
+Cadence transcribes dictation locally. Compose sends transcript text only to the model provider you explicitly configure. Optional analytics are disabled by default and do not include audio, transcript text, vocabulary terms, exact shortcut keys, or dictated app names.
 
 Read the privacy note: [docs/privacy.md](docs/privacy.md)
 

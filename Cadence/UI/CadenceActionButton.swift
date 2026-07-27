@@ -326,7 +326,7 @@ struct CadenceActionGroup: View {
                 Text(focusedActionID.map(Self.actionAccessibilityIdentifier) ?? "none")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(FlowTheme.textSecondary)
-                    .accessibilityLabel("Focused Scribe action")
+                    .accessibilityLabel("Focused Compose action")
                     .accessibilityValue(
                         focusedActionID.map(Self.actionAccessibilityIdentifier) ?? "none"
                     )
@@ -523,7 +523,7 @@ enum ScribeActionPolicy {
             }
             actions.append(.init(
                 id: id("retry"),
-                title: canRetryGeneration ? "Try Scribe again" : "Record request again",
+                title: canRetryGeneration ? "Try Compose again" : "Record request again",
                 role: .primary,
                 keyboardShortcut: .defaultAction,
                 route: .retry

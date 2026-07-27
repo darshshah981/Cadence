@@ -725,7 +725,7 @@ final class AppModel: ObservableObject {
 
     var scribeProviderStatus: String {
         switch scribeProviderReadiness {
-        case .disabled: return "Scribe is disabled · provider key retained"
+        case .disabled: return "Compose is disabled · provider key retained"
         case .setupRequired: return "Provider setup required · literal Dictation remains available"
         case .validating: return "Validating the selected provider…"
         case let .ready(kind): return "\(kind.displayName) connected · review before insert"
@@ -1595,7 +1595,7 @@ final class AppModel: ObservableObject {
         do {
             meetingVoiceSessionLease = try voiceSessionArbiter.acquire(for: .meeting)
         } catch let VoiceSessionArbiterError.busy(activeKind) {
-            systemAudioCaptureState = .failed("Stop the active \(activeKind.rawValue) session before recording a meeting.")
+            systemAudioCaptureState = .failed("Stop the active \(activeKind.displayName) session before recording a meeting.")
             return
         } catch {
             systemAudioCaptureState = .failed("Cadence could not reserve audio capture for this meeting.")
@@ -2869,7 +2869,7 @@ final class AppModel: ObservableObject {
         // insertion path, or persistence path. It uses the same direct-only
         // request construction and egress policy as a live Scribe draft.
         let request = ScribeRequest.directDictation(
-            processedDictation: "Write one short update confirming that the Cadence Scribe practice check is complete.",
+            processedDictation: "Write one short update confirming that the Cadence Compose practice check is complete.",
             resolvedEnvironment: environment
         )
         let providerRequest = ScribeProviderRequest(
@@ -2908,11 +2908,11 @@ final class AppModel: ObservableObject {
                     cancelActiveAction: { await self.scribeCoordinator.cancel() }
                 )
                 if decision == .confirmationRequired {
-                    self.lastError = "Cancel the active Scribe action before changing its provider."
+                    self.lastError = "Cancel the active Compose action before changing its provider."
                 }
                 self.scribeProviderReadiness = self.scribeProviderV2Controller.readiness
             } catch {
-                self.lastError = "Cadence could not update the Scribe provider state."
+                self.lastError = "Cadence could not update the Compose provider state."
             }
         }
     }
@@ -2929,7 +2929,7 @@ final class AppModel: ObservableObject {
                     cancelActiveAction: { await self.scribeCoordinator.cancel() }
                 )
                 guard decision == .allowed else {
-                    self.lastError = "Cancel the active Scribe action before removing its provider."
+                    self.lastError = "Cancel the active Compose action before removing its provider."
                     return
                 }
                 self.scribeProviderReadiness = self.scribeProviderV2Controller.readiness
@@ -2942,7 +2942,7 @@ final class AppModel: ObservableObject {
                 ))
             }
             } catch {
-                self.lastError = "Cadence could not remove the Scribe provider from this Mac."
+                self.lastError = "Cadence could not remove the Compose provider from this Mac."
             }
         }
     }
@@ -3289,20 +3289,20 @@ final class AppModel: ObservableObject {
                     appAdaptationEnabled: self.scribeAppAdaptationEnabled
                 )
             } catch {
-                self.lastError = "Cadence could not prepare the Scribe diagnostics export."
+                self.lastError = "Cadence could not prepare the Compose diagnostics export."
                 return
             }
 
             let panel = NSSavePanel()
             panel.allowedContentTypes = [.json]
-            panel.nameFieldStringValue = "Cadence-Scribe-Diagnostics.json"
+            panel.nameFieldStringValue = "Cadence-Compose-Diagnostics.json"
             panel.message = "This content-free export is saved only where you choose. Cadence does not upload it."
             guard panel.runModal() == .OK, let url = panel.url else { return }
             do {
                 try data.write(to: url, options: .atomic)
                 self.lastError = nil
             } catch {
-                self.lastError = "Cadence could not save the Scribe diagnostics export."
+                self.lastError = "Cadence could not save the Compose diagnostics export."
             }
         }
     }
@@ -3435,7 +3435,7 @@ final class AppModel: ObservableObject {
             } catch let VoiceSessionArbiterError.busy(activeKind) {
                 self.activeScribeTriggerMode = nil
                 self.scribeShortcutReleasePending = false
-                self.presentScribeStartFailure("Stop the active \(activeKind.rawValue) session before starting Scribe.")
+                self.presentScribeStartFailure("Stop the active \(activeKind.displayName) session before starting Compose.")
             } catch is CancellationError {
                 self.activeScribeTriggerMode = nil
                 self.scribeShortcutReleasePending = false
@@ -3443,7 +3443,7 @@ final class AppModel: ObservableObject {
             } catch {
                 self.activeScribeTriggerMode = nil
                 self.scribeShortcutReleasePending = false
-                self.presentScribeStartFailure("Scribe could not start recording. Try again.")
+                self.presentScribeStartFailure("Compose could not start recording. Try again.")
             }
         }
     }
@@ -3542,7 +3542,7 @@ final class AppModel: ObservableObject {
                 )
             } catch {
                 self.presentScribeStartFailure(
-                    "Scribe could not start a new recording.",
+                    "Compose could not start a new recording.",
                     failureRecovery: .retryGeneration
                 )
             }
@@ -3572,13 +3572,13 @@ final class AppModel: ObservableObject {
         case let .context(error):
             return error.userMessage
         case let .voiceSessionBusy(kind):
-            return "Stop the active \(kind.rawValue) session before starting Scribe."
+            return "Stop the active \(kind.displayName) session before starting Compose."
         case .transcriptionEmpty:
             return "Cadence did not hear a request. Record the request again or use Dictation."
         case .transcription:
             return "Cadence could not transcribe that request. Try again or use Dictation."
         case .literalRepair:
-            return "Cadence could not resolve an exact literal. Use the spoken words, record the request again, or cancel Scribe."
+            return "Cadence could not resolve an exact literal. Use the spoken words, record the request again, or cancel Compose."
         case nil:
             return nil
         }
@@ -4193,7 +4193,7 @@ final class AppModel: ObservableObject {
             presentation = .project(
                 state: scribeState,
                 literalTranscript: literal,
-                failureMessage: "Scribe could not finish this draft. Your spoken words are still available."
+                failureMessage: "Compose could not finish this draft. Your spoken words are still available."
             )
         case .directReady, .success, .controlSemantics, .setup, .settings:
             return

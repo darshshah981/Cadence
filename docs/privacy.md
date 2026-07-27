@@ -1,33 +1,33 @@
 # Cadence Privacy
 
-Cadence is a local-first macOS dictation and meeting-capture app. Optional Cloud Scribe drafting has a separate, explicit provider-consent boundary.
+Cadence is a local-first macOS dictation and meeting-capture app. Optional Cloud Compose drafting has a separate, explicit provider-consent boundary.
 
 ## Audio
 
-Cadence records audio only while you are using Dictation, Scribe voice capture, or meeting capture. Audio is processed locally for transcription. Cadence does not send audio to a Scribe provider or analytics.
+Cadence records audio only while you are using Dictation, Compose voice capture, or meeting capture. Audio is processed locally for transcription. Cadence does not send audio to a Compose provider or analytics.
 
 ## Transcripts
 
 Cadence stores recent dictation transcripts locally on your Mac so you can copy them again from the menu bar. Meeting notes, saved meeting audio, transcripts, and summaries stay local on your Mac. Transcript text is not sent to analytics.
 
-Current Scribe speech, selected text, provider request, generated draft, and retry payload remain only in the active in-memory Scribe session. Cadence clears them after insert, copy-and-finish, discard, cancel, provider removal, review dismissal, or app termination. Release one does not write a content-bearing Scribe recovery journal. Dictation history and meeting recovery remain separate and unchanged.
+Current Compose speech, selected text, provider request, generated draft, and retry payload remain only in the active in-memory Compose session. Cadence clears them after insert, copy-and-finish, discard, cancel, provider removal, review dismissal, or app termination. Release one does not write a content-bearing Compose recovery journal. Dictation history and meeting recovery remain separate and unchanged.
 
-## Optional Cloud Scribe
+## Optional Cloud Compose
 
 Cadence does not choose or contact a cloud provider until you complete guided setup. Setup first identifies the recipient and shows the data-use disclosure. Cadence creates a setup-only consent receipt only after you affirm that disclosure; a recipient change, provider switch, or setup dismissal clears it. A network request begins only after you choose **Connect and validate**. The first request is a synthetic compatibility check containing only:
 
 - System: `Return only OK.`
 - User: `Cadence provider compatibility check.`
 
-After successful validation, a Scribe generation request may contain only:
+After successful validation, a Compose generation request may contain only:
 
 - Cadence's fixed writing instructions.
-- Text dictated for the current Scribe action, transcribed locally.
+- Text dictated for the current Compose action, transcribed locally.
 - The compiled behavior for the current writing environment.
 - Exact literals identified locally in the current request.
 - The configured model and minimum generation controls.
 
-Cadence does not send audio, selected text, window titles, nearby text, general clipboard contents, screen content, transcript history, meetings, or your Cadence analytics ID. It also excludes document titles, cursor-adjacent text, vocabulary or shortcut catalogs, exact shortcut keys, bundle identifiers, Accessibility signatures, device or account identifiers, and prior Scribe turns.
+Cadence does not send audio, selected text, window titles, nearby text, general clipboard contents, screen content, transcript history, meetings, or your Cadence analytics ID. It also excludes document titles, cursor-adjacent text, vocabulary or shortcut catalogs, exact shortcut keys, bundle identifiers, Accessibility signatures, device or account identifiers, and prior Compose turns.
 
 ### DeepSeek
 
@@ -56,8 +56,8 @@ Advanced setup accepts one user-entered HTTPS API base URL, model identifier, an
 - Candidate API keys remain in process memory and are not saved if validation fails or is cancelled.
 - After validation succeeds, Cadence stores the key as an app-scoped, non-synchronizing generic-password item in macOS Keychain. Non-secret provider configuration and the accepted disclosure version are stored separately.
 - Replacing a key or endpoint validates the candidate before swapping the working configuration.
-- Disabling a provider stops new Scribe requests but retains its configuration and Keychain item.
-- **Remove {provider} from Cadence** stops new requests, cancels and suppresses in-flight work, and removes the local key, provider configuration, acceptance record, and current Scribe buffers. It preserves Dictation history, meetings, audio, writing preferences, permissions, and shortcuts.
+- Disabling a provider stops new Compose requests but retains its configuration and Keychain item.
+- **Remove {provider} from Cadence** stops new requests, cancels and suppresses in-flight work, and removes the local key, provider configuration, acceptance record, and current Compose buffers. It preserves Dictation history, meetings, audio, writing preferences, permissions, and shortcuts.
 - Local removal does not revoke a key at the provider, retract requests already sent, or delete data the provider holds. Use the provider's own key-management and privacy routes for those actions.
 - A recipient-origin change or material egress-contract change requires a new local acknowledgment before another provider request.
 
@@ -93,9 +93,9 @@ Analytics do not include:
 
 Analytics can be turned off at any time in Cadence Settings.
 
-Scribe's local diagnostic ring is separate from analytics. It contains at most 200 events and seven days of minute-rounded, closed-enum setup/generation/recovery outcomes. It contains no content, app or writing-environment identity, key, endpoint/model detail, prompt/response, raw error, stable device/account ID, or exact timestamp. It is never uploaded automatically. Settings lets you inspect the disclosure, export the JSON to a location you choose, or clear the ring.
+Compose's local diagnostic ring is separate from analytics. It contains at most 200 events and seven days of minute-rounded, closed-enum setup/generation/recovery outcomes. It contains no content, app or writing-environment identity, key, endpoint/model detail, prompt/response, raw error, stable device/account ID, or exact timestamp. It is never uploaded automatically. Settings lets you inspect the disclosure, export the JSON to a location you choose, or clear the ring.
 
-Release one sends no remote Scribe telemetry through the persistent PostHog identity. If a future release adds remote Scribe telemetry, it must use the documented typed allowlist and a per-launch identity, and it remains subordinate to the analytics opt-in.
+Release one sends no remote Compose telemetry through the persistent PostHog identity. If a future release adds remote Compose telemetry, it must use the documented typed allowlist and a per-launch identity, and it remains subordinate to the analytics opt-in.
 
 ## Contact
 

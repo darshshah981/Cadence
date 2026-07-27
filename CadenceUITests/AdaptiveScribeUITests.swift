@@ -42,7 +42,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Advanced OpenAI-compatible"].exists)
         app.buttons["DeepSeek"].click()
 
-        XCTAssertTrue(app.staticTexts["Use DeepSeek for Scribe"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Use DeepSeek for Compose"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.descendants(matching: .any)["scribe-provider-disclosure"].exists)
         attachScreenshot(app: app, name: "deepseek-disclosure")
         app.buttons["I understand"].click()
@@ -202,7 +202,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Discard this draft?"].waitForExistence(timeout: 1))
         XCTAssertTrue(app.buttons["Copy unpolished"].exists)
         XCTAssertTrue(app.buttons["Insert unpolished"].exists)
-        XCTAssertTrue(app.buttons["Try Scribe again"].exists)
+        XCTAssertTrue(app.buttons["Try Compose again"].exists)
     }
 
     @MainActor
@@ -483,7 +483,7 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.buttons["Not now"].click()
         XCTAssertTrue(waitForNonexistence(key))
         selectSettingsCategory("privacy", in: app)
-        XCTAssertFalse(app.staticTexts["Connect Scribe"].exists)
+        XCTAssertFalse(app.staticTexts["Connect Compose"].exists)
     }
 
     @MainActor

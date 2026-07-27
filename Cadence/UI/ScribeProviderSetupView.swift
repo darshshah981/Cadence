@@ -215,7 +215,7 @@ struct ScribeProviderSetupView: View {
 
     private var providerChoice: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Choose where Cadence sends Scribe text. No provider is preselected, and choosing does not start a network request.")
+            Text("Choose where Cadence sends Compose text. No provider is preselected, and choosing does not start a network request.")
                 .foregroundStyle(FlowTheme.textSecondary)
             providerCard(
                 title: "DeepSeek",
@@ -341,7 +341,10 @@ struct ScribeProviderSetupView: View {
 
     private var ready: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Scribe is ready", systemImage: CadenceIconography.scribe)
+            HStack(spacing: 8) {
+                CadenceComposeIcon(size: 22)
+                Text("Compose is ready")
+            }
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(FlowTheme.success)
             Text("Connection test succeeded. Cadence received one compatible, non-streaming text completion from this endpoint and model configuration.")
@@ -522,7 +525,7 @@ struct ScribeProviderSetupView: View {
             } catch let failure as ScribeProviderFailure {
                 model.practiceFailed(failure.userMessage)
             } catch {
-                model.practiceFailed("Cadence could not create the practice draft. You can finish setup and try Scribe later.")
+                model.practiceFailed("Cadence could not create the practice draft. You can finish setup and try Compose later.")
             }
         }
     }
@@ -536,7 +539,7 @@ struct ScribeProviderSetupView: View {
 
     private var title: String {
         switch model.stage {
-        case .chooseProvider: return "Set up Scribe"
+        case .chooseProvider: return "Set up Compose"
         case .advancedConfiguration: return "Configure an Advanced provider"
         case .disclosure:
             if model.choice == .deepSeek { return ScribeProviderDisclosure.deepSeekTitle }
@@ -544,10 +547,10 @@ struct ScribeProviderSetupView: View {
             if model.choice == .openRouter { return "Connect to OpenRouter" }
             let origin = model.normalizedAdvancedEndpoint?.normalizedOrigin ?? "the configured provider"
             return "Connect to \(origin)"
-        case .credential: return "Connect Scribe"
+        case .credential: return "Connect Compose"
         case .validating: return "Check provider compatibility"
-        case .ready: return "Scribe ready"
-        case .practicing: return "Try Scribe safely"
+        case .ready: return "Compose ready"
+        case .practicing: return "Try Compose safely"
         case .practice: return "Practice complete"
         }
     }
@@ -606,7 +609,7 @@ private extension ScribeProviderConfigurationError {
     var setupMessage: String {
         switch self {
         case .invalidBaseURL: return "Enter an absolute HTTPS API base URL with a host."
-        case .insecureBaseURL: return "Scribe provider URLs must use HTTPS."
+        case .insecureBaseURL: return "Compose provider URLs must use HTTPS."
         case .embeddedCredentials: return "Remove the username or password from the URL. Enter the API key separately."
         case .queryOrFragment: return "Enter an API base URL without a query or fragment."
         case .unsafePath: return "The API base path contains an unsafe or ambiguous segment."

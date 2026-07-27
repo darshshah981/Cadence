@@ -821,13 +821,13 @@ extension ScribeProviderFailure {
     var userMessage: String {
         switch category {
         case .setupRequired:
-            return "Scribe needs an AI provider. Connect one in Scribe settings."
+            return "Compose needs an AI provider. Connect one in Compose settings."
         case .configurationInvalid:
-            return "The saved Scribe provider needs attention. Reconnect it in Scribe settings."
+            return "The saved Compose provider needs attention. Reconnect it in Compose settings."
         case .credentialRejected:
             return "The provider rejected this API key or account access."
         case .balanceRequired:
-            return "DeepSeek reports that this account needs balance before Scribe can run."
+            return "DeepSeek reports that this account needs balance before Compose can run."
         case .rateLimited:
             return "The provider is temporarily rate limited. Try again after it recovers."
         case .transportUnavailable:

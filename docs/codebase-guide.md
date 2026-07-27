@@ -14,9 +14,9 @@ Cadence started as a local macOS dictation utility and contains two related prod
 
 The app is a native macOS SwiftUI/AppKit hybrid. SwiftUI owns most views. AppKit is used where macOS requires lower-level control: windows, menu-bar behavior, hotkeys, accessibility insertion, ScreenCaptureKit, and HUD panels.
 
-## Scribe Feature Flag
+## Compose Feature Flag
 
-Scribe is compiled into the app and enabled by default. Explicitly disabling the flag omits Scribe from Settings and onboarding, disables its hotkey at runtime, blocks direct launch and provider setup, and stops its defaults monitor.
+Compose is compiled into the app and enabled by default. Explicitly disabling the flag omits Compose from Settings and onboarding, disables its hotkey at runtime, blocks direct launch and provider setup, and stops its defaults monitor.
 
 For a durable local opt-out, use the bundle identifier for the build you run:
 
@@ -32,7 +32,7 @@ defaults delete com.darshshah.Cadence Cadence.feature.scribe
 defaults delete com.darshshah.Cadence.debug Cadence.feature.scribe
 ```
 
-For one launch, pass `--enable-scribe` or `--disable-scribe`. Automation can set `CADENCE_SCRIBE_ENABLED=true` or `false`. Launch arguments take precedence over the environment, which takes precedence over the local preference. `--scribe-fixture` enables Scribe only for the existing Debug fixture path.
+For one launch, pass `--enable-scribe` or `--disable-scribe`. Automation can set `CADENCE_SCRIBE_ENABLED=true` or `false`. Launch arguments take precedence over the environment, which takes precedence over the local preference. `--scribe-fixture` enables Compose only for the existing Debug fixture path.
 
 ## Granola Feature Flag
 
