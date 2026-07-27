@@ -4157,6 +4157,8 @@ final class AppModel: ObservableObject {
                 fixtureIdentifier: "scribe-fixture-control-semantics",
                 width: width
             )
+        case .history:
+            transcriptHistory = ScribeLaunchFixtures.transcriptHistory
         case .setup, .settings:
             break
         }
@@ -4209,7 +4211,7 @@ final class AppModel: ObservableObject {
                 literalTranscript: literal,
                 failureMessage: "Compose could not finish this draft. Your spoken words are still available."
             )
-        case .directReady, .success, .controlSemantics, .setup, .settings:
+        case .directReady, .success, .controlSemantics, .setup, .settings, .history:
             return
         }
 

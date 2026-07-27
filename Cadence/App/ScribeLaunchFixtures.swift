@@ -4,6 +4,7 @@ import Foundation
 enum ScribeLaunchFixture: String {
     case setup
     case settings
+    case history
     case directReady = "direct-ready"
     case listening
     case transcribing
@@ -88,6 +89,23 @@ enum ScribeLaunchFixtures {
 
     static var usesNotchPresentation: Bool {
         ProcessInfo.processInfo.arguments.contains("--scribe-notch-presentation")
+    }
+
+    static var transcriptHistory: [TranscriptHistoryItem] {
+        guard current == .history else { return [] }
+        return [
+            TranscriptHistoryItem(
+                id: UUID(uuidString: "A3416A3E-8332-4EFF-A8DA-72DC81C72DE7")!,
+                text: "The composed fixture result.",
+                createdAt: Date(timeIntervalSince1970: 1_722_000_000),
+                composeOriginalText: "The original spoken fixture."
+            ),
+            TranscriptHistoryItem(
+                id: UUID(uuidString: "EBC64F07-8BAE-4DBB-A392-522622FA8045")!,
+                text: "An earlier plain dictation.",
+                createdAt: Date(timeIntervalSince1970: 1_721_999_000)
+            ),
+        ]
     }
 
     static func apply(to defaults: UserDefaults) {

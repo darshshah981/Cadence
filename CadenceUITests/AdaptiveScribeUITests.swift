@@ -417,6 +417,40 @@ final class AdaptiveScribeUITests: XCTestCase {
     }
 
     @MainActor
+    func testComposeHistoryOpensInsideMainWindowAndReturnsToList() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--scribe-fixture", "history"]
+        app.launch()
+
+        let historySidebar = app.buttons["sidebar-speech-to-text"]
+        XCTAssertTrue(historySidebar.waitForExistence(timeout: 8))
+        historySidebar.click()
+
+        let openEntry = app.buttons["Open Compose entry"]
+        XCTAssertTrue(openEntry.waitForExistence(timeout: 3))
+        openEntry.click()
+
+        XCTAssertTrue(app.descendants(matching: .any)["compose-history-detail"]
+            .waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["The composed fixture result."].exists)
+        XCTAssertTrue(app.staticTexts["The original spoken fixture."].exists)
+        XCTAssertTrue(historySidebar.isHittable)
+
+        historySidebar.click()
+        XCTAssertTrue(app.staticTexts["Dictation history"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.descendants(matching: .any)["compose-history-detail"].exists)
+
+        XCTAssertTrue(app.buttons["Open Compose entry"].waitForExistence(timeout: 3))
+        app.buttons["Open Compose entry"].click()
+        let back = app.buttons["dictation-history-back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 3))
+        back.click()
+
+        XCTAssertTrue(app.staticTexts["Dictation history"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.descendants(matching: .any)["compose-history-detail"].exists)
+    }
+
+    @MainActor
     private func openSettings(in app: XCUIApplication) {
         app.activate()
         let settings = app.buttons["sidebar-settings"]
