@@ -47,8 +47,11 @@ final class AdaptiveScribeUITests: XCTestCase {
         attachScreenshot(app: app, name: "deepseek-disclosure")
         app.buttons["I understand"].click()
         XCTAssertTrue(app.secureTextFields["scribe-provider-api-key"].waitForExistence(timeout: 3))
+        let setupSheet = app.sheets.firstMatch
+        XCTAssertTrue(setupSheet.exists)
         app.buttons["Not now"].click()
-        XCTAssertTrue(waitForNonexistence(app.secureTextFields["scribe-provider-api-key"]))
+        XCTAssertTrue(waitForNonexistence(setupSheet, timeout: 5))
+        XCTAssertFalse(app.secureTextFields["scribe-provider-api-key"].exists)
 
         attachScreenshot(app: app, name: "deepseek-setup-dismissed")
     }
@@ -514,8 +517,11 @@ final class AdaptiveScribeUITests: XCTestCase {
         XCTAssertTrue(key.waitForExistence(timeout: 3))
         key.click()
         key.typeText("ephemeral-fixture-key")
+        let setupSheet = app.sheets.firstMatch
+        XCTAssertTrue(setupSheet.exists)
         app.buttons["Not now"].click()
-        XCTAssertTrue(waitForNonexistence(key))
+        XCTAssertTrue(waitForNonexistence(setupSheet, timeout: 5))
+        XCTAssertFalse(app.secureTextFields["scribe-provider-api-key"].exists)
         selectSettingsCategory("privacy", in: app)
         XCTAssertFalse(app.staticTexts["Connect Compose"].exists)
     }
