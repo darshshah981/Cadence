@@ -160,7 +160,13 @@ struct ScribeProviderSetupView: View {
             actions
         }
         .padding(24)
-        .frame(minWidth: 520, idealWidth: 620, minHeight: 480, idealHeight: 620)
+        .frame(
+            minWidth: 520,
+            idealWidth: 620,
+            minHeight: 480,
+            idealHeight: 560,
+            maxHeight: 560
+        )
         .background(FlowTheme.background)
         .animation(
             reduceMotion ? nil : .easeOut(duration: 0.18),
