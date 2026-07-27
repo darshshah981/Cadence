@@ -13,11 +13,22 @@ struct PermissionFlowGuidanceTests {
     }
 
     @Test
-    func launchFrameIsCenteredOnThePermissionAction() {
+    func launchFrameStartsAtReadablePanelSizeAndStaysWithinTheScreen() {
         let frame = PermissionFlowGuidanceService.launchFrame(
-            around: CGPoint(x: 240, y: 180)
+            around: CGPoint(x: 240, y: 180),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1_440, height: 900)
         )
 
-        #expect(frame == CGRect(x: 224, y: 164, width: 32, height: 32))
+        #expect(frame == CGRect(x: 30, y: 132, width: 420, height: 96))
+    }
+
+    @Test
+    func launchFrameClampsToTheVisibleScreenNearAnEdge() {
+        let frame = PermissionFlowGuidanceService.launchFrame(
+            around: CGPoint(x: 1_430, y: 10),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1_440, height: 900)
+        )
+
+        #expect(frame == CGRect(x: 1_008, y: 12, width: 420, height: 96))
     }
 }

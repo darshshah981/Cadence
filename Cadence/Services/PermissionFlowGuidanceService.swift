@@ -21,6 +21,9 @@ protocol PermissionGuidanceServing: AnyObject {
 
 @MainActor
 final class PermissionFlowGuidanceService: PermissionGuidanceServing {
+    private static let launchPanelSize = CGSize(width: 420, height: 96)
+    private static let screenInset: CGFloat = 12
+
     private let appURL: URL
     private let controller: PermissionFlowController
 
@@ -57,7 +60,41 @@ final class PermissionFlowGuidanceService: PermissionGuidanceServing {
         }
     }
 
-    static func launchFrame(around point: CGPoint) -> CGRect {
-        CGRect(x: point.x - 16, y: point.y - 16, width: 32, height: 32)
+    static func launchFrame(
+        around point: CGPoint,
+        visibleFrame suppliedVisibleFrame: CGRect? = nil
+    ) -> CGRect {
+        let visibleFrame = suppliedVisibleFrame
+            ?? NSScreen.screens.first(where: { $0.frame.contains(point) })?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? CGRect(origin: .zero, size: launchPanelSize)
+        let availableSize = CGSize(
+            width: max(1, visibleFrame.width - (screenInset * 2)),
+            height: max(1, visibleFrame.height - (screenInset * 2))
+        )
+        let size = CGSize(
+            width: min(launchPanelSize.width, availableSize.width),
+            height: min(launchPanelSize.height, availableSize.height)
+        )
+        let proposedOrigin = CGPoint(
+            x: point.x - (size.width * 0.5),
+            y: point.y - (size.height * 0.5)
+        )
+        let minimumOrigin = CGPoint(
+            x: visibleFrame.minX + screenInset,
+            y: visibleFrame.minY + screenInset
+        )
+        let maximumOrigin = CGPoint(
+            x: visibleFrame.maxX - screenInset - size.width,
+            y: visibleFrame.maxY - screenInset - size.height
+        )
+
+        return CGRect(
+            origin: CGPoint(
+                x: min(max(proposedOrigin.x, minimumOrigin.x), maximumOrigin.x),
+                y: min(max(proposedOrigin.y, minimumOrigin.y), maximumOrigin.y)
+            ),
+            size: size
+        )
     }
 }
