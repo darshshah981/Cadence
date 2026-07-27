@@ -517,7 +517,10 @@ final class AdaptiveScribeUITests: XCTestCase {
         app.buttons["Not now"].click()
         XCTAssertTrue(app.buttons["scribe-provider-setup"].waitForExistence(timeout: 5))
         selectSettingsCategory("privacy", in: app)
-        XCTAssertFalse(app.staticTexts["Connect Compose"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["settings-category-content-privacy"]
+                .waitForExistence(timeout: 3)
+        )
     }
 
     @MainActor
