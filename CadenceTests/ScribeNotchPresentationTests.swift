@@ -616,10 +616,24 @@ struct ScribeNotchViewModelTests {
 
 struct ScribeHUDRestorationPolicyTests {
     @Test
+    func discardingAComposedDraftHidesTheScribePillWithTheReviewSurface() {
+        #expect(ScribeHUDRestorationAction.resolve(
+            requiredPermissionsGranted: true,
+            isDictationIdle: true,
+            discardedComposedDraft: true
+        ) == .hide)
+    }
+
+    @Test
     func activeDictationKeepsOwnershipOfTheHUD() {
         #expect(ScribeHUDRestorationAction.resolve(
             requiredPermissionsGranted: true,
             isDictationIdle: false
+        ) == .leaveCurrentHUD)
+        #expect(ScribeHUDRestorationAction.resolve(
+            requiredPermissionsGranted: true,
+            isDictationIdle: false,
+            discardedComposedDraft: true
         ) == .leaveCurrentHUD)
     }
 

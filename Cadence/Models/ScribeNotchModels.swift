@@ -224,15 +224,18 @@ enum ScribeHUDProjection {
 }
 
 enum ScribeHUDRestorationAction: Equatable {
+    case hide
     case leaveCurrentHUD
     case showIdle
     case showReadyLogo
 
     static func resolve(
         requiredPermissionsGranted: Bool,
-        isDictationIdle: Bool
+        isDictationIdle: Bool,
+        discardedComposedDraft: Bool = false
     ) -> Self {
         guard isDictationIdle else { return .leaveCurrentHUD }
+        if discardedComposedDraft { return .hide }
         return requiredPermissionsGranted ? .showReadyLogo : .showIdle
     }
 }

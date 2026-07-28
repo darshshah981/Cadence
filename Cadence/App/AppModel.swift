@@ -185,6 +185,7 @@ final class AppModel: ObservableObject {
     private let hudController: HUDWindowController
     private let hudVisibilityController: HUDVisibilityController
     private var scribeReplacementCompleted = false
+    private var hidesHUDForComposedDraftDiscard = false
     private var activeScribeTriggerMode: DictationTriggerMode?
     private var scribeShortcutReleasePending = false
     private var scribeRecoveryApplication: ApplicationProcessIdentity?
@@ -3471,9 +3472,17 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func cancelScribe(dismissImmediately: Bool = false) {
+    private func cancelScribe(
+        dismissImmediately: Bool = false,
+        discardsReviewedDraft: Bool = false
+    ) {
         activeScribeTriggerMode = nil
         scribeShortcutReleasePending = false
+        if discardsReviewedDraft,
+           scribeReplacementCompleted,
+           case .reviewing = scribeState {
+            hidesHUDForComposedDraftDiscard = true
+        }
         if dismissImmediately {
             scribePanelWindowController.close()
             restoreIdleHUDAfterScribe()
@@ -3482,11 +3491,15 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             await self.scribeCoordinator.cancel()
             try? await Task.sleep(for: .milliseconds(500))
+            let discardedComposedDraft = self.hidesHUDForComposedDraftDiscard
+            self.hidesHUDForComposedDraftDiscard = false
             guard case .cancelled = self.scribeState else { return }
             self.scribeState = .idle
             self.scribePanelWindowController.close()
             self.scribeNotchWindowController.close()
-            self.restoreIdleHUDAfterScribe()
+            self.restoreIdleHUDAfterScribe(
+                discardedComposedDraft: discardedComposedDraft
+            )
         }
     }
 
@@ -3659,7 +3672,15 @@ final class AppModel: ObservableObject {
             if case .succeeded = state {
                 hudController.update(with: .idle)
             } else {
-                restoreIdleHUDAfterScribe()
+                let discardedComposedDraft: Bool
+                if case .cancelled = state {
+                    discardedComposedDraft = hidesHUDForComposedDraftDiscard
+                } else {
+                    discardedComposedDraft = false
+                }
+                restoreIdleHUDAfterScribe(
+                    discardedComposedDraft: discardedComposedDraft
+                )
             }
             return
         }
@@ -3685,13 +3706,18 @@ final class AppModel: ObservableObject {
         updateScribeHUD(for: scribeState)
     }
 
-    private func restoreIdleHUDAfterScribe() {
+    private func restoreIdleHUDAfterScribe(
+        discardedComposedDraft: Bool = false
+    ) {
         scribeAudioLevel = 0
         scribeWaveformLevels = Array(repeating: 0, count: 16)
         switch ScribeHUDRestorationAction.resolve(
             requiredPermissionsGranted: permissions.allRequiredGranted,
-            isDictationIdle: isDictationIdle
+            isDictationIdle: isDictationIdle,
+            discardedComposedDraft: discardedComposedDraft
         ) {
+        case .hide:
+            hudController.update(with: .idle)
         case .leaveCurrentHUD:
             return
         case .showIdle:
@@ -3728,7 +3754,9 @@ final class AppModel: ObservableObject {
 
         let viewModel = scribePanelWindowController.viewModel
         viewModel.onStop = { [weak self] in self?.stopScribeRecording() }
-        viewModel.onCancel = { [weak self] in self?.cancelScribe() }
+        viewModel.onCancel = { [weak self] in
+            self?.cancelScribe(discardsReviewedDraft: true)
+        }
         viewModel.onRetry = { [weak self] in self?.retryScribe() }
         viewModel.onReRecord = { [weak self] in self?.reRecordScribe() }
         viewModel.onUseLiteral = { [weak self] in self?.scribeCoordinator.useLiteralTranscript() }
@@ -3756,7 +3784,9 @@ final class AppModel: ObservableObject {
                 self.copyPolishedScribeResult()
             }
         }
-        notchViewModel.onDiscard = { [weak self] in self?.cancelScribe() }
+        notchViewModel.onDiscard = { [weak self] in
+            self?.cancelScribe(discardsReviewedDraft: true)
+        }
         notchViewModel.onRetry = { [weak self] in self?.retryScribe() }
         notchViewModel.onConfigureProvider = { [weak self] in
             self?.presentScribeProviderSetup()
