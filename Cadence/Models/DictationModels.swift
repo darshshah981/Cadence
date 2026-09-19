@@ -840,7 +840,8 @@ enum HUDContentSizing {
 
     static func compactErrorText(for message: String) -> String {
         switch message {
-        case "No voice detected — try again",
+        case "No speech",
+             "No voice detected — try again",
              "Nothing was captured. Check your microphone and try again.":
             return "No speech"
         case "Getting speech recognition ready…":
@@ -954,7 +955,8 @@ struct HUDMotionTuning: Equatable, Sendable {
 
 enum HUDMotion {
     static let waveformAttackRate = -log(0.6) * 60
-    static let waveformReleaseRate = -log(0.92) * 60
+    // Settle promptly after speech, while keeping a slightly softer fall than rise.
+    static let waveformReleaseRate = -log(0.72) * 60
     static let stableTolerance = 0.001
     static let activationSweepDuration: TimeInterval = 0.42
     static let foregroundTravelDistance: CGFloat = 10
@@ -1047,23 +1049,34 @@ enum HUDMotion {
     }
 }
 
+/// Keep status replacements continuous instead of dimming between labels.
+enum HUDStatusContentTransition {
+    static func outgoingOpacity(elapsed: TimeInterval) -> Double {
+        1 - incomingOpacity(elapsed: elapsed)
+    }
+
+    static func incomingOpacity(elapsed: TimeInterval) -> Double {
+        HUDActiveContentTransition.incomingOpacity(elapsed: elapsed)
+    }
+
+    static func checkmarkScale(elapsed: TimeInterval) -> Double {
+        0.9 + 0.1 * incomingOpacity(elapsed: elapsed)
+    }
+}
+
 enum HUDActiveContentTransition {
     static let duration: TimeInterval = 0.14
-    private static let outgoingFadeDuration: TimeInterval = 0.075
-    private static let incomingFadeDelay: TimeInterval = 0.05
-    private static let incomingFadeDuration: TimeInterval = 0.09
 
     static func outgoingOpacity(elapsed: TimeInterval) -> Double {
-        1 - HUDMotion.smoothProgress(
-            elapsed: elapsed,
-            duration: outgoingFadeDuration
-        )
+        // Keep the old content visible while its replacement arrives. Separate
+        // fade-out/fade-in schedules left both nearly invisible mid-transition.
+        1 - incomingOpacity(elapsed: elapsed)
     }
 
     static func incomingOpacity(elapsed: TimeInterval) -> Double {
         HUDMotion.smoothProgress(
-            elapsed: max(0, elapsed - incomingFadeDelay),
-            duration: incomingFadeDuration
+            elapsed: elapsed,
+            duration: duration
         )
     }
 
@@ -1096,6 +1109,13 @@ enum HUDActiveContentTransition {
 }
 
 enum HUDApplicationCueTransition {
+    static func usesStableStatusContainer(
+        current: HUDVisualState,
+        previous: HUDVisualState?
+    ) -> Bool {
+        isStatus(current) && (previous.map(isStatus) ?? true)
+    }
+
     static func keepsCueStable(
         from previous: HUDVisualState,
         to current: HUDVisualState

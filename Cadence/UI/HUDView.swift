@@ -124,11 +124,13 @@ struct HUDView: View {
                     .frame(width: morphWidth, height: HUDMetrics.panelHeight, alignment: .center)
             }
 
-            if let previous = model.previousPresentation,
-               model.isReplacingStatusContent {
-                replacingStatusPill(
-                    from: previous,
-                    to: model.presentation,
+            if HUDApplicationCueTransition.usesStableStatusContainer(
+                current: model.presentation.visualState,
+                previous: model.previousPresentation?.visualState
+            ), let incoming = statusDescriptor(for: model.presentation.visualState) {
+                stableStatusPill(
+                    incoming: incoming,
+                    outgoing: model.previousPresentation.flatMap { statusDescriptor(for: $0.visualState) },
                     renderedWidth: morphWidth
                 )
             } else {
@@ -625,63 +627,71 @@ struct HUDView: View {
         .frame(width: targetWidth, height: HUDMetrics.panelHeight, alignment: horizontalAlignment)
     }
 
-    @ViewBuilder
-    private func replacingStatusPill(
-        from previous: HUDPresentation,
-        to current: HUDPresentation,
+    private func stableStatusPill(
+        incoming: StatusDescriptor,
+        outgoing: StatusDescriptor?,
         renderedWidth: CGFloat
     ) -> some View {
-        if let outgoing = statusDescriptor(for: previous.visualState),
-           let incoming = statusDescriptor(for: current.visualState) {
-            let targetWidth = model.targetWidth(for: current)
-            ZStack(alignment: horizontalAlignment) {
-                HStack(spacing: HUDContentSizing.contentGap) {
-                    if usesTrailingAttachment {
-                        applicationCue()
-                        replacingStatusActivity(
-                            outgoing: outgoing,
-                            incoming: incoming
-                        )
-                    } else {
-                        replacingStatusActivity(
-                            outgoing: outgoing,
-                            incoming: incoming
-                        )
-                        applicationCue()
-                    }
-                }
-                .padding(.horizontal, HUDContentSizing.horizontalPadding)
-                .frame(width: targetWidth, height: HUDMetrics.pillHeight)
-                .compositingGroup()
-                .mask {
-                    foregroundMask(
-                        targetWidth: targetWidth,
-                        renderedWidth: renderedWidth
+        let targetWidth = model.targetWidth(for: model.presentation)
+        return ZStack(alignment: horizontalAlignment) {
+            HStack(spacing: HUDContentSizing.contentGap) {
+                if usesTrailingAttachment {
+                    applicationCue()
+                    replacingStatusActivity(
+                        outgoing: outgoing,
+                        incoming: incoming
                     )
+                } else {
+                    replacingStatusActivity(
+                        outgoing: outgoing,
+                        incoming: incoming
+                    )
+                    applicationCue()
                 }
             }
-            .frame(
-                width: targetWidth,
-                height: HUDMetrics.panelHeight,
-                alignment: horizontalAlignment
-            )
+            .padding(.horizontal, HUDContentSizing.horizontalPadding)
+            .frame(width: targetWidth, height: HUDMetrics.pillHeight)
+            .compositingGroup()
+            .mask {
+                foregroundMask(
+                    targetWidth: targetWidth,
+                    renderedWidth: renderedWidth
+                )
+            }
         }
+        .frame(
+            width: targetWidth,
+            height: HUDMetrics.panelHeight,
+            alignment: horizontalAlignment
+        )
     }
 
     private func replacingStatusActivity(
-        outgoing: StatusDescriptor,
+        outgoing: StatusDescriptor?,
         incoming: StatusDescriptor
     ) -> some View {
         ZStack {
-            statusActivity(icon: outgoing.icon, text: outgoing.text)
-                .opacity(HUDActiveContentTransition.outgoingOpacity(
+            if let outgoing {
+                statusActivity(icon: outgoing.icon, text: outgoing.text)
+                    .opacity(HUDStatusContentTransition.outgoingOpacity(
+                        elapsed: model.morphElapsed
+                    ))
+                    .blendMode(.plusLighter)
+            }
+            statusActivity(
+                icon: incoming.icon,
+                text: incoming.text,
+                checkmarkScale: outgoing == nil || reduceMotion ? 1 :
+                    HUDStatusContentTransition.checkmarkScale(elapsed: model.morphElapsed)
+            )
+                .opacity(outgoing == nil ? 1 : HUDStatusContentTransition.incomingOpacity(
                     elapsed: model.morphElapsed
                 ))
-            statusActivity(icon: incoming.icon, text: incoming.text)
-                .opacity(HUDActiveContentTransition.incomingOpacity(
-                    elapsed: model.morphElapsed
-                ))
+                .blendMode(.plusLighter)
         }
+        // Add the complementary layers within an isolated transparent group.
+        // Ordinary source-over blending darkens overlapping glyphs mid-fade.
+        .compositingGroup()
         .frame(
             width: HUDMetrics.waveformWidth,
             height: HUDMetrics.waveformHeight,
@@ -717,7 +727,8 @@ struct HUDView: View {
     }
 
     @ViewBuilder
-    private func statusActivity(icon: StatusIcon, text: String) -> some View {
+    private func statusActivity(icon: StatusIcon, text: String, checkmarkScale: Double = 1) -> some View {
+        let isNoSpeech = icon == .error && HUDContentSizing.compactErrorText(for: text) == "No speech"
         Group {
             if icon == .spinner, text == "Transcribing" {
                 ScribeTranscribingStatusView(
@@ -730,13 +741,16 @@ struct HUDView: View {
                     case .spinner:
                         HUDSpinnerView()
                     case .error:
-                        Image(systemName: "exclamationmark")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(FlowTheme.error)
+                        if !isNoSpeech {
+                            Image(systemName: "exclamationmark")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(FlowTheme.error)
+                        }
                     case .success:
                         Image(systemName: "checkmark")
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(FlowTheme.accent)
+                            .scaleEffect(checkmarkScale)
                     case .cancelled:
                         Image(systemName: "xmark")
                             .font(.system(size: 11, weight: .bold))
@@ -745,7 +759,7 @@ struct HUDView: View {
 
                     Text(icon == .error ? HUDContentSizing.compactErrorText(for: text) : text)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(icon == .error ? FlowTheme.error : FlowTheme.textSecondary)
+                        .foregroundStyle(icon == .error && !isNoSpeech ? FlowTheme.error : FlowTheme.textSecondary)
                         .lineLimit(1)
                 }
             }

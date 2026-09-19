@@ -3,6 +3,51 @@ import Foundation
 import Testing
 @testable import Cadence
 
+/// Advances the production view model with a deterministic display clock.
+/// Measures animation masking, not microphone startup or physical display latency.
+@MainActor
+struct ShortcutFeedbackLatencyTests {
+    @Test
+    func measureLiveAudioResponse() throws {
+        var metrics: [String: Double] = [:]
+        for fps in [60, 120] {
+            for (name, state) in [
+                ("dictation", HUDVisualState.recording(triggerMode: .holdToTalk, showsHint: false)),
+                ("scribe", HUDVisualState.scribeRecording)
+            ] {
+                let quiet = HUDViewModel()
+                let voiced = HUDViewModel()
+                for model in [quiet, voiced] {
+                    model.reduceMotionProvider = { false }
+                    model.apply(.logoIdle)
+                }
+                quiet.apply(Self.recording(state, level: 0))
+                voiced.apply(Self.recording(state, level: 0.8))
+                var firstResponse: Double?
+                for frame in 1...fps {
+                    _ = quiet.advanceWaveform(deltaTime: 1 / Double(fps))
+                    _ = voiced.advanceWaveform(deltaTime: 1 / Double(fps))
+                    if zip(quiet.displayBars, voiced.displayBars).contains(where: { abs($0 - $1) > 0.001 }) {
+                        firstResponse = Double(frame) * 1000 / Double(fps)
+                        break
+                    }
+                }
+                metrics["\(name)_\(fps)_audio_response_ms"] = try #require(firstResponse)
+            }
+        }
+        metrics["audio_response_ms"] = metrics.values.max()
+        metrics["completed"] = 1
+        let json = try JSONSerialization.data(withJSONObject: metrics, options: [.sortedKeys])
+        print("SHORTCUT_FEEDBACK_METRICS " + String(decoding: json, as: UTF8.self))
+    }
+
+    private static func recording(_ state: HUDVisualState, level: Double) -> HUDState {
+        HUDState(visualState: state, subtitle: "", level: level,
+                 waveformLevels: Array(repeating: level, count: 16),
+                 isVisible: true, showsSubtitle: false)
+    }
+}
+
 struct SelectionCaptureServiceTests {
     @Test
     @MainActor
@@ -193,6 +238,7 @@ struct HUDVisualGeometryTests {
         #expect(HUDContentSizing.compactErrorText(
             for: "No voice detected — try again"
         ) == "No speech")
+        #expect(HUDContentSizing.compactErrorText(for: "No speech") == "No speech")
         #expect(HUDAccessibilityLabelResolver.label(
             visualState: .error(message: "No voice detected — try again"),
             application: .cadence
@@ -480,16 +526,16 @@ struct HUDVisualGeometryTests {
     }
 
     @Test
-    func activeContentUsesAShortNonStackingFadeSequence() {
+    func activeContentCrossfadeNeverHasABlankInterval() {
         #expect(HUDActiveContentTransition.outgoingOpacity(elapsed: 0) == 1)
         #expect(HUDActiveContentTransition.incomingOpacity(elapsed: 0) == 0)
-        #expect(HUDActiveContentTransition.outgoingOpacity(elapsed: 0.075) == 0)
+        #expect(HUDActiveContentTransition.outgoingOpacity(elapsed: 0.14) == 0)
         #expect(HUDActiveContentTransition.incomingOpacity(elapsed: 0.14) == 1)
 
-        for elapsed in stride(from: 0.0, through: 0.14, by: 0.01) {
+        for elapsed in stride(from: 0.0, through: 0.14, by: 0.001) {
             let combined = HUDActiveContentTransition.outgoingOpacity(elapsed: elapsed)
                 + HUDActiveContentTransition.incomingOpacity(elapsed: elapsed)
-            #expect(combined <= 1.05)
+            #expect(abs(combined - 1) < 0.000_001)
         }
     }
 
@@ -1049,6 +1095,22 @@ struct HUDAnimationClockTests {
         let oneTwenty = advanceWaveform(from: 1, to: 0, framesPerSecond: 120, seconds: 0.5)
 
         #expect(abs(sixty - oneTwenty) < 0.000_001)
+    }
+
+    @Test
+    func waveformFallsBelowFivePercentWithinTwoTenthsOfASecond() {
+        for fps in [60, 120] {
+            for bar in 0..<16 {
+                var level = 1.0
+                for _ in 0..<(fps / 5) {
+                    level = HUDWaveformSmoother.step(
+                        current: level, target: 0, deltaTime: 1 / Double(fps),
+                        responseScale: HUDMotion.waveformResponseScale(forBar: bar)
+                    )
+                }
+                #expect(level < 0.05)
+            }
+        }
     }
 
     @Test

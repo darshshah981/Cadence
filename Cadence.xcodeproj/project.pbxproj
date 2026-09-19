@@ -58,6 +58,7 @@
 		51B96298C43378BF6C16C0AA /* ScribeNotchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E289ED69468565DA8A675DAA /* ScribeNotchModels.swift */; };
 		51EE638F985233E0E8A81BAD /* ScribeProviderSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33B77F7F7B3AC1FB25B0E4CD /* ScribeProviderSetupView.swift */; };
 		528C236DA42EA03EAB731414 /* PersonalizationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F79D43E58B9D94CA1C36BFB /* PersonalizationStore.swift */; };
+		52B750BF697D13D39165426D /* ShortcutFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6188633A72AE1BB556989E7 /* ShortcutFeedbackTests.swift */; };
 		541432DC77D74A0DAB846DAB /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD8226A6E492745025CF418 /* AnalyticsService.swift */; };
 		54A92CC0B1038FB507FFEE10 /* ScribeProviderSetupSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A66E30E921DDEF50028694D /* ScribeProviderSetupSession.swift */; };
 		565802BC12300CB87A5E4A76 /* quality-corpus-manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 9AEDC021CB58476A4FB96E92 /* quality-corpus-manifest.json */; };
@@ -371,6 +372,7 @@
 		F29D9D8149519E0197728D48 /* WritingEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingEnvironmentTests.swift; sourceTree = "<group>"; };
 		F5E855124924D6CDE8135E7B /* ScribeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeTests.swift; sourceTree = "<group>"; };
 		F5F1FF3B52C2E64C079B7C89 /* TranscriptionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionEngine.swift; sourceTree = "<group>"; };
+		F6188633A72AE1BB556989E7 /* ShortcutFeedbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutFeedbackTests.swift; sourceTree = "<group>"; };
 		F7347FEC30FD5285909EEAD4 /* ScribeLaunchFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeLaunchFixtures.swift; sourceTree = "<group>"; };
 		F8AF04C147DABB2AC208B963 /* ScribeProviderSetupModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderSetupModelTests.swift; sourceTree = "<group>"; };
 		F968C8C4F20FEF850DF5EEAA /* ScribeCredentialReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeCredentialReconciler.swift; sourceTree = "<group>"; };
@@ -458,6 +460,7 @@
 				F8AF04C147DABB2AC208B963 /* ScribeProviderSetupModelTests.swift */,
 				003F11BFAA67440EC3E38F32 /* ScribeProviderTests.swift */,
 				F5E855124924D6CDE8135E7B /* ScribeTests.swift */,
+				F6188633A72AE1BB556989E7 /* ShortcutFeedbackTests.swift */,
 				EF3E8D581DC0B0C2AE5D131C /* TextInsertionCapabilityTests.swift */,
 				32BF8E2A23E2D860E70D4FAE /* U5TestFixtures.swift */,
 				75833935A2A85450E7280AAA /* WritingEnvironmentRecognizerTests.swift */,
@@ -972,6 +975,7 @@
 				4D2F8AE9416F65231F01489E /* ScribeProviderSetupModelTests.swift in Sources */,
 				004D73A6092D5A40BE14465D /* ScribeProviderTests.swift in Sources */,
 				4C6CACBC4A395B70FE3BDC11 /* ScribeTests.swift in Sources */,
+				52B750BF697D13D39165426D /* ShortcutFeedbackTests.swift in Sources */,
 				9EFEE954B960BBE3602D013F /* TextInsertionCapabilityTests.swift in Sources */,
 				62BB3C50263D2EE23D7BBE21 /* U5TestFixtures.swift in Sources */,
 				1A3CE512FA009711B4941E59 /* WritingEnvironmentRecognizerTests.swift in Sources */,

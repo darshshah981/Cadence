@@ -4,6 +4,23 @@ import Testing
 
 @MainActor
 struct DictationCoordinatorTests {
+    @Test(arguments: [WhisperEngineError.emptyAudio, .noTranscript])
+    func silenceErrorsConsistentlyShowNoSpeech(_ error: WhisperEngineError) async {
+        let fixture = DictationCoordinatorFixture(target: Self.capture())
+        fixture.engine.failure = error
+        var states: [HUDVisualState] = []
+        fixture.coordinator.onHUDChange = { states.append($0.visualState) }
+        await fixture.coordinator.startDictation()
+        await fixture.coordinator.finishDictation()
+        guard case .error(let message) = states.last else {
+            Issue.record("Expected compact silence feedback")
+            return
+        }
+        #expect(HUDContentSizing.compactErrorText(for: message) == "No speech")
+        #expect(fixture.insertion.values.isEmpty)
+        #expect(fixture.arbiter.activeKind == nil)
+    }
+
     @Test
     func waveformUsesRollingSpeechEnvelopeInsteadOfUniformSampleBuckets() {
         let quiet = DictationCoordinator.updatedWaveformLevels(
@@ -448,6 +465,7 @@ private final class DictationAudioFake: AudioCaptureServing {
 private final class DictationEngineFake: TranscriptionEngine {
     private(set) var startCount = 0
     var transcript = "Keep this transcript"
+    var failure: WhisperEngineError?
     func updateConfiguration(_ configuration: TranscriptionConfiguration) async throws {}
     func isPrepared() async -> Bool { true }
     func prepare() async throws {}
@@ -455,7 +473,8 @@ private final class DictationEngineFake: TranscriptionEngine {
     func appendAudio(_ chunk: AudioChunk) async {}
     func previewTranscript() async -> PreviewTranscript? { nil }
     func finishSession(metrics: AudioCaptureSessionMetrics) async throws -> FinalTranscript {
-        .init(rawText: transcript, cleanedText: transcript, duration: 1)
+        if let failure { throw failure }
+        return .init(rawText: transcript, cleanedText: transcript, duration: 1)
     }
     func cancelSession() async {}
     func statusSummary() async -> String { "ready" }

@@ -967,6 +967,7 @@ final class DictationCoordinator {
         let message = raw.lowercased()
         if message.contains("whisper did not return any transcript text") ||
             message.contains("no transcript") ||
+            message.contains("no speech audio was captured") ||
             message.contains("empty audio") {
             return "No voice detected — try again"
         }

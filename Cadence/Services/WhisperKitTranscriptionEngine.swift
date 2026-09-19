@@ -141,7 +141,7 @@ final actor WhisperKitTranscriptionEngine: TranscriptionEngine {
         }
 
         let decodeStartedAt = Date()
-        let options = decodeOptions(for: configuration)
+        let options = Self.decodeOptions(for: configuration, sampleCount: processedSamples.count)
         let results = try await pipeline.transcribe(
             audioArray: processedSamples,
             decodeOptions: options
@@ -182,7 +182,10 @@ final actor WhisperKitTranscriptionEngine: TranscriptionEngine {
         return "WhisperKit \(Self.displayModelName(for: configuration.model)) ready to load (\(modelName))"
     }
 
-    private func decodeOptions(for configuration: TranscriptionConfiguration) -> DecodingOptions {
+    nonisolated static func decodeOptions(
+        for configuration: TranscriptionConfiguration,
+        sampleCount: Int
+    ) -> DecodingOptions {
         DecodingOptions(
             verbose: false,
             task: .transcribe,
@@ -197,6 +200,11 @@ final actor WhisperKitTranscriptionEngine: TranscriptionEngine {
             skipSpecialTokens: true,
             withoutTimestamps: true,
             wordTimestamps: false,
+            // WhisperKit skips decoding when the entire clip fits within its
+            // trailing-window cutoff (1 second by default). A captured word can
+            // be shorter than that, especially after silence trimming. Keep the
+            // normal trailing guard for longer clips, but decode short input.
+            windowClipTime: sampleCount <= Int(WhisperKit.sampleRate) ? 0 : 1,
             suppressBlank: true,
             compressionRatioThreshold: 2.4,
             logProbThreshold: -1.0,

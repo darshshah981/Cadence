@@ -83,6 +83,59 @@ enum HUDDisplayRefreshPolicy {
     }
 }
 
+/// Avoid flashing progress labels for work that completes before the label is useful.
+/// This gates presentation only; capture and transcription never wait on the HUD.
+@MainActor
+final class HUDTransientStateGate {
+    private let wait: @MainActor () async -> Void
+    private let deliver: (HUDState) -> Void
+    private var task: Task<Void, Never>?
+    private var pending: HUDState?
+    private var displayedState: HUDVisualState?
+
+    init(
+        wait: @escaping @MainActor () async -> Void = {
+            try? await Task.sleep(for: .milliseconds(120))
+        },
+        deliver: @escaping (HUDState) -> Void
+    ) {
+        self.wait = wait
+        self.deliver = deliver
+    }
+
+    deinit { task?.cancel() }
+
+    func submit(_ state: HUDState) {
+        let isTransient: Bool
+        switch state.visualState {
+        case .transcribing, .scribeTranscribing, .preparingModel, .inserting, .copying:
+            isTransient = state.isVisible
+        default:
+            isTransient = false
+        }
+        guard isTransient, displayedState != state.visualState else {
+            task?.cancel()
+            task = nil
+            pending = nil
+            displayedState = state.isVisible ? state.visualState : nil
+            deliver(state)
+            return
+        }
+
+        pending = state
+        // Repeated updates and successive processing stages share one deadline.
+        guard task == nil else { return }
+        task = Task { [weak self, wait] in
+            await wait()
+            guard !Task.isCancelled, let self, let pending = self.pending else { return }
+            self.pending = nil
+            self.task = nil
+            self.displayedState = pending.visualState
+            self.deliver(pending)
+        }
+    }
+}
+
 @MainActor
 final class HUDDisplayLinkClock: NSObject {
     var onFrame: ((TimeInterval) -> Bool)?
@@ -109,10 +162,13 @@ final class HUDDisplayLinkClock: NSObject {
     func requestFrames() {
         guard let displayLink else { return }
         let maximumFPS = view?.window?.screen?.maximumFramesPerSecond ?? 60
-        diagnostics.begin(targetFramesPerSecond: maximumFPS)
         displayLink.preferredFrameRateRange = HUDDisplayRefreshPolicy.preferredRange(
             maximumFramesPerSecond: maximumFPS
         )
+        // Audio updates request frames repeatedly during the same transition.
+        // Preserve the running clock so those requests cannot disturb its cadence.
+        guard displayLink.isPaused else { return }
+        diagnostics.begin(targetFramesPerSecond: maximumFPS)
         previousTimestamp = nil
         displayLink.isPaused = false
     }
@@ -758,6 +814,14 @@ final class HUDWindowController {
     }
 
     func update(with state: HUDState) {
+        transientStateGate.submit(state)
+    }
+
+    private lazy var transientStateGate = HUDTransientStateGate { [weak self] state in
+        self?.applyUpdate(with: state)
+    }
+
+    private func applyUpdate(with state: HUDState) {
         hud1UpdateCount += 1  // [DEBUG-hud1]
         if hud1WaveformDeltas != nil { hud1WaveformUpdates += 1 }  // [DEBUG-hud1]
         applyAppearanceToPanels()
@@ -1746,6 +1810,12 @@ final class HUDViewModel: ObservableObject {
 
     func advanceWaveform(deltaTime: TimeInterval) -> Bool {
         guard !isReducedMotionEnabled, state.isVisible else { return false }
+        // The entrance flourish is only a fallback while waiting for audio.
+        // Once samples arrive, respond on this frame using the normal smoother;
+        // never hide live input behind the pill reveal and decorative sweep.
+        if activationSweepElapsed != nil, targetBars.contains(where: { $0 > 0 }) {
+            activationSweepElapsed = nil
+        }
         if let elapsed = activationSweepElapsed {
             let nextElapsed = elapsed + deltaTime
             let revealDelay = motionTuning.pillResponse * 0.72
