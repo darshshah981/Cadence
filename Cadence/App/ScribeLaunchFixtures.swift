@@ -21,7 +21,7 @@ enum ScribeLaunchFixture: String {
 }
 
 enum ScribeLaunchFixtures {
-    static let supportedPanelWidths: [CGFloat] = [520, 559, 560, 720]
+    static let supportedPanelWidths: [CGFloat] = [420, 520, 559, 560, 720]
 
     static var current: ScribeLaunchFixture? {
         let arguments = ProcessInfo.processInfo.arguments
@@ -101,6 +101,12 @@ enum ScribeLaunchFixtures {
                 composeOriginalText: "The original spoken fixture."
             ),
             TranscriptHistoryItem(
+                id: UUID(uuidString: "692A27CF-7AE0-4867-9CCA-7BF9790508CC")!,
+                text: "An earlier composed fixture result.",
+                createdAt: Date(timeIntervalSince1970: 1_721_999_500),
+                composeOriginalText: "An earlier spoken fixture."
+            ),
+            TranscriptHistoryItem(
                 id: UUID(uuidString: "EBC64F07-8BAE-4DBB-A392-522622FA8045")!,
                 text: "An earlier plain dictation.",
                 createdAt: Date(timeIntervalSince1970: 1_721_999_000)
@@ -118,6 +124,32 @@ enum ScribeLaunchFixtures {
             isComplete: true,
             wasSkipped: false
         ))
+        if current == .settings,
+           ProcessInfo.processInfo.arguments.contains("--scribe-fixture-profiles") {
+            // Synthetic profiles only, written into the isolated fixture suite.
+            let configurations = [false, true].map { customized in
+                try! ApplicationConfiguration(
+                    id: UUID(uuidString: customized
+                        ? "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"
+                        : "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+                    application: ApplicationReference(
+                        bundleIdentifier: customized ? "example.fixture.custom" : "example.fixture.builtin",
+                        lastKnownBundleURL: URL(fileURLWithPath: customized
+                            ? "/Applications/Fixture Custom.app" : "/Applications/Fixture Builtin.app"),
+                        lastKnownDisplayName: customized ? "Fixture Custom" : "Fixture Builtin"
+                    ),
+                    isEnabled: true,
+                    familyID: .messaging,
+                    presetSelection: .familyDefault,
+                    customGuidance: nil,
+                    promptOverride: customized ? try! ScribeCustomGuidance("Keep fixture messages brief.") : nil,
+                    revision: 1
+                )
+            }
+            try! ApplicationConfigurationStore(defaults: defaults).save(
+                .init(revision: 1, configurations: configurations)
+            )
+        }
         defaults.set(true, forKey: "Cadence.scribeEnabled")
         defaults.set(true, forKey: AdaptiveScribeMigrationService.adaptationEnabledKey)
     }

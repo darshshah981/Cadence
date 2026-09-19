@@ -828,6 +828,7 @@ enum HUDMetrics {
 }
 
 enum HUDContentSizing {
+    static let preparingStatusText = "Preparing…"
     static let horizontalPadding: CGFloat = 12
     static let iconSize: CGFloat = 16
     static let iconNameGap: CGFloat = 4
@@ -836,6 +837,28 @@ enum HUDContentSizing {
     static let applicationNameMinimumWidth: CGFloat = 28
     static let applicationNameMaximumWidth: CGFloat = 84
     static let statusTextMaximumWidth: CGFloat = 120
+
+    static func compactErrorText(for message: String) -> String {
+        switch message {
+        case "No voice detected — try again",
+             "Nothing was captured. Check your microphone and try again.":
+            return "No speech"
+        case "Getting speech recognition ready…":
+            return "Getting ready"
+        case "Microphone access is needed":
+            return "Mic access"
+        case "Couldn’t copy that — try again":
+            return "Copy failed"
+        case "The destination changed — try again":
+            return "App changed"
+        case "Cadence needs permission to continue":
+            return "Permission"
+        case "Draft not inserted":
+            return "Not inserted"
+        default:
+            return "Try again"
+        }
+    }
 
     static func applicationNameWidth(_ name: String) -> CGFloat {
         if name.count > applicationNameCharacterLimit {
@@ -1784,5 +1807,77 @@ struct PermissionsSnapshot: Equatable {
             list = names.dropLast().joined(separator: ", ") + ", and " + names.last!
         }
         return "Allow \(list) access before using Compose."
+    }
+}
+
+/// Each successful copy owns a unique expiry, even when the same item is copied again.
+struct TranscriptCopyFeedback {
+    private(set) var copiedID: UUID?
+    private var generation: UUID?
+
+    mutating func confirm(_ itemID: UUID) -> UUID {
+        let token = UUID()
+        copiedID = itemID
+        generation = token
+        return token
+    }
+
+    mutating func expire(_ token: UUID) {
+        guard generation == token else { return }
+        copiedID = nil
+        generation = nil
+    }
+}
+
+/// Core dictation setup is ordered; meeting-only access is requested contextually.
+enum CorePermission: String, CaseIterable, Identifiable, Sendable {
+    case microphone, accessibility, inputMonitoring
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .microphone: return "Microphone"
+        case .accessibility: return "Accessibility"
+        case .inputMonitoring: return "Input Monitoring"
+        }
+    }
+    var purpose: String {
+        switch self {
+        case .microphone: return "Let Cadence hear you when you start a recording."
+        case .accessibility: return "Let Cadence insert your words into the app you are using."
+        case .inputMonitoring: return "Let your dictation shortcut work while another app is active."
+        }
+    }
+    func isGranted(in snapshot: PermissionsSnapshot) -> Bool {
+        switch self {
+        case .microphone: return snapshot.microphoneGranted
+        case .accessibility: return snapshot.accessibilityGranted
+        case .inputMonitoring: return snapshot.inputMonitoringGranted
+        }
+    }
+}
+
+struct PermissionSetupProgress: Equatable {
+    enum Phase: Equatable { case idle, requesting, waiting, notDetected, openFailed }
+    private(set) var active: CorePermission?
+    private(set) var phase: Phase = .idle
+
+    func next(in snapshot: PermissionsSnapshot) -> CorePermission? {
+        if let active, !active.isGranted(in: snapshot) { return active }
+        return CorePermission.allCases.first { !$0.isGranted(in: snapshot) }
+    }
+
+    mutating func begin(_ permission: CorePermission, snapshot: PermissionsSnapshot) -> Bool {
+        guard phase != .requesting, !permission.isGranted(in: snapshot) else { return false }
+        active = permission
+        phase = .requesting
+        return true
+    }
+
+    mutating func waiting(opened: Bool = true) { phase = opened ? .waiting : .openFailed }
+    mutating func notDetected() { if active != nil { phase = .notDetected } }
+    mutating func reconcile(_ snapshot: PermissionsSnapshot) {
+        guard let active, active.isGranted(in: snapshot) else { return }
+        self.active = nil
+        phase = .idle
     }
 }

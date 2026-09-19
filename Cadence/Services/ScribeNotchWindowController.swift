@@ -12,6 +12,26 @@ private let scribeNotchWindowLogger = Logger(
 private final class ScribeNotchPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+    var onKeyFocusChanged: (() -> Void)?
+
+    override func becomeKey() {
+        super.becomeKey()
+        onKeyFocusChanged?()
+    }
+
+    override func resignKey() {
+        super.resignKey()
+        onKeyFocusChanged?()
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        // A borderless nonactivating panel must explicitly accept keyboard
+        // focus on a click; showing recovery must never steal it from an editor.
+        if event.type == .leftMouseDown, !ignoresMouseEvents {
+            makeKey()
+        }
+        super.sendEvent(event)
+    }
 }
 
 @MainActor
@@ -260,6 +280,7 @@ final class ScribeNotchWindowController {
     private var panel: NSPanel?
     private var screenChangeObserver: NSObjectProtocol?
     private var dismissalTask: Task<Void, Never>?
+    private var failureKeyboardMonitor: Any?
     private let outsideClickMonitor: ScribeOutsideClickMonitoring
     private let reviewKeyboardMonitor: ScribeReviewKeyboardShortcutMonitoring
     private var pinnedDisplayID: CGDirectDisplayID?
@@ -291,7 +312,7 @@ final class ScribeNotchWindowController {
             if isInteractive {
                 self.startReviewKeyboardMonitoring()
             } else {
-                self.reviewKeyboardMonitor.stop()
+                self.stopReviewKeyboardMonitoring()
             }
         }
         screenChangeObserver = NotificationCenter.default.addObserver(
@@ -306,6 +327,9 @@ final class ScribeNotchWindowController {
     }
 
     deinit {
+        if let failureKeyboardMonitor {
+            NSEvent.removeMonitor(failureKeyboardMonitor)
+        }
         if let screenChangeObserver {
             NotificationCenter.default.removeObserver(screenChangeObserver)
         }
@@ -315,7 +339,7 @@ final class ScribeNotchWindowController {
         dismissalTask?.cancel()
         stopOutsideClickDismissalMonitoring()
         if !presentation.allowsReviewActions {
-            reviewKeyboardMonitor.stop()
+            stopReviewKeyboardMonitoring()
         }
 
         if presentation.requiresImmediateFocusHandoff {
@@ -387,7 +411,7 @@ final class ScribeNotchWindowController {
     func close() {
         dismissalTask?.cancel()
         stopOutsideClickDismissalMonitoring()
-        reviewKeyboardMonitor.stop()
+        stopReviewKeyboardMonitoring()
         viewModel.resetImmediately()
         panel?.orderOut(nil)
         pinnedDisplayID = nil
@@ -417,6 +441,11 @@ final class ScribeNotchWindowController {
             .ignoresCycle,
             .fullScreenAuxiliary
         ]
+        panel.onKeyFocusChanged = { [weak self] in
+            guard let self,
+                  case .failure = self.viewModel.presentation.content else { return }
+            self.startReviewKeyboardMonitoring()
+        }
         panel.acceptsMouseMovedEvents = true
         panel.ignoresMouseEvents = true
 
@@ -460,20 +489,57 @@ final class ScribeNotchWindowController {
         outsideClickMonitor.stop()
     }
 
+    private func stopReviewKeyboardMonitoring() {
+        reviewKeyboardMonitor.stop()
+        if let failureKeyboardMonitor {
+            NSEvent.removeMonitor(failureKeyboardMonitor)
+            self.failureKeyboardMonitor = nil
+        }
+    }
+
     private func startReviewKeyboardMonitoring() {
+        stopReviewKeyboardMonitoring()
         let commands = ScribeReviewKeyboardPolicy.commands(
             for: viewModel.presentation.content
         )
-        reviewKeyboardMonitor.start(commands: commands) { [weak self] command in
-            guard let self else { return }
-            switch command {
-            case .insert:
-                self.viewModel.onInsert?()
-            case .copy:
-                self.viewModel.onCopy?()
-            case .discard:
-                self.viewModel.onDiscard?()
+        if case .failure = viewModel.presentation.content {
+            guard panel?.isKeyWindow == true else { return }
+            // Local delivery plus window identity prevents recovery from consuming
+            // Copy/Escape in a different app or another Cadence window.
+            failureKeyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
+                [weak self] event in
+                guard let self, let panel = self.panel,
+                      panel.isKeyWindow, event.window === panel,
+                      case .failure = self.viewModel.presentation.content else { return event }
+                let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                    .subtracting([.capsLock, .numericPad, .function])
+                let command: ScribeReviewKeyboardCommand?
+                switch (event.keyCode, modifiers) {
+                case (8, .command): command = .copy
+                case (53, []): command = .discard
+                default: command = nil
+                }
+                guard let command, commands.contains(command) else { return event }
+                self.performReviewCommand(command)
+                return nil
             }
+            return
+        }
+        reviewKeyboardMonitor.start(commands: commands) { [weak self] command in
+            guard let self,
+                  ScribeReviewKeyboardPolicy.commands(for: self.viewModel.presentation.content)
+                    .contains(command) else { return }
+            // A previously queued global event must not act on a new failure.
+            if case .failure = self.viewModel.presentation.content { return }
+            self.performReviewCommand(command)
+        }
+    }
+
+    private func performReviewCommand(_ command: ScribeReviewKeyboardCommand) {
+        switch command {
+        case .insert: viewModel.onInsert?()
+        case .copy: viewModel.onCopy?()
+        case .discard: viewModel.onDiscard?()
         }
     }
 

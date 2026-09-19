@@ -4,6 +4,31 @@ import Testing
 @MainActor
 struct ScribeProviderSetupModelTests {
     @Test
+    func providerSetupPlacementCoversEveryReadinessAndConfigurationState() {
+        let expectations: [(ScribeProviderReadiness, ScribeProviderSetupPlacement)] = [
+            (.setupRequired, .summary),
+            (.configurationInvalid, .summary),
+            (.needsAttention(.deepSeek), .summary),
+            (.removed, .summary),
+            (.ready(.deepSeek), .management),
+            (.disabled, .management),
+            (.validating, .management),
+            (.temporarilyUnavailable(.deepSeek), .management),
+            (.deprecated(.deepSeek), .management)
+        ]
+        for (readiness, configuredPlacement) in expectations {
+            #expect(ScribeProviderSetupPlacement.resolve(
+                hasConfiguredProvider: true, readiness: readiness
+            ) == configuredPlacement)
+            // Without a configured provider there is no Manage disclosure;
+            // setup must remain reachable even during a readiness transition.
+            #expect(ScribeProviderSetupPlacement.resolve(
+                hasConfiguredProvider: false, readiness: readiness
+            ) == .summary)
+        }
+    }
+
+    @Test
     func providerChoiceStartsEmptyAndDisclosurePrecedesCredential() {
         let model = ScribeProviderSetupModel()
 

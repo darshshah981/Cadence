@@ -224,7 +224,7 @@ struct HUDView: View {
         case .preparingModel:
             statusPill(
                 icon: .spinner,
-                text: "Setting up speech model…",
+                text: HUDContentSizing.preparingStatusText,
                 targetWidth: model.targetWidth(for: presentation),
                 renderedWidth: renderedWidth,
                 hidesApplicationMark: hidesApplicationMark
@@ -694,7 +694,7 @@ struct HUDView: View {
         case .idle, .recording, .scribeRecording:
             return nil
         case .preparingModel:
-            return StatusDescriptor(icon: .spinner, text: "Setting up speech model…")
+            return StatusDescriptor(icon: .spinner, text: HUDContentSizing.preparingStatusText)
         case .transcribing:
             return StatusDescriptor(icon: .spinner, text: "Transcribing")
         case .scribeTranscribing:
@@ -743,17 +743,10 @@ struct HUDView: View {
                             .foregroundStyle(FlowTheme.textSecondary)
                     }
 
-                    if icon == .error {
-                        HUDMarqueeText(text: text)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 16)
-                    } else {
-                        Text(text)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(FlowTheme.textSecondary)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
+                    Text(icon == .error ? HUDContentSizing.compactErrorText(for: text) : text)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(icon == .error ? FlowTheme.error : FlowTheme.textSecondary)
+                        .lineLimit(1)
                 }
             }
         }
@@ -762,6 +755,7 @@ struct HUDView: View {
             height: HUDMetrics.waveformHeight,
             alignment: .center
         )
+        .clipped()
     }
 
     private func pillWidth(triggerMode: DictationTriggerMode, showsHint: Bool) -> CGFloat {

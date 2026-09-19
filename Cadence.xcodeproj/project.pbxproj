@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		004D73A6092D5A40BE14465D /* ScribeProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 003F11BFAA67440EC3E38F32 /* ScribeProviderTests.swift */; };
-		04CDBB1AEFDB09993E1867FF /* PermissionGuideWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5252E71CDD37942299004F /* PermissionGuideWindow.swift */; };
+		03EC6CF84E0CCCBFBBF0B13E /* PermissionSetupCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB2E9E5D775B2CA0509CE545 /* PermissionSetupCard.swift */; };
 		05211E1A29D6929C829F032B /* ScribeProviderControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2BFAA7F18FA965074DE033 /* ScribeProviderControllerTests.swift */; };
 		097667E2CBD98ED27B666656 /* MockTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21CC2B73F205DDEA13DE704 /* MockTranscriptionEngine.swift */; };
 		098A7286DC5E5A56FC49EC9D /* ScribeProviderConsentAuthority.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B17E38845F06B3164EDDC94 /* ScribeProviderConsentAuthority.swift */; };
@@ -179,7 +179,6 @@
 		FC657D55FF17C1BA52CB7548 /* ApplicationIdentityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4869863B9DF3D3A7416EF506 /* ApplicationIdentityModels.swift */; };
 		FCF159ABBCB9BEB8EF3886B6 /* ScribeProviderConnectionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B704DDD56CB4C4DDD3AAC4C /* ScribeProviderConnectionManagerTests.swift */; };
 		FDBC510D1CB0219D26DE217F /* IdleExpandedTray.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF41CADF917C4FFF0F73654 /* IdleExpandedTray.swift */; };
-		FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */; };
 		FEFCF65E855C4E42926FC404 /* CadenceActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA78B08EF90F4D0ABA0BC2BF /* CadenceActionButton.swift */; };
 		FF67B1A27DA18B3BCFB2A756 /* MeetingRollingTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76231658305ADA779483A7F8 /* MeetingRollingTranscriptionService.swift */; };
 /* End PBXBuildFile section */
@@ -233,7 +232,6 @@
 		2747B5C0BD75EFECA1D2569B /* Cadence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cadence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		28415840D047F93E2D27B2C4 /* ScribeDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeDiagnosticsTests.swift; sourceTree = "<group>"; };
 		2946568228C48A76AFF42F23 /* CustomGuidanceValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomGuidanceValidator.swift; sourceTree = "<group>"; };
-		2B5252E71CDD37942299004F /* PermissionGuideWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGuideWindow.swift; sourceTree = "<group>"; };
 		2BE62D8EF19E5352F7A93289 /* OnboardingProgressStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingProgressStore.swift; sourceTree = "<group>"; };
 		2D05198AB1A24815EC49E523 /* Cadence.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Cadence.entitlements; sourceTree = "<group>"; };
 		2F4324DF697FB97549A63C05 /* AdaptiveScribePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveScribePerformanceTests.swift; sourceTree = "<group>"; };
@@ -339,7 +337,6 @@
 		C1BA8806A19E0089A3DBB906 /* GoogleCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarService.swift; sourceTree = "<group>"; };
 		C25940005A86A98A7EBF4771 /* ApplicationConfigurationResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationConfigurationResolver.swift; sourceTree = "<group>"; };
 		C2B1E2C5902AE4CA7E8D12F8 /* FixedOriginScribeProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixedOriginScribeProviderTests.swift; sourceTree = "<group>"; };
-		C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsView.swift; sourceTree = "<group>"; };
 		C5E5EB8FD31C509E20741A42 /* ScribeCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeCoordinator.swift; sourceTree = "<group>"; };
 		C6E4B9C314A2EFF0992D4BB1 /* WritingEnvironmentRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingEnvironmentRecognizer.swift; sourceTree = "<group>"; };
 		CB40F5DFBCB574CACFAFA572 /* MeetingAudioStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingAudioStore.swift; sourceTree = "<group>"; };
@@ -365,6 +362,7 @@
 		E578BEB1EADBEB5800402E25 /* MeetingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingModels.swift; sourceTree = "<group>"; };
 		E68FD2A7C5999695847396F1 /* ScribeProviderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderModels.swift; sourceTree = "<group>"; };
 		E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingNotesWindow.swift; sourceTree = "<group>"; };
+		EB2E9E5D775B2CA0509CE545 /* PermissionSetupCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionSetupCard.swift; sourceTree = "<group>"; };
 		EB4DD449A99A4B91654EAC3B /* ScribeActionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeActionPolicyTests.swift; sourceTree = "<group>"; };
 		EBF41CADF917C4FFF0F73654 /* IdleExpandedTray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleExpandedTray.swift; sourceTree = "<group>"; };
 		ED3C6DD8BC26913A0F5ED418 /* FeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackService.swift; sourceTree = "<group>"; };
@@ -507,8 +505,7 @@
 				E9A4D477D2C8E8FAFC88C5A6 /* MeetingNotesWindow.swift */,
 				74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */,
 				8338F9E442312C56CB4B1EB2 /* OnboardingView.swift */,
-				2B5252E71CDD37942299004F /* PermissionGuideWindow.swift */,
-				C484AD070A73A4BCF8F5D214 /* PermissionsView.swift */,
+				EB2E9E5D775B2CA0509CE545 /* PermissionSetupCard.swift */,
 				8FF8EE95079506DB9E841BEB /* ScribeNotchView.swift */,
 				76D967993988BE3091065B08 /* ScribePanel.swift */,
 				BB1DD5815D59E02FF0F36E3D /* ScribeProviderManagementView.swift */,
@@ -866,9 +863,8 @@
 				DFE8D51DF1415E2B93218BA6 /* OpenRouterScribeProvider.swift in Sources */,
 				888734B0BC05B1231663DF8C /* PasteboardService.swift in Sources */,
 				5951A6617228CCDF460ABB54 /* PermissionFlowGuidanceService.swift in Sources */,
-				04CDBB1AEFDB09993E1867FF /* PermissionGuideWindow.swift in Sources */,
+				03EC6CF84E0CCCBFBBF0B13E /* PermissionSetupCard.swift in Sources */,
 				878D21CBB261BD807AC20260 /* PermissionsService.swift in Sources */,
-				FECAB8F76B1CB6C9D93969C3 /* PermissionsView.swift in Sources */,
 				CED23C0651206274B8D9ECC6 /* PersonalizationModels.swift in Sources */,
 				528C236DA42EA03EAB731414 /* PersonalizationStore.swift in Sources */,
 				8B5A32DC20321B452FC52B71 /* ProviderLibraryMigrationService.swift in Sources */,

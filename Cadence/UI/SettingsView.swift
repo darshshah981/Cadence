@@ -372,10 +372,7 @@ struct SettingsView: View {
     private var setupSection: some View {
         settingsSection(title: "Needs attention") {
             FlowSectionCard {
-                PermissionWizardRow(
-                    permissions: appModel.permissions,
-                    action: appModel.openPermissionsWizard
-                )
+                PermissionSetupCard(appModel: appModel)
             }
         }
     }
@@ -481,31 +478,6 @@ struct SettingsView: View {
     private var scribeSection: some View {
         settingsSection(title: "Compose") {
             FlowSectionCard {
-                HStack(alignment: .center, spacing: 10) {
-                    Group {
-                        if appModel.scribeReadiness.canGenerate {
-                            CadenceComposeIcon(size: 20)
-                        } else {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 15, weight: .medium))
-                                .frame(width: 20, height: 20)
-                        }
-                    }
-                        .foregroundStyle(appModel.scribeReadiness.canGenerate
-                            ? FlowTheme.textPrimary
-                            : FlowTheme.textTertiary)
-
-                    SettingsLabelRow(
-                        title: appModel.scribeReadiness.canGenerate ? "Ready to draft" : "Setup needed",
-                        description: appModel.scribeProviderStatus
-                    )
-
-                    Spacer()
-                }
-                .padding(12)
-
-                insetDivider
-
                 ShortcutSettingRow(
                     title: "Shortcut",
                     description: nil,
@@ -1507,6 +1479,8 @@ private struct ApplicationPromptEditorSheet: View {
     @State private var familyID: ScribeEnvironmentFamilyID
     @State private var promptText: String
     @State private var isEditing = false
+    @State private var showsInstructions = false
+    @State private var didResetStyle = false
     @State private var validationMessage: String?
 
     init(
@@ -1526,6 +1500,45 @@ private struct ApplicationPromptEditorSheet: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ScrollView {
+                editorContent
+            }
+            .frame(height: showsInstructions ? 480 : 350)
+
+            HStack {
+                Button("Restore preset") {
+                    promptText = presetInstructions(for: familyID)
+                    didResetStyle = true
+                    isEditing = false
+                    validationMessage = nil
+                }
+                .buttonStyle(CadenceActionButtonStyle(role: .quiet))
+                .controlSize(.small)
+
+                Spacer()
+
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(CadenceActionButtonStyle(role: .secondary))
+                    .controlSize(.small)
+                Button("Save") { save() }
+                    .buttonStyle(CadenceActionButtonStyle(role: .primary))
+                    .controlSize(.small)
+                    .accessibilityIdentifier("settings-save-application-prompt")
+            }
+        }
+        .padding(18)
+        .frame(width: 520)
+        .background(FlowTheme.background)
+        .onChange(of: familyID) { _, newFamily in
+            promptText = presetInstructions(for: newFamily)
+            didResetStyle = true
+            isEditing = false
+            validationMessage = nil
+        }
+    }
+
+    private var editorContent: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
                 Image(nsImage: InstalledApplicationPickerIconCache.shared.icon(
@@ -1555,90 +1568,114 @@ private struct ApplicationPromptEditorSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("App prompt")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(FlowTheme.textSecondary)
-                    Spacer()
-                    Button {
-                        isEditing.toggle()
-                    } label: {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 11, weight: .semibold))
-                            .frame(width: 26, height: 26)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Edit app prompt")
-                    .accessibilityIdentifier("settings-application-prompt-pencil")
-                }
-
-                Group {
-                    if isEditing {
-                        TextEditor(text: $promptText)
-                            .font(.system(size: 12))
-                            .scrollContentBackground(.hidden)
-                            .padding(8)
-                            .accessibilityIdentifier("settings-application-prompt-editor")
-                    } else {
-                        ScrollView {
-                            Text(promptText)
-                                .font(.system(size: 12))
-                                .foregroundStyle(FlowTheme.textPrimary)
-                                .frame(maxWidth: .infinity, alignment: .topLeading)
-                                .textSelection(.enabled)
-                                .padding(10)
-                        }
-                        .accessibilityIdentifier("settings-application-prompt-preview")
-                    }
-                }
-                .frame(height: 190)
-                .background(
-                    FlowTheme.subtle,
-                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(
-                            isEditing ? FlowTheme.accent.opacity(0.7) : FlowTheme.border,
-                            lineWidth: 1
-                        )
-                }
-
-                if let validationMessage {
-                    Text(validationMessage)
+                Text(stylePresentation.description)
+                    .font(.system(size: 13))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                Text(isCustomized ? "Customized instructions" : "Built-in instructions")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .accessibilityIdentifier("settings-style-customization-state")
+                Text(isCustomized
+                     ? "Illustrative preset example · Your custom instructions may produce different results."
+                     : "Illustrative preset example")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                exampleText("Before", text: stylePresentation.before)
+                exampleText("After", text: stylePresentation.after)
+                if didResetStyle {
+                    Text("This draft now uses the selected preset. Save to apply it, or Cancel to keep your saved instructions.")
                         .font(.system(size: 11))
-                        .foregroundStyle(FlowTheme.error)
+                        .foregroundStyle(FlowTheme.textSecondary)
                 }
             }
 
-            HStack {
-                Button("Restore preset") {
-                    promptText = presetInstructions(for: familyID)
-                    isEditing = false
-                    validationMessage = nil
+            DisclosureGroup(isExpanded: $showsInstructions) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Effective instructions")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(FlowTheme.textSecondary)
+                        Spacer()
+                        Button {
+                            isEditing.toggle()
+                        } label: {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 11, weight: .semibold))
+                                .frame(width: 26, height: 26)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Edit app prompt")
+                        .accessibilityIdentifier("settings-application-prompt-pencil")
+                    }
+
+                    Group {
+                        if isEditing {
+                            TextEditor(text: $promptText)
+                                .font(.system(size: 12))
+                                .scrollContentBackground(.hidden)
+                                .padding(8)
+                                .accessibilityIdentifier("settings-application-prompt-editor")
+                        } else {
+                            ScrollView {
+                                Text(promptText)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(FlowTheme.textPrimary)
+                                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                                    .textSelection(.enabled)
+                                    .padding(10)
+                            }
+                            .accessibilityIdentifier("settings-application-prompt-preview")
+                        }
+                    }
+                    .frame(height: 190)
+                    .background(
+                        FlowTheme.subtle,
+                        in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(
+                                isEditing ? FlowTheme.accent.opacity(0.7) : FlowTheme.border,
+                                lineWidth: 1
+                            )
+                    }
+
                 }
-                .buttonStyle(CadenceActionButtonStyle(role: .quiet))
-                .controlSize(.small)
-
-                Spacer()
-
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(CadenceActionButtonStyle(role: .secondary))
-                    .controlSize(.small)
-                Button("Save") { save() }
-                    .buttonStyle(CadenceActionButtonStyle(role: .primary))
-                    .controlSize(.small)
-                    .accessibilityIdentifier("settings-save-application-prompt")
+                .padding(.top, 8)
+            } label: {
+                Text("Customize instructions")
+                    .accessibilityIdentifier("settings-customize-instructions")
             }
+
+            if let validationMessage {
+                Text(validationMessage)
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.error)
+            }
+
         }
-        .padding(18)
-        .frame(width: 520)
-        .background(FlowTheme.background)
-        .onChange(of: familyID) { _, newFamily in
-            promptText = presetInstructions(for: newFamily)
-            isEditing = false
-            validationMessage = nil
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var stylePresentation: WritingStylePresentation {
+        WritingStylePresentation.forFamily(familyID)
+    }
+
+    private var isCustomized: Bool {
+        promptText != presetInstructions(for: familyID)
+    }
+
+    private func exampleText(_ label: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(FlowTheme.textSecondary)
+            Text(text)
+                .font(.system(size: 12))
+                .foregroundStyle(FlowTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func presetInstructions(
@@ -2043,55 +2080,6 @@ private struct HUDMotionSlider: View {
     }
 }
 #endif
-
-private struct PermissionWizardRow: View {
-    let permissions: PermissionsSnapshot
-    let action: () -> Void
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(permissions.allRequiredGranted ? "Cadence is ready" : "Finish setup")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(FlowTheme.textPrimary)
-
-                Text(summary)
-                    .font(.system(size: 12))
-                    .foregroundStyle(FlowTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer()
-
-            Button(action: action) {
-                Text(permissions.allRequiredGranted ? "Review" : "Open Wizard")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(FlowTheme.accent)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(12)
-    }
-
-    private var summary: String {
-        if permissions.allRequiredGranted {
-            if permissions.screenRecordingGranted {
-                return "Microphone, Accessibility, Input Monitoring, and Screen Recording are enabled."
-            }
-            return "Microphone, Accessibility, and Input Monitoring are enabled. Screen Recording is optional for system audio meeting capture."
-        }
-
-        let missing = [
-            permissions.microphoneGranted ? nil : "Microphone",
-            permissions.accessibilityGranted ? nil : "Accessibility",
-            permissions.inputMonitoringGranted ? nil : "Input Monitoring"
-        ]
-        .compactMap { $0 }
-        .joined(separator: ", ")
-
-        return "Missing: \(missing)"
-    }
-}
 
 private struct PermissionBadge: View {
     let isGranted: Bool

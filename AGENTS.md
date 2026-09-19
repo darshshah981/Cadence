@@ -45,7 +45,7 @@ Layered boundaries — do not cross these:
 - **App** (`Cadence/App/`): `CadenceApp` (SwiftUI scenes: `MenuBarExtra`, `Settings`), `AppDelegate` (activation policy, Dock reopen), `AppModel` (orchestrator).
 - **Models** (`Cadence/Models/`): value types only. `DictationModels`, `MeetingModels`, `AppAppearance`.
 - **Services** (`Cadence/Services/`): all platform/IO/ML work. Capture, transcription, insertion, persistence, analytics, hotkeys, Google Calendar.
-- **UI** (`Cadence/UI/`): SwiftUI views. `MainWindowView` (primary window, sidebar+detail), `MenuContentView` (menu-bar popover), `MeetingNotesWindow`, `SettingsView`, `HUDView`, `PermissionGuideWindow`/`PermissionsView`.
+- **UI** (`Cadence/UI/`): SwiftUI views. `MainWindowView` (primary window, sidebar+detail), `MenuContentView` (menu-bar popover), `MeetingNotesWindow`, `SettingsView`, `HUDView`, `PermissionSetupCard` (inline permission rows; there is no separate permissions wizard window).
 
 Key invariants:
 

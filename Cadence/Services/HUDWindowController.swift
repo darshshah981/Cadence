@@ -244,15 +244,23 @@ enum HUDPanelLayout {
     static func subtitleOrigin(
         position: HUDPosition,
         pillFrame: NSRect,
-        subtitleSize: NSSize = HUDMetrics.subtitleSize
+        subtitleSize: NSSize = HUDMetrics.subtitleSize,
+        visibleFrame: NSRect? = nil
     ) -> NSPoint {
         let x = pillFrame.midX - subtitleSize.width / 2
+        let y: CGFloat
         switch position {
         case .topLeft, .topRight:
-            return NSPoint(x: x, y: pillFrame.minY - HUDMetrics.subtitleGap - subtitleSize.height)
+            y = pillFrame.minY - HUDMetrics.subtitleGap - subtitleSize.height
         case .bottomCenter, .bottomLeft, .bottomRight:
-            return NSPoint(x: x, y: pillFrame.maxY + HUDMetrics.subtitleGap)
+            y = pillFrame.maxY + HUDMetrics.subtitleGap
         }
+        guard let visibleFrame else { return NSPoint(x: x, y: y) }
+        let bounds = visibleFrame.insetBy(dx: HUDMetrics.screenInset, dy: HUDMetrics.screenInset)
+        return NSPoint(
+            x: min(max(x, bounds.minX), max(bounds.minX, bounds.maxX - subtitleSize.width)),
+            y: min(max(y, bounds.minY), max(bounds.minY, bounds.maxY - subtitleSize.height))
+        )
     }
 }
 
@@ -542,6 +550,135 @@ final class HUDWindowController {
     private static let idleCollapseSeconds: UInt64 = 8
     private var isIdleSuppressed = false
 
+    // [DEBUG-hud1] Temporary transition instrumentation — remove after diagnosis.
+    private struct HUD1Stats {
+        let label: String
+        let ordinal: Int
+        let startWidth: CGFloat
+        let targetWidth: CGFloat
+        var deltas: [TimeInterval] = []
+    }
+
+    private var hud1Stats: HUD1Stats?
+    private var hud1WaveformDeltas: [TimeInterval]?
+    private var hud1TransitionIndex = 0
+    private var hud1LabelCounts: [String: Int] = [:]
+    private var hud1Reframes = 0
+    private var hud1UpdateCount = 0
+    private var hud1WaveformUpdates = 0
+
+    private static func hud1Name(_ presentation: HUDPresentation) -> String {
+        let base: String
+        switch presentation.visualState {
+        case .idle: base = "idle"
+        case .recording(let mode, let hint):
+            base = "rec(\(mode == .holdToTalk ? "hold" : "tap")\(hint ? "+hint" : ""))"
+        case .scribeRecording: base = "scribeRec"
+        case .preparingModel: base = "preparing"
+        case .transcribing: base = "transcribing"
+        case .scribeTranscribing: base = "scribeTranscribing"
+        case .scribed: base = "scribed"
+        case .inserting: base = "inserting"
+        case .copying: base = "copying"
+        case .copied: base = "copied"
+        case .success: base = "success"
+        case .cancelled: base = "cancelled"
+        case .error: base = "error"
+        }
+        return presentation.isExpanded ? base + "+tray" : base
+    }
+
+    private func hud1BeginTransition(startWidth: CGFloat, targetWidth: CGFloat) {
+        let fromPresentation = viewModel.previousPresentation ?? viewModel.presentation
+        let label = "\(Self.hud1Name(fromPresentation))→\(Self.hud1Name(viewModel.presentation))"
+        hud1TransitionIndex += 1
+        let ordinal = (hud1LabelCounts[label] ?? 0) + 1
+        hud1LabelCounts[label] = ordinal
+        hud1Stats = HUD1Stats(
+            label: label,
+            ordinal: ordinal,
+            startWidth: startWidth,
+            targetWidth: targetWidth
+        )
+        hud1UpdateCount = 0
+        let message = "[DEBUG-hud1] begin #\(hud1TransitionIndex) [\(label) x\(ordinal)] \(Int(startWidth))→\(Int(targetWidth))pt"
+        hudLogger.info("\(message, privacy: .public)")
+    }
+
+    private func hud1RecordFrame(_ deltaTime: TimeInterval) {
+        if var stats = hud1Stats {
+            stats.deltas.append(deltaTime)
+            if deltaTime > 0.025 {
+                let message = "[DEBUG-hud1] late-frame [\(stats.label) x\(stats.ordinal)] delta=\(Int(deltaTime * 1000))ms frame=\(stats.deltas.count)"
+                hudLogger.info("\(message, privacy: .public)")
+            }
+            hud1Stats = stats
+        } else {
+            hud1WaveformDeltas?.append(deltaTime)
+        }
+    }
+
+    private func hud1FinishTransition() {
+        guard var stats = hud1Stats else { return }
+        hud1Stats = nil
+        let deltas = stats.deltas
+        let updates = hud1UpdateCount
+        let reframes = hud1Reframes
+        hud1UpdateCount = 0
+        guard !deltas.isEmpty else {
+            let message = "[DEBUG-hud1] end [\(stats.label) x\(stats.ordinal)] no-frames updates=\(updates) reframes=\(reframes)"
+            hudLogger.info("\(message, privacy: .public)")
+            return
+        }
+        let sorted = deltas.sorted()
+        let p95 = sorted[min(sorted.count - 1, Int(ceil(Double(sorted.count) * 0.95)) - 1)] * 1000
+        let total = deltas.reduce(0, +)
+        let fps = Double(deltas.count) / max(total, 0.000_001)
+        let lateCount = deltas.filter { $0 > 0.025 }.count
+        let message = "[DEBUG-hud1] end [\(stats.label) x\(stats.ordinal)] frames=\(deltas.count) fps=\(String(format: "%.1f", fps)) p95=\(String(format: "%.1f", p95))ms max=\(String(format: "%.1f", (sorted.last ?? 0) * 1000))ms late25=\(lateCount)/\(deltas.count) first=\(stats.ordinal == 1) updates=\(updates) reframes=\(reframes)"
+        hudLogger.info("\(message, privacy: .public)")
+        hud1Reframes = 0
+    }
+
+    private func hud1AbortTransition(_ reason: String) {
+        guard let stats = hud1Stats else { return }
+        hud1Stats = nil
+        let message = "[DEBUG-hud1] abort [\(stats.label) x\(stats.ordinal)] reason=\(reason) frames=\(stats.deltas.count)"
+        hudLogger.info("\(message, privacy: .public)")
+    }
+
+    private func hud1FinishWaveformWindow() {
+        guard let deltas = hud1WaveformDeltas, !deltas.isEmpty else {
+            hud1WaveformDeltas = nil
+            return
+        }
+        hud1WaveformDeltas = nil
+        let sorted = deltas.sorted()
+        let p95 = sorted[min(sorted.count - 1, Int(ceil(Double(sorted.count) * 0.95)) - 1)] * 1000
+        let total = deltas.reduce(0, +)
+        let fps = Double(deltas.count) / max(total, 0.000_001)
+        let lateCount = deltas.filter { $0 > 0.025 }.count
+        let message = "[DEBUG-hud1] waveform frames=\(deltas.count) fps=\(String(format: "%.1f", fps)) p95=\(String(format: "%.1f", p95))ms max=\(String(format: "%.1f", (sorted.last ?? 0) * 1000))ms late25=\(lateCount)/\(deltas.count) updates=\(hud1WaveformUpdates) reframes=\(hud1Reframes)"
+        hudLogger.info("\(message, privacy: .public)")
+        hud1WaveformUpdates = 0
+        hud1Reframes = 0
+    }
+
+    private func handleAnimationRequest() {
+        if morphTransition == nil {
+            if hud1WaveformDeltas == nil {
+                hud1WaveformDeltas = []
+                hud1WaveformUpdates = 0
+            } else {
+                hud1Reframes += 1
+            }
+        } else {
+            hud1Reframes += 1
+        }
+        displayLinkClock.requestFrames()
+    }
+    // [DEBUG-hud1] end
+
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
     var onCopyLast: (() -> Void)?
@@ -566,7 +703,7 @@ final class HUDWindowController {
         viewModel.onHide = { [weak self] duration in self?.onHide?(duration) }
         viewModel.onMoveRequested = { [weak self] position in self?.move(to: position, announce: true) }
         viewModel.onAnimationRequested = { [weak self] in
-            self?.displayLinkClock.requestFrames()
+            self?.handleAnimationRequest()
         }
         viewModel.onReducedMotionChanged = { [weak self] reduced in
             guard reduced else { return }
@@ -621,6 +758,8 @@ final class HUDWindowController {
     }
 
     func update(with state: HUDState) {
+        hud1UpdateCount += 1  // [DEBUG-hud1]
+        if hud1WaveformDeltas != nil { hud1WaveformUpdates += 1 }  // [DEBUG-hud1]
         applyAppearanceToPanels()
         let requestedPresentation = HUDPresentation(
             visualState: state.visualState,
@@ -662,6 +801,7 @@ final class HUDWindowController {
         )
         guard state.isVisible, idleBarVisible else {
             morphTransition = nil
+            hud1AbortTransition("hidden")  // [DEBUG-hud1]
             pendingActiveReplacementState = nil
             lockIndicatorWaitsForPillExpansion = false
             viewModel.finishMorph()
@@ -727,6 +867,7 @@ final class HUDWindowController {
             let subtitlePanel = makeSubtitlePanelIfNeeded()
             if subtitleHostingView == nil {
                 let hostingView = NSHostingView(rootView: HUDSubtitleView(model: viewModel))
+                hostingView.sizingOptions = []
                 hostingView.frame = subtitlePanel.contentView?.bounds ?? .zero
                 hostingView.autoresizingMask = [.width, .height]
                 hostingView.wantsLayer = true
@@ -840,12 +981,14 @@ final class HUDWindowController {
     }
 
     private func position(subtitlePanel: NSPanel, relativeTo pillPanel: NSPanel) {
-        subtitlePanel.setFrameOrigin(
-            HUDPanelLayout.subtitleOrigin(
+        let size = HUDSubtitleView.contentSize(for: viewModel.state.subtitle)
+        let origin = HUDPanelLayout.subtitleOrigin(
                 position: viewModel.position,
-                pillFrame: pillPanel.frame
+                pillFrame: pillPanel.frame,
+                subtitleSize: size,
+                visibleFrame: screen(for: pillPanel)?.visibleFrame
             )
-        )
+        subtitlePanel.setFrame(NSRect(origin: origin, size: size), display: true)
     }
 
     private func position(lockIndicatorPanel: NSPanel, relativeTo pillPanel: NSPanel) {
@@ -1184,6 +1327,7 @@ final class HUDWindowController {
                 duration: transitionDuration,
                 elapsed: 0
             )
+            hud1BeginTransition(startWidth: startWidth, targetWidth: target.width)  // [DEBUG-hud1]
             if expandsBounds,
                changesPanelFrame,
                let subtitlePanel,
@@ -1200,6 +1344,7 @@ final class HUDWindowController {
     }
 
     private func setPanelFrameImmediately(_ panel: NSPanel, size: NSSize) {
+        hud1AbortTransition("replaced")  // [DEBUG-hud1]
         morphTransition = nil
         let target = targetFrame(for: panel, size: size)
         if panel.frame != target {
@@ -1260,6 +1405,7 @@ final class HUDWindowController {
                     }
                 }
                 morphTransition = nil
+                hud1FinishTransition()  // [DEBUG-hud1]
                 restoreRestingMicIfNeeded()
                 revealPendingLockIndicatorIfNeeded()
                 presentPendingActiveReplacementIfNeeded()
@@ -1268,12 +1414,18 @@ final class HUDWindowController {
                 morphNeedsFrames = true
             }
         }
-        return waveformNeedsFrames || morphNeedsFrames
+        hud1RecordFrame(deltaTime)  // [DEBUG-hud1]
+        let shouldContinue = waveformNeedsFrames || morphNeedsFrames
+        if !shouldContinue, morphTransition == nil {  // [DEBUG-hud1]
+            hud1FinishWaveformWindow()
+        }
+        return shouldContinue
     }
 
     private func finishMorphImmediately() {
         guard let transition = morphTransition, let pillPanel else { return }
         morphTransition = nil
+        hud1FinishTransition()  // [DEBUG-hud1]
         viewModel.finishMorph()
         pillHostingView?.needsLayout = true
         pillHostingView?.layoutSubtreeIfNeeded()
@@ -1689,23 +1841,27 @@ final class HUDViewModel: ObservableObject {
 struct HUDSubtitleView: View {
     @ObservedObject var model: HUDViewModel
 
+    static func contentSize(for text: String) -> NSSize {
+        let width = (text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width
+        return NSSize(width: min(HUDMetrics.subtitleSize.width, max(180, ceil(width + 24))), height: HUDMetrics.subtitleSize.height)
+    }
+
     var body: some View {
         Text(model.state.subtitle)
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(Color.white.opacity(0.85))
+            .font(.system(size: 11))
+            .foregroundStyle(FlowTheme.textSecondary)
             .lineLimit(1)
-            .truncationMode(.head)
+            .truncationMode(.tail)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .frame(width: 320, height: 36, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(red: 30 / 255, green: 28 / 255, blue: 26 / 255, opacity: 0.78))
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .fill(FlowTheme.elevated)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
+                    .stroke(FlowTheme.border, lineWidth: 0.5)
             )
     }
 }

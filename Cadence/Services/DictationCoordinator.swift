@@ -49,6 +49,11 @@ final class DictationCoordinator {
     var onTranscript: ((String, String?) -> Void)?
     var onPreviewTranscript: ((PreviewTranscript) -> Void)?
     var onError: ((String) -> Void)?
+
+    /// Fired when a dictation attempt is blocked because required macOS
+    /// permissions are missing. Lets the app surface recovery inline instead
+    /// of leaving the user with only an error string.
+    var onPermissionsBlocked: (() -> Void)?
     var onBackendStatus: ((String) -> Void)?
     var onScribeRequested: (() -> Void)?
     var onScribeReleased: (() -> Void)?
@@ -298,6 +303,7 @@ final class DictationCoordinator {
 
             guard permissions.allRequiredGranted else {
                 analytics.track("dictation_blocked", properties: ["reason": "permissions"])
+                onPermissionsBlocked?()
                 throw CadenceError.missingRequiredPermissions
             }
 

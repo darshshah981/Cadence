@@ -46,7 +46,9 @@ struct OnboardingView: View {
         .onChange(of: appModel.currentOnboardingStep) { _, step in
             if step != .microphone { microphoneMonitor.stop() }
         }
-        .onDisappear { microphoneMonitor.stop() }
+        .onDisappear {
+            microphoneMonitor.stop()
+        }
     }
 
     private var onboardingRail: some View {
@@ -81,34 +83,36 @@ struct OnboardingView: View {
 
     @ViewBuilder
     private var stepContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            if appModel.currentOnboardingStep == .welcome {
-                cadenceAppIcon(size: 52)
-            } else {
-                CadenceFeatureIconView(
-                    icon: stepIcon(appModel.currentOnboardingStep),
-                    size: 32
-                )
-                    .foregroundStyle(FlowTheme.accent)
-                    .frame(width: 52, height: 52)
-                    .background(
-                        FlowTheme.accent.opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if appModel.currentOnboardingStep == .welcome {
+                    cadenceAppIcon(size: 52)
+                } else {
+                    CadenceFeatureIconView(
+                        icon: stepIcon(appModel.currentOnboardingStep),
+                        size: 32
                     )
+                        .foregroundStyle(FlowTheme.accent)
+                        .frame(width: 52, height: 52)
+                        .background(
+                            FlowTheme.accent.opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        )
+                }
+
+                Text(stepTitle(appModel.currentOnboardingStep))
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                Text(stepDetail(appModel.currentOnboardingStep))
+                    .font(.system(size: 14))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                stepSpecificContent
+                Spacer(minLength: 0)
             }
-
-            Text(stepTitle(appModel.currentOnboardingStep))
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(FlowTheme.textPrimary)
-            Text(stepDetail(appModel.currentOnboardingStep))
-                .font(.system(size: 14))
-                .foregroundStyle(FlowTheme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            stepSpecificContent
-            Spacer(minLength: 0)
+            .padding(38)
         }
-        .padding(38)
     }
 
     @ViewBuilder
@@ -120,12 +124,11 @@ struct OnboardingView: View {
             featureRows(privacyFeatures)
         case .permissions:
             VStack(alignment: .leading, spacing: 12) {
-                permissionRow("Microphone", granted: appModel.permissions.microphoneGranted)
-                permissionRow("Accessibility", granted: appModel.permissions.accessibilityGranted)
-                permissionRow("Input Monitoring", granted: appModel.permissions.inputMonitoringGranted)
-                CadenceActionButton(title: "Review permissions", role: .primary) {
-                    appModel.openPermissionsWizard()
-                }
+                PermissionSetupCard(appModel: appModel)
+                Text("You choose when to open each macOS permission screen. We confirm each grant before offering the next step.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
                 if appModel.featureFlags.granolaEnabled {
                     Text("Screen Recording is requested later only if you capture system audio in a meeting.")
                         .font(.system(size: 11))
@@ -327,20 +330,6 @@ struct OnboardingView: View {
                 .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             }
         }
-    }
-
-    private func permissionRow(_ title: String, granted: Bool) -> some View {
-        HStack {
-            Image(systemName: granted ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(granted ? FlowTheme.success : FlowTheme.textTertiary)
-            Text(title).foregroundStyle(FlowTheme.textPrimary)
-            Spacer()
-            Text(granted ? "Ready" : "Needed")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(granted ? FlowTheme.success : FlowTheme.textSecondary)
-        }
-        .padding(11)
-        .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func shortcutCard(title: String, shortcut: String, detail: String) -> some View {

@@ -10,7 +10,25 @@ xcuserdata/
 # SwiftPM / build products
 .build/
 DerivedData/
+.derived-data*/
 **/.swiftpm/
+
+# Demo dependencies and reproducible caches
+**/node_modules/
+**/.venv/
+**/__pycache__/
+/demo/**/.native-hud/
+/demo/**/.waveform-cache/
+/demo/**/.thumbnails/
+
+# Rendered deliveries and packaging; editable sources/assets remain versioned
+/demo/**/*.mp4
+/demo/**/*.mov
+/demo/**/*.gif
+/demo/**/*.zip
+/demo/cadence-launch-film/contact-sheet.png
+/demo/cadence-launch-film/poster.png
+/demo/launch-2026-09-06/*.png
 
 # Local developer configuration
 local/

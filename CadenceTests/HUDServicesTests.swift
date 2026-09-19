@@ -169,6 +169,56 @@ struct HUDVisibilityServiceTests {
 }
 
 struct HUDVisualGeometryTests {
+    @Test @MainActor
+    func errorStatusesStayReadableInsideTheFixedActivitySlot() {
+        let messages = [
+            "No voice detected — try again",
+            "Getting speech recognition ready…",
+            "Microphone access is needed",
+            "Couldn’t copy that — try again",
+            "The destination changed — try again",
+            "Cadence needs permission to continue",
+            "Nothing was captured. Check your microphone and try again.",
+            "Draft not inserted",
+            "Couldn’t finish that — try again"
+        ]
+
+        for message in messages {
+            let displayText = HUDContentSizing.compactErrorText(for: message)
+            let textWidth = (displayText as NSString).size(
+                withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium)]
+            ).width
+            #expect(textWidth + 16 + HUDContentSizing.contentGap <= HUDMetrics.waveformWidth)
+        }
+        #expect(HUDContentSizing.compactErrorText(
+            for: "No voice detected — try again"
+        ) == "No speech")
+        #expect(HUDAccessibilityLabelResolver.label(
+            visualState: .error(message: "No voice detected — try again"),
+            application: .cadence
+        ) == "No voice detected — try again")
+    }
+
+    @Test @MainActor
+    func preparationStatusFitsItsSlotWithoutOverlappingTheApplicationName() {
+        let textWidth = (HUDContentSizing.preparingStatusText as NSString).size(
+            withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium)]
+        ).width
+        #expect(textWidth + 16 + HUDContentSizing.contentGap <= HUDMetrics.waveformWidth)
+    }
+
+    @Test @MainActor
+    func subtitleStaysInsideEveryScreenEdgeIncludingSecondaryDisplays() {
+        for visible in [NSRect(x: 0, y: 0, width: 1440, height: 900), NSRect(x: -1280, y: 140, width: 1280, height: 800)] {
+            for position in HUDPosition.allCases {
+                let pill = HUDPanelLayout.targetFrame(position: position, screenFrame: visible, visibleFrame: visible, size: NSSize(width: 210, height: 44))
+                let size = HUDSubtitleView.contentSize(for: "The first setup can take a moment.")
+                let origin = HUDPanelLayout.subtitleOrigin(position: position, pillFrame: pill, subtitleSize: size, visibleFrame: visible)
+                let subtitle = NSRect(origin: origin, size: size)
+                #expect(visible.insetBy(dx: HUDMetrics.screenInset, dy: HUDMetrics.screenInset).contains(subtitle))
+            }
+        }
+    }
     private let screen = NSRect(x: 0, y: 0, width: 1920, height: 1080)
     private let visible = NSRect(x: 0, y: 70, width: 1920, height: 986)
 
@@ -1363,6 +1413,23 @@ struct HUDReleaseHardeningTests {
 
         #expect(!shouldConfirm)
         #expect(copyCount == 0)
+    }
+
+    @Test
+    func repeatedCopyRefreshesFeedbackAndRejectsObsoleteExpiry() {
+        var feedback = TranscriptCopyFeedback()
+        let firstID = UUID()
+        let firstExpiry = feedback.confirm(firstID)
+        let repeatedExpiry = feedback.confirm(firstID)
+        feedback.expire(firstExpiry)
+        #expect(feedback.copiedID == firstID)
+
+        let secondID = UUID()
+        let latestExpiry = feedback.confirm(secondID)
+        feedback.expire(repeatedExpiry)
+        #expect(feedback.copiedID == secondID)
+        feedback.expire(latestExpiry)
+        #expect(feedback.copiedID == nil)
     }
 
     @Test

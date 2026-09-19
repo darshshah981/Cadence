@@ -30,6 +30,12 @@ load_optional_env_file() {
 
 load_optional_env_file "$HOME/.cadence/google-oauth.env"
 load_optional_env_file "$ROOT_DIR/local/google-oauth.env"
+load_optional_env_file "$ROOT_DIR/local/code-signing.env"
+
+SIGNING_IDENTITY="${CADENCE_DEBUG_SIGNING_IDENTITY:-Apple Development}"
+if [[ "$CONFIGURATION" == "Release" ]]; then
+  SIGNING_IDENTITY="${CADENCE_RELEASE_SIGNING_IDENTITY:-Developer ID Application}"
+fi
 
 GOOGLE_OAUTH_REDIRECT_SCHEME="${GOOGLE_OAUTH_REDIRECT_SCHEME:-$BUNDLE_ID}"
 
@@ -48,6 +54,9 @@ build_app() {
     -configuration "$CONFIGURATION" \
     -destination "platform=macOS" \
     -derivedDataPath "$DERIVED_DATA_PATH" \
+    CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+    CODE_SIGN_STYLE=Manual \
+    DEVELOPMENT_TEAM="${CADENCE_DEVELOPMENT_TEAM:-P3MT7UXJ5N}" \
     GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-}" \
     GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-}" \
     GOOGLE_OAUTH_REDIRECT_SCHEME="$GOOGLE_OAUTH_REDIRECT_SCHEME" \
@@ -61,6 +70,9 @@ test_app() {
     -configuration "$CONFIGURATION" \
     -destination "platform=macOS" \
     -derivedDataPath "$DERIVED_DATA_PATH" \
+    CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+    CODE_SIGN_STYLE=Manual \
+    DEVELOPMENT_TEAM="${CADENCE_DEVELOPMENT_TEAM:-P3MT7UXJ5N}" \
     GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-}" \
     GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-}" \
     GOOGLE_OAUTH_REDIRECT_SCHEME="$GOOGLE_OAUTH_REDIRECT_SCHEME" \

@@ -24,7 +24,6 @@ enum ScribeNotchMotion {
         duration: 0.24
     )
     static let sourceTypingMaximumDuration = 0.68
-    static let resultTypingMaximumDuration = 0.78
     static let typingMinimumDuration = 0.16
     static let typingSecondsPerCharacter = 0.006
     static let maximumTypingUpdates = 40
@@ -84,13 +83,14 @@ final class ScribeNotchViewModel: ObservableObject {
     private var transitionTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
     private var reducedMotion = false
+    private var completedResult: ScribeResult?
 
     var isVisible: Bool {
         presentation.content != .hidden
     }
 
     var showsReviewActions: Bool {
-        actionsOpacity > 0
+        presentation.allowsReviewActions
     }
 
     var failureLiteralTranscript: String? {
@@ -131,9 +131,10 @@ final class ScribeNotchViewModel: ObservableObject {
         }
         let wasVisible = isVisible
         presentation = next
-        onInteractionAvailabilityChanged?(next.allowsReviewActions)
 
         guard next.content != .hidden else {
+            completedResult = nil
+            onInteractionAvailabilityChanged?(false)
             dismissSurface()
             return
         }
@@ -146,8 +147,18 @@ final class ScribeNotchViewModel: ObservableObject {
             }
         }
 
+        // Result readiness is synchronous. Expansion can animate independently,
+        // but neither source typing nor a fade owns text, hit testing, or keys.
+        switch next.content {
+        case let .replacing(_, result), let .ready(result):
+            publishReadyResult(result)
+            return
+        default:
+            onInteractionAvailabilityChanged?(next.allowsReviewActions)
+        }
+
         transitionTask = Task { @MainActor [weak self] in
-            guard let self else { return }
+            guard let self, !Task.isCancelled else { return }
             if !wasVisible, !self.reducedMotion {
                 try? await Task.sleep(for: .milliseconds(120))
                 guard !Task.isCancelled else { return }
@@ -165,6 +176,8 @@ final class ScribeNotchViewModel: ObservableObject {
         transitionTask = nil
         feedbackTask = nil
         presentation = ScribeNotchPresentation(content: .hidden, pill: .hidden)
+        completedResult = nil
+        onInteractionAvailabilityChanged?(false)
         surfaceSize = collapsedSize
         contentOpacity = 0
         displayedSource = ""
@@ -245,67 +258,9 @@ final class ScribeNotchViewModel: ObservableObject {
                     preservingExistingPrefix: true
                 )
             }
-        case let .replacing(source, result):
-            statusText = "Composing"
-            displayedResult = ""
-            sourceOpacity = 1
-            resultOpacity = 0
-            actionsOpacity = 0
-
-            if reducedMotion {
-                displayedSource = source
-                completedSourceTypeOn = true
-                displayedSource = ""
-                sourceOpacity = 0
-                displayedResult = result.text
-                resultOpacity = 1
-            } else {
-                if displayedSource != source {
-                    await type(
-                        source,
-                        into: \.displayedSource,
-                        maximumDuration: ScribeNotchMotion.sourceTypingMaximumDuration,
-                        preservingExistingPrefix: true
-                    )
-                    guard !Task.isCancelled else { return }
-                }
-                completedSourceTypeOn = true
-                try? await Task.sleep(for: .milliseconds(90))
-                guard !Task.isCancelled else { return }
-                withAnimation(ScribeNotchMotion.replacement) {
-                    sourceOpacity = 0
-                }
-                try? await Task.sleep(for: .milliseconds(190))
-                guard !Task.isCancelled else { return }
-                displayedSource = ""
-                resultOpacity = 1
-                await type(
-                    result.text,
-                    into: \.displayedResult,
-                    maximumDuration: ScribeNotchMotion.resultTypingMaximumDuration
-                )
-                guard !Task.isCancelled else { return }
-            }
-
-            statusText = "Composed"
-            insertEmphasisRevision += 1
-            withAnimation(reducedMotion ? nil : ScribeNotchMotion.content) {
-                actionsOpacity = 1
-            }
-            onInteractionAvailabilityChanged?(true)
-            onReplacementCompleted?()
-        case let .ready(result):
-            statusText = "Composed"
-            displayedSource = ""
-            displayedResult = result.text
-            sourceOpacity = 0
-            resultOpacity = 1
-            insertEmphasisRevision += 1
-            withAnimation(reducedMotion ? nil : ScribeNotchMotion.content) {
-                actionsOpacity = 1
-            }
-            onInteractionAvailabilityChanged?(true)
-            onReplacementCompleted?()
+        case .replacing, .ready:
+            // Published by apply before scheduling any cosmetic work.
+            return
         case let .insertionRecovery(message, result):
             statusText = "Draft not inserted"
             displayedSource = ""
@@ -330,6 +285,21 @@ final class ScribeNotchViewModel: ObservableObject {
                 actionsOpacity = 1
             }
         }
+    }
+
+    private func publishReadyResult(_ result: ScribeResult) {
+        displayedSource = ""
+        displayedResult = result.text
+        sourceOpacity = 0
+        resultOpacity = 1
+        actionsOpacity = 1
+        contentOpacity = 1
+        statusText = "Composed"
+        onInteractionAvailabilityChanged?(true)
+        guard completedResult != result else { return }
+        completedResult = result
+        insertEmphasisRevision += 1
+        onReplacementCompleted?()
     }
 
     private func clearText() {

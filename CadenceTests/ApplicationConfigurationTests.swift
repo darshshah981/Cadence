@@ -4,6 +4,34 @@ import Testing
 
 struct ApplicationConfigurationTests {
     @Test
+    func styleEducationLeavesCustomAndLegacyGuidanceUntouched() throws {
+        let fixture = try ApplicationStoreFixture()
+        defer { fixture.cleanUp() }
+        let original = try fixture.configuration()
+        let exactPrompt = "Keep these exact instructions.\nPreserve NetworkClient.swift."
+        let custom = try ApplicationConfiguration(
+            id: original.id, application: original.application,
+            isEnabled: original.isEnabled, familyID: original.familyID,
+            presetSelection: original.presetSelection,
+            customGuidance: original.customGuidance,
+            promptOverride: ScribeCustomGuidance(exactPrompt), revision: original.revision
+        )
+        try fixture.store.save(.init(revision: 1, configurations: [custom]))
+        let saved = fixture.store.load()
+        for family in ScribeEnvironmentFamilyID.allCases {
+            let education = WritingStylePresentation.forFamily(family)
+            #expect(!education.description.isEmpty)
+            #expect(!education.before.isEmpty)
+            #expect(!education.after.isEmpty)
+            #expect(education.before != education.after)
+        }
+        #expect(ApplicationPromptProjection.effectiveInstructions(for: custom) == exactPrompt)
+        #expect(custom.customGuidance == original.customGuidance)
+        #expect(fixture.store.load() == saved)
+        #expect(WritingStylePresentation.forFamily(.coding).after.contains("Do not change the code."))
+    }
+
+    @Test
     func identityResolutionPrefersExactThenUniqueRebindAndFailsClosedForDuplicates() {
         let saved = ApplicationReference(
             bundleIdentifier: "example.app",

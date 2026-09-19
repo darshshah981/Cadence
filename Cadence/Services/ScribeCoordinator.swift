@@ -107,6 +107,7 @@ final class ScribeCoordinator {
     private let personalizationStore: PersonalizationStore
     private let generationTimeout: Duration
     private let generationSoftWait: Duration
+    private let noSpeechFeedbackDuration: Duration
     private let environmentRecognizer: WritingEnvironmentRecognizer
     private let applicationGuidanceResolver: @MainActor (
         ApplicationTargetCapture,
@@ -156,7 +157,8 @@ final class ScribeCoordinator {
         providerDispatchAuthorization: @escaping @MainActor (ScribeProviderActionSnapshot) async -> Bool = { _ in true },
         transcriptionConfiguration: TranscriptionConfiguration = TranscriptionConfiguration(),
         generationTimeout: Duration = .seconds(30),
-        generationSoftWait: Duration = .seconds(8)
+        generationSoftWait: Duration = .seconds(8),
+        noSpeechFeedbackDuration: Duration = .milliseconds(1500)
     ) {
         self.audioCaptureService = audioCaptureService
         self.transcriptionEngine = transcriptionEngine
@@ -182,6 +184,7 @@ final class ScribeCoordinator {
         self.localTextConfiguration = transcriptionConfiguration
         self.generationTimeout = generationTimeout
         self.generationSoftWait = generationSoftWait
+        self.noSpeechFeedbackDuration = noSpeechFeedbackDuration
     }
 
     var activeProviderKind: ScribeProviderKind? {
@@ -338,8 +341,7 @@ final class ScribeCoordinator {
             releaseVoiceLease()
             guard runGeneration == generation else { return }
             guard !transcript.isEmpty else {
-                failure = .transcriptionEmpty
-                state = .failed(requestID: requestID, error: .emptyResult)
+                await finishEmptyRecording(requestID: requestID, expectedGeneration: runGeneration)
                 return
             }
 
@@ -396,6 +398,10 @@ final class ScribeCoordinator {
                 providerAction: providerAction,
                 generation: runGeneration
             )
+        } catch WhisperEngineError.emptyAudio, WhisperEngineError.noTranscript {
+            releaseVoiceLease()
+            guard runGeneration == generation else { return }
+            await finishEmptyRecording(requestID: requestID, expectedGeneration: runGeneration)
         } catch let error as ScribeContextError {
             releaseVoiceLease()
             guard runGeneration == generation else { return }
@@ -414,6 +420,22 @@ final class ScribeCoordinator {
             retainReviewedDraftOrFail(.transcription, requestID: requestID)
             scribeLogger.error("Compose transcription failed category=transcription")
         }
+    }
+
+    private func finishEmptyRecording(requestID: UUID, expectedGeneration: Int) async {
+        // A retained draft still needs explicit recovery; an empty recording does not.
+        guard reviewedResult == nil, literalTranscript?.isEmpty != false else {
+            retainReviewedDraftOrFail(.transcriptionEmpty, requestID: requestID)
+            return
+        }
+        failure = .transcriptionEmpty
+        state = .failed(requestID: requestID, error: .emptyResult)
+        do { try await Task.sleep(for: noSpeechFeedbackDuration) } catch { return }
+        guard generation == expectedGeneration, activeRequestID == requestID,
+              failure == .transcriptionEmpty,
+              state == .failed(requestID: requestID, error: .emptyResult) else { return }
+        resetTransientState()
+        state = .idle
     }
 
     func retryGeneration() async {

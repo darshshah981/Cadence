@@ -767,6 +767,26 @@ enum ScribeProviderReadiness: Equatable, Sendable {
     case removed
 }
 
+/// A single destination prevents duplicate Replace controls and keeps setup
+/// reachable when no configured-provider management section exists.
+enum ScribeProviderSetupPlacement: Equatable, Sendable {
+    case summary
+    case management
+
+    static func resolve(
+        hasConfiguredProvider: Bool,
+        readiness: ScribeProviderReadiness
+    ) -> Self {
+        guard hasConfiguredProvider else { return .summary }
+        switch readiness {
+        case .setupRequired, .configurationInvalid, .needsAttention, .removed:
+            return .summary
+        case .ready, .disabled, .validating, .temporarilyUnavailable, .deprecated:
+            return .management
+        }
+    }
+}
+
 enum ScribeProviderPhase: String, Codable, Equatable, Sendable {
     case validation
     case generation

@@ -422,11 +422,14 @@ struct InstalledApplicationCatalogTests {
             oldRoot: URL(fileURLWithPath: "/Volumes/Old"),
             newRoot: URL(fileURLWithPath: "/Volumes/Middle")
         ))
+        while await gate.waitCount < 1 { await Task.yield() }
         await source.send(.volumeRelocated(
             oldRoot: URL(fileURLWithPath: "/Volumes/Middle"),
             newRoot: URL(fileURLWithPath: "/Volumes/New")
         ))
-        while await gate.waitCount < 1 { await Task.yield() }
+        // AsyncStream.send only enqueues. Wait for both events to reach the
+        // debouncer before releasing the coalesced burst.
+        while await gate.waitCount < 2 { await Task.yield() }
         await gate.release()
         while state.snapshot.generation < 4 { await Task.yield() }
 

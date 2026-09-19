@@ -184,6 +184,16 @@ Core invariant:
 - Dictation should be short and responsive. It should not depend on meeting-note storage or meeting final-pass transcription.
 - A successfully inserted or copied Compose result may reuse the local transcript-history store as one linked record containing final composed text plus the original dictation. Failed, discarded, cancelled, and review-only Compose drafts remain memory-only.
 
+## Compose Interaction Behavior
+
+Compose review exposes the complete current result and its actions immediately; decorative motion does not delay Copy or Insert. Actionable failures and failures with retained words remain visible until resolved or dismissed. Failure shortcuts belong to the focused review panel, so a passive failure does not take Copy from another app. Successful Copy still keeps the review open until the next outside click. Insertion continues to verify the pinned target and hide the review before restoring that target.
+
+History copy feedback appears only after a successful clipboard commit, and another copy restarts its feedback interval. Compose entries offer separate Open and Copy controls on Home and in history; ordinary dictation rows copy directly. The detail view uses the same copy feedback state.
+
+Per-app writing styles show static illustrative examples and identify customized instructions. Expanding Customize instructions only reveals the effective prompt. Changing a style or restoring its preset edits a pending draft; Save commits it and Cancel preserves the saved configuration. Compose Settings uses one provider readiness summary, with secondary connection and disclosure actions under Manage for configured providers.
+
+Debug UI coverage can use `--scribe-fixture settings --scribe-fixture-profiles` to seed synthetic built-in and customized app profiles in isolated defaults. `--scribe-notch-presentation` exercises the real notch surface with synthetic review or failure content. These fixtures do not establish real-provider, microphone, insertion, or hardware verification.
+
 ## Meeting Capture Flow
 
 Meeting capture is a separate pipeline optimized for longer sessions.
@@ -249,9 +259,9 @@ Cadence tracks four macOS permissions in `PermissionsSnapshot`:
 
 `PermissionsSnapshot.allRequiredGranted` currently means the three permissions needed for core dictation readiness: Microphone, Accessibility, and Input Monitoring. It intentionally does not include Screen Recording, because Screen Recording is only required for meeting capture sources that include system audio.
 
-The first-run permission wizard and Settings setup row currently cover the three dictation permissions. Meeting capture asks for Screen Recording contextually through `AppModel.requestMeetingCaptureSourcePermissions()` and the meeting-note capture bar shows a source-specific missing-permission message.
+The shared inline setup card in onboarding, Dictation, and Settings guides the three dictation permissions one at a time. Meeting capture asks for Screen Recording contextually through `AppModel.requestMeetingCaptureSourcePermissions()` and the meeting-note capture bar shows a source-specific missing-permission message.
 
-`PermissionsService` keeps ownership of the native permission checks and request APIs. When macOS System Settings is needed, it delegates navigation and visual guidance to `PermissionFlowGuidanceService`, which maps Cadence permissions to the typed panes provided by the PermissionFlow package. PermissionFlow opens the correct pane and, where supported, presents the draggable Cadence app card beside System Settings. The Cadence wizard intentionally hides while another app is active so the two guidance surfaces do not overlap.
+`PermissionsService` keeps ownership of native permission checks and requests. `PermissionFlowGuidanceService` opens typed Settings pane URLs without starting PermissionFlow's floating window or cross-process window tracker. `PermissionSetupProgress` owns the current step; `PermissionSetupMonitor` checks only during a user-initiated handoff and stops on grant or timeout. The inline card provides a native app-file drag for Accessibility and Input Monitoring, plus Finder and Settings “+” guidance. Dragging never grants access or advances progress by itself. Microphone uses the native dialog rather than an app-file drag. Onboarding remains scrollable and advances only when the user chooses Continue.
 
 ## Transcription Engine Boundary
 
@@ -327,10 +337,10 @@ HUD:
 - Files: `Cadence/UI/HUDView.swift`, `Cadence/Services/HUDWindowController.swift`
 - Purpose: floating recording pill and live dictation feedback.
 
-Permissions wizard:
+Permissions setup (inline):
 
-- Files: `Cadence/UI/PermissionGuideWindow.swift`, `Cadence/UI/PermissionsView.swift`, `Cadence/Services/PermissionFlowGuidanceService.swift`
-- Purpose: compact permission status hub plus PermissionFlow-guided System Settings setup.
+- Files: `Cadence/UI/PermissionSetupCard.swift`, `Cadence/Services/PermissionsService.swift`, `Cadence/Services/PermissionFlowGuidanceService.swift`
+- Purpose: grant-in-place setup card hosted inline in the onboarding sheet, the main window Dictation panel, and Settings. There is no separate wizard window. Each permission has exactly one prompt path: the native TCC dialog when available (microphone), otherwise a PermissionFlow-guided System Settings pane with the floating Cadence card. AppModel republishes permission snapshots only on actual change, and refresh bursts (300ms/1s/2.5s) are generation-coalesced so overlapping clicks supersede rather than stack.
 
 ## Persistence And Local State
 

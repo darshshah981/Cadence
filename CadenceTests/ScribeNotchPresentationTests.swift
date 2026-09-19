@@ -45,7 +45,7 @@ struct ScribeNotchPresentationTests {
     }
 
     @Test
-    func polishedResultReplacesTheTranscriptBeforeActionsBecomeAvailable() {
+    func polishedResultMakesReviewActionsImmediatelyAvailable() {
         let result = ScribeResult(
             requestID: requestID,
             text: "I finished the revised deck. We can send it today."
@@ -61,7 +61,7 @@ struct ScribeNotchPresentationTests {
             result: result
         ))
         #expect(projection.pill == .transcribing)
-        #expect(!projection.allowsReviewActions)
+        #expect(projection.allowsReviewActions)
     }
 
     @Test
@@ -199,6 +199,22 @@ struct ScribeNotchPresentationTests {
     }
 
     @Test
+    func retainedTextAndRecoveryActionsNeverAutoDismiss() {
+        for (text, recovery) in [
+            ("Keep my words", ScribeNotchFailureRecovery.none),
+            (nil, .setUpProvider),
+            (nil, .retryGeneration),
+            (nil, .openPermissions)
+        ] as [(String?, ScribeNotchFailureRecovery)] {
+            let presentation = ScribeNotchPresentation(
+                content: .failure(message: "Failed", literalTranscript: text, recovery: recovery),
+                pill: .failed
+            )
+            #expect(ScribeNotchAutoDismissPolicy.delay(for: presentation) == nil)
+        }
+    }
+
+    @Test
     func onlyTerminalAttentionAutoDismisses() {
         let failure = ScribeNotchPresentation(
             content: .failure(
@@ -307,12 +323,6 @@ struct ScribeNotchTypingCadenceTests {
                 characterCount: 500,
                 maximumDuration: ScribeNotchMotion.sourceTypingMaximumDuration
             ) == 0.68
-        )
-        #expect(
-            ScribeNotchMotion.typingDuration(
-                characterCount: 500,
-                maximumDuration: ScribeNotchMotion.resultTypingMaximumDuration
-            ) == 0.78
         )
         #expect(ScribeNotchMotion.maximumTypingUpdates == 40)
     }
@@ -462,7 +472,102 @@ struct ScribeNotchCopyInteractionTests {
 @MainActor
 struct ScribeNotchKeyboardInteractionTests {
     @Test
-    func reviewCommandsInvokeTheSameActionsAsTheVisibleControls() {
+    func failureLocalEventsFollowKeyWindowFocusAndStopOnClose() throws {
+        let application = NSApplication.shared
+        let previousKeyWindow = application.keyWindow
+        let existingWindows = Set(application.windows.map(ObjectIdentifier.init))
+        let controller = ScribeNotchWindowController(
+            outsideClickMonitor: FakeScribeOutsideClickMonitor(),
+            reviewKeyboardMonitor: FakeScribeReviewKeyboardMonitor()
+        )
+        let otherWindow = ScribeKeyboardEventReceivingWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 180, height: 100),
+            styleMask: [.titled], backing: .buffered, defer: false
+        )
+        otherWindow.isReleasedWhenClosed = false
+        defer {
+            controller.close()
+            otherWindow.close()
+            previousKeyWindow?.makeKey()
+        }
+        var copyCount = 0
+        var discardCount = 0
+        controller.viewModel.onCopy = { copyCount += 1 }
+        controller.viewModel.onDiscard = { discardCount += 1 }
+        controller.update(ScribeNotchPresentation(
+            content: .failure(message: "Offline", literalTranscript: "Retained", recovery: .retryGeneration),
+            pill: .failed
+        ))
+        let panel = try #require(application.windows.first {
+            !existingWindows.contains(ObjectIdentifier($0)) && $0 is NSPanel
+        })
+        panel.makeKey()
+        #expect(panel.isKeyWindow)
+
+        func sendKeys(to window: NSWindow) throws {
+            for (keyCode, modifiers, characters) in [
+                (UInt16(8), NSEvent.ModifierFlags.command, "c"),
+                (UInt16(53), NSEvent.ModifierFlags(), "\u{1b}")
+            ] {
+                let event = try #require(NSEvent.keyEvent(
+                    with: .keyDown, location: .zero, modifierFlags: modifiers,
+                    timestamp: ProcessInfo.processInfo.systemUptime,
+                    windowNumber: window.windowNumber, context: nil,
+                    characters: characters, charactersIgnoringModifiers: characters,
+                    isARepeat: false, keyCode: keyCode
+                ))
+                application.sendEvent(event)
+            }
+        }
+
+        try sendKeys(to: panel)
+        #expect(copyCount == 1)
+        #expect(discardCount == 1)
+
+        otherWindow.makeKeyAndOrderFront(nil)
+        #expect(!panel.isKeyWindow)
+        try sendKeys(to: otherWindow)
+        #expect(otherWindow.receivedKeyCodes == [8, 53])
+        #expect(copyCount == 1)
+        #expect(discardCount == 1)
+
+        // Reacquire recovery focus, then tear it down while its monitor is active.
+        panel.makeKey()
+        #expect(panel.isKeyWindow)
+        controller.close()
+        otherWindow.makeKeyAndOrderFront(nil)
+        otherWindow.receivedKeyCodes.removeAll()
+        try sendKeys(to: otherWindow)
+        #expect(otherWindow.receivedKeyCodes == [8, 53])
+        #expect(copyCount == 1)
+        #expect(discardCount == 1)
+    }
+
+    @Test
+    func failureReleasesGlobalReviewShortcutsAndDoesNotReacquireThem() {
+        let keyboard = FakeScribeReviewKeyboardMonitor()
+        let controller = ScribeNotchWindowController(
+            outsideClickMonitor: FakeScribeOutsideClickMonitor(),
+            reviewKeyboardMonitor: keyboard
+        )
+        var copyCount = 0
+        controller.viewModel.onCopy = { copyCount += 1 }
+        controller.update(ScribeNotchPresentation(
+            content: .ready(ScribeResult(requestID: UUID(), text: "Draft")), pill: .scribed
+        ))
+        controller.update(ScribeNotchPresentation(
+            content: .failure(message: "Offline", literalTranscript: "Retained", recovery: .retryGeneration),
+            pill: .failed
+        ))
+        #expect(keyboard.commands.isEmpty)
+        keyboard.emit(.copy)
+        #expect(copyCount == 0)
+        controller.close()
+        #expect(keyboard.commands.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func reviewCommandsInvokeTheSameActionsAsTheVisibleControls(replacing: Bool) {
         let outsideMonitor = FakeScribeOutsideClickMonitor()
         let keyboardMonitor = FakeScribeReviewKeyboardMonitor()
         let controller = ScribeNotchWindowController(
@@ -478,7 +583,10 @@ struct ScribeNotchKeyboardInteractionTests {
         controller.viewModel.onDiscard = { discardCount += 1 }
 
         controller.update(
-            ScribeNotchPresentation(content: .ready(result), pill: .scribed)
+            ScribeNotchPresentation(
+                content: replacing ? .replacing(source: "Source", result: result) : .ready(result),
+                pill: .scribed
+            )
         )
 
         #expect(keyboardMonitor.commands == [.insert, .copy, .discard])
@@ -545,56 +653,62 @@ struct ScribeHUDProjectionTests {
 
 @MainActor
 struct ScribeNotchViewModelTests {
-    @Test
-    func fastProviderResultStillCompletesLiteralTypeOnBeforeReplacement() async {
-        let source = "send the finished project update to the whole team today"
-        let result = ScribeResult(
-            requestID: UUID(),
-            text: "Send the finished project update to the entire team today."
-        )
+    @Test(arguments: [false, true])
+    func resultPublishesFullTextAndActionsSynchronously(reducedMotion: Bool) {
         let viewModel = ScribeNotchViewModel()
-
-        viewModel.apply(ScribeNotchPresentation(
-            content: .typingTranscript(source, isSlow: false),
-            pill: .transcribing
-        ))
-        try? await Task.sleep(for: .milliseconds(30))
-        viewModel.apply(ScribeNotchPresentation(
-            content: .replacing(source: source, result: result),
-            pill: .transcribing
-        ))
-
-        for _ in 0..<80 where !viewModel.completedSourceTypeOn {
-            try? await Task.sleep(for: .milliseconds(40))
-        }
-        #expect(viewModel.completedSourceTypeOn)
-
-        for _ in 0..<80 where viewModel.statusText != "Composed" {
-            try? await Task.sleep(for: .milliseconds(40))
-        }
-        #expect(viewModel.displayedResult == result.text)
-        #expect(viewModel.statusText == "Composed")
-    }
-
-    @Test
-    func reducedMotionReplacementPublishesOneStableReadyState() async {
-        let requestID = UUID()
-        let result = ScribeResult(requestID: requestID, text: "Send the finished draft today.")
-        let viewModel = ScribeNotchViewModel()
+        viewModel.setReducedMotion(reducedMotion)
         var completionCount = 0
         viewModel.onReplacementCompleted = { completionCount += 1 }
-        viewModel.setReducedMotion(true)
-
+        let source = String(repeating: "Synthetic source text. ", count: 100)
         viewModel.apply(ScribeNotchPresentation(
-            content: .replacing(source: "send finished draft today", result: result),
-            pill: .transcribing
+            content: .typingTranscript(source, isSlow: true), pill: .transcribing
         ))
-        await Task.yield()
-
+        let result = ScribeResult(requestID: UUID(), text: String(repeating: "Finished draft. ", count: 200))
+        viewModel.apply(ScribeNotchPresentation(
+            content: .replacing(source: source, result: result), pill: .transcribing
+        ))
+        // No yield or sleep: readiness is the result transition itself.
         #expect(viewModel.displayedSource.isEmpty)
         #expect(viewModel.displayedResult == result.text)
         #expect(viewModel.statusText == "Composed")
         #expect(viewModel.showsReviewActions)
+        #expect(viewModel.actionsOpacity == 1)
+        #expect(viewModel.contentOpacity == 1)
+        #expect(completionCount == 1)
+    }
+
+    @Test
+    func completionBelongsToTheCurrentResultAndIsNotRepeatedByPresentationChanges() {
+        let viewModel = ScribeNotchViewModel()
+        var completionCount = 0
+        viewModel.onReplacementCompleted = { completionCount += 1 }
+        let result = ScribeResult(requestID: UUID(), text: "Finished draft.")
+        let ready = ScribeNotchPresentation(content: .ready(result), pill: .scribed)
+        viewModel.apply(ScribeNotchPresentation(content: .replacing(source: "source", result: result), pill: .transcribing))
+        viewModel.apply(ready)
+        viewModel.apply(ready)
+        viewModel.apply(ScribeNotchPresentation(content: .insertionRecovery(message: "Return to target", result: result), pill: .failed))
+        viewModel.apply(ready)
+        #expect(completionCount == 1)
+        viewModel.apply(ScribeNotchPresentation(content: .ready(ScribeResult(requestID: UUID(), text: "Next draft.")), pill: .scribed))
+        #expect(completionCount == 2)
+    }
+
+    @Test
+    func cancelledSourceAnimationCannotRestoreTextOrCompletionAfterDismissal() async {
+        let viewModel = ScribeNotchViewModel()
+        var completionCount = 0
+        viewModel.onReplacementCompleted = { completionCount += 1 }
+        let source = String(repeating: "Synthetic source. ", count: 100)
+        viewModel.apply(ScribeNotchPresentation(content: .typingTranscript(source, isSlow: false), pill: .transcribing))
+        try? await Task.sleep(for: .milliseconds(160))
+        viewModel.apply(ScribeNotchPresentation(content: .replacing(source: source, result: ScribeResult(requestID: UUID(), text: "Current result")), pill: .transcribing))
+        #expect(viewModel.displayedResult == "Current result")
+        viewModel.resetImmediately()
+        try? await Task.sleep(for: .milliseconds(750))
+        #expect(viewModel.displayedSource.isEmpty)
+        #expect(viewModel.displayedResult.isEmpty)
+        #expect(!viewModel.showsReviewActions)
         #expect(completionCount == 1)
     }
 
@@ -647,5 +761,25 @@ struct ScribeHUDRestorationPolicyTests {
             requiredPermissionsGranted: false,
             isDictationIdle: true
         ) == .showIdle)
+    }
+}
+
+/// Receives keys after the application's local monitors, without invoking menus
+/// or editing any user document. Handling key equivalents also covers Command-C.
+@MainActor
+private final class ScribeKeyboardEventReceivingWindow: NSWindow {
+    var receivedKeyCodes: [UInt16] = []
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        receivedKeyCodes.append(event.keyCode)
+        return true
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown {
+            receivedKeyCodes.append(event.keyCode)
+            return
+        }
+        super.sendEvent(event)
     }
 }

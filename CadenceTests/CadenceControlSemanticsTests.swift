@@ -95,7 +95,7 @@ struct CadenceControlSemanticsTests {
         #expect(CadenceDesignMetrics.disclosureHitTarget == 24)
         #expect(CadenceDesignMetrics.disclosureChevronFrame == 24)
         #expect(CadenceDesignMetrics.compactActionBreakpoint == 560)
-        #expect(ScribeLaunchFixtures.supportedPanelWidths == [520, 559, 560, 720])
+        #expect(ScribeLaunchFixtures.supportedPanelWidths == [420, 520, 559, 560, 720])
     }
 
     @Test

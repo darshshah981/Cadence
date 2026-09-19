@@ -7,94 +7,70 @@ private let permissionFlowLogger = Logger(
     category: "PermissionFlow"
 )
 
-enum CadencePermissionGuidanceDestination {
+enum CadencePermissionGuidanceDestination: Equatable {
     case microphone
     case accessibility
     case inputMonitoring
     case screenRecording
 }
 
-@MainActor
-protocol PermissionGuidanceServing: AnyObject {
-    func present(_ destination: CadencePermissionGuidanceDestination)
+/// A file reference to the running app, not an image or a copied app bundle.
+final class PermissionAppDragWriter: NSObject, NSPasteboardWriting {
+    let url: URL
+
+    init(url: URL = Bundle.main.bundleURL) { self.url = url }
+
+    func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
+        [.fileURL, NSPasteboard.PasteboardType("NSFilenamesPboardType")]
+    }
+
+    func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
+        switch type {
+        case .fileURL: return url.absoluteString
+        case NSPasteboard.PasteboardType("NSFilenamesPboardType"): return [url.path]
+        default: return nil
+        }
+    }
 }
 
 @MainActor
+protocol PermissionGuidanceServing: AnyObject {
+    @discardableResult func present(_ destination: CadencePermissionGuidanceDestination) -> Bool
+}
+
+/// Keeps the library's pane mapping, without its floating panel or cross-process
+/// Accessibility/window tracking. Cadence owns the guidance and progress inline.
+@MainActor
 final class PermissionFlowGuidanceService: PermissionGuidanceServing {
-    private static let launchPanelSize = CGSize(width: 420, height: 96)
-    private static let screenInset: CGFloat = 12
+    private let openURL: (URL) -> Bool
+    private let now: () -> Date
+    private var lastOpen: (destination: CadencePermissionGuidanceDestination, date: Date)?
 
-    private let appURL: URL
-    private let controller: PermissionFlowController
-
-    init(appURL: URL = Bundle.main.bundleURL) {
-        self.appURL = appURL
-        controller = PermissionFlow.makeController(
-            configuration: .init(
-                requiredAppURLs: [appURL],
-                promptForAccessibilityTrust: false
-            )
-        )
+    init(
+        openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
+        now: @escaping () -> Date = Date.init
+    ) {
+        self.openURL = openURL
+        self.now = now
     }
 
-    func present(_ destination: CadencePermissionGuidanceDestination) {
-        let pane = Self.pane(for: destination)
-        permissionFlowLogger.info("Opening guided permission flow for \(pane.rawValue, privacy: .public)")
-        controller.authorize(
-            pane: pane,
-            suggestedAppURLs: [appURL],
-            sourceFrameInScreen: Self.launchFrame(around: NSEvent.mouseLocation)
-        )
+    @discardableResult
+    func present(_ destination: CadencePermissionGuidanceDestination) -> Bool {
+        let date = now()
+        if let lastOpen, lastOpen.destination == destination,
+           date.timeIntervalSince(lastOpen.date) < 1 { return true }
+        let opened = openURL(Self.pane(for: destination).settingsURL)
+        if opened { lastOpen = (destination, date) }
+        permissionFlowLogger.info("Permission settings handoff succeeded: \(opened, privacy: .public)")
+        return opened
     }
 
     static func pane(for destination: CadencePermissionGuidanceDestination) -> PermissionFlowPane {
         switch destination {
-        case .microphone:
-            return .microphone
-        case .accessibility:
-            return .accessibility
-        case .inputMonitoring:
-            return .inputMonitoring
-        case .screenRecording:
-            return .screenRecording
+        case .microphone: return .microphone
+        case .accessibility: return .accessibility
+        case .inputMonitoring: return .inputMonitoring
+        case .screenRecording: return .screenRecording
         }
-    }
-
-    static func launchFrame(
-        around point: CGPoint,
-        visibleFrame suppliedVisibleFrame: CGRect? = nil
-    ) -> CGRect {
-        let visibleFrame = suppliedVisibleFrame
-            ?? NSScreen.screens.first(where: { $0.frame.contains(point) })?.visibleFrame
-            ?? NSScreen.main?.visibleFrame
-            ?? CGRect(origin: .zero, size: launchPanelSize)
-        let availableSize = CGSize(
-            width: max(1, visibleFrame.width - (screenInset * 2)),
-            height: max(1, visibleFrame.height - (screenInset * 2))
-        )
-        let size = CGSize(
-            width: min(launchPanelSize.width, availableSize.width),
-            height: min(launchPanelSize.height, availableSize.height)
-        )
-        let proposedOrigin = CGPoint(
-            x: point.x - (size.width * 0.5),
-            y: point.y - (size.height * 0.5)
-        )
-        let minimumOrigin = CGPoint(
-            x: visibleFrame.minX + screenInset,
-            y: visibleFrame.minY + screenInset
-        )
-        let maximumOrigin = CGPoint(
-            x: visibleFrame.maxX - screenInset - size.width,
-            y: visibleFrame.maxY - screenInset - size.height
-        )
-
-        return CGRect(
-            origin: CGPoint(
-                x: min(max(proposedOrigin.x, minimumOrigin.x), maximumOrigin.x),
-                y: min(max(proposedOrigin.y, minimumOrigin.y), maximumOrigin.y)
-            ),
-            size: size
-        )
     }
 }

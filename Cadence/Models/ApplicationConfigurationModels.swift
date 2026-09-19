@@ -206,3 +206,33 @@ enum ScribeGuidanceResolutionSource: Equatable, Sendable {
     case ambiguousApplicationFallback
     case invalidConfigurationFallback
 }
+
+/// Static education only; ApplicationPromptProjection owns effective instructions.
+struct WritingStylePresentation: Equatable, Sendable {
+    let description: String
+    let before: String
+    let after: String
+
+    static func forFamily(_ family: ScribeEnvironmentFamilyID) -> Self {
+        switch family {
+        case .general:
+            Self(
+                description: "Clear, natural prose that keeps your meaning and details intact.",
+                before: "the report is ready um I will send it after lunch",
+                after: "The report is ready. I will send it after lunch."
+            )
+        case .messaging:
+            Self(
+                description: "Direct, conversational messages with natural phrasing and short paragraphs.",
+                before: "I am running ten minutes late can we start at two ten",
+                after: "I’m running ten minutes late. Can we start at 2:10?"
+            )
+        case .coding:
+            Self(
+                description: "Precise technical requests that preserve identifiers, constraints, and what you authorized.",
+                before: "review the retry logic in NetworkClient.swift um do not change the code",
+                after: "Review the retry logic in NetworkClient.swift. Do not change the code."
+            )
+        }
+    }
+}

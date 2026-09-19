@@ -101,6 +101,7 @@ final class AppModel: ObservableObject {
         static let finalizationTimeout: Duration = .seconds(45)
     }
 
+    @Published private(set) var permissionSetup = PermissionSetupProgress()
     @Published private(set) var permissions: PermissionsSnapshot
     @Published private(set) var state: DictationSessionState = .idle
     @Published private(set) var scribeState: ScribeSessionState = .idle
@@ -132,7 +133,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var livePreviewUnconfirmedText = ""
     @Published private(set) var lastError: String?
     @Published private(set) var shortcutValidationMessage: String?
-    @Published private(set) var copiedTranscriptID: UUID?
+    @Published private var transcriptCopyFeedback = TranscriptCopyFeedback()
+    var copiedTranscriptID: UUID? { transcriptCopyFeedback.copiedID }
+    private var transcriptCopyFeedbackTask: Task<Void, Never>?
     @Published private(set) var backendDescription = "Loading transcription backend"
     @Published private(set) var transcriptionConfiguration: TranscriptionConfiguration
     @Published private(set) var analyticsEnabled: Bool
@@ -157,7 +160,8 @@ final class AppModel: ObservableObject {
     let featureFlags: CadenceFeatureFlags
 
     private let permissionsService: PermissionsService
-    private let permissionGuideWindowController = PermissionGuideWindowController()
+    private var permissionRefreshBurstGeneration = 0
+    private let permissionSetupMonitor = PermissionSetupMonitor()
     private let hotkeyService: HotkeyService
     private let coordinator: DictationCoordinator
     private let scribeCoordinator: ScribeCoordinator
@@ -1020,31 +1024,31 @@ final class AppModel: ObservableObject {
         )
     }
 
-    func refreshPermissions() async {
-        let previousPermissions = permissions
-        permissions = permissionsService.snapshot()
-        permissionGuideWindowController.updatePermissions(permissions)
-        if permissions != previousPermissions {
-            analytics.track(
-                "permissions_granted_changed",
-                properties: [
-                    "microphone": String(permissions.microphoneGranted),
-                    "accessibility": String(permissions.accessibilityGranted),
-                    "inputMonitoring": String(permissions.inputMonitoringGranted)
-                ]
-            )
-            if !previousPermissions.allRequiredGranted, permissions.allRequiredGranted {
-                analytics.track("setup_completed")
-            }
-        }
+    func refreshPermissions(includeScreenRecording: Bool = true) async {
+        let snapshot = includeScreenRecording
+            ? permissionsService.snapshot()
+            : permissionsService.coreSnapshot(screenRecordingGranted: permissions.screenRecordingGranted)
+        var setup = permissionSetup
+        setup.reconcile(snapshot)
+        if setup != permissionSetup { permissionSetup = setup }
+        if permissionSetup.active == nil { permissionSetupMonitor.stop() }
+        // Only republish on an actual change. Permission refreshes fire from
+        // bursts, app activation, and view appearance; unconditional
+        // assignment re-rendered the whole app three times per burst even
+        // when nothing moved.
+        guard snapshot != permissions else { return }
+        permissions = snapshot
         analytics.track(
-            "permissions_refreshed",
+            "permissions_granted_changed",
             properties: [
                 "microphone": String(permissions.microphoneGranted),
                 "accessibility": String(permissions.accessibilityGranted),
                 "inputMonitoring": String(permissions.inputMonitoringGranted)
             ]
         )
+        if permissions.allRequiredGranted {
+            analytics.track("setup_completed")
+        }
 
         applyHUDIdleVisibilityPolicy()
         if permissions.allRequiredGranted, hudVisibility.showsIdleBar, isDictationIdle {
@@ -1052,46 +1056,84 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func requestMicrophoneAccess() {
-        analytics.track("permission_request_clicked", properties: ["permission": "microphone"])
-        Task {
-            _ = await permissionsService.requestMicrophoneAccess()
-            await refreshPermissions()
-            schedulePermissionRefreshBurst()
+    func requestMicrophoneAccess() { requestCorePermission(.microphone) }
+    func requestAccessibilityAccess() { requestCorePermission(.accessibility) }
+    func requestInputMonitoringAccess() { requestCorePermission(.inputMonitoring) }
+
+    var canPromptForMicrophone: Bool { permissionsService.microphonePromptAvailable }
+    var canPromptForInputMonitoring: Bool { permissionsService.inputMonitoringPromptAvailable }
+    var permissionAppName: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            ?? Bundle.main.bundleURL.deletingPathExtension().lastPathComponent
+    }
+    var permissionAppPath: String { permissionsService.appLocationSummary() }
+
+    func showPermissionAppInFinder() {
+        NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+    }
+
+    func requestCorePermission(_ permission: CorePermission) {
+        guard permissionSetup.begin(permission, snapshot: permissions) else { return }
+        permissionSetupMonitor.stop()
+        analytics.track("permission_request_clicked", properties: ["permission": permission.rawValue])
+        if permission == .microphone, canPromptForMicrophone {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                _ = await permissionsService.requestMicrophoneAccess()
+                await refreshPermissions(includeScreenRecording: false)
+                if permissionSetup.active != nil { permissionSetup.notDetected() }
+            }
+        } else if permission == .inputMonitoring, canPromptForInputMonitoring {
+            permissionsService.requestInputMonitoringPrompt()
+            permissionSetup.waiting()
+            startPermissionSetupMonitoring()
+        } else {
+            openPermissionSettings(permission)
         }
     }
 
-    func requestAccessibilityAccess() {
-        analytics.track("permission_request_clicked", properties: ["permission": "accessibility"])
-        permissionsService.requestAccessibilityAccess()
-        schedulePermissionRefreshBurst()
+    func openPermissionSettings(_ permission: CorePermission) {
+        guard permissionSetup.phase != .requesting || permissionSetup.active == permission else { return }
+        if permissionSetup.active != permission {
+            guard permissionSetup.begin(permission, snapshot: permissions) else { return }
+        }
+        permissionSetupMonitor.stop()
+        let opened = permissionsService.openSettings(for: permission)
+        permissionSetup.waiting(opened: opened)
+        if opened { startPermissionSetupMonitoring() }
     }
 
-    func requestInputMonitoringAccess() {
-        analytics.track("permission_request_clicked", properties: ["permission": "inputMonitoring"])
-        permissionsService.requestInputMonitoringAccess()
-        schedulePermissionRefreshBurst()
+    func checkPermissionSetup() {
+        guard permissionSetup.phase != .requesting else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await refreshPermissions(includeScreenRecording: false)
+            guard permissionSetup.active != nil else { return }
+            permissionSetup.waiting()
+            startPermissionSetupMonitoring()
+        }
     }
 
-    func openPermissionsWizard() {
-        analytics.track("permissions_wizard_opened")
-        NSApp.activate()
-        permissionGuideWindowController.show(
-            permissions: permissions,
-            appURL: Bundle.main.bundleURL,
-            onRequestMicrophone: { [weak self] in
-                self?.requestMicrophoneAccess()
-            },
-            onRequestAccessibility: { [weak self] in
-                self?.requestAccessibilityAccess()
-            },
-            onRequestInputMonitoring: { [weak self] in
-                self?.requestInputMonitoringAccess()
-            },
-            onRefresh: { [weak self] in
-                Task { await self?.refreshPermissions() }
-            }
-        )
+    private func startPermissionSetupMonitoring() {
+        guard permissionSetup.active != nil else { return }
+        permissionSetupMonitor.start { [weak self] in
+            guard let self else { return true }
+            await refreshPermissions(includeScreenRecording: false)
+            return permissionSetup.active == nil
+        } onTimeout: { [weak self] in
+            self?.permissionSetup.notDetected()
+        }
+    }
+
+    /// Single surface for permission recovery: unfinished onboarding resumes
+    /// the in-sheet setup; otherwise the main window hosts the same inline
+    /// card. No floating wizard window anymore.
+    func showPermissionSetup() {
+        analytics.track("permissions_setup_opened")
+        if !onboardingProgress.isComplete {
+            resumeOnboarding()
+        }
+        showMainWindow()
         schedulePermissionRefreshBurst()
     }
 
@@ -2252,13 +2294,15 @@ final class AppModel: ObservableObject {
                     )
                 }
             }
-            copiedTranscriptID = item.id
-
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(1.2))
-                if self?.copiedTranscriptID == item.id {
-                    self?.copiedTranscriptID = nil
+            let expiry = transcriptCopyFeedback.confirm(item.id)
+            transcriptCopyFeedbackTask?.cancel()
+            transcriptCopyFeedbackTask = Task { @MainActor [weak self] in
+                do {
+                    try await Task.sleep(for: .seconds(1.2))
+                } catch {
+                    return
                 }
+                self?.transcriptCopyFeedback.expire(expiry)
             }
         }
     }
@@ -2443,6 +2487,10 @@ final class AppModel: ObservableObject {
             self?.lastError = message
         }
 
+        coordinator.onPermissionsBlocked = { [weak self] in
+            self?.showPermissionSetup()
+        }
+
         coordinator.onBackendStatus = { [weak self] summary in
             self?.backendDescription = summary
         }
@@ -2488,10 +2536,15 @@ final class AppModel: ObservableObject {
     }
 
     private func schedulePermissionRefreshBurst() {
+        // A newer click supersedes any in-flight burst instead of stacking a
+        // second one on top of it.
+        permissionRefreshBurstGeneration += 1
+        let generation = permissionRefreshBurstGeneration
         Task {
             for nanoseconds in [300_000_000, 1_000_000_000, 2_500_000_000] {
                 try? await Task.sleep(nanoseconds: UInt64(nanoseconds))
-                await refreshPermissions()
+                guard generation == self.permissionRefreshBurstGeneration, !Task.isCancelled else { return }
+                await self.refreshPermissions()
             }
         }
     }
@@ -3396,8 +3449,9 @@ final class AppModel: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             let currentPermissions = await ScribePermissionGate.evaluate(using: self.permissionsService)
-            self.permissions = currentPermissions
-            self.permissionGuideWindowController.updatePermissions(currentPermissions)
+            if self.permissions != currentPermissions {
+                self.permissions = currentPermissions
+            }
             if let permissionMessage = currentPermissions.scribePermissionMessage {
                 self.activeScribeTriggerMode = nil
                 self.scribeShortcutReleasePending = false
@@ -3616,6 +3670,15 @@ final class AppModel: ObservableObject {
         failureMessageOverride: String? = nil,
         failureRecoveryOverride: ScribeNotchFailureRecovery? = nil
     ) {
+        if case .failed = state,
+           scribeCoordinator.failure == .transcriptionEmpty,
+           scribeCoordinator.reviewedResult == nil,
+           scribeCoordinator.literalTranscript?.isEmpty != false {
+            scribePanelWindowController.close()
+            scribeNotchWindowController.close()
+            updateScribeHUD(for: state, failureMessage: "No speech")
+            return
+        }
         switch state {
         case .listening, .transcribing, .generating, .generatingSlow:
             scribeReplacementCompleted = false
@@ -3806,7 +3869,7 @@ final class AppModel: ObservableObject {
         }
         notchViewModel.onOpenPermissions = { [weak self] in
             self?.cancelScribe(dismissImmediately: true)
-            self?.openPermissionsWizard()
+            self?.showPermissionSetup()
         }
         notchViewModel.onReplacementCompleted = { [weak self] in
             guard let self,
@@ -4045,6 +4108,21 @@ final class AppModel: ObservableObject {
     #if DEBUG
     private func presentScribeLaunchFixtureIfNeeded() {
         guard let fixture = ScribeLaunchFixtures.current else { return }
+        if fixture == .settings, ProcessInfo.processInfo.arguments.contains("--hud-fixture-preparing") {
+            hudMotionPreviewTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled, let self else { return }
+                hudController.update(with: HUDState(
+                    visualState: .preparingModel,
+                    subtitle: "The first setup can take a moment.",
+                    level: 0,
+                    waveformLevels: Array(repeating: 0, count: 16),
+                    isVisible: true,
+                    showsSubtitle: true
+                ))
+            }
+            return
+        }
         let result = ScribeResult(
             requestID: UUID(),
             text: "Update `parseID` after reviewing this synthetic fixture draft."

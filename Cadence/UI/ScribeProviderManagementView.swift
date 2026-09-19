@@ -3,6 +3,7 @@ import SwiftUI
 struct ScribeProviderManagementView: View {
     @ObservedObject var appModel: AppModel
     @State private var confirmsRemoval = false
+    @State private var showsManagement = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -20,16 +21,15 @@ struct ScribeProviderManagementView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(statusTitle)
                         .font(.headline)
+                        .accessibilityIdentifier("scribe-provider-status-title")
                     Text(appModel.scribeProviderStatus)
                         .font(.caption)
                         .foregroundStyle(FlowTheme.textSecondary)
                 }
                 Spacer()
-                CadenceActionButton(
-                    title: appModel.configuredScribeProviderKind == nil ? "Set up" : "Replace",
-                    role: .secondary
-                ) { appModel.presentScribeProviderSetup() }
-                .accessibilityIdentifier("scribe-provider-setup")
+                if setupPlacement == .summary {
+                    setupButton
+                }
             }
             .padding(12)
 
@@ -47,41 +47,49 @@ struct ScribeProviderManagementView: View {
 
                 insetDivider
 
-                DisclosureGroup {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(ScribeProviderDisclosure.directDictationSummary)
-                        if let recipient = appModel.configuredScribeRecipient {
-                            Text("Recipient: \(recipient)")
-                                .font(.system(.caption, design: .monospaced))
+                DisclosureGroup(isExpanded: $showsManagement) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        DisclosureGroup {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(ScribeProviderDisclosure.directDictationSummary)
+                                if let recipient = appModel.configuredScribeRecipient {
+                                    Text("Recipient: \(recipient)")
+                                        .font(.system(.caption, design: .monospaced))
+                                }
+                                if kind == .deepSeek {
+                                    Link(
+                                        "DeepSeek Privacy Policy — reviewed 10 July 2026",
+                                        destination: URL(string: "https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html")!
+                                    )
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(FlowTheme.textSecondary)
+                            .padding(.top, 8)
+                        } label: {
+                            Text("Data sent to \(kind.displayName)")
+                                .accessibilityIdentifier("scribe-provider-data-disclosure")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(FlowTheme.textPrimary)
                         }
-                        if kind == .deepSeek {
-                            Link(
-                                "DeepSeek Privacy Policy — reviewed 10 July 2026",
-                                destination: URL(string: "https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html")!
-                            )
+
+                        HStack(spacing: 8) {
+                            if setupPlacement == .management {
+                                setupButton
+                            }
+                            Spacer(minLength: 0)
+                            CadenceActionButton(title: "Remove", role: .destructive) {
+                                confirmsRemoval = true
+                            }
+                            .accessibilityIdentifier("scribe-provider-remove")
                         }
                     }
-                    .font(.caption)
-                    .foregroundStyle(FlowTheme.textSecondary)
-                    .padding(.top, 8)
+                    .padding(.top, 12)
                 } label: {
-                    Text("Data sent to \(kind.displayName)")
+                    Text("Manage")
+                        .accessibilityIdentifier("scribe-provider-manage")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(FlowTheme.textPrimary)
-                }
-                .padding(12)
-
-                insetDivider
-
-                HStack(spacing: 8) {
-                    Text("Provider connection")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(FlowTheme.textPrimary)
-                    Spacer()
-                    CadenceActionButton(
-                        title: "Remove",
-                        role: .destructive
-                    ) { confirmsRemoval = true }
                 }
                 .padding(12)
                 .confirmationDialog(
@@ -99,6 +107,21 @@ struct ScribeProviderManagementView: View {
             }
 
         }
+    }
+
+    private var setupButton: some View {
+        CadenceActionButton(
+            title: appModel.configuredScribeProviderKind == nil ? "Set up" : "Replace",
+            role: .secondary
+        ) { appModel.presentScribeProviderSetup() }
+        .accessibilityIdentifier("scribe-provider-setup")
+    }
+
+    private var setupPlacement: ScribeProviderSetupPlacement {
+        ScribeProviderSetupPlacement.resolve(
+            hasConfiguredProvider: appModel.configuredScribeProviderKind != nil,
+            readiness: appModel.scribeProviderReadiness
+        )
     }
 
     private var insetDivider: some View {

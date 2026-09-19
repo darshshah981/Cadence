@@ -4,6 +4,49 @@ import Testing
 
 @MainActor
 struct ScribeCoordinatorTests {
+    @Test(arguments: [0, 1, 2])
+    func emptyRecordingGivesBriefFeedbackThenReturnsToIdleWithoutGenerating(outcome: Int) async throws {
+        let provider = CapturingScribeProvider(resultText: "Should not generate")
+        let error: WhisperEngineError? = outcome == 1 ? .emptyAudio : outcome == 2 ? .noTranscript : nil
+        let fixture = ScribeCoordinatorFixture(provider: provider, engine: StubScribeTranscriptionEngine(text: "  ", failure: error), noSpeechFeedbackDuration: .zero)
+        var sawNoSpeech = false
+        fixture.coordinator.onStateChange = { state in
+            if case .failed(_, .emptyResult) = state { sawNoSpeech = true }
+        }
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+        #expect(sawNoSpeech)
+        #expect(fixture.coordinator.state == .idle)
+        #expect(fixture.coordinator.activeRequestID == nil)
+        #expect(fixture.coordinator.failure == nil)
+        #expect(await provider.requests.isEmpty)
+        try await fixture.coordinator.beginDirectDictation()
+        if case .listening = fixture.coordinator.state {} else { Issue.record("A new recording must work immediately") }
+        await fixture.coordinator.cancel()
+    }
+
+    @Test
+    func noSpeechExpiryCannotDismissANewerRecording() async throws {
+        let fixture = ScribeCoordinatorFixture(engine: StubScribeTranscriptionEngine(text: ""))
+        try await fixture.coordinator.beginDirectDictation()
+        let finishing = Task { await fixture.coordinator.finishRecording() }
+        while fixture.coordinator.failure != .transcriptionEmpty { await Task.yield() }
+        try await fixture.coordinator.beginDirectDictation()
+        let newID = fixture.coordinator.activeRequestID
+        await finishing.value
+        #expect(fixture.coordinator.activeRequestID == newID)
+        if case .listening = fixture.coordinator.state {} else { Issue.record("Old feedback dismissed the new recording") }
+        await fixture.coordinator.cancel()
+    }
+
+    @Test
+    func modelFailureRemainsRecoverableInsteadOfBeingDismissedAsSilence() async throws {
+        let fixture = ScribeCoordinatorFixture(engine: StubScribeTranscriptionEngine(text: "", failure: .contextInitializationFailed), noSpeechFeedbackDuration: .zero)
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+        #expect(fixture.coordinator.failure == .transcription)
+        if case .failed = fixture.coordinator.state {} else { Issue.record("Real model errors must remain available") }
+    }
     @Test
     func v2ControllerRevocationBetweenSnapshotAndDispatchMakesZeroTransportRequests() async throws {
         let library = U5LibraryStore()
@@ -756,7 +799,8 @@ private final class ScribeCoordinatorFixture {
         engine: (any TranscriptionEngine)? = nil,
         generationTimeout: Duration = .seconds(5),
         generationSoftWait: Duration = .seconds(8),
-        applicationTarget: ApplicationTargetCapture? = nil
+        applicationTarget: ApplicationTargetCapture? = nil,
+        noSpeechFeedbackDuration: Duration = .milliseconds(1500)
     ) {
         context = StubScribeContextService(
             selectedText: selectedText,
@@ -777,7 +821,8 @@ private final class ScribeCoordinatorFixture {
             writingEnvironmentPreferences: writingEnvironmentPreferences,
             providerDispatchAuthorization: providerDispatchAuthorization,
             generationTimeout: generationTimeout,
-            generationSoftWait: generationSoftWait
+            generationSoftWait: generationSoftWait,
+            noSpeechFeedbackDuration: noSpeechFeedbackDuration
         )
     }
 }
@@ -990,8 +1035,12 @@ private final class StubAudioCaptureService: AudioCaptureServing {
 
 private actor StubScribeTranscriptionEngine: TranscriptionEngine {
     let text: String
+    let failure: WhisperEngineError?
 
-    init(text: String) { self.text = text }
+    init(text: String, failure: WhisperEngineError? = nil) {
+        self.text = text
+        self.failure = failure
+    }
     func updateConfiguration(_ configuration: TranscriptionConfiguration) async throws {}
     func isPrepared() async -> Bool { true }
     func prepare() async throws {}
@@ -999,7 +1048,8 @@ private actor StubScribeTranscriptionEngine: TranscriptionEngine {
     func appendAudio(_ chunk: AudioChunk) async {}
     func previewTranscript() async -> PreviewTranscript? { nil }
     func finishSession(metrics: AudioCaptureSessionMetrics) async throws -> FinalTranscript {
-        FinalTranscript(rawText: text, cleanedText: text, duration: metrics.duration)
+        if let failure { throw failure }
+        return FinalTranscript(rawText: text, cleanedText: text, duration: metrics.duration)
     }
     func cancelSession() async {}
     func statusSummary() async -> String { "Ready" }

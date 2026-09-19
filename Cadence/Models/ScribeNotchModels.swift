@@ -71,7 +71,7 @@ struct ScribeNotchPresentation: Equatable, Sendable {
 
     var allowsReviewActions: Bool {
         switch content {
-        case .ready, .insertionRecovery, .failure:
+        case .replacing, .ready, .insertionRecovery, .failure:
             return true
         default:
             return false
@@ -148,8 +148,10 @@ enum ScribeNotchAutoDismissPolicy {
     static func delay(
         for presentation: ScribeNotchPresentation
     ) -> Duration? {
-        if case .failure = presentation.content {
-            return attentionDelay
+        if case let .failure(_, literalTranscript, recovery) = presentation.content {
+            let hasRetainedText = !(literalTranscript?
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            return hasRetainedText || recovery != .none ? nil : attentionDelay
         }
         return nil
     }

@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 final class AdaptiveScribeUITests: XCTestCase {
@@ -417,6 +418,48 @@ final class AdaptiveScribeUITests: XCTestCase {
     }
 
     @MainActor
+    func testHistoryCopyConfirmsWithoutOpeningComposeAndDetailAlsoConfirms() throws {
+        let pasteboard = NSPasteboard.general
+        let savedItems = (pasteboard.pasteboardItems ?? []).map { item in
+            item.types.compactMap { type in item.data(forType: type).map { (type, $0) } }
+        }
+        defer {
+            pasteboard.clearContents()
+            let items = savedItems.map { values in
+                let item = NSPasteboardItem()
+                for (type, data) in values { item.setData(data, forType: type) }
+                return item
+            }
+            if !items.isEmpty { pasteboard.writeObjects(items) }
+        }
+        let app = XCUIApplication()
+        app.launchArguments = ["--scribe-fixture", "history"]
+        app.launch()
+        let sidebar = app.buttons["sidebar-speech-to-text"]
+        XCTAssertTrue(sidebar.waitForExistence(timeout: 8))
+        sidebar.click()
+
+        let latestCopy = app.buttons["speech-latest-copy-button"]
+        XCTAssertTrue(latestCopy.waitForExistence(timeout: 3))
+        latestCopy.click()
+        XCTAssertEqual(latestCopy.label, "Copied")
+        XCTAssertFalse(app.descendants(matching: .any)["compose-history-detail"].exists)
+
+        let earlierID = "692A27CF-7AE0-4867-9CCA-7BF9790508CC"
+        let earlierCopy = app.buttons["speech-history-copy-" + earlierID]
+        XCTAssertTrue(earlierCopy.exists)
+        earlierCopy.click()
+        XCTAssertEqual(earlierCopy.label, "Copied")
+        XCTAssertFalse(app.descendants(matching: .any)["compose-history-detail"].exists)
+
+        app.buttons["speech-history-open-" + earlierID].click()
+        XCTAssertTrue(app.descendants(matching: .any)["compose-history-detail"].waitForExistence(timeout: 3))
+        let detailCopy = app.buttons["compose-history-copy-button"]
+        detailCopy.click()
+        XCTAssertEqual(detailCopy.label, "Copied")
+    }
+
+    @MainActor
     func testComposeHistoryOpensInsideMainWindowAndReturnsToList() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--scribe-fixture", "history"]
@@ -451,6 +494,67 @@ final class AdaptiveScribeUITests: XCTestCase {
     }
 
     @MainActor
+    func testNotchRetainsActionableFailureBeyondOldDismissDeadline() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--scribe-fixture", "literal-failure", "--scribe-notch-presentation"]
+        app.launch()
+        let copy = app.buttons["scribe-notch-copy-literal"]
+        XCTAssertTrue(copy.waitForExistence(timeout: 8))
+        let disappeared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: copy
+        )
+        disappeared.isInverted = true
+        wait(for: [disappeared], timeout: 6.5)
+        XCTAssertTrue(copy.exists)
+        XCTAssertTrue(app.buttons["scribe-notch-discard"].exists)
+    }
+
+    @MainActor
+    func testNotchCurrentResultExposesActions() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--scribe-fixture", "slackReview", "--scribe-notch-presentation"]
+        app.launch()
+        XCTAssertTrue(app.buttons["scribe-notch-copy"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["scribe-notch-insert"].isEnabled)
+        XCTAssertTrue(app.staticTexts["Update `parseID` after reviewing this synthetic fixture draft."].exists)
+    }
+
+    @MainActor
+    func testStyleDisclosureCancelAndSavePreserveExplicitCommitBoundary() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--scribe-fixture", "settings", "--scribe-fixture-profiles",
+                               "--scribe-fixture-width", "720"]
+        app.launch()
+        openSettings(in: app)
+        selectSettingsCategory("scribe", in: app)
+        let builtin = app.buttons["settings-edit-application-AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"]
+        scrollToExistence(builtin, in: app)
+        XCTAssertTrue(builtin.waitForExistence(timeout: 3))
+        builtin.click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Built-in instructions")).firstMatch.waitForExistence(timeout: 3))
+        app.buttons["Cancel"].click()
+
+        let custom = app.buttons["settings-edit-application-BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"]
+        scrollToExistence(custom, in: app)
+        custom.click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Customized instructions")).firstMatch.waitForExistence(timeout: 3))
+        let disclosure = app.descendants(matching: .any)["settings-customize-instructions"]
+        disclosure.click()
+        XCTAssertTrue(app.staticTexts["Keep fixture messages brief."].waitForExistence(timeout: 3))
+        app.buttons["Restore preset"].click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Built-in instructions")).firstMatch.exists)
+        app.buttons["Cancel"].click()
+
+        custom.click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Customized instructions")).firstMatch.waitForExistence(timeout: 3))
+        app.buttons["Restore preset"].click()
+        app.buttons["settings-save-application-prompt"].click()
+        custom.click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Built-in instructions")).firstMatch.waitForExistence(timeout: 3))
+        app.buttons["Cancel"].click()
+    }
+
+    @MainActor
     private func openSettings(in app: XCUIApplication) {
         app.activate()
         let settings = app.buttons["sidebar-settings"]
@@ -467,7 +571,7 @@ final class AdaptiveScribeUITests: XCTestCase {
 
     @MainActor
     func testSettingsRouterUsesExactBreakpointAndReachesEveryCategory() throws {
-        for width in [520, 559, 560, 720] {
+        for width in [420, 520, 559, 560, 720] {
             let app = XCUIApplication()
             app.launchArguments = ["--scribe-fixture", "settings", "--scribe-fixture-width", String(width)]
             app.launch()
@@ -495,6 +599,32 @@ final class AdaptiveScribeUITests: XCTestCase {
         openSettings(in: app)
         XCTAssertTrue(app.descendants(matching: .any)["settings-category-rail"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.descendants(matching: .any)["settings-category-selector"].exists)
+    }
+
+    @MainActor
+    func testComposeSettingsHasOneProviderSummaryAndProminentSetup() throws {
+        for width in [559, 560] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--scribe-fixture", "setup", "--scribe-fixture-width", String(width)]
+            app.launch()
+            openSettings(in: app)
+            selectSettingsCategory("scribe", in: app)
+
+            let status = app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Choose a provider")).firstMatch
+            scrollToExistence(status, in: app)
+            XCTAssertTrue(status.waitForExistence(timeout: 3))
+            XCTAssertEqual(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Choose a provider")).count, 1)
+            XCTAssertFalse(app.staticTexts["Setup needed"].exists)
+            XCTAssertFalse(app.staticTexts["Ready to draft"].exists)
+            let setup = app.buttons["scribe-provider-setup"]
+            XCTAssertTrue(setup.isHittable)
+            XCTAssertFalse(app.descendants(matching: .any)["scribe-provider-manage"].exists)
+
+            let addApplication = app.buttons["settings-add-application"]
+            scrollToExistence(addApplication, in: app)
+            XCTAssertTrue(addApplication.isHittable)
+            app.terminate()
+        }
     }
 
     @MainActor

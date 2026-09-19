@@ -232,6 +232,9 @@ struct MainWindowView: View {
                 openSettings()
             } onJoinCalendarEvent: { event in
                 appModel.joinCalendarEvent(event)
+            } onOpenCompose: { item in
+                selection = .speechToTextItem(item.id)
+                activeSidebarItem = .speechToText
             }
         case .meetings:
             StenoAllNotesContent(appModel: appModel) { note in
@@ -252,6 +255,7 @@ struct MainWindowView: View {
                item.isComposeResult {
                 ComposeHistoryDetailView(
                     item: item,
+                    isCopied: appModel.copiedTranscriptID == item.id,
                     onBack: { selection = .speechToText },
                     onCopy: { appModel.copyTranscript(item) }
                 )
@@ -494,6 +498,7 @@ private struct StenoHomeContent: View {
     let onOpenNote: (MeetingNote) -> Void
     let onOpenSettings: () -> Void
     let onJoinCalendarEvent: (GoogleCalendarEvent) -> Void
+    let onOpenCompose: (TranscriptHistoryItem) -> Void
 
     var body: some View {
         ScrollView {
@@ -665,9 +670,13 @@ private struct StenoHomeContent: View {
                     Array(appModel.transcriptHistory.prefix(6).enumerated()),
                     id: \.element.id
                 ) { index, item in
-                    StenoTranscriptHistoryRow(item: item, showsTopSeparator: index > 0) {
-                        appModel.copyTranscript(item)
-                    }
+                    StenoTranscriptHistoryRow(
+                        item: item,
+                        showsTopSeparator: index > 0,
+                        isCopied: appModel.copiedTranscriptID == item.id,
+                        onOpen: { onOpenCompose(item) },
+                        onCopy: { appModel.copyTranscript(item) }
+                    )
                 }
             }
         }
@@ -933,6 +942,7 @@ private struct StenoSpeechHistoryContent: View {
                 if let latest = visibleTranscripts.first {
                     StenoLatestTranscriptCard(
                         item: latest,
+                        isCopied: appModel.copiedTranscriptID == latest.id,
                         onOpen: { onOpenCompose(latest) },
                         onCopy: { appModel.copyTranscript(latest) }
                     )
@@ -950,14 +960,10 @@ private struct StenoSpeechHistoryContent: View {
                             StenoTranscriptHistoryRow(
                                 item: item,
                                 showsTopSeparator: index > 0,
-                                opensDetails: item.isComposeResult
-                            ) {
-                                if item.isComposeResult {
-                                    onOpenCompose(item)
-                                } else {
-                                    appModel.copyTranscript(item)
-                                }
-                            }
+                                isCopied: appModel.copiedTranscriptID == item.id,
+                                onOpen: { onOpenCompose(item) },
+                                onCopy: { appModel.copyTranscript(item) }
+                            )
                         }
                     }
                 }
@@ -1248,63 +1254,89 @@ private struct MeetingProviderIcon: View {
 private struct StenoTranscriptHistoryRow: View {
     let item: TranscriptHistoryItem
     var showsTopSeparator = true
-    var opensDetails = false
-    let action: () -> Void
+    let isCopied: Bool
+    let onOpen: () -> Void
+    let onCopy: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(alignment: .firstTextBaseline, spacing: 18) {
-                Text(item.createdAt.formatted(.dateTime.hour().minute()))
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(FlowTheme.textSecondary)
-                    .monospacedDigit()
-                    .frame(width: 64, alignment: .leading)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    if item.isComposeResult {
-                        CadenceComposeLabel()
+        Group {
+            if item.isComposeResult {
+                HStack(spacing: 12) {
+                    Button(action: onOpen) {
+                        rowContent
                     }
+                    .accessibilityLabel("Open Compose entry from \(timeLabel)")
+                    .accessibilityValue(item.text)
+                    .accessibilityIdentifier("speech-history-open-\(item.id.uuidString)")
 
-                    Text(item.text)
-                        .font(.system(size: 13.5, weight: .medium))
-                        .foregroundStyle(FlowTheme.textPrimary)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(action: onCopy) { copyLabel }
+                        .accessibilityLabel(isCopied ? "Copied" : "Copy composed text")
+                        .accessibilityIdentifier("speech-history-copy-\(item.id.uuidString)")
                 }
-
-                Spacer()
-
-                Image(systemName: opensDetails ? "chevron.right" : "doc.on.doc")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(FlowTheme.textSecondary)
-                    .frame(width: 28, height: 28)
-                    .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
-            .background(Color.clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay(alignment: .top) {
-                if showsTopSeparator {
-                    Rectangle()
-                        .fill(FlowTheme.border.opacity(0.48))
-                        .frame(height: 1)
+            } else {
+                Button(action: onCopy) {
+                    HStack(spacing: 12) {
+                        rowContent
+                        copyLabel
+                    }
+                    .contentShape(Rectangle())
                 }
+                .accessibilityLabel(isCopied ? "Copied" : "Copy transcript from \(timeLabel)")
+                .accessibilityValue(item.text)
+                .accessibilityIdentifier("speech-history-row-\(item.id.uuidString)")
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(
-            opensDetails
-                ? "Open Compose entry from \(item.createdAt.formatted(.dateTime.hour().minute()))"
-                : "Copy transcript from \(item.createdAt.formatted(.dateTime.hour().minute()))"
-        )
-        .accessibilityValue(item.text)
-        .accessibilityIdentifier("speech-history-row-\(item.id.uuidString)")
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .overlay(alignment: .top) {
+            if showsTopSeparator {
+                Rectangle()
+                    .fill(FlowTheme.border.opacity(0.48))
+                    .frame(height: 1)
+            }
+        }
+    }
+
+    private var timeLabel: String { item.createdAt.formatted(.dateTime.hour().minute()) }
+
+    private var rowContent: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 18) {
+            Text(timeLabel)
+                .font(.system(size: 12.5))
+                .foregroundStyle(FlowTheme.textSecondary)
+                .monospacedDigit()
+                .frame(width: 64, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 5) {
+                if item.isComposeResult { CadenceComposeLabel() }
+                Text(item.text)
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if item.isComposeResult {
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(FlowTheme.textSecondary)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var copyLabel: some View {
+        Label(isCopied ? "Copied" : "Copy", systemImage: isCopied ? "checkmark" : "doc.on.doc")
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(FlowTheme.textSecondary)
+            .fixedSize()
+            .padding(7)
+            .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
 private struct StenoLatestTranscriptCard: View {
     let item: TranscriptHistoryItem
+    let isCopied: Bool
     let onOpen: () -> Void
     let onCopy: () -> Void
 
@@ -1321,12 +1353,12 @@ private struct StenoLatestTranscriptCard: View {
                 }
                 Spacer()
                 CadenceActionButton(
-                    title: "Copy",
+                    title: isCopied ? "Copied" : "Copy",
                     role: .quiet,
                     accessibilityIdentifier: "speech-latest-copy-button",
                     action: onCopy
                 )
-                .accessibilityLabel("Copy latest transcript")
+                .accessibilityLabel(isCopied ? "Copied" : "Copy latest transcript")
             }
 
             if item.isComposeResult {
@@ -1367,6 +1399,7 @@ private struct StenoLatestTranscriptCard: View {
 
 private struct ComposeHistoryDetailView: View {
     let item: TranscriptHistoryItem
+    let isCopied: Bool
     let onBack: () -> Void
     let onCopy: () -> Void
 
@@ -1400,8 +1433,9 @@ private struct ComposeHistoryDetailView: View {
                     Spacer()
 
                     CadenceActionButton(
-                        title: "Copy composed text",
+                        title: isCopied ? "Copied" : "Copy composed text",
                         role: .secondary,
+                        accessibilityIdentifier: "compose-history-copy-button",
                         action: onCopy
                     )
                 }
@@ -1769,12 +1803,14 @@ private struct DictationPanel: View {
                     MetricRow(title: "Quality", value: appModel.dictationQualityPreset.displayName)
                 }
 
+                if !appModel.permissions.allRequiredGranted {
+                    PermissionSetupCard(appModel: appModel)
+                }
+
                 HStack(spacing: 10) {
-                    CadenceActionButton(title: appModel.permissions.allRequiredGranted ? "Check" : "Review", role: .secondary) {
-                        if appModel.permissions.allRequiredGranted {
+                    if appModel.permissions.allRequiredGranted {
+                        CadenceActionButton(title: "Check", role: .secondary) {
                             appModel.runSetupCheck()
-                        } else {
-                            appModel.openPermissionsWizard()
                         }
                     }
 
