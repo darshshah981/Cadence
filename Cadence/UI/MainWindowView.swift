@@ -144,7 +144,7 @@ struct MainWindowView: View {
                     .padding(.top, 10)
                     .padding(.trailing, 22)
                     .frame(height: StenoLayout.toolbarHeight, alignment: .topTrailing)
-                    .background(FlowTheme.background.opacity(0.98))
+                    .background(FlowTheme.background)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -469,6 +469,12 @@ private struct StenoTopToolbar: View {
             .accessibilityLabel(isRecording ? "Recording" : "New note")
             .accessibilityIdentifier("toolbar-new-note")
         }
+        .padding(6)
+        .background(FlowTheme.elevated, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(FlowTheme.border.opacity(0.9), lineWidth: 1)
+        )
     }
 
     private func toolbarIconLabel(_ systemImage: String) -> some View {
@@ -491,22 +497,24 @@ private struct StenoHomeContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                Text(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                    .font(.system(size: 26, weight: .regular, design: .serif))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                    .padding(.bottom, 18)
+
                 HStack(alignment: .firstTextBaseline) {
-                    Text(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                        .font(.system(size: 13))
+                    Text("Upcoming")
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(FlowTheme.textSecondary)
 
                     Spacer()
 
                     calendarStatusControl
                 }
-                .padding(.bottom, 20)
-
-                StenoSectionHeader(title: "Upcoming", count: upcomingEventCount)
-                    .padding(.bottom, 14)
+                .padding(.bottom, 10)
 
                 upcomingContent
-                    .padding(.bottom, 46)
+                    .padding(.bottom, 28)
 
                 StenoSectionHeader(title: "Recent notes", count: appModel.meetingNotes.count)
                     .padding(.bottom, 8)
@@ -528,26 +536,23 @@ private struct StenoHomeContent: View {
             Button {
                 appModel.refreshUpcomingCalendarMeetingsFromUI()
             } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: appModel.isRefreshingCalendar ? "hourglass" : "arrow.clockwise")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text(appModel.isRefreshingCalendar ? "Refreshing" : "Refresh")
-                        .font(.system(size: 12, weight: .medium))
-                }
+                Image(systemName: appModel.isRefreshingCalendar ? "hourglass" : "arrow.clockwise")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 26, height: 26)
                 .foregroundStyle(FlowTheme.textSecondary)
-                .frame(height: 26)
-                .padding(.horizontal, 9)
                 .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(appModel.isRefreshingCalendar)
+            .help(appModel.isRefreshingCalendar ? "Refreshing calendar" : "Refresh calendar")
             .accessibilityLabel("Refresh calendar")
+            .accessibilityValue(appModel.isRefreshingCalendar ? "Refreshing" : "")
             .accessibilityIdentifier("home-calendar-refresh-button")
         }
     }
 
-    private var upcomingEventCount: Int {
-        CalendarEventDashboard.groups(events: appModel.upcomingCalendarMeetings).reduce(0) { $0 + $1.events.count }
+    private var homeCalendarProjection: CalendarHomeProjection {
+        CalendarEventDashboard.homeProjection(events: appModel.upcomingCalendarMeetings)
     }
 
     @ViewBuilder
@@ -561,29 +566,29 @@ private struct StenoHomeContent: View {
         } else if appModel.isRefreshingCalendar && appModel.upcomingCalendarMeetings.isEmpty {
             StenoEmptyLine(text: "Loading calendar...")
         } else {
-            let groups = CalendarEventDashboard.groups(events: appModel.upcomingCalendarMeetings)
-            if groups.isEmpty {
-                StenoEmptyLine(text: "No meetings today or tomorrow")
-            } else {
-                VStack(alignment: .leading, spacing: 22) {
-                    ForEach(groups) { group in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(group.title)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(FlowTheme.textSecondary)
+            let projection = homeCalendarProjection
+            if let event = projection.featuredEvent {
+                VStack(alignment: .leading, spacing: 6) {
+                    StenoUpcomingCard(
+                        event: event,
+                        onOpenCalendarEvent: onOpenCalendarEvent,
+                        onStartCalendarEvent: onStartCalendarEvent
+                    )
 
-                            ForEach(group.events) { event in
-                                StenoUpcomingCard(
-                                    event: event,
-                                    onOpenCalendarEvent: onOpenCalendarEvent,
-                                    onStartCalendarEvent: onStartCalendarEvent
-                                )
-                            }
-                        }
+                    if projection.remainingTodayCount > 0 {
+                        Text(remainingTodayText(for: projection.remainingTodayCount))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(FlowTheme.textSecondary)
                     }
                 }
+            } else {
+                StenoEmptyLine(text: "No more meetings today")
             }
         }
+    }
+
+    private func remainingTodayText(for count: Int) -> String {
+        "\(count) more meeting\(count == 1 ? "" : "s") today"
     }
 
     private var previousRows: some View {
@@ -966,7 +971,7 @@ private struct StenoCalendarSignInCard: View {
         if !state.isConfigured {
             return state.errorMessage ?? "Google Sign-In is not configured in this build."
         }
-        return state.errorMessage ?? "Use your Google account to show meetings today and tomorrow."
+        return state.errorMessage ?? "Use your Google account to show today's meetings."
     }
 
     private var primaryTitle: String {

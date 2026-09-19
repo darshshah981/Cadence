@@ -75,6 +75,11 @@ struct CalendarEventDayGroup: Identifiable, Equatable, Sendable {
     var title: String { day.rawValue }
 }
 
+struct CalendarHomeProjection: Equatable, Sendable {
+    var featuredEvent: GoogleCalendarEvent?
+    var remainingTodayCount: Int
+}
+
 enum CalendarEventDashboard {
     static func groups(
         events: [GoogleCalendarEvent],
@@ -99,6 +104,39 @@ enum CalendarEventDashboard {
             CalendarEventDayGroup(day: .tomorrow, events: tomorrow)
         ]
         .filter { !$0.events.isEmpty }
+    }
+
+    static func homeProjection(
+        events: [GoogleCalendarEvent],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> CalendarHomeProjection {
+        let startOfToday = calendar.startOfDay(for: now)
+        guard let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday) else {
+            return CalendarHomeProjection(featuredEvent: nil, remainingTodayCount: 0)
+        }
+
+        let eligibleEvents = events
+            .filter { $0.endDate > now && $0.startDate < startOfTomorrow }
+            .sorted { lhs, rhs in
+                let lhsIsOngoing = lhs.startDate <= now
+                let rhsIsOngoing = rhs.startDate <= now
+                if lhsIsOngoing != rhsIsOngoing {
+                    return lhsIsOngoing
+                }
+                if lhs.startDate != rhs.startDate {
+                    return lhs.startDate < rhs.startDate
+                }
+                if lhs.endDate != rhs.endDate {
+                    return lhs.endDate < rhs.endDate
+                }
+                return lhs.id < rhs.id
+            }
+
+        return CalendarHomeProjection(
+            featuredEvent: eligibleEvents.first,
+            remainingTodayCount: max(eligibleEvents.count - 1, 0)
+        )
     }
 
     static func endOfTomorrow(now: Date = Date(), calendar: Calendar = .current) -> Date {

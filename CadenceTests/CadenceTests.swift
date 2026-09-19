@@ -2402,6 +2402,89 @@ struct CadenceTests {
         #expect(groups.flatMap(\.events).map(\.id) == ["ongoing", "today", "tomorrow"])
     }
 
+    private func utcGregorianCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private func calendarDate(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value)!
+    }
+
+    private func calendarEvent(id: String, start: String, end: String) -> GoogleCalendarEvent {
+        GoogleCalendarEvent(
+            id: id,
+            title: id,
+            startDate: calendarDate(start),
+            endDate: calendarDate(end),
+            meetingURL: nil,
+            calendarURL: nil,
+            attendeeEmails: []
+        )
+    }
+
+    @Test
+    func calendarHomeProjectionPrefersOngoingEventAndExcludesTomorrow() {
+        let calendar = utcGregorianCalendar()
+        let now = calendarDate("2026-07-03T10:00:00Z")
+        let ongoing = calendarEvent(id: "ongoing", start: "2026-07-03T09:30:00Z", end: "2026-07-03T10:30:00Z")
+        let laterFirst = calendarEvent(id: "later-first", start: "2026-07-03T11:00:00Z", end: "2026-07-03T11:30:00Z")
+        let laterSecond = calendarEvent(id: "later-second", start: "2026-07-03T15:00:00Z", end: "2026-07-03T15:30:00Z")
+        let tomorrow = calendarEvent(id: "tomorrow", start: "2026-07-04T09:00:00Z", end: "2026-07-04T09:30:00Z")
+
+        let projection = CalendarEventDashboard.homeProjection(
+            events: [tomorrow, laterSecond, ongoing, laterFirst],
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(projection.featuredEvent == ongoing)
+        #expect(projection.remainingTodayCount == 2)
+    }
+
+    @Test
+    func calendarHomeProjectionReturnsOnlyFutureTodayEvent() {
+        let calendar = utcGregorianCalendar()
+        let now = calendarDate("2026-07-03T10:00:00Z")
+        let future = calendarEvent(id: "future", start: "2026-07-03T12:00:00Z", end: "2026-07-03T12:30:00Z")
+
+        let projection = CalendarEventDashboard.homeProjection(events: [future], now: now, calendar: calendar)
+
+        #expect(projection.featuredEvent == future)
+        #expect(projection.remainingTodayCount == 0)
+    }
+
+    @Test
+    func calendarHomeProjectionExcludesEndedAndTomorrowEvents() {
+        let calendar = utcGregorianCalendar()
+        let now = calendarDate("2026-07-03T10:00:00Z")
+        let ended = calendarEvent(id: "ended", start: "2026-07-03T08:00:00Z", end: "2026-07-03T09:00:00Z")
+        let tomorrow = calendarEvent(id: "tomorrow", start: "2026-07-04T09:00:00Z", end: "2026-07-04T09:30:00Z")
+
+        let projection = CalendarEventDashboard.homeProjection(events: [ended, tomorrow], now: now, calendar: calendar)
+
+        #expect(projection == CalendarHomeProjection(featuredEvent: nil, remainingTodayCount: 0))
+    }
+
+    @Test
+    func calendarHomeProjectionSortsUnsortedFutureEventsDeterministically() {
+        let calendar = utcGregorianCalendar()
+        let now = calendarDate("2026-07-03T10:00:00Z")
+        let earliest = calendarEvent(id: "earliest", start: "2026-07-03T11:00:00Z", end: "2026-07-03T11:30:00Z")
+        let sameTimeLaterID = calendarEvent(id: "zeta", start: "2026-07-03T12:00:00Z", end: "2026-07-03T12:30:00Z")
+        let sameTimeEarlierID = calendarEvent(id: "alpha", start: "2026-07-03T12:00:00Z", end: "2026-07-03T12:30:00Z")
+
+        let projection = CalendarEventDashboard.homeProjection(
+            events: [sameTimeLaterID, earliest, sameTimeEarlierID],
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(projection.featuredEvent == earliest)
+        #expect(projection.remainingTodayCount == 2)
+    }
+
     @Test
     func calendarMeetingNoteTitlePrefixesEventDate() {
         var calendar = Calendar(identifier: .gregorian)
