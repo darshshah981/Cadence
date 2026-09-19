@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tile" x1="142" y1="104" x2="882" y2="932" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFDF9"/>
+      <stop offset="1" stop-color="#F7ECE2"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="202" y1="508" x2="780" y2="510" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF775F"/>
+      <stop offset="1" stop-color="#FF503E"/>
+    </linearGradient>
+    <filter id="softShadow" x="-12%" y="-16%" width="124%" height="132%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#D05A47" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+  <rect x="80" y="80" width="864" height="864" rx="196" fill="url(#tile)"/>
+  <rect x="91" y="91" width="842" height="842" rx="184" fill="none" stroke="#FFFFFF" stroke-opacity="0.64" stroke-width="18"/>
+  <path
+    d="M206 579C294 613 333 565 365 468C393 383 431 326 499 326C578 326 608 407 634 502C658 589 682 644 743 644C787 644 819 613 845 560"
+    fill="none"
+    stroke="url(#stroke)"
+    stroke-width="74"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    filter="url(#softShadow)"
+  />
+  <circle cx="822" cy="500" r="38" fill="#69BFAE"/>
+  <circle cx="822" cy="500" r="24" fill="#16A39A"/>
+</svg>

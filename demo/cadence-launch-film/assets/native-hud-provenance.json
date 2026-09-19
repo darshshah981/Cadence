@@ -1,0 +1,26 @@
+{
+  "sources": [
+    {
+      "path": "Cadence/Models/DictationModels.swift",
+      "sha256": "6dbaa117c5178f92e99002417d82358a225412b4bc73a0bafa7a31290546755e"
+    },
+    {
+      "path": "Cadence/Services/HUDWindowController.swift",
+      "sha256": "184e22ce042439a93f034025175481375cbd4c02b069d0277000aab763b6ba81"
+    },
+    {
+      "path": "Cadence/UI/CadenceDesignSystem.swift",
+      "sha256": "da507fae75d1771c3640bb59018324cab496d4395bdfb9a0a8f8460dda6c1f79"
+    },
+    {
+      "path": "Cadence/Services/ApplicationIconResolver.swift",
+      "sha256": "83627bc5f27217b834eb633d8a1bde099e8a7874ac5553f931b0fd7d266c6c5d"
+    },
+    {
+      "path": "Cadence/UI/HUDView.swift",
+      "sha256": "378842cc4ad0b74f2f11711a66c11c2ee8776d599d7438ec7e4ea0a67150c028"
+    }
+  ],
+  "clock": "Deterministic 60 fps; spinner 0.9 s; Compose border 2.4 s",
+  "omitted": "Unused expanded tray and IO only"
+}
