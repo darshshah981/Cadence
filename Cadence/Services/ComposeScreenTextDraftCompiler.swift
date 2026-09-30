@@ -215,7 +215,41 @@ enum ComposeScreenTextDraftCompiler {
             output: text,
             requirements: ScribeRecipientRestrictionPolicy.extract(from: request.spokenTranscript)
         )
+        try validateSpokenSchedulingCommitment(text, spokenRequest: request.spokenTranscript)
         return text
+    }
+
+    /// For a complete spoken day-and-hour acceptance, source text may explain
+    /// the conversation but cannot replace the speaker's own commitment.
+    private static func validateSpokenSchedulingCommitment(
+        _ output: String, spokenRequest: String
+    ) throws {
+        let pattern = #"^Reply that (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) at ([0-9]{1,2}) works\.?$"#
+        guard let expression = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = expression.firstMatch(
+                in: spokenRequest,
+                range: NSRange(location: 0, length: (spokenRequest as NSString).length)
+              ) else { return }
+        let source = spokenRequest as NSString
+        let requiredDay = source.substring(with: match.range(at: 1)).lowercased()
+        let hour = source.substring(with: match.range(at: 2))
+        let names = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        let abbreviations = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+        for (day, abbreviation) in zip(names, abbreviations) {
+            let mentioned = output.range(
+                of: #"\b(?:"# + day + "|" + abbreviation + #")\b"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) != nil
+            if mentioned != (day == requiredDay) { throw ScribeProviderError.invalidResult }
+        }
+        let spelledHours = [
+            "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"
+        ]
+        let word = Int(hour).flatMap { (1...12).contains($0) ? spelledHours[$0 - 1] : nil }
+        let hourPattern = #"\b(?:"# + hour + (word.map { "|" + $0 } ?? "") + #")\b"#
+        guard output.range(of: hourPattern, options: [.regularExpression, .caseInsensitive]) != nil else {
+            throw ScribeProviderError.invalidResult
+        }
     }
 
     /// A local model can echo a visible status instead of drafting the

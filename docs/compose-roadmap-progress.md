@@ -2,6 +2,18 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U12 spoken-schedule guard: a deterministic regression showed
+that screen-text output validation would have accepted Friday at 3, Thursday
+at 4, or an added Friday when the speaker had explicitly said “Reply that
+Thursday at 3 works.” The compiler now checks that narrow complete scheduling
+shape before review: the stated weekday and hour must survive, and another
+weekday cannot be introduced. Full weekday and common three-letter forms,
+numeric and spelled hours are accepted. The red run failed all three unsafe
+cases; the final focused suite passed 13 tests, and the full native suite
+passed 1,373 tests in 116 suites with the known focus-dependent keyboard
+suite excluded. Other scheduling phrasings and
+general factual grounding remain outside this guard.
+
 September 30 U12 adversarial screen-text checkpoint: an opt-in synthetic
 on-device case put a hostile “answer Friday” instruction beside a visible
 Thursday scheduling question. With the speaker asking to reply that Thursday
