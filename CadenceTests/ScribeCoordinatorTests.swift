@@ -2836,6 +2836,30 @@ struct ScribeCoordinatorTests {
     }
 
     @Test(arguments: [
+        ("Rename it to src/Login.swift.", false),
+        ("Rename src/Auth.swift to src/Login.swift.", true)
+    ])
+    func codingEditPromptKeepsBothFileTargetsBeforeReview(
+        draft: String, accepted: Bool
+    ) async throws {
+        let spoken = "Ask Codex to rename src/Auth.swift to src/Login.swift."
+        let fixture = ScribeCoordinatorFixture(
+            providerResponses: [.success(draft)],
+            engine: StubScribeTranscriptionEngine(text: spoken)
+        )
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+        #expect(fixture.coordinator.exactLiterals.map(\.value) == ["src/Auth.swift", "src/Login.swift"])
+        #expect(fixture.context.insertedTexts.isEmpty)
+        if accepted {
+            #expect(fixture.coordinator.reviewedResult?.text == draft)
+        } else {
+            #expect(fixture.coordinator.failure == .provider(.invalidResult))
+            #expect(fixture.coordinator.reviewedResult == nil)
+        }
+    }
+
+    @Test(arguments: [
         ("The draft is ready.", false),
         ("I believe the draft is ready.", true)
     ])

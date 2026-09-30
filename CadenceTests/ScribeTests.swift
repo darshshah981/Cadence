@@ -31,14 +31,59 @@ struct ScribeTests {
     }
 
     @Test
-    func ordinaryAndNonInspectionRequestsDoNotGainCodingLiterals() {
+    func ordinaryRequestsDoNotGainCodingLiterals() {
         for spoken in [
             "Tell Maya to review src/Auth.swift with --no-cache.",
-            "Ask Codex to fix src/Auth.swift with --no-cache.",
             "Please review src/Auth.swift with --no-cache."
         ] {
             #expect(ScribeRequestPolicy.directCodingLiterals(in: spoken, existing: []).isEmpty)
         }
+    }
+
+    @Test
+    func codingEditPromptsKeepExactOldAndNewTargets() throws {
+        for (spoken, changed) in [
+            (
+                "Ask Codex to fix src/Auth.swift using --no-cache.",
+                "Fix src/Auth.swift.bak using --no-cache."
+            ),
+            (
+                "Ask Codex to rename src/Auth.swift to src/Login.swift.",
+                "Rename it to src/Login.swift."
+            ),
+            (
+                "Ask the agent to remove src/Old.swift with --dry-run.",
+                "Remove src/Old.swift with --dry-run-old."
+            )
+        ] {
+            let literals = ScribeRequestPolicy.directCodingLiterals(in: spoken, existing: [])
+            #expect(literals.contains { $0.value == "src/Auth.swift" || $0.value == "src/Old.swift" })
+            #expect(throws: ScribeProviderError.invalidResult) {
+                try ScribeRequestPolicy.validateOutput(
+                    changed, requiredLiterals: literals, spokenRequest: spoken
+                )
+            }
+        }
+        let spoken = "Ask Codex to rename src/Auth.swift to src/Login.swift."
+        let literals = ScribeRequestPolicy.directCodingLiterals(in: spoken, existing: [])
+        #expect(literals.map(\.value) == ["src/Auth.swift", "src/Login.swift"])
+        let input = try ScribeRequestPolicy.providerSafeInput(
+            for: .directDictation(processedDictation: spoken, exactLiterals: literals),
+            destination: .legacyLocal
+        )
+        #expect(input.userMessage.contains("Exact literals"))
+        #expect(input.userMessage.contains("src/Auth.swift"))
+        #expect(input.userMessage.contains("src/Login.swift"))
+        #expect(try ScribeRequestPolicy.validateOutput(
+            "Rename src/Auth.swift to src/Login.swift.", requiredLiterals: literals, spokenRequest: spoken
+        ) == "Rename src/Auth.swift to src/Login.swift.")
+
+        let nonCodingEdit = "Please remove literal src/Auth.swift from this note."
+        #expect(try ScribeRequestPolicy.validateOutput(
+            "The note is ready.",
+            requiredLiterals: [.init(id: 1, value: "src/Auth.swift", source: .alreadyExact)],
+            spokenRequest: nonCodingEdit
+        ) == "The note is ready.")
     }
 
     @Test

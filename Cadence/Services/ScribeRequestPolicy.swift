@@ -4,33 +4,28 @@ enum ScribeRequestPolicy {
     private static let missingContextBoundary =
         "You have only this request: no screen, selected text, conversation history, or previous draft."
 
-    private static let readOnlyCodingRequest = try! NSRegularExpression(
-        pattern: #"^\s*(?:please\s+)?ask\s+(?:Codex|Claude|(?:the\s+)?coding\s+agent)\s+to\s+(?:inspect|investigate|review|check|locate|find)\b"#,
+    private static let explicitCodingRequest = try! NSRegularExpression(
+        pattern: #"^\s*(?:please\s+)?ask\s+(?:Codex|Claude|(?:the\s+)?(?:coding\s+)?(?:agent|assistant))\s+to\b"#,
         options: .caseInsensitive
     )
     private static let writtenCommandFlag = try! NSRegularExpression(
-        pattern: #"(?<![\p{L}\p{M}\p{N}_-])--[A-Za-z0-9][A-Za-z0-9_-]*(?![A-Za-z0-9_-])"#
+        pattern: #"(?<![\p{L}\p{M}\p{N}_-])--[A-Za-z0-9][A-Za-z0-9_-]*(?![A-Za-z0-9_=-])"#
     )
 
-    /// A read-only coding prompt cannot be useful if the model changes its
-    /// written target or flag. This is deliberately separate from the spoken
-    /// literal grammar: it protects bytes already present in the transcript.
+    /// A coding prompt cannot identify its task if the model changes a written
+    /// file target or flag. This is separate from the spoken literal grammar:
+    /// it protects bytes already present in the transcript, including edit tasks.
     static func directCodingLiterals(
         in spokenRequest: String,
         existing: [ScribeExactLiteral]
     ) -> [ScribeExactLiteral] {
-        guard readOnlyCodingRequest.firstMatch(
+        guard explicitCodingRequest.firstMatch(
             in: spokenRequest,
             range: NSRange(spokenRequest.startIndex..., in: spokenRequest)
         ) != nil else { return existing }
 
         let paths = ScribeWrittenRelativeFilePolicy.values(in: spokenRequest)
-        let flags = writtenCommandFlag.matches(
-            in: spokenRequest,
-            range: NSRange(spokenRequest.startIndex..., in: spokenRequest)
-        ).compactMap { match in
-            Range(match.range, in: spokenRequest).map { String(spokenRequest[$0]) }
-        }
+        let flags = writtenFlags(in: spokenRequest)
         var result = existing
         var nextID = (existing.map(\.id).max() ?? 0) + 1
         for value in paths + flags where !result.contains(where: { Data($0.value.utf8) == Data(value.utf8) }) {
@@ -38,6 +33,16 @@ enum ScribeRequestPolicy {
             nextID += 1
         }
         return result
+    }
+
+    private static func isExplicitCodingRequest(_ speech: String) -> Bool {
+        explicitCodingRequest.firstMatch(in: speech, range: NSRange(speech.startIndex..., in: speech)) != nil
+    }
+
+    private static func writtenFlags(in text: String) -> [String] {
+        writtenCommandFlag.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
+            Range(match.range, in: text).map { String(text[$0]) }
+        }
     }
 
     static let systemMessage = """
@@ -352,14 +357,20 @@ enum ScribeRequestPolicy {
         }
         let outputBytes = Data(normalized.utf8)
         let writtenOutputPaths = ScribeWrittenRelativeFilePolicy.values(in: normalized).map { Data($0.utf8) }
+        let writtenOutputFlags = writtenFlags(in: normalized).map { Data($0.utf8) }
         guard requiredLiterals.allSatisfy({ literal in
             let literalBytes = Data(literal.value.utf8)
             let isRelativeFilePath = ScribeWrittenRelativeFilePolicy.values(in: literal.value)
                 .contains { Data($0.utf8) == literalBytes }
-            return (isRelativeFilePath ? writtenOutputPaths.contains(literalBytes) : outputBytes.range(of: literalBytes) != nil)
-                || explicitlyAuthorizesMutation(
+            let isCommandFlag = writtenFlags(in: literal.value)
+                .contains { Data($0.utf8) == literalBytes }
+            let present = isRelativeFilePath ? writtenOutputPaths.contains(literalBytes)
+                : isCommandFlag ? writtenOutputFlags.contains(literalBytes)
+                : outputBytes.range(of: literalBytes) != nil
+            let codingTarget = isExplicitCodingRequest(spokenRequest) && (isRelativeFilePath || isCommandFlag)
+            return present || (!codingTarget && explicitlyAuthorizesMutation(
                     of: literal.value, in: literalMutationAuthorization ?? spokenRequest
-                )
+                ))
         }) else {
             throw ScribeProviderError.invalidResult
         }
@@ -642,7 +653,10 @@ enum ScribeRequestPolicy {
     ) throws {
         let parsed = ScribeWritingDirectionParser.parse(spokenRequest, protectedValues: protectedValues)
         if let recipient = parsed.request.recipientFrame?.recipient,
-           case .named(let name) = recipient {
+           case .named(let name) = recipient,
+           !(isExplicitCodingRequest(spokenRequest) && ["Codex", "Claude"].contains(where: {
+               $0.caseInsensitiveCompare(name) == .orderedSame
+           })) {
             let pattern = #"(?<![\p{L}\p{N}_])"# + NSRegularExpression.escapedPattern(for: name)
                 + #"(?![\p{L}\p{N}_])"#
             guard output.range(of: pattern, options: .regularExpression) != nil else {
