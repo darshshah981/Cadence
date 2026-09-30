@@ -677,6 +677,9 @@ final class ScribeCoordinator {
                 expandedTranscript,
                 protectedValues: normalized.exactLiterals.map(\.value)
             )
+            let requestLiterals = ScribeRequestPolicy.directCodingLiterals(
+                in: expandedTranscript, existing: normalized.exactLiterals
+            )
             if !writing.unresolvedReferences.isEmpty {
                 let selection: ComposeContextSnapshot?
                 if ComposeSelectedTextRewritePolicy.canUseSelection(for: writing),
@@ -709,6 +712,7 @@ final class ScribeCoordinator {
                     retryDisposition: .reconnect
                 )
             }
+            exactLiterals = requestLiterals
             let request = ScribeRequest(
                 id: requestID,
                 intent: .compose,
@@ -717,7 +721,7 @@ final class ScribeCoordinator {
                 style: nil,
                 resolvedEnvironment: environment,
                 resolvedGuidance: resolvedGuidance,
-                exactLiterals: normalized.exactLiterals,
+                exactLiterals: requestLiterals,
                 writingDefaults: activeWritingDefaults
             )
             activeRequest = request

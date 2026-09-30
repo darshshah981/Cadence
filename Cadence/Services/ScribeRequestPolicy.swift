@@ -4,6 +4,42 @@ enum ScribeRequestPolicy {
     private static let missingContextBoundary =
         "You have only this request: no screen, selected text, conversation history, or previous draft."
 
+    private static let readOnlyCodingRequest = try! NSRegularExpression(
+        pattern: #"^\s*(?:please\s+)?ask\s+(?:Codex|Claude|(?:the\s+)?coding\s+agent)\s+to\s+(?:inspect|investigate|review|check|locate|find)\b"#,
+        options: .caseInsensitive
+    )
+    private static let writtenCommandFlag = try! NSRegularExpression(
+        pattern: #"(?<![\p{L}\p{M}\p{N}_-])--[A-Za-z0-9][A-Za-z0-9_-]*(?![A-Za-z0-9_-])"#
+    )
+
+    /// A read-only coding prompt cannot be useful if the model changes its
+    /// written target or flag. This is deliberately separate from the spoken
+    /// literal grammar: it protects bytes already present in the transcript.
+    static func directCodingLiterals(
+        in spokenRequest: String,
+        existing: [ScribeExactLiteral]
+    ) -> [ScribeExactLiteral] {
+        guard readOnlyCodingRequest.firstMatch(
+            in: spokenRequest,
+            range: NSRange(spokenRequest.startIndex..., in: spokenRequest)
+        ) != nil else { return existing }
+
+        let paths = ScribeWrittenRelativeFilePolicy.values(in: spokenRequest)
+        let flags = writtenCommandFlag.matches(
+            in: spokenRequest,
+            range: NSRange(spokenRequest.startIndex..., in: spokenRequest)
+        ).compactMap { match in
+            Range(match.range, in: spokenRequest).map { String(spokenRequest[$0]) }
+        }
+        var result = existing
+        var nextID = (existing.map(\.id).max() ?? 0) + 1
+        for value in paths + flags where !result.contains(where: { Data($0.value.utf8) == Data(value.utf8) }) {
+            result.append(.init(id: nextID, value: value, source: .alreadyExact))
+            nextID += 1
+        }
+        return result
+    }
+
     static let systemMessage = """
     You are Cadence Compose, a writing assistant. Produce one draft for direct review and insertion.
     Return only the draft: no preface, explanation, label, surrounding quotation marks, or fence around the entire response.

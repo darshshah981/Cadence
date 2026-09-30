@@ -2810,6 +2810,32 @@ struct ScribeCoordinatorTests {
     }
 
     @Test(arguments: [
+        ("Inspect src/Auth.swift.bak with --no-cache without editing files.", false),
+        ("Inspect src/Auth.swift without editing files.", false),
+        ("Inspect src/Auth.swift with --no-cache without editing files.", true)
+    ])
+    func codingAgentPromptKeepsWrittenTargetAndFlagBeforeReview(
+        draft: String, accepted: Bool
+    ) async throws {
+        let spoken = "Ask Codex to inspect `src/Auth.swift` with --no-cache without editing files."
+        let fixture = ScribeCoordinatorFixture(
+            providerResponses: [.success(draft)],
+            engine: StubScribeTranscriptionEngine(text: spoken)
+        )
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+        #expect(fixture.context.insertedTexts.isEmpty)
+        #expect(fixture.coordinator.exactLiterals.map(\.value) == ["src/Auth.swift", "--no-cache"])
+        if accepted {
+            #expect(fixture.coordinator.reviewedResult?.text == draft)
+        } else {
+            #expect(fixture.coordinator.failure == .provider(.invalidResult))
+            #expect(fixture.coordinator.reviewedResult == nil)
+            #expect(fixture.coordinator.literalRecoveryTranscript == spoken)
+        }
+    }
+
+    @Test(arguments: [
         ("The draft is ready.", false),
         ("I believe the draft is ready.", true)
     ])

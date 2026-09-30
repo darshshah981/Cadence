@@ -7,6 +7,41 @@ private final class ScribeFixtureBundle: NSObject {}
 
 struct ScribeTests {
     @Test
+    func readOnlyCodingPromptProtectsWrittenPathsAndFlags() throws {
+        let spoken = "Ask Codex to inspect `src/Auth.swift` with --no-cache without editing files."
+        let existing = [ScribeExactLiteral(id: 7, value: "--no-cache", source: .alreadyExact)]
+        let literals = ScribeRequestPolicy.directCodingLiterals(in: spoken, existing: existing)
+        #expect(literals.map(\.value) == ["--no-cache", "src/Auth.swift"])
+        #expect(Set(literals.map(\.id)).count == 2)
+        let request = ScribeRequest.directDictation(processedDictation: spoken, exactLiterals: literals)
+        let input = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .legacyLocal)
+        #expect(input.userMessage.contains("Exact literals"))
+        #expect(input.userMessage.contains("src/Auth.swift"))
+        #expect(input.userMessage.contains("--no-cache"))
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateOutput(
+                "Inspect src/Auth.swift.bak without editing files.",
+                requiredLiterals: literals, spokenRequest: spoken
+            )
+        }
+        #expect(try ScribeRequestPolicy.validateOutput(
+            "Inspect src/Auth.swift with --no-cache without editing files.",
+            requiredLiterals: literals, spokenRequest: spoken
+        ).contains("src/Auth.swift"))
+    }
+
+    @Test
+    func ordinaryAndNonInspectionRequestsDoNotGainCodingLiterals() {
+        for spoken in [
+            "Tell Maya to review src/Auth.swift with --no-cache.",
+            "Ask Codex to fix src/Auth.swift with --no-cache.",
+            "Please review src/Auth.swift with --no-cache."
+        ] {
+            #expect(ScribeRequestPolicy.directCodingLiterals(in: spoken, existing: []).isEmpty)
+        }
+    }
+
+    @Test
     func sourceFreeSummaryIsUnresolvedWithoutConsumingRecipientOrQuotedCommands() {
         for spoken in [
             "Summarize this in one sentence.", "Please sum up that briefly.",
