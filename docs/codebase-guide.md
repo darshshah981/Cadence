@@ -77,6 +77,11 @@ local Vision OCR. It rechecks authority across asynchronous boundaries and
 does not create a grant or send extracted text to a provider. The picker can
 expose the selected window ID only on macOS 15.2 or newer. No Settings or
 Compose review control currently activates this path.
+`ComposeScreenContextConsentController` is the inert action-scoped grant owner:
+local OCR and exact-provider text transmission need separate explicit approval
+calls, and neither approval creates a retention grant. The owner is not yet
+registered with AppModel; a future UI must only call approvals after showing
+their distinct disclosure to the user.
 
 The first native conversation identity adapter is
 `ScribeTextEditDocumentIdentityAdapter`. It can identify a saved TextEdit file

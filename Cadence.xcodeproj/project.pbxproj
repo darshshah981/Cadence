@@ -241,6 +241,7 @@
 		BE3775994F8519CF5CBA8FDF /* FeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED3C6DD8BC26913A0F5ED418 /* FeedbackService.swift */; };
 		C0CB1CACC14EC2E42A945E48 /* coding-targets-2026-09-30.json in Resources */ = {isa = PBXBuildFile; fileRef = C63179A17F1948FB02F32BEE /* coding-targets-2026-09-30.json */; };
 		C2686350DEA2DE444A88FDD5 /* ScribeProviderRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E25F690A832F4604D3AFD00 /* ScribeProviderRuntimeTests.swift */; };
+		C2D9B6CAE4A03A304D48C4EE /* ComposeScreenContextConsentControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B983653FD26175AF571773 /* ComposeScreenContextConsentControllerTests.swift */; };
 		C305F29459DB1A5E03C56381 /* SelectionCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31EDB00F60AC4CD9688A4F34 /* SelectionCaptureService.swift */; };
 		C3DB8E25F8D83D59D0D0CB53 /* ScribeCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF8C6312871F32727CBB8DA8 /* ScribeCoordinatorTests.swift */; };
 		C4675B993A45E7EAB560B8E6 /* ScribeCredentialStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1AC1450E1933A53B463B2A4 /* ScribeCredentialStoreTests.swift */; };
@@ -296,6 +297,7 @@
 		EC16929AD6BC2CE38674E870 /* VisionComposeScreenOCRTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE5D99BFFE3C550B24D326B8 /* VisionComposeScreenOCRTests.swift */; };
 		EC19295E7863E5D13218C2CD /* ApplicationConfigurationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8568D275C5BC3621348D9865 /* ApplicationConfigurationModels.swift */; };
 		ECEB86A208B2CF41D371011E /* legacy-provider-library.json in Resources */ = {isa = PBXBuildFile; fileRef = 16029181741E78FDC22FD716 /* legacy-provider-library.json */; };
+		ED21F31FDBFCBBFA69877493 /* ComposeScreenContextConsentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24770B05F1CB1BA3DBDD1906 /* ComposeScreenContextConsentController.swift */; };
 		EE054AE21BAF7F07BF62DD2A /* WhisperKitTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A8C73B4837E38B0677B8E5 /* WhisperKitTranscriptionEngine.swift */; };
 		EE8B4113258EE879B330440B /* ScribeProviderLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E9CB4DFED2033CA6470E1A /* ScribeProviderLibraryTests.swift */; };
 		EED573080E17141D1764E097 /* meaning-independent-2026-09-30-c.json in Resources */ = {isa = PBXBuildFile; fileRef = B9B4106A29FBC922BA0F2C0E /* meaning-independent-2026-09-30-c.json */; };
@@ -389,6 +391,7 @@
 		204E871F350158DFBB690041 /* meaning-validation-2026-09-30-b.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "meaning-validation-2026-09-30-b.json"; sourceTree = "<group>"; };
 		2241AB1EAC2C658906A2DF74 /* PasteboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardService.swift; sourceTree = "<group>"; };
 		226CD021B3EF6C8EC4F1B7D0 /* ComposeContextSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeContextSnapshot.swift; sourceTree = "<group>"; };
+		24770B05F1CB1BA3DBDD1906 /* ComposeScreenContextConsentController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeScreenContextConsentController.swift; sourceTree = "<group>"; };
 		261AA12AB448A4E589D2B94F /* AdaptiveScribeContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveScribeContractTests.swift; sourceTree = "<group>"; };
 		271D05E9383898034CCCE7DC /* CadenceFeatureFlagTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CadenceFeatureFlagTests.swift; sourceTree = "<group>"; };
 		27465C4D5A8B4E071878DD2F /* meaning-independent-2026-09-30-m.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "meaning-independent-2026-09-30-m.json"; sourceTree = "<group>"; };
@@ -513,6 +516,7 @@
 		84BAA74864E494C5E664E268 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		84C93FC144D7ED841B2E7F85 /* DeepSeekScribeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepSeekScribeProvider.swift; sourceTree = "<group>"; };
 		8568D275C5BC3621348D9865 /* ApplicationConfigurationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationConfigurationModels.swift; sourceTree = "<group>"; };
+		87B983653FD26175AF571773 /* ComposeScreenContextConsentControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeScreenContextConsentControllerTests.swift; sourceTree = "<group>"; };
 		8800C68F8B4CCF8B3BEAE6AA /* ComposeScopedWritingPreferenceArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeScopedWritingPreferenceArchive.swift; sourceTree = "<group>"; };
 		886112D50EF5D18E5F0AD28F /* ScribeProviderController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderController.swift; sourceTree = "<group>"; };
 		88848B213B83D6FD6EB74033 /* ApplicationIconResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationIconResolverTests.swift; sourceTree = "<group>"; };
@@ -747,6 +751,7 @@
 				41CED54CB6042B37180471C4 /* ComposePreferenceResolverTests.swift */,
 				5A6E835FE9F2F6B1C43F3E1C /* ComposeScopedWritingPreferenceArchiveTests.swift */,
 				153047A6548973BCDBAD2A27 /* ComposeScreenContextActionControllerTests.swift */,
+				87B983653FD26175AF571773 /* ComposeScreenContextConsentControllerTests.swift */,
 				1F653D29DA63C67B411288DF /* ComposeScreenContextTests.swift */,
 				9225F522B8DF2974685FB191 /* ComposeScreenWindowPickerTests.swift */,
 				38903CEFC746CA9498A73960 /* ComposeSelectedTextContextTests.swift */,
@@ -961,6 +966,7 @@
 				8800C68F8B4CCF8B3BEAE6AA /* ComposeScopedWritingPreferenceArchive.swift */,
 				7AAB58B988F75AF638C3E692 /* ComposeScopedWritingPreferenceController.swift */,
 				76BF3CFC297C9AC959BD4741 /* ComposeScreenContextActionController.swift */,
+				24770B05F1CB1BA3DBDD1906 /* ComposeScreenContextConsentController.swift */,
 				9503FB42EBE9CCF1B41836B6 /* ComposeScreenContextService.swift */,
 				B364B5F1AB388567DE48DB9C /* ComposeScreenWindowPicker.swift */,
 				C4E56E9DB1447817414531A9 /* ComposeSelectedTextContextController.swift */,
@@ -1295,6 +1301,7 @@
 				6D07164F6621FFE600749479 /* ComposeScopedWritingPreferenceArchive.swift in Sources */,
 				27612A269BA4FB0A0F828078 /* ComposeScopedWritingPreferenceController.swift in Sources */,
 				0262B0B3E391BEBC91368A73 /* ComposeScreenContextActionController.swift in Sources */,
+				ED21F31FDBFCBBFA69877493 /* ComposeScreenContextConsentController.swift in Sources */,
 				FBDAA488BB083F3E517C4013 /* ComposeScreenContextModels.swift in Sources */,
 				999BBD5AC08451384EACAAB7 /* ComposeScreenContextService.swift in Sources */,
 				7D584C1001FA7CB6C4B6C8D3 /* ComposeScreenWindowPicker.swift in Sources */,
@@ -1468,6 +1475,7 @@
 				901C53807999651D72B0D192 /* ComposePreferenceResolverTests.swift in Sources */,
 				A9D1DD4ECE8709E26AFBDE4E /* ComposeScopedWritingPreferenceArchiveTests.swift in Sources */,
 				B1FD1C3106F5700F7FCD24D7 /* ComposeScreenContextActionControllerTests.swift in Sources */,
+				C2D9B6CAE4A03A304D48C4EE /* ComposeScreenContextConsentControllerTests.swift in Sources */,
 				413856730B14C13A94A908DA /* ComposeScreenContextTests.swift in Sources */,
 				7596CA52E2874C3A21B05762 /* ComposeScreenWindowPickerTests.swift in Sources */,
 				4C80694E5A3A51F737B5BE67 /* ComposeSelectedTextContextTests.swift in Sources */,
