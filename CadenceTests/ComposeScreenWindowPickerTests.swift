@@ -4,6 +4,14 @@ import Testing
 @testable import Cadence
 
 struct ComposeScreenWindowPickerTests {
+    @Test @MainActor
+    func systemPickerIsDisabledWithoutAnExplicitActionOwner() async {
+        let picker = SystemComposeScreenWindowPicker()
+        await #expect(throws: ComposeScreenWindowPickerError.unavailable) {
+            try await picker.chooseWindow(actionID: UUID(), capture: makeCapture())
+        }
+    }
+
     @Test
     func singleChosenWindowBindsExactIDToPinnedProcess() throws {
         let capture = makeCapture()
