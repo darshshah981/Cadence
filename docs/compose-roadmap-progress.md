@@ -2,6 +2,19 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U1 current-source quality baseline: the existing frozen 24-case
+synthetic instruction corpus was exported through the production compiler and
+run three times with the current on-device generator. All 72 requests completed
+without generation failure; the 24 draft texts were byte-identical across runs.
+Native policy replay made 23 cases ready and rejected the source-free “Make
+this shorter” case. Separate case-by-case agent review against the frozen
+rubric accepted all 72 outputs, including the unresolved source-free request
+as a safe rejection, with zero critical errors. The bound aggregate reports
+`PASS` for its provisional Compose-pipeline and model-generation gates. One
+mechanical phrase warning is an acceptable paraphrase of a recipient-directed
+formal-writing request. This is repeatable synthetic development evidence,
+not independent broad quality, live microphone, or installed-app evidence.
+
 September 30 U3 recovered-reserve increment: the original checkout became
 readable again. Its 201 dirty files were archived without changing that
 checkout, and its previously frozen but unevaluated meaning reserve J was
