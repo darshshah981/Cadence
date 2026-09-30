@@ -172,6 +172,17 @@ OCR tests passed. No live screen image was captured. This does not establish an
 AX-to-ScreenCaptureKit window mapping or protect against reuse at an identical
 frame.
 
+Later September 30 U10 platform smoke: a standalone, ad-hoc-signed development
+probe used the production `SystemComposeScreenCaptureAdapter` against only the
+controlled Compose Test Host window. It produced one exact-window image at
+1640×1504 pixels and correctly refused default-denied authority, a different
+window ID, a changed frame, and a stale process launch identity. No image
+bytes were saved. A follow-up closed-window attempt did not run because the
+probe's Screen Recording preflight returned denied, while a separate `swift`
+preflight still returned granted. This does not certify repeatable TCC access,
+AX-to-ScreenCaptureKit target mapping, a closed-window refusal on the live OS,
+or installed-app behavior. The capture/OCR service remains unregistered.
+
 September 30 U2 increment: a short, explicit upbeat schedule announcement now
 receives a concrete local-model punctuation cue. The exported production request
 generated “Nora, the rehearsal starts at nine!”; 24 focused native tests passed,
