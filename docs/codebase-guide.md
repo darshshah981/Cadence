@@ -103,6 +103,9 @@ The hardware-notch inset is reserved by the containing surface, so the screen
 review content adds only a small inner top margin. Offscreen synthetic frames
 cover floating and hardware layouts with long source/draft text; their buttons
 stay visible while the text scrolls.
+Cancelling the system picker revokes that action's screen grant and returns to
+the underlying Compose review; other picker and capture failures retain an
+unavailable screen-context state for explicit recovery.
 
 The first native conversation identity adapter is
 `ScribeTextEditDocumentIdentityAdapter`. It can identify a saved TextEdit file

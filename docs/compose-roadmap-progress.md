@@ -284,6 +284,18 @@ uncertified. The final 15-case native frame test log and PNGs are saved under
 `evidence/u10-screen-notch-layout/` in the external recovery staging area;
 the log SHA-256 is `11e7694ae2652916d7a62f61fc75b1cd02f15d9e9dbcd32e871b48aa7a04a6c1`.
 
+The next U10 recovery check treats a user-cancelled system window picker as a
+quiet return to the original Compose review rather than a screen-context
+failure. It revokes the one-action grant and permits a fresh explicit attempt.
+The three focused controller/action/picker suites passed 18 tests. A signed
+synthetic app invoked the real system-picker API with only the controlled
+Compose Test Host window as its intended target, but the available desktop
+automation could not access the selection panel before its 60-second timeout. No
+window was selected, no pixels were read, and no result was presented as a
+successful live picker test. The content-free probe report and source are in
+external staging at `evidence/u10-picker-cancel/`; live picker and installed
+app behavior remain unverified.
+
 Later September 30 U14 host-Keychain smoke: a standalone ad-hoc-signed probe
 used `SystemScribePersistentMemorySecurityBackend` and a unique synthetic
 namespace. Three separate process launches created a 32-byte key, reopened

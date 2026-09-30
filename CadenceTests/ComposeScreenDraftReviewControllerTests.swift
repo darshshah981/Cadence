@@ -33,6 +33,19 @@ struct ComposeScreenDraftReviewControllerTests {
     }
 
     @Test
+    func cancellingSystemPickerQuietlyReturnsToTheOriginalReview() async {
+        let fixture = Fixture()
+        fixture.picker.nextError = .cancelled
+        #expect(fixture.review.begin(fixture.candidate))
+        fixture.review.approveLocalReading()
+        await fixture.waitForIdleAfterChoice()
+        #expect(fixture.picker.callCount == 1)
+        #expect(await fixture.provider.callCount == 0)
+        #expect(fixture.review.begin(fixture.candidate))
+        #expect(fixture.review.phase == .awaitingCaptureApproval)
+    }
+
+    @Test
     func revocationBeforeProviderApprovalStopsTransmission() async {
         let fixture = Fixture()
         #expect(fixture.review.begin(fixture.candidate))
@@ -182,6 +195,14 @@ struct ComposeScreenDraftReviewControllerTests {
             }
             Issue.record("Screen draft did not fail closed")
         }
+
+        func waitForIdleAfterChoice() async {
+            for _ in 0..<100 {
+                if picker.callCount == 1 && review.phase == .idle { return }
+                try? await Task.sleep(for: .milliseconds(5))
+            }
+            Issue.record("System picker cancellation did not restore review")
+        }
     }
 }
 
@@ -189,10 +210,15 @@ struct ComposeScreenDraftReviewControllerTests {
 private final class Picker: ComposeScreenWindowChoosing {
     let window: ComposeScreenWindowIdentity
     private(set) var callCount = 0
+    var nextError: ComposeScreenWindowPickerError?
     init(window: ComposeScreenWindowIdentity) { self.window = window }
     func chooseWindow(actionID _: UUID, capture _: ScribeContextSnapshot,
                       expectedFrame _: CGRect) async throws -> ComposeScreenWindowIdentity {
         callCount += 1
+        if let nextError {
+            self.nextError = nil
+            throw nextError
+        }
         return window
     }
 }

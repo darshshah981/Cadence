@@ -97,6 +97,12 @@ final class ComposeScreenDraftReviewController {
                 eligibility: .eligible
             )
             guard revision == operationRevision, !Task.isCancelled else { return }
+            if case .unavailable(.cancelled) = outcome {
+                // Closing the system picker is a choice to keep the existing
+                // draft, not a failed screen-context attempt.
+                cancel()
+                return
+            }
             guard candidateIsCurrent(candidate),
                   case let .captured(snapshot) = outcome,
                   snapshot.target.action.actionID == candidate.request.id,
