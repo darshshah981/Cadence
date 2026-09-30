@@ -3,6 +3,38 @@
 This is an incremental implementation of U15, not completion of scoped writing
 preferences or a model-quality certification. The installed app is unchanged.
 
+## Bounded immediate style edits, September 30
+
+Four complete, single-sentence forms now apply one saved writing choice locally
+without invoking the on-device model: a simple informal availability question
+becomes formal, a short named-recipient readiness update gains a warm greeting,
+a redundant “status update” becomes an “update” while keeping its audience, and
+an “I think” statement uses a more formal hedge without removing uncertainty.
+This applies only to local Compose with exactly one saved preference and no
+explicit spoken direction, exact literal, quoted span, custom guidance,
+configured app profile, or remembered environment. Compound and unmatched
+messages stay on the normal model path. Cloud providers receive no prepared
+draft shortcut.
+
+The current production-request export and local evaluator ran the six existing
+synthetic preference cases. Four previously unchanged model drafts became
+immediate prepared drafts (zero model-generation milliseconds in the evaluator),
+and the two remaining cases generated the same drafts as before. Manual review
+found all six acceptable for this exposed corpus, with no fact, audience,
+question, or uncertainty loss. This corpus is development evidence and does
+not establish a general style-quality rate or installed-app speed. A separate
+second-model-pass experiment improved only one of four unchanged cases and
+introduced a “Message:” label in another; it was rejected rather than adding
+latency. The focused production policy/parser/coordinator run passed 278 tests
+in five suites; the final added profile-priority case passed its nine-test
+suite. The saved runtime-artifact canary scan passed. General model quality,
+other utterance forms, configured profiles, live dictation, and UI behavior
+remain open.
+
+The exact production requests, two evaluated outputs, rejected second-pass
+trial, test logs, scorecards, and source hashes are preserved at
+`/Users/darshshah/.codex/cadence-compose-staging-2026-09-30/evidence/u15-immediate-preferences/report.json`.
+
 ## Current behavior
 
 Settings has a global writing-default editor with an enable switch, six optional

@@ -17,10 +17,21 @@ struct ComposeGlobalWritingDefaultsTests {
         for (id, spoken, tone, concise, example) in fixtures {
             let defaults = ComposeGlobalWritingDefaults(isEnabled: true, tone: tone, preferConcise: concise)
             let input = try ScribeRequestPolicy.providerSafeInput(for: .init(intent: .compose, spokenTranscript: spoken, writingDefaults: defaults.values), destination: .legacyLocal)
-            #expect(input.preparedDraft == nil)
+            #expect((input.preparedDraft != nil) == [
+                "defaults-formal", "defaults-warm", "defaults-concise", "defaults-uncertainty"
+            ].contains(id))
             cases.append(["id": id, "family": "globalPreferences", "spoken": spoken, "tone": tone.rawValue, "preferConcise": concise, "exampleDraft": example, "required": [String](), "forbidden": [String]()])
             var bytes = Data(input.systemMessage.utf8); bytes.append(0); bytes.append(contentsOf: input.userMessage.utf8)
-            exports.append(["id": id, "system": input.systemMessage, "user": input.userMessage, "requestSHA256": digest(bytes)])
+            var export: [String: Any] = ["id": id, "system": input.systemMessage, "user": input.userMessage]
+            if let prepared = input.preparedDraft {
+                bytes.append(0)
+                bytes.append(contentsOf: "preparedDraft".utf8)
+                bytes.append(0)
+                bytes.append(contentsOf: prepared.utf8)
+                export["preparedDraft"] = prepared
+            }
+            export["requestSHA256"] = digest(bytes)
+            exports.append(export)
         }
         guard ProcessInfo.processInfo.environment["CADENCE_EXPORT_GLOBAL_DEFAULTS"] == "1" else { return }
         let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["CADENCE_SCRIBE_EVALUATION_DIRECTORY"]))
@@ -93,5 +104,66 @@ struct ComposeGlobalWritingDefaultsTests {
             #expect(request.spokenTranscript == "The draft is ready.")
             #expect(request.context == nil)
         }
+    }
+
+    @Test(arguments: [
+        ("Hey, are you free to review the draft?", ComposeWritingPreferenceValue.tone(.formal), "Hello, are you available to review the draft?"),
+        ("I think the draft is ready.", .tone(.formal), "I believe the draft is ready."),
+        ("Maya, the preview is ready for review.", .tone(.warm), "Hi Maya, the preview is ready for review."),
+        ("The project status update is ready for everyone to review.", .concise, "The project update is ready for everyone to review.")
+    ])
+    func simpleSavedPreferenceProducesImmediateVisibleEdit(
+        spoken: String, preference: ComposeWritingPreferenceValue, expected: String
+    ) throws {
+        let request = ScribeRequest(intent: .compose, spokenTranscript: spoken, writingDefaults: [preference])
+        let input = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .legacyLocal)
+        #expect(input.preparedDraft == expected)
+        #expect(try ScribeRequestPolicy.validateOutput(expected, requiredLiterals: [], spokenRequest: spoken) == expected)
+        #expect(try ScribeRequestPolicy.providerSafeInput(for: request, destination: .openAIDirect).preparedDraft == nil)
+    }
+
+    @Test(arguments: [
+        "Hey, are you free to review the draft? I can send it today.",
+        "Hey, are you free to review the draft; can you approve it?",
+        "Maya, the preview is ready for review. Please call me.",
+        "The project status update is ready for everyone to review. Keep the status word.",
+        "I think the draft is ready, but I'm not sure."
+    ])
+    func compoundSavedPreferenceStaysOnModelPath(spoken: String) throws {
+        let preference: ComposeWritingPreferenceValue = spoken.hasPrefix("Maya") ? .tone(.warm)
+            : spoken.hasPrefix("The project") ? .concise : .tone(.formal)
+        let input = try ScribeRequestPolicy.providerSafeInput(
+            for: .init(intent: .compose, spokenTranscript: spoken, writingDefaults: [preference]),
+            destination: .legacyLocal
+        )
+        #expect(input.preparedDraft == nil)
+    }
+
+    @Test func savedPreferenceShortcutRespectsOtherWritingAuthorities() throws {
+        let spoken = "Maya, the preview is ready for review."
+        let base = ScribeRequest(intent: .compose, spokenTranscript: spoken, writingDefaults: [.tone(.warm)])
+        #expect(try ScribeRequestPolicy.providerSafeInput(for: base, destination: .legacyLocal).preparedDraft != nil)
+        let withLiteral = ScribeRequest(intent: .compose, spokenTranscript: spoken,
+            exactLiterals: [.init(id: 1, value: "preview", source: .alreadyExact)], writingDefaults: [.tone(.warm)])
+        #expect(try ScribeRequestPolicy.providerSafeInput(for: withLiteral, destination: .legacyLocal).preparedDraft == nil)
+        let withMorePreferences = ScribeRequest(intent: .compose, spokenTranscript: spoken,
+            writingDefaults: [.tone(.warm), .concise])
+        #expect(try ScribeRequestPolicy.providerSafeInput(for: withMorePreferences, destination: .legacyLocal).preparedDraft == nil)
+        let quoted = ScribeRequest(intent: .compose, spokenTranscript: "\"Maya, the preview is ready for review.\"",
+            writingDefaults: [.tone(.warm)])
+        #expect(try ScribeRequestPolicy.providerSafeInput(for: quoted, destination: .legacyLocal).preparedDraft == nil)
+        let explicitVoice = ScribeRequest(intent: .compose,
+            spokenTranscript: "Maya, the preview is ready for review. Make this formal.", writingDefaults: [.tone(.warm)])
+        #expect(try ScribeRequestPolicy.providerSafeInput(for: explicitVoice, destination: .legacyLocal).preparedDraft == nil)
+        let profile = ResolvedScribeGuidance(
+            familyID: .general, familyDefinitionVersion: 1,
+            presetID: try ScribePresetID("general.neutral"), presetDefinitionVersion: 1,
+            compiledPresetInstructions: "Use the configured app style.", customGuidance: nil,
+            resolutionSource: .configuredApplication, preservesExactLiterals: true,
+            literalCapabilities: []
+        )
+        let configured = ScribeRequest(intent: .compose, spokenTranscript: spoken,
+            resolvedGuidance: profile, writingDefaults: [.tone(.warm)])
+        #expect(try ScribeRequestPolicy.providerSafeInput(for: configured, destination: .legacyLocal).preparedDraft == nil)
     }
 }

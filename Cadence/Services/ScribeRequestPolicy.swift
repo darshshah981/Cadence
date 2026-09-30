@@ -88,6 +88,10 @@ enum ScribeRequestPolicy {
             )
             if permitsPreparedDraft(request) {
                 preparedDraft = ScribeDirectDraftPolicy.prepare(writing.request)
+            } else {
+                preparedDraft = ComposePreferenceDirectDraftPolicy.prepare(
+                    request: request, writing: writing
+                )
             }
             // Keep structural composition and compound no-reason requests on
             // the general path. The September 22 bound evaluation found that

@@ -289,3 +289,61 @@ enum ComposePreferenceResolver {
         }
     }
 }
+
+/// A few complete one-sentence messages have a safe, visible edit for an
+/// explicit saved default. This path bypasses model latency only when the
+/// entire sentence matches; ambiguous, quoted, compound, or configured-app
+/// requests continue through the normal provider path.
+enum ComposePreferenceDirectDraftPolicy {
+    static func prepare(
+        request: ScribeRequest,
+        writing: ScribeWritingDirectionParser.Result
+    ) -> String? {
+        guard request.intent == .compose,
+              request.style == nil,
+              request.exactLiterals.isEmpty,
+              request.resolvedGuidance?.resolutionSource != .configuredApplication,
+              request.resolvedGuidance?.customGuidance == nil,
+              request.resolvedEnvironment?.resolutionSource != .rememberedPreference,
+              writing.request.unresolvedReferences.isEmpty,
+              writing.request.writingDirections.isEmpty,
+              writing.request.protectedSpans.isEmpty,
+              writing.request.recipientFrame == nil,
+              writing.consumedCommands.isEmpty,
+              request.effectiveWritingDefaults.count == 1 else { return nil }
+        let message = writing.request.message
+        guard message == request.spokenTranscript.trimmingCharacters(in: .whitespacesAndNewlines),
+              message.utf8.count <= 240,
+              !message.contains("\n") else { return nil }
+
+        switch request.effectiveWritingDefaults[0] {
+        case .tone(.formal):
+            if let parts = groups(in: message, pattern: #"^(?:Hey|Hi),? are you free to ([^?!.;\r\n]{4,160})\?$"#) {
+                return "Hello, are you available to \(parts[0])?"
+            }
+            if let parts = groups(in: message, pattern: #"^I think ([^?!;,\r\n]{4,160})\.$"#) {
+                return "I believe \(parts[0])."
+            }
+        case .tone(.warm):
+            if let parts = groups(in: message, pattern: #"^([\p{Lu}][\p{L}'’\-]{1,39}), the ([\p{Ll}][\p{L}-]{1,39}) is ready for review\.$"#) {
+                return "Hi \(parts[0]), the \(parts[1]) is ready for review."
+            }
+        case .concise:
+            if let parts = groups(in: message, pattern: #"^The ([\p{Ll}][\p{L} -]{1,80}) status update is ready for everyone to review\.$"#) {
+                return "The \(parts[0]) update is ready for everyone to review."
+            }
+        default:
+            break
+        }
+        return nil
+    }
+
+    private static func groups(in text: String, pattern: String) -> [String]? {
+        guard let expression = try? NSRegularExpression(pattern: pattern),
+              let match = expression.firstMatch(
+                in: text, range: NSRange(location: 0, length: (text as NSString).length)
+              ) else { return nil }
+        let source = text as NSString
+        return (1..<match.numberOfRanges).map { source.substring(with: match.range(at: $0)) }
+    }
+}

@@ -2,6 +2,18 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U15 immediate-preference increment: four complete, single-sentence
+forms with one explicit saved tone or concision preference now produce a
+bounded local edit without model latency. Four previously unchanged drafts in
+the existing six-case development corpus became immediate prepared drafts;
+the other two stayed on the model path with their prior output. Manual review
+accepted all six exposed-case results without lost facts, audience, questions,
+or uncertainty. This is not an independent general-quality gate. A tested
+second-model-pass candidate was rejected: only one of four ignored preferences
+improved, one output leaked a “Message:” label, and it added seconds of latency.
+The final focused native run passed 278 tests across five suites plus a
+nine-test profile-priority rerun. See [writing defaults](scribe-writing-defaults.md).
+
 September 30 U12 source-free reply increment: standalone requests such as
 “Reply to this” or “Draft a reply to this thread” now stop before provider
 dispatch when Cadence has no certified source message and destination in one
