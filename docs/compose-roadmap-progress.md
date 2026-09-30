@@ -2,6 +2,23 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U12 explicit-update reply increment: a synthetic on-device screen
+preview exposed a real failure. Asked to request an update about pending refund
+RF-12, the model repeated the visible pending status instead of asking a
+question. The failed result and log are preserved. For a single, fully named
+“Ask for an update on …” request, output validation now replaces a non-request
+status echo with “Could you please provide an update on …?” using only the
+speaker's subject. It never copies a screen claim into that repair. If the
+subject is unresolved or compound, the same non-request output is rejected
+before review. Existing valid questions remain unchanged. The focused screen
+compiler suite passed 11 tests; the full native suite passed 1,371 tests in
+116 suites with the known focus-dependent keyboard suite excluded. The
+current on-device checks passed both the
+original request and a variant without an explicit warning about false
+approval, as well as the two earlier grounded-reply cases. This is a narrow
+synthetic repair, not proof that arbitrary screen replies resist prompt
+injection or produce useful responses.
+
 September 30 U6 recipient-question latency increment: a complete, single
 recipient-facing request such as “Can you send me the report by Friday?” now
 returns the original wording as an immediate local prepared draft on the

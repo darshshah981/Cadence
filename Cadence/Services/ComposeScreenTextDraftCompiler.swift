@@ -183,8 +183,19 @@ enum ComposeScreenTextDraftCompiler {
            request.spokenTranscript.range(of: wrapperPattern, options: [.regularExpression, .caseInsensitive]) == nil {
             throw ScribeProviderError.invalidResult
         }
+        let repair = repairMissingExplicitUpdateRequest(
+            output, spokenRequest: request.spokenTranscript,
+            exactLiterals: request.exactLiterals
+        )
+        if request.spokenTranscript.range(
+            of: #"^Ask for an update\b"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil, !outputAsksForUpdate(output), repair == nil {
+            throw ScribeProviderError.invalidResult
+        }
+        let repaired = repair ?? output
         let text = try ScribeRequestPolicy.validateOutput(
-            output, requiredLiterals: request.exactLiterals,
+            repaired, requiredLiterals: request.exactLiterals,
             spokenRequest: request.spokenTranscript,
             literalMutationAuthorization: request.spokenTranscript
         )
@@ -205,5 +216,44 @@ enum ComposeScreenTextDraftCompiler {
             requirements: ScribeRecipientRestrictionPolicy.extract(from: request.spokenTranscript)
         )
         return text
+    }
+
+    /// A local model can echo a visible status instead of drafting the
+    /// requested question. For one fully named update request, the speaker's
+    /// own words already provide a safe question; no screen claim is needed.
+    /// Other requests keep their model output and normal validation path.
+    private static func repairMissingExplicitUpdateRequest(
+        _ output: String,
+        spokenRequest: String,
+        exactLiterals: [ScribeExactLiteral]
+    ) -> String? {
+        let requestPattern = #"^Ask for an update on ([^.!?\r\n]{5,100})(?:\.(?:\s+Do not claim [^.!?\r\n]{4,100}\.)?)?$"#
+        guard let range = spokenRequest.range(
+            of: requestPattern, options: [.regularExpression, .caseInsensitive]
+        ), range == spokenRequest.startIndex..<spokenRequest.endIndex,
+        let subjectRange = spokenRequest.range(
+            of: #"(?<=^Ask for an update on )[^.!?\r\n]{5,100}"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) else { return nil }
+        let subject = String(spokenRequest[subjectRange]).trimmingCharacters(in: .whitespaces)
+        guard !subject.isEmpty,
+              subject.range(
+                of: #"^(?:this|that|it|the thread|this thread|my reply)$"#,
+                options: [.regularExpression, .caseInsensitive]
+              ) == nil,
+              subject.range(
+                of: #"\b(?:and|but|then|also|please|without)\b"#,
+                options: [.regularExpression, .caseInsensitive]
+              ) == nil,
+              exactLiterals.allSatisfy({ subject.contains($0.value) }),
+              !outputAsksForUpdate(output) else { return nil }
+        return "Could you please provide an update on \(subject)?"
+    }
+
+    private static func outputAsksForUpdate(_ output: String) -> Bool {
+        output.contains("?") || output.range(
+            of: #"\b(?:please\s+(?:provide|share|send|give)|let\s+me\s+know)\b.{0,80}\b(?:update|status)\b"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
     }
 }
