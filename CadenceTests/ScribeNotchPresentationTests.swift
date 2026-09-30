@@ -74,6 +74,28 @@ struct ScribeNotchPresentationTests {
         #expect(projection.allowsReviewActions)
     }
 
+    @Test @MainActor
+    func screenDraftReviewDisablesTheOriginalDraftInsertionShortcut() {
+        let model = ScribeNotchViewModel()
+        let result = ScribeResult(requestID: requestID, text: "Original draft")
+        model.apply(.project(
+            state: .reviewing(result), literalTranscript: "Original words",
+            failureMessage: nil
+        ))
+        model.updateScreenDraftPhase(.awaitingCaptureApproval)
+        #expect(model.isInspectingContext)
+        #expect(!model.permitsReviewedInsertion)
+        #expect(ScribeReviewKeyboardPolicy.commands(
+            for: model.presentation.content,
+            isInspectingSource: model.isInspectingContext,
+            permitsInsertion: model.permitsReviewedInsertion
+        ).isEmpty)
+        model.updateScreenDraftPhase(.ready("Copy-only draft"))
+        #expect(!model.permitsReviewedInsertion)
+        model.updateScreenDraftPhase(.idle)
+        #expect(model.permitsReviewedInsertion)
+    }
+
     @Test
     func durableFactProposalShowsExactFactWithoutGlobalInsertShortcut() {
         let proposal = ComposePersistentMemoryReviewProposal(

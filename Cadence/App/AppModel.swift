@@ -210,6 +210,7 @@ final class AppModel: ObservableObject {
     private let hotkeyService: HotkeyService
     private let coordinator: DictationCoordinator
     private let scribeCoordinator: ScribeCoordinator
+    private let scribeScreenDraftReviewController: ComposeScreenDraftReviewController
     private let scribePerformanceSamples: ScribePerformanceSampleBuffer
     private let scribePerformanceRecorder: ScribePerformanceRecorder
     private let scribeSelectedTextContextController: ComposeSelectedTextContextController
@@ -710,6 +711,72 @@ final class AppModel: ObservableObject {
             transcriptionConfiguration: initialTranscriptionConfiguration
         )
         self.scribeCoordinator = scribeCoordinator
+        let screenConsent = ComposeScreenContextConsentController(
+            actionIsCurrent: { [weak scribeCoordinator] id in
+                scribeCoordinator?.screenContextReviewCandidate?.request.id == id
+            },
+            captureIsCurrent: { [weak scribeCoordinator] capture in
+                scribeCoordinator?.screenContextReviewCandidate?.capture == capture
+            },
+            providerIsCurrent: { [weak scribeCoordinator] binding in
+                guard let action = scribeCoordinator?.screenContextReviewCandidate?.providerAction else {
+                    return false
+                }
+                return action.actionIdentity == binding.actionIdentity
+                    && action.destination.recipientOrigin == binding.recipientOrigin
+                    && action.destination.disclosureVersion == binding.providerDisclosureRevision
+            }
+        )
+        let screenPicker = SystemComposeScreenWindowPicker(
+            enabled: { featureFlags.composeContextEnabled },
+            currentActionID: { [weak scribeCoordinator] in
+                scribeCoordinator?.screenContextReviewCandidate?.request.id
+            },
+            currentCapture: { [weak scribeCoordinator] in
+                scribeCoordinator?.screenContextReviewCandidate?.capture
+            }
+        )
+        let screenPermissions: @MainActor () -> ScribeContextPlatformPermissions = {
+            let snapshot = permissionsService.snapshot()
+            return .init(
+                accessibility: snapshot.accessibilityGranted,
+                screenRecording: snapshot.screenRecordingGranted
+            )
+        }
+        let screenAction = ComposeScreenContextActionController(
+            picker: screenPicker,
+            policy: { [weak scribeCoordinator] in
+                guard let candidate = scribeCoordinator?.screenContextReviewCandidate else {
+                    return .init()
+                }
+                return screenConsent.policy(
+                    actionID: candidate.request.id, capture: candidate.capture
+                )
+            },
+            permissions: screenPermissions,
+            actionIsCurrent: { [weak scribeCoordinator] id in
+                scribeCoordinator?.screenContextReviewCandidate?.request.id == id
+            },
+            captureIsCurrent: { [weak scribeCoordinator] capture in
+                scribeCoordinator?.screenContextReviewCandidate?.capture == capture
+            },
+            focusedWindowFrame: { capture in
+                try scribeContextService.pinnedWindowFrame(for: capture)
+            },
+            targetIsCurrent: { capture in
+                (try? scribeContextService.verifyTargetAllowingComposeReviewFocus(for: capture)) == true
+            }
+        )
+        self.scribeScreenDraftReviewController = ComposeScreenDraftReviewController(
+            consent: screenConsent, screen: screenAction,
+            candidateIsCurrent: { [weak scribeCoordinator] candidate in
+                scribeCoordinator?.screenContextReviewIsCurrent(candidate) == true
+            },
+            authorizeProviderDispatch: { [weak scribeCoordinator] candidate in
+                await scribeCoordinator?.authorizeScreenContextProviderDispatch(candidate) == true
+            },
+            permissions: screenPermissions
+        )
         let sessionMemoryContextController = try? ComposeSessionMemoryContextController(
             consent: sessionMemoryConsentController,
             enabled: { featureFlags.composeMemoryEnabled && featureFlags.composeAdaptersEnabled },
@@ -3980,6 +4047,7 @@ final class AppModel: ObservableObject {
         dismissImmediately: Bool = false,
         discardsReviewedDraft: Bool = false
     ) {
+        scribeScreenDraftReviewController.cancel()
         activeScribeTriggerMode = nil
         scribeShortcutReleasePending = false
         if discardsReviewedDraft,
@@ -4356,6 +4424,14 @@ final class AppModel: ObservableObject {
         let insertionOutcomeUncertain = scribeCoordinator.insertionOutcomeUncertain
         scribeNotchWindowController.viewModel.updateInsertionOutcomeUncertain(insertionOutcomeUncertain)
         scribePanelWindowController.viewModel.updateInsertionOutcomeUncertain(insertionOutcomeUncertain)
+        let canUseScreenContext: Bool
+        if #available(macOS 15.2, *) {
+            canUseScreenContext = featureFlags.composeContextEnabled
+                && scribeCoordinator.screenContextReviewCandidate != nil
+        } else {
+            canUseScreenContext = false
+        }
+        scribeNotchWindowController.viewModel.updateScreenDraftAvailability(canUseScreenContext)
         let reviewNotice: String?
         if case .reviewing = state {
             reviewNotice = reviewSource?.isExcluded == true ? reviewSource?.exclusionMessage : resolvedFailureMessage
@@ -4489,6 +4565,9 @@ final class AppModel: ObservableObject {
     }
 
     private func bindScribeCoordinator() {
+        scribeScreenDraftReviewController.onPhaseChange = { [weak self] phase in
+            self?.scribeNotchWindowController.viewModel.updateScreenDraftPhase(phase)
+        }
         coordinator.onScribeRequested = { [weak self] in
             self?.handleScribeShortcutPress()
         }
@@ -4500,6 +4579,9 @@ final class AppModel: ObservableObject {
         }
         scribeCoordinator.onStateChange = { [weak self] state in
             guard let self else { return }
+            if self.scribeCoordinator.screenContextReviewCandidate == nil {
+                self.scribeScreenDraftReviewController.cancel()
+            }
             self.scribeState = state
             if case .transcribing = state,
                self.interruptedScribeRefinement == nil {
@@ -4552,6 +4634,34 @@ final class AppModel: ObservableObject {
         }
 
         let notchViewModel = scribeNotchWindowController.viewModel
+        notchViewModel.onBeginScreenDraft = { [weak self] in
+            guard let self,
+                  let candidate = self.scribeCoordinator.screenContextReviewCandidate,
+                  self.featureFlags.composeContextEnabled else { return }
+            if !self.scribeScreenDraftReviewController.begin(candidate) {
+                self.scribeNotchWindowController.showCopyFeedback("Screen context is unavailable")
+            }
+        }
+        notchViewModel.onApproveScreenReading = { [weak self] in
+            guard let self else { return }
+            guard self.permissionsService.requestScreenRecordingAccess() else {
+                self.scribeScreenDraftReviewController.cancel()
+                self.scribeNotchWindowController.showCopyFeedback("Screen Recording access is needed")
+                return
+            }
+            self.scribeScreenDraftReviewController.approveLocalReading()
+        }
+        notchViewModel.onApproveScreenProviderUse = { [weak self] in
+            self?.scribeScreenDraftReviewController.approveProviderUse()
+        }
+        notchViewModel.onCopyScreenDraft = { [weak self] in
+            guard let self,
+                  let text = self.scribeScreenDraftReviewController.copyableDraft() else { return }
+            self.commitScribeCopy(text, historyDraft: nil)
+        }
+        notchViewModel.onCancelScreenDraft = { [weak self] in
+            self?.scribeScreenDraftReviewController.cancel()
+        }
         notchViewModel.onInsert = { [weak self] in self?.insertScribeResult() }
         notchViewModel.onExcludeSelectedTextSource = { [weak self] in self?.scribeCoordinator.excludeSelectedTextSource(id: $0) }
         notchViewModel.onInspectSelectedTextSource = { [weak self] in self?.scribeCoordinator.canInspectSelectedTextSource(id: $0) ?? false }

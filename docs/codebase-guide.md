@@ -69,25 +69,26 @@ Intelligence requests only. The coordinator pins and rechecks the fact set
 before publishing a draft, Copy, or Insert; changed facts invalidate the draft.
 Cloud destinations remain transcript-only for saved memory.
 
-Screenshot context remains an unregistered, default-denied development path.
-`ComposeScreenContextActionController` requires an eligible pinned Compose
-action, a separate live screenshot grant, Screen Recording permission, and an
-explicit single-window picker choice before invoking exact-window capture and
-local Vision OCR. It rechecks authority across asynchronous boundaries and
-does not create a grant or send extracted text to a provider. The picker can
-expose the selected window ID only on macOS 15.2 or newer. No Settings or
-Compose review control currently activates this path.
+Screenshot context is an explicit, copy-only Compose review action on macOS
+15.2 or newer when the Compose context flag is enabled and the current provider
+is on-device. The production notch offers “Use screen” for a live draft review
+or a source-free reply failure. One control approves local reading, then the
+system window picker selects the original pinned window for exact-window
+capture and Vision OCR. A second control shows the recognized text and asks
+before sending it to Apple Intelligence on this Mac. Neither step runs on the
+ordinary shortcut path. `ComposeScreenDraftReviewController` keeps the old
+draft or recovery state underneath, and offers only Copy for its new result.
 The original Accessibility-focused window frame is read from the pinned AX
 window only after an explicit screen-context request; ordinary recording does
 no geometry read. The picker choice must match that frame, so another window
 in the same app cannot be substituted merely because its process ID matches.
 A missing frame fails closed. Frame equality still needs signed live-app
 certification.
-`ComposeScreenContextConsentController` is the inert action-scoped grant owner:
+`ComposeScreenContextConsentController` is the action-scoped grant owner:
 local OCR and exact-provider text transmission need separate explicit approval
-calls, and neither approval creates a retention grant. The owner is not yet
-registered with AppModel; a future UI must only call approvals after showing
-their distinct disclosure to the user.
+calls, and neither approval creates a retention grant. The controller drops
+the screenshot immediately after local OCR; the recognized text and its draft
+stay in memory only while the originating Compose action remains valid.
 `ComposeScreenTextDraftCompiler` can turn one complete, high-confidence OCR
 snapshot into a bounded, text-only input for the local provider. It rechecks
 the exact action, pinned window/process, screen-capture grant, separate
@@ -95,7 +96,9 @@ provider-transmission grant, source hash and 120-second freshness before use.
 Recognized screen text is labeled untrusted data, and image bytes cannot enter
 the text-provider input. A resulting draft is copy-only: the compiler cannot
 certify conversation identity or grant insertion into a recipient field. This
-compiler is also not registered in the live Compose route yet.
+The local provider route rechecks action, target and consent before dispatch,
+after generation and before Copy. Signed live picker/capture behavior and
+recipient-field certification remain unverified; this route never inserts.
 
 The first native conversation identity adapter is
 `ScribeTextEditDocumentIdentityAdapter`. It can identify a saved TextEdit file

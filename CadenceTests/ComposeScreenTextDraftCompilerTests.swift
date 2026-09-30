@@ -137,6 +137,34 @@ struct ComposeScreenTextDraftCompilerTests {
         #expect(!draft.localizedCaseInsensitiveContains("Friday"))
         #expect(!draft.localizedCaseInsensitiveContains("here's the draft"))
     }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/tmp/CadenceEvalScreenTextEnabled")))
+    func bareReplyDoesNotInventACommitment() async throws {
+        guard #available(macOS 26.0, *) else {
+            Issue.record("The on-device model requires macOS 26 for this evaluation")
+            return
+        }
+        let provider = FoundationModelsScribeProvider()
+        guard provider.capabilities.contains(.semanticGeneration) else {
+            Issue.record("The on-device model is unavailable for screen-text evaluation")
+            return
+        }
+        let fixture = try Fixture()
+        let request = ScribeRequest(
+            id: fixture.request.id, intent: .compose,
+            spokenTranscript: "Reply to this."
+        )
+        let compilation = try fixture.compile(request: request)
+        let result = try await provider.generate(
+            .init(id: request.id, input: compilation.input)
+        )
+        let draft = try ComposeScreenTextDraftCompiler.validateOutput(
+            result.text, request: request, compilation: compilation
+        ).lowercased()
+        #expect(!draft.contains("thursday works for me"))
+        #expect(!draft.contains("i can meet"))
+        #expect(!draft.contains("yes, thursday"))
+    }
     #endif
 
     private struct Fixture {

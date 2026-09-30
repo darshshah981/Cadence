@@ -2475,6 +2475,32 @@ struct ScribeCoordinatorTests {
     }
 
     @Test
+    func sourceFreeReplyCanOfferExplicitScreenRecoveryOnTheSamePinnedAction() async throws {
+        let provider = CapturingScribeProvider(resultText: "Unexpected ordinary draft")
+        let action = ScribeProviderActionSnapshot(
+            provider: provider, destination: .legacyLocal,
+            configurationID: UUID(), libraryRevision: 1,
+            selectedModelID: "local"
+        )
+        let fixture = ScribeCoordinatorFixture(
+            providerActionResolver: { action },
+            engine: StubScribeTranscriptionEngine(text: "Reply to this.")
+        )
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+        let candidate = try #require(fixture.coordinator.screenContextReviewCandidate)
+        #expect(candidate.request.spokenTranscript == "Reply to this.")
+        #expect(candidate.request.id == fixture.coordinator.activeRequestID)
+        #expect(candidate.capture.id == candidate.capture.applicationTarget.id)
+        #expect(fixture.coordinator.screenContextReviewIsCurrent(candidate))
+        #expect(await provider.requests.isEmpty)
+        fixture.context.shouldVerify = false
+        #expect(!fixture.coordinator.screenContextReviewIsCurrent(candidate))
+        await fixture.coordinator.cancel()
+        #expect(fixture.coordinator.screenContextReviewCandidate == nil)
+    }
+
+    @Test
     func recipientRewriteRequestDoesNotRequireComposeSource() async throws {
         let spoken = "Ask Alex to make this shorter."
         let provider = CapturingScribeProvider(resultText: "Alex, please make this shorter.")
@@ -3879,13 +3905,23 @@ private final class StubScribeContextService: ScribeContextServing {
 
     func capture() throws -> ScribeContextSnapshot {
         captureCount += 1
+        let captureID = captureCount == 1 ? applicationTarget.id : UUID()
+        let boundApplicationTarget = ApplicationTargetCapture(
+            id: captureID, process: applicationTarget.process,
+            identityRevision: applicationTarget.identityRevision,
+            captureRevision: applicationTarget.captureRevision,
+            capturedAt: applicationTarget.capturedAt,
+            source: applicationTarget.source,
+            displayName: applicationTarget.displayName
+        )
         return ScribeContextSnapshot(
+            id: captureID,
             target: ScribeTargetIdentity(processIdentifier: 42, bundleIdentifier: bundleIdentifier),
             scope: .none,
             selectedText: "",
             verificationToken: "window-a",
             recognitionSignature: recognitionSignature,
-            applicationTarget: applicationTarget
+            applicationTarget: boundApplicationTarget
         )
     }
 

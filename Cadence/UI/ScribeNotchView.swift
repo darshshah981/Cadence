@@ -80,9 +80,13 @@ final class ScribeNotchViewModel: ObservableObject {
     @Published private(set) var sessionFactsReviewSource: ScribeSessionFactsReviewSource?
     @Published private(set) var selectedTextReviewSource: ScribeSelectedTextReviewSource?
     @Published private(set) var insertionOutcomeUncertain = false
+    @Published private(set) var canUseScreenContext = false
+    @Published private(set) var screenDraftPhase: ComposeScreenDraftReviewPhase = .idle
     @Published private(set) var isInspectingSource = false
     @Published private(set) var isInspectingFacts = false
-    var isInspectingContext: Bool { isInspectingSource || isInspectingFacts }
+    var isInspectingContext: Bool {
+        isInspectingSource || isInspectingFacts || screenDraftPhase != .idle
+    }
     var permitsReviewedInsertion: Bool {
         !insertionOutcomeUncertain
             && selectedTextReviewSource?.isExcluded != true
@@ -95,6 +99,11 @@ final class ScribeNotchViewModel: ObservableObject {
     }
 
     var onInsert: (() -> Void)?
+    var onBeginScreenDraft: (() -> Void)?
+    var onApproveScreenReading: (() -> Void)?
+    var onApproveScreenProviderUse: (() -> Void)?
+    var onCopyScreenDraft: (() -> Void)?
+    var onCancelScreenDraft: (() -> Void)?
     var onExcludeSelectedTextSource: ((UUID) -> Void)?
     var onInspectSelectedTextSource: ((UUID) -> Bool)?
     var onRecordWithoutSelectedSource: ((UUID) -> Void)?
@@ -150,6 +159,16 @@ final class ScribeNotchViewModel: ObservableObject {
 
     func updateSelectedTextContextStatus(_ status: String?) {
         selectedTextContextStatus = status
+    }
+
+    func updateScreenDraftAvailability(_ available: Bool) {
+        canUseScreenContext = available
+    }
+
+    func updateScreenDraftPhase(_ next: ComposeScreenDraftReviewPhase) {
+        guard screenDraftPhase != next else { return }
+        screenDraftPhase = next
+        onInteractionAvailabilityChanged?(allowsInteraction)
     }
 
     func updateSessionMemoryContextStatus(_ status: String?) {
@@ -646,7 +665,9 @@ struct ScribeNotchView: View {
                         .frame(height: ScribeNotchGeometry.hardwareNotchContentInset)
                         .accessibilityHidden(true)
                 }
-                if case .transcribing = model.presentation.content {
+                if model.screenDraftPhase != .idle {
+                    screenDraftCanvas
+                } else if case .transcribing = model.presentation.content {
                     transcribingCanvas
                 } else {
                     header
@@ -681,12 +702,111 @@ struct ScribeNotchView: View {
         .transition(.opacity)
     }
 
+    private var screenDraftCanvas: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Text("Use visible context")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                Spacer()
+                Button("Back") { model.onCancelScreenDraft?() }
+                    .font(.system(size: 10, weight: .medium))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .accessibilityIdentifier("scribe-screen-back")
+            }
+            switch model.screenDraftPhase {
+            case .idle:
+                EmptyView()
+            case .awaitingCaptureApproval:
+                Text("Choose one window. Cadence will read its visible text on this Mac for this draft. The screenshot is not saved.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                Spacer(minLength: 0)
+                screenDraftAction("Choose window", identifier: "scribe-screen-approve-reading") {
+                    model.onApproveScreenReading?()
+                }
+            case .choosingAndReading:
+                Text("Choose the original window in the system picker. Reading visible text on this Mac…")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                Spacer(minLength: 0)
+                ProgressView().controlSize(.small)
+            case let .awaitingProviderApproval(sourcePreview):
+                Text("Send this recognized text to Apple Intelligence on this Mac to draft a response? It will not be saved as memory.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                ScrollView {
+                    Text(sourcePreview)
+                        .font(.system(size: 11))
+                        .foregroundStyle(FlowTheme.textPrimary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityIdentifier("scribe-screen-source-preview")
+                screenDraftAction("Use text for draft", identifier: "scribe-screen-approve-provider") {
+                    model.onApproveScreenProviderUse?()
+                }
+            case .drafting:
+                Text("Drafting from the text you approved…")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                Spacer(minLength: 0)
+                ProgressView().controlSize(.small)
+            case let .ready(text):
+                Text("Screen-grounded draft · Review and copy")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                ScrollView {
+                    Text(text)
+                        .font(.system(size: 12))
+                        .foregroundStyle(FlowTheme.textPrimary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityIdentifier("scribe-screen-draft")
+                screenDraftAction("Copy draft", identifier: "scribe-screen-copy") {
+                    model.onCopyScreenDraft?()
+                }
+            case .unavailable:
+                Text("Screen context is unavailable for this request. Your previous draft is still here.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, 13)
+        .padding(.top, model.hasHardwareNotch ? ScribeNotchGeometry.hardwareNotchContentInset + 9 : 10)
+        .padding(.bottom, 11)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityIdentifier("scribe-screen-review")
+    }
+
+    private func screenDraftAction(
+        _ title: String, identifier: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(title, action: action)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(FlowTheme.accent)
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .accessibilityIdentifier(identifier)
+    }
+
     private var header: some View {
         HStack(spacing: 7) {
             phaseStatus
                 .id(model.statusText)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
             Spacer(minLength: 8)
+            if model.canUseScreenContext {
+                Button("Use screen") { model.onBeginScreenDraft?() }
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .buttonStyle(.plain)
+                    .help("Choose the original window and approve local visible-text reading")
+                    .accessibilityIdentifier("scribe-use-screen-context")
+            }
             if model.showsRefinementActions, let source = model.selectedTextReviewSource {
                 ScribeSelectedTextSourceControl(source: source, identifier: "scribe-notch-selected-text-context",
                     canInspect: { model.onInspectSelectedTextSource?(source.id) ?? false },

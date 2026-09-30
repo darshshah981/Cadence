@@ -89,6 +89,14 @@ enum ScribeSessionFailure: Equatable, Sendable {
     case persistentMemoryUnavailable
 }
 
+/// A screen-context retry may only derive from one live, local-provider
+/// review. Holding this value does not authorize capture or provider egress.
+struct ScribeScreenContextReviewCandidate: Sendable {
+    let request: ScribeRequest
+    let capture: ScribeContextSnapshot
+    let providerAction: ScribeProviderActionSnapshot
+}
+
 @MainActor
 final class ScribeCoordinator {
     var onStateChange: ((ScribeSessionState) -> Void)?
@@ -358,6 +366,59 @@ final class ScribeCoordinator {
 
     var activeProviderActionIdentity: ScribeProviderActionIdentity? {
         activeProviderAction?.actionIdentity
+    }
+
+    var screenContextReviewCandidate: ScribeScreenContextReviewCandidate? {
+        let eligibleReviewState: Bool
+        switch state {
+        case let .reviewing(result):
+            eligibleReviewState = reviewedResult == result
+                && result.requestID == activeRequest?.id
+        case let .failed(requestID, _):
+            eligibleReviewState = failure == .missingConversationSource
+                && requestID == activeRequest?.id
+                && reviewedResult == nil
+        default:
+            eligibleReviewState = false
+        }
+        guard eligibleReviewState, !isStarting, !isRefining,
+              !insertionCompleted, insertionAttemptID == nil,
+              !insertionOutcomeUncertain,
+              activeSelectedTextSnapshot == nil,
+              activeMemoryDraftFacts == nil,
+              activePersistentDraftFacts == nil,
+              let request = activeRequest,
+              let capture = activeCapture,
+              let providerAction = activeProviderAction,
+              request.id == activeRequestID,
+              request.intent == .compose,
+              providerAction.destination == .legacyLocal,
+              providerAction.actionIdentity != nil,
+              providerAction.provider.capabilities.contains(.semanticGeneration),
+              capture.id == capture.applicationTarget.id,
+              capture.target.processIdentifier == capture.applicationTarget.process.processIdentifier,
+              capture.target.bundleIdentifier == capture.applicationTarget.process.bundleIdentifier,
+              capture.applicationTarget.source == .scribeAccessibility else {
+            return nil
+        }
+        return .init(request: request, capture: capture, providerAction: providerAction)
+    }
+
+    func screenContextReviewIsCurrent(_ candidate: ScribeScreenContextReviewCandidate) -> Bool {
+        guard let current = screenContextReviewCandidate else { return false }
+        return (try? contextService.verifyTargetAllowingComposeReviewFocus(for: candidate.capture)) == true
+            && current.request == candidate.request
+            && current.capture == candidate.capture
+            && current.providerAction.actionIdentity == candidate.providerAction.actionIdentity
+            && current.providerAction.destination == candidate.providerAction.destination
+    }
+
+    func authorizeScreenContextProviderDispatch(
+        _ candidate: ScribeScreenContextReviewCandidate
+    ) async -> Bool {
+        guard screenContextReviewIsCurrent(candidate) else { return false }
+        let authorized = await providerDispatchAuthorization(candidate.providerAction)
+        return authorized && screenContextReviewIsCurrent(candidate)
     }
 
     /// Installed after AppModel constructs this coordinator, so memory can
@@ -681,6 +742,22 @@ final class ScribeCoordinator {
             let requestLiterals = ScribeRequestPolicy.directCodingLiterals(
                 in: expandedTranscript, existing: normalized.exactLiterals
             )
+            // Preserve the speaker's exact request when a reply needs a
+            // source. An explicit screen-context recovery can then use this
+            // same pinned action without pretending that speech was the draft.
+            exactLiterals = requestLiterals
+            let request = ScribeRequest(
+                id: requestID,
+                intent: .compose,
+                spokenTranscript: expandedTranscript,
+                context: nil,
+                style: nil,
+                resolvedEnvironment: environment,
+                resolvedGuidance: resolvedGuidance,
+                exactLiterals: requestLiterals,
+                writingDefaults: activeWritingDefaults
+            )
+            activeRequest = request
             if !writing.unresolvedReferences.isEmpty {
                 let selection: ComposeContextSnapshot?
                 if ComposeSelectedTextRewritePolicy.canUseSelection(for: writing),
@@ -714,19 +791,6 @@ final class ScribeCoordinator {
                     retryDisposition: .reconnect
                 )
             }
-            exactLiterals = requestLiterals
-            let request = ScribeRequest(
-                id: requestID,
-                intent: .compose,
-                spokenTranscript: expandedTranscript,
-                context: nil,
-                style: nil,
-                resolvedEnvironment: environment,
-                resolvedGuidance: resolvedGuidance,
-                exactLiterals: requestLiterals,
-                writingDefaults: activeWritingDefaults
-            )
-            activeRequest = request
             await startGeneration(
                 request,
                 providerAction: providerAction,
@@ -1891,7 +1955,7 @@ final class ScribeCoordinator {
         }
     }
 
-    private nonisolated static func generate(
+    nonisolated static func generate(
         _ request: ScribeProviderRequest,
         provider: any ScribeProvider,
         timeout: Duration
