@@ -2,6 +2,22 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U12 source-free reply increment: standalone requests such as
+“Reply to this” or “Draft a reply to this thread” now stop before provider
+dispatch when Cadence has no certified source message and destination in one
+conversation. The original transcript remains available for explicit Copy;
+the failure explains that “this” cannot be identified and asks for a complete
+spoken reply or message details. Complete named-recipient replies and exact
+literal requests remain ordinary content. The focused native parser and
+coordinator run passed 201 tests across two suites. This is a bounded refusal,
+not a grounded-reply implementation. A read-only native AX structure probe of
+the current ChatGPT/Codex desktop process found a WebArea URL with only one
+generic app path segment, an empty window document value, and no non-menu
+AXIdentifier in the first 500 inspected elements.
+That one view does not provide a certified thread key; the existing
+cross-conversation memory gate remains closed. The probe did not save text,
+conversation titles, full URLs, screenshots, or pixel data.
+
 September 30 U2/U3 independent synthetic checkpoint: after preserving failed
 first runs O and P, the frozen U2 instruction reserve Q passed its first run.
 One on-device run generated all 16 outputs; native policy replay marked the 14

@@ -79,6 +79,7 @@ enum ScribeSessionFailure: Equatable, Sendable {
     case transcription
     case literalRepair
     case missingSource
+    case missingConversationSource
     case capability(ScribeProviderCapabilityRejection)
     case recipientRestriction
     case refinementUnchanged
@@ -113,7 +114,7 @@ final class ScribeCoordinator {
         switch failure {
         case .provider(let error) where !error.permitsUnchangedRetry:
             return false
-        case .missingSource, .memoryAmbiguous, .capability(.inputTooLarge), .capability(.unsupportedModality), .capability(.unsupportedTask):
+        case .missingSource, .missingConversationSource, .memoryAmbiguous, .capability(.inputTooLarge), .capability(.unsupportedModality), .capability(.unsupportedTask):
             return false
         default:
             return true
@@ -693,7 +694,8 @@ final class ScribeCoordinator {
                       selection.target.source.target == capture.target,
                       selectedTextContext?.authorizationIsCurrent(for: selection) == true else {
                     selectedTextContext?.clear(actionID: requestID)
-                    failure = .missingSource
+                    failure = writing.unresolvedReferences.contains(.sourceRequired(transform: .reply))
+                        ? .missingConversationSource : .missingSource
                     state = .failed(requestID: requestID, error: .invalidResult)
                     return
                 }

@@ -4276,6 +4276,8 @@ final class AppModel: ObservableObject {
             return "Cadence could not resolve an exact literal. Use the spoken words, record the request again, or cancel Compose."
         case .missingSource:
             return "Include the text you want rewritten in your recording, then say how to change it. Your original words are still available."
+        case .missingConversationSource:
+            return "Cadence cannot verify which message you mean by ‘this.’ Say the reply you want to send, or start a new request with the message details. Your original words are still available."
         case let .capability(rejection):
             if scribeCoordinator.usesSelectedTextContext {
                 switch rejection {
@@ -4813,7 +4815,7 @@ final class AppModel: ObservableObject {
         case .provider(.timedOut): return .timedOut
         case .provider(.cancelled): return .cancelled
         case .provider: return .providerUnavailable
-        case .voiceSessionBusy, .memoryUnavailable, .memoryAmbiguous, .persistentMemoryUnavailable, .literalRepair, .missingSource, .capability, .recipientRestriction, .refinementUnchanged, .selectedTextUnchanged, nil: return .otherSafeCategory
+        case .voiceSessionBusy, .memoryUnavailable, .memoryAmbiguous, .persistentMemoryUnavailable, .literalRepair, .missingSource, .missingConversationSource, .capability, .recipientRestriction, .refinementUnchanged, .selectedTextUnchanged, nil: return .otherSafeCategory
         }
     }
 

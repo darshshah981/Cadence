@@ -2458,6 +2458,23 @@ struct ScribeCoordinatorTests {
     }
 
     @Test
+    func sourceFreeReplyStopsBeforeProviderDispatch() async throws {
+        let spoken = "Reply to this."
+        let provider = CapturingScribeProvider(resultText: "Invented reply")
+        let fixture = ScribeCoordinatorFixture(
+            provider: provider, engine: StubScribeTranscriptionEngine(text: spoken)
+        )
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+        #expect(fixture.coordinator.failure == .missingConversationSource)
+        #expect(fixture.coordinator.literalTranscript == spoken)
+        #expect(fixture.coordinator.reviewedResult == nil)
+        #expect(!fixture.coordinator.canRetryGeneration)
+        #expect(await provider.requests.isEmpty)
+        #expect(fixture.context.insertedTexts.isEmpty)
+    }
+
+    @Test
     func recipientRewriteRequestDoesNotRequireComposeSource() async throws {
         let spoken = "Ask Alex to make this shorter."
         let provider = CapturingScribeProvider(resultText: "Alex, please make this shorter.")

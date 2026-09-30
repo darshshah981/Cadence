@@ -492,6 +492,21 @@ struct ScribeWritingRequestTests {
         #expect(ScribeWritingDirectionParser.parse(speech).unresolvedReferences.isEmpty)
     }
 
+    @Test(arguments: ["Reply to this.", "Could you respond to that message?", "Please draft a reply to this thread.", "Write a response to it."])
+    func sourceFreeConversationRepliesRequireVerifiedSource(_ speech: String) {
+        let parsed = ScribeWritingDirectionParser.parse(speech)
+        #expect(parsed.request.message == speech)
+        #expect(parsed.request.writingDirections == [.reply])
+        #expect(parsed.unresolvedReferences == [.sourceRequired(transform: .reply)])
+    }
+
+    @Test
+    func completeOrLiteralReplyInstructionsRemainContent() {
+        #expect(ScribeWritingDirectionParser.parse("Reply to Alex: I can join at three.").unresolvedReferences.isEmpty)
+        #expect(ScribeWritingDirectionParser.parse("Write the exact phrase \"Reply to this\".").unresolvedReferences.isEmpty)
+        #expect(ScribeWritingDirectionParser.parse("Reply to this.", protectedValues: ["Reply to this."]).unresolvedReferences.isEmpty)
+    }
+
     @Test(arguments: ["Could you make this more formal?", "Can you please rewrite this formally?", "Would you keep it formal please?"])
     func politeStyleCommandsRequireSource(_ speech: String) {
         let result = ScribeWritingDirectionParser.parse(speech)

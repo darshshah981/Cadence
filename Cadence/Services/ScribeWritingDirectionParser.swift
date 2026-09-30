@@ -69,6 +69,19 @@ enum ScribeWritingDirectionParser {
             )
         }
 
+        // A deictic reply needs a certified source message and destination in
+        // the same conversation. The active insertion field alone supplies
+        // neither; do not let a model invent what "this" referred to.
+        if speech.range(of: standaloneContextReplyPattern,
+                        options: [.regularExpression, .caseInsensitive]) != nil,
+           !isProtected(speech, values: protectedValues) {
+            return unchanged(
+                speech: speech, protectedSpans: protectedSpans,
+                directions: [.reply],
+                unresolved: [.sourceRequired(transform: .reply)]
+            )
+        }
+
         // An uncounted bullet transformation is also source-free. A leading
         // bullet command followed by a colon and actual content remains a
         // separate, contentful composition request.
@@ -394,6 +407,7 @@ enum ScribeWritingDirectionParser {
         #"^\s*add\s+the\s+exact\s+phrase\s+[\"“][^\"”\r\n]{1,120}[\"”]\s+to\s+my\s+(?:status\s+)?update(?:\s+to\s+\p{Lu}[\p{L}-]*)?[.!?]*\s*$"#
     ]
     private static let standaloneSummaryPattern = #"^(?:please\s+)?(?:summarize|sum\s+up)\s+(?:this|that|it)(?:\s+(?:in\s+(?:one|two|three|a\s+single)\s+sentences?|briefly))?[.!?]*\s*$"#
+    private static let standaloneContextReplyPattern = #"^\s*(?:(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:reply|respond|answer)\s+to\s+|(?:please\s+)?(?:write|draft|compose)\s+(?:a\s+)?(?:reply|response)\s+to\s+)(?:this|that|it)(?:\s+(?:message|chat|thread))?[.!?]*\s*$"#
     private static let standaloneUncountedBulletsPattern = #"^\s*(?:please\s+)?(?:turn\s+(?:this|that|it)\s+into|put\s+(?:this|that|it)\s+in|format\s+(?:this|that|it)\s+as)\s+(?:bullet\s+points?|bullets?)[.!?]*\s*$"#
     private static let adjective = #"(?:formal|casual|polite|professional|polished|warm|warmer|friendly|friendlier|upbeat|concise|short|shorter|brief)"#
     private static let adverb = #"(?:formally|casually|politely|professionally|concisely)"#
