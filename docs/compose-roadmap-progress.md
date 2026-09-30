@@ -252,6 +252,18 @@ focused tests cover demand-only frame reads and
 same-app wrong-window refusal; live AX/ScreenCaptureKit frame equality and
 window-ID reuse remain to be certified on a signed app.
 
+The next U10/U12 text-only bridge compiles one complete, high-confidence OCR
+snapshot into a bounded local-provider request. The bridge separately
+revalidates screenshot capture and exact-provider text transmission consent,
+then pins the source hash, action, window, provider and 120-second lifetime.
+Visible text is marked untrusted, image bytes are excluded from model input,
+and a known model preface is rejected rather than inserted. The resulting
+draft has no automatic insertion authority. Focused synthetic checks pass;
+one opt-in on-device model case checks a simple grounded reply. This bridge
+is still inert: there is no review control, provider dispatch, signed live
+capture validation or certified conversation recipient. U10 and U12 remain
+open.
+
 Later September 30 U14 host-Keychain smoke: a standalone ad-hoc-signed probe
 used `SystemScribePersistentMemorySecurityBackend` and a unique synthetic
 namespace. Three separate process launches created a 32-byte key, reopened

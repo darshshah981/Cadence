@@ -88,6 +88,14 @@ local OCR and exact-provider text transmission need separate explicit approval
 calls, and neither approval creates a retention grant. The owner is not yet
 registered with AppModel; a future UI must only call approvals after showing
 their distinct disclosure to the user.
+`ComposeScreenTextDraftCompiler` can turn one complete, high-confidence OCR
+snapshot into a bounded, text-only input for the local provider. It rechecks
+the exact action, pinned window/process, screen-capture grant, separate
+provider-transmission grant, source hash and 120-second freshness before use.
+Recognized screen text is labeled untrusted data, and image bytes cannot enter
+the text-provider input. A resulting draft is copy-only: the compiler cannot
+certify conversation identity or grant insertion into a recipient field. This
+compiler is also not registered in the live Compose route yet.
 
 The first native conversation identity adapter is
 `ScribeTextEditDocumentIdentityAdapter`. It can identify a saved TextEdit file
