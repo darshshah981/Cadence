@@ -4,6 +4,47 @@ import Testing
 
 struct ScribeDirectDraftPolicyTests {
     @Test
+    func quotedCodingInspectionDropsOnlyTheSpokenRecipientFrame() throws {
+        for (spoken, draft) in [
+            (
+                "Ask Codex to inspect `src/Auth.swift` with --no-cache without editing files.",
+                "Inspect `src/Auth.swift` with --no-cache without editing files."
+            ),
+            (
+                "Ask Claude to find `make it shorter` in src/Copy.swift without changing code.",
+                "Find `make it shorter` in src/Copy.swift without changing code."
+            )
+        ] {
+            let local = try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: spoken), destination: .legacyLocal
+            )
+            #expect(local.preparedDraft == draft)
+            let literals = ScribeRequestPolicy.directCodingLiterals(in: spoken, existing: [])
+            #expect(try ScribeRequestPolicy.validateOutput(
+                draft, requiredLiterals: literals, spokenRequest: spoken
+            ) == draft)
+            try ScribeRecipientRestrictionPolicy.validate(
+                output: draft,
+                requirements: ScribeRecipientRestrictionPolicy.extract(from: spoken)
+            )
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: spoken), destination: .deepSeek
+            ).preparedDraft == nil)
+        }
+        for unsupported in [
+            "Ask Codex to inspect `src/Auth.swift` and then fix it.",
+            "Ask Codex to inspect `src/Auth.swift`. Also edit the tests.",
+            "Ask Codex to fix `src/Auth.swift` without editing files.",
+            "Ask Codex to inspect `src/Auth.swift without editing files.",
+            "Ask Codex to inspect `make it shorter` without editing files."
+        ] {
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: unsupported), destination: .legacyLocal
+            ).preparedDraft == nil)
+        }
+    }
+
+    @Test
     func shortCompleteNamedConstraintsKeepTheirSourceWording() throws {
         for (speech, draft) in [
             ("Tell Paul the total is $68 including shipping, but not taxes.",
@@ -782,19 +823,29 @@ struct ScribeDirectDraftPolicyTests {
     #if canImport(FoundationModels)
     @Test
     func completeCodingInstructionSkipsModelAndTimeout() async throws {
-        let input = try ScribeRequestPolicy.providerSafeInput(
-            for: .directDictation(processedDictation: "Ask the agent to inspect tools/replay.sh using --dry-run and leave files untouched."),
-            destination: .legacyLocal
-        )
-        let result = try await OnDeviceScribeGeneration.generate(
-            preparedDraft: input.preparedDraft,
-            sleep: { _ in Issue.record("Prepared instruction must not start a model timeout") },
-            operation: {
-                Issue.record("Prepared instruction must not invoke the model")
-                return "Inspect tools/replay.sh."
-            }
-        )
-        #expect(result == "Inspect tools/replay.sh using --dry-run and leave files untouched.")
+        for (spoken, expected) in [
+            (
+                "Ask the agent to inspect tools/replay.sh using --dry-run and leave files untouched.",
+                "Inspect tools/replay.sh using --dry-run and leave files untouched."
+            ),
+            (
+                "Ask Codex to inspect `src/Auth.swift` with --no-cache without editing files.",
+                "Inspect `src/Auth.swift` with --no-cache without editing files."
+            )
+        ] {
+            let input = try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: spoken), destination: .legacyLocal
+            )
+            let result = try await OnDeviceScribeGeneration.generate(
+                preparedDraft: input.preparedDraft,
+                sleep: { _ in Issue.record("Prepared instruction must not start a model timeout") },
+                operation: {
+                    Issue.record("Prepared instruction must not invoke the model")
+                    return "Inspect tools/replay.sh."
+                }
+            )
+            #expect(result == expected)
+        }
     }
     #endif
 }

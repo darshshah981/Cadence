@@ -32,6 +32,7 @@ enum ScribeDirectDraftPolicy {
         if let status = preservesNamedTicketStatus(request) { return status }
         if let negative = preservesNamedNegativeInstruction(request) { return negative }
         if let attendance = preparesPrivateReasonAttendance(request) { return attendance }
+        if let inspection = preservesQuotedCodingInspection(request) { return inspection }
         if let imperative = preservesCodingInstruction(request) { return imperative }
         if let complete = preservesConstraintHeavyNamedMessage(request) { return complete }
         guard request.writingDirections.isEmpty,
@@ -527,6 +528,32 @@ enum ScribeDirectDraftPolicy {
         return action.prefix(1).uppercased() + String(action.dropFirst()) + " " + remainder
     }
 
+    /// A backticked path causes the general parser to protect the entire
+    /// utterance. For this complete, read-only coding request, only remove the
+    /// leading voice-to-writer frame; copy the task and technical bytes intact.
+    private static func preservesQuotedCodingInspection(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections.isEmpty,
+              request.unresolvedReferences.isEmpty,
+              request.message == request.originalTranscript,
+              request.message.utf16.count <= 240,
+              request.message.components(separatedBy: "`").count == 3,
+              !ScribeWrittenRelativeFilePolicy.values(in: request.message).isEmpty,
+              request.message.range(
+                of: #"\b(?:actually|instead|rather|I mean|then|after that|also|plus)\b"#,
+                options: [.regularExpression, .caseInsensitive]
+              ) == nil,
+              let match = quotedCodingInspectionPattern.firstMatch(
+                in: request.message,
+                range: NSRange(request.message.startIndex..., in: request.message)
+              ) else { return nil }
+        let source = request.message as NSString
+        let action = source.substring(with: match.range(at: 1))
+        let remainder = source.substring(with: match.range(at: 2))
+        guard !remainder.isEmpty, !remainder.contains("\n"), !remainder.contains("?"),
+              remainder.range(of: #"[.!]\s+\p{Lu}"#, options: .regularExpression) == nil else { return nil }
+        return action.prefix(1).uppercased() + String(action.dropFirst()) + " " + remainder
+    }
+
     /// Reply placement alone need not paraphrase an already spoken statement.
     /// The actual held-out model result changed "I think the draft is ready."
     /// to "The draft is ready." Returning the complete message avoids both
@@ -640,6 +667,10 @@ enum ScribeDirectDraftPolicy {
 
     private static let codingInstructionPattern = try! NSRegularExpression(
         pattern: #"^(?:(?:Ask\s+(?:the\s+)?(?:coding\s+)?(?:agent|assistant)\s+to)|(?:Draft\s+a\s+(?:short\s+)?request\s+to))\s+(inspect|investigate|review|check|locate|find)\s+(.+)$"#,
+        options: .caseInsensitive
+    )
+    private static let quotedCodingInspectionPattern = try! NSRegularExpression(
+        pattern: #"^Ask\s+(?:Codex|Claude|(?:the\s+)?coding\s+agent)\s+to\s+(inspect|investigate|review|check|locate|find)\s+(.+)$"#,
         options: .caseInsensitive
     )
 }
