@@ -10,6 +10,7 @@ private let scribeDirectDraftLogger = Logger(subsystem: Bundle.main.bundleIdenti
 enum ScribeDirectDraftPolicy {
     static func prepare(_ request: ScribeWritingRequest) -> String? {
         if let greeting = preparesFormalGreeting(request) { return greeting }
+        if let question = preservesCompleteRecipientQuestion(request) { return question }
         if let casual = preparesCasualReadyStatus(request) { return casual }
         if let concise = preparesConciseTwoEventStatus(request) { return concise }
         if let tentative = preparesFormalTentativeStatement(request) { return tentative }
@@ -50,6 +51,23 @@ enum ScribeDirectDraftPolicy {
         // Preserve every body byte, including recipient restrictions. Only
         // the explicit spoken frame changes to an imperative for its recipient.
         return "Explain " + frame.body
+    }
+
+    /// The speaker has already asked a complete, recipient-facing question.
+    /// Sending it through a model adds latency without adding missing facts.
+    /// Limit this to one request for something sent to the speaker, so an
+    /// instruction to Cadence to write or perform a task is not echoed.
+    private static func preservesCompleteRecipientQuestion(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections.isEmpty,
+              request.unresolvedReferences.isEmpty,
+              request.recipientFrame == nil,
+              request.message == request.originalTranscript,
+              request.protectedSpans.isEmpty,
+              request.message.range(
+                of: #"^(?:Can|Could|Would|Will)\s+you\s+(?:please\s+)?(?:send|forward|provide)\s+(?:me|us)\s+\S[^?!\r\n]{3,180}\?$"#,
+                options: .regularExpression
+              ) != nil else { return nil }
+        return request.message
     }
 
     /// This complete greeting needs no factual inference. Bypass local-model

@@ -2,6 +2,22 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U6 recipient-question latency increment: a complete, single
+recipient-facing request such as “Can you send me the report by Friday?” now
+returns the original wording as an immediate local prepared draft on the
+key-free on-device path. The rule requires one bounded question, no separate
+writing direction, no protected literal, no unresolved reference, and no
+writer/recipient frame; cloud-provider behavior is unchanged. This avoids a
+model call that previously took about 13 seconds on the existing synthetic
+development case while yielding those same words. Focused direct-draft and
+writing-request suites passed 97 tests. A current-source 24-case on-device
+evaluation generated all 24 drafts. Its text matched the prior baseline
+byte-for-byte in every case; only this question changed execution path, from
+13,355 ms of model generation to 0 ms of measured prepared-draft work. Native
+policy replay remained 23 READY and one missing-source REJECTED. Installed-app
+latency remains unverified. The rule deliberately does
+not handle open-ended questions or unspecified “send this” requests.
+
 September 30 U13 TextEdit opt-in pilot: the session-memory and saved-document
 adapter rollout flags now default on, so their Settings section is
 visible in a normal install. Every actual permission inside it still defaults

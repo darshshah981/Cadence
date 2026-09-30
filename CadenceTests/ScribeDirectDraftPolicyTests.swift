@@ -4,6 +4,38 @@ import Testing
 
 struct ScribeDirectDraftPolicyTests {
     @Test
+    func completeRecipientQuestionsSkipLocalModelWithoutChangingTheRequest() throws {
+        for spoken in [
+            "Can you send me the report by Friday?",
+            "Could you please send us the notes on Tuesday?",
+            "Would you forward me the revised draft when it is ready?",
+            "Will you provide us the updated timeline after review?"
+        ] {
+            let request = ScribeRequest.directDictation(processedDictation: spoken)
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: request, destination: .legacyLocal
+            ).preparedDraft == spoken)
+            #expect(try ScribeRequestPolicy.validateOutput(
+                spoken, requiredLiterals: [], spokenRequest: spoken
+            ) == spoken)
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: request, destination: .deepSeek
+            ).preparedDraft == nil)
+        }
+        for spoken in [
+            "Can you write this formally?",
+            "Can you send me the report by Friday? Write this formally.",
+            "Can you send me the report by Friday? Also send it to Pat.",
+            "Quote: Can you send me the report by Friday?",
+            "Can you send an email to Pat?"
+        ] {
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: spoken), destination: .legacyLocal
+            ).preparedDraft == nil)
+        }
+    }
+
+    @Test
     func completeCasualAndConciseStatusesApplyTheRequestedStyleWithoutChangingFacts() throws {
         for (spoken, draft) in [
             ("Tell Arun the draft is ready for review. Make it casual.",
