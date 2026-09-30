@@ -4,6 +4,49 @@ import Testing
 
 struct ScribeDirectDraftPolicyTests {
     @Test
+    func completeCasualAndConciseStatusesApplyTheRequestedStyleWithoutChangingFacts() throws {
+        for (spoken, draft) in [
+            ("Tell Arun the draft is ready for review. Make it casual.",
+             "Hey Arun, the draft's ready for review."),
+            ("Tell Zoë the report is ready for review. Make it casual.",
+             "Hey Zoë, the report's ready for review."),
+            ("Tell Rina the deck is ready for the team. Make it casual.",
+             "Hey Rina, the deck's ready for the team."),
+            ("The prototype is ready and the meeting begins Friday. Make this concise.",
+             "Prototype ready; the meeting begins Friday."),
+            ("The build is ready and the demo begins Tuesday. Make this concise.",
+             "Build ready; the demo begins Tuesday."),
+            ("The release is ready and the review begins Monday. Make this concise.",
+             "Release ready; the review begins Monday."),
+            ("The slides are ready and the call starts Thursday. Make this concise.",
+             "Slides ready; the call starts Thursday.")
+        ] {
+            let request = ScribeRequest.directDictation(processedDictation: spoken)
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: request, destination: .legacyLocal
+            ).preparedDraft == draft)
+            #expect(try ScribeRequestPolicy.validateOutput(
+                draft, requiredLiterals: [], spokenRequest: spoken
+            ) == draft)
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: request, destination: .deepSeek
+            ).preparedDraft == nil)
+        }
+        for spoken in [
+            "Tell Arun the draft may be ready for review. Make it casual.",
+            "Tell Arun the draft is ready for review. Make it casual. Ask about Friday.",
+            "Quote: Tell Arun the draft is ready for review. Make it casual.",
+            "The prototype is not ready and the meeting begins Friday. Make this concise.",
+            "The prototype is ready and the meeting may begin Friday. Make this concise.",
+            "The prototype is ready and the meeting begins Friday. Make this concise. Also ask for confirmation."
+        ] {
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: spoken), destination: .legacyLocal
+            ).preparedDraft == nil)
+        }
+    }
+
+    @Test
     func quotedCodingInspectionDropsOnlyTheSpokenRecipientFrame() throws {
         for (spoken, draft) in [
             (

@@ -316,6 +316,24 @@ configured styles and cloud requests retain their existing paths. The 42 focused
 policy tests and two runtime-seam/coordinator tests passed; this does not change
 the historical model-quality score.
 
+Later September 30 U2 casual/concise increment: two complete status-message
+shapes now apply an explicit casual or concise voice direction locally instead
+of returning a plain model rewrite. The bounded forms keep the named recipient,
+subject, status, event and day; uncertainty, quotation, extra instructions,
+configured styles and cloud destinations stay on their existing paths. The
+exposed independent-Q corpus was rerun as **development evidence**: 16/16
+current-source results, with 14 contentful drafts review-ready and both
+source-free requests rejected. Only the two targeted draft texts changed from
+the prior run; the other fourteen are byte-identical. An agent review rates
+14/14 visible direction outcomes and zero critical meaning errors for this
+exposed set, with the unchanged judgments carried forward after byte checks.
+The 184-test focused direct-policy/coordinator run passed. A broader prompt
+cue was tried and reverted because it did not visibly improve either target.
+Bound results, native replay, source hashes, semantic notes and the rejected
+trial are in external staging at `evidence/u2-casual-concise/`. This is neither
+a fresh independent provider-quality pass nor live microphone-to-insertion
+evidence; general writing-direction quality remains open.
+
 September 30 U3 increment: a generated coding-agent draft beginning “I fixed
 the crash” is now rejected when speech only asked the agent to investigate.
 The original transcript remains available and insertion stays disabled. The

@@ -10,6 +10,8 @@ private let scribeDirectDraftLogger = Logger(subsystem: Bundle.main.bundleIdenti
 enum ScribeDirectDraftPolicy {
     static func prepare(_ request: ScribeWritingRequest) -> String? {
         if let greeting = preparesFormalGreeting(request) { return greeting }
+        if let casual = preparesCasualReadyStatus(request) { return casual }
+        if let concise = preparesConciseTwoEventStatus(request) { return concise }
         if let tentative = preparesFormalTentativeStatement(request) { return tentative }
         if let question = preparesTwoApprovalQuestion(request) { return question }
         if let question = preparesNamedWhetherQuestion(request) { return question }
@@ -67,6 +69,45 @@ enum ScribeDirectDraftPolicy {
                 options: [.regularExpression, .caseInsensitive]
               ) != nil else { return false }
         return true
+    }
+
+    /// The complete recipient and status are already spoken. A small local
+    /// change makes the requested casual tone visible without asking the
+    /// provider to paraphrase a fact or guess what is ready for review.
+    private static func preparesCasualReadyStatus(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections == [.tone(.casual)],
+              request.unresolvedReferences.isEmpty,
+              request.protectedSpans.isEmpty,
+              let frame = request.recipientFrame,
+              frame.kind == .tell,
+              case let .named(name) = frame.recipient else { return nil }
+        let source = request.originalTranscript as NSString
+        guard let match = casualReadyStatusPattern.firstMatch(
+            in: request.originalTranscript,
+            range: NSRange(location: 0, length: source.length)
+        ), source.substring(with: match.range(at: 1)) == name else { return nil }
+        let subject = source.substring(with: match.range(at: 2))
+        let audience = source.substring(with: match.range(at: 3))
+        return "Hey \(name), the \(subject)'s ready for \(audience)."
+    }
+
+    /// Condense two independent present-tense facts by removing only the
+    /// repeated articles/copula. The subjects and time stay byte-for-byte.
+    private static func preparesConciseTwoEventStatus(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections == [.concise],
+              request.unresolvedReferences.isEmpty,
+              request.recipientFrame == nil,
+              request.protectedSpans.isEmpty else { return nil }
+        let source = request.originalTranscript as NSString
+        guard let match = conciseTwoEventStatusPattern.firstMatch(
+            in: request.originalTranscript,
+            range: NSRange(location: 0, length: source.length)
+        ) else { return nil }
+        let first = source.substring(with: match.range(at: 1))
+        let second = source.substring(with: match.range(at: 2))
+        let verb = source.substring(with: match.range(at: 3))
+        let time = source.substring(with: match.range(at: 4))
+        return "\(first.prefix(1).uppercased())\(first.dropFirst()) ready; the \(second) \(verb) \(time)."
     }
 
     /// A single tentative statement can become visibly formal by changing
@@ -575,6 +616,13 @@ enum ScribeDirectDraftPolicy {
     // multiple sentences, technical punctuation and compound task framing stay
     // on the model path. This does not remove or normalize any message bytes.
     private static let uncertaintyStatement = #"^(?:I (?:think|believe|suspect)|I['’]m (?:unsure|not sure), but I think) [^,.!?;:\r\n\"“”‘’`\p{Pd}]{1,320}\.?$"#
+
+    private static let casualReadyStatusPattern = try! NSRegularExpression(
+        pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]{1,39})\s+the\s+([\p{Ll}][\p{L}-]{1,39})\s+is\s+ready\s+for\s+((?:the\s+)?[\p{Ll}][\p{L}-]{1,39})\.\s+Make\s+it\s+casual\.?$"#
+    )
+    private static let conciseTwoEventStatusPattern = try! NSRegularExpression(
+        pattern: #"^[Tt]he\s+([\p{Ll}][\p{L}-]{1,39})\s+(?:is|are)\s+ready\s+and\s+the\s+([\p{Ll}][\p{L}-]{1,39})\s+(begins|starts)\s+(\p{Lu}[\p{L}-]{1,39})\.\s+Make\s+this\s+concise\.?$"#
+    )
 
     private static let privateReasonAttendancePattern = try! NSRegularExpression(
         pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]*)\s+(I\s+(?:cannot|can't|can’t|will not|won't|won’t)\s+(?:join|attend|make)\s+(?:the\s+)?(?:call|meeting|session|event|rehearsal|dinner|appointment|review|it)(?:\s+(?:today|tomorrow|tonight))?),\s+and\s+keep\s+the\s+reason\s+private\.?$"#,
