@@ -5,6 +5,88 @@ import Testing
 @MainActor
 struct ScribeProviderControllerV2Tests {
     @Test
+    func selectingOnDeviceNeedsNoKeyAndRetainsSavedCloudConfiguration() async throws {
+        let library = U5LibraryStore()
+        let vault = U5Vault()
+        let transport = U4RecordingTransport(results: [])
+        let cloud = try U5Fixtures.configuration(
+            kind: .openAIDirect, model: "saved-model", receipt: Self.receipt(for: .openAIDirect),
+            reference: .init(domain: .candidate, opaqueReference: .init(rawValue: "saved-key"))
+        )
+        library.result = .valid(.init(revision: 3, configurations: [cloud], activeConfigurationID: cloud.id))
+        let runtime = ScribeProviderRuntime(
+            libraryStore: library, legacyStore: U5LegacyStore(), ledgerStore: U5LedgerStore(),
+            vault: vault, transport: transport, legacyLocalProvider: MockScribeProvider()
+        )
+        try await runtime.controller.selectOnDevice(activeAction: nil)
+        #expect(runtime.controller.readiness == .ready(.legacyLocal))
+        let action = try await runtime.controller.actionForNewRequest()
+        try action.validateForAcquisition()
+        #expect(await runtime.controller.authorizeDispatch(action.actionIdentity))
+        #expect(action.destination == .legacyLocal)
+        #expect(await vault.loadCount == 0)
+        #expect(await vault.staged.isEmpty)
+        #expect(await transport.requests.isEmpty)
+        guard case let .valid(saved) = library.load() else {
+            Issue.record("Expected saved local selection"); return
+        }
+        #expect(saved.configurations.contains(cloud))
+        #expect(saved.configurations.count == 2)
+        try await runtime.controller.selectOnDevice(activeAction: nil)
+        guard case let .valid(reselected) = library.load() else { return }
+        #expect(reselected.configurations.count == 2)
+    }
+
+    @Test
+    func localAvailabilityIsRecheckedBeforeReadinessAcquisitionAndDispatch() async throws {
+        let library = U5LibraryStore()
+        let local = try ScribeProviderLibraryConfiguration.onDevice()
+        library.result = .valid(.init(revision: 1, configurations: [local], activeConfigurationID: local.id))
+        let provider = ChangingLocalProvider()
+        let vault = U5Vault()
+        let runtime = ScribeProviderRuntime(
+            libraryStore: library, legacyStore: U5LegacyStore(), ledgerStore: U5LedgerStore(),
+            vault: vault, legacyLocalProvider: provider
+        )
+        await runtime.controller.reloadReadiness()
+        #expect(runtime.controller.readiness == .temporarilyUnavailable(.legacyLocal))
+        await #expect(throws: ScribeProviderFailure.self) { try await runtime.controller.actionForNewRequest() }
+        provider.setAvailable(true)
+        await runtime.controller.reloadReadiness()
+        #expect(runtime.controller.readiness == .ready(.legacyLocal))
+        let action = try await runtime.controller.actionForNewRequest()
+        #expect(await runtime.controller.authorizeDispatch(action.actionIdentity))
+        provider.setAvailable(false)
+        #expect(await runtime.controller.authorizeDispatch(action.actionIdentity) == false)
+        await runtime.controller.reloadReadiness()
+        #expect(runtime.controller.readiness == .temporarilyUnavailable(.legacyLocal))
+        #expect(await vault.loadCount == 0)
+    }
+
+    @Test
+    func localSelectionRejectsActiveActionUnavailableModelAndCorruptStoreWithoutWriting() async throws {
+        let library = U5LibraryStore()
+        let provider = ChangingLocalProvider()
+        let runtime = ScribeProviderRuntime(
+            libraryStore: library, legacyStore: U5LegacyStore(), ledgerStore: U5LedgerStore(),
+            vault: U5Vault(), legacyLocalProvider: provider
+        )
+        await #expect(throws: ScribeProviderFailure.self) {
+            try await runtime.controller.selectOnDevice(activeAction: nil)
+        }
+        provider.setAvailable(true)
+        let active = ScribeProviderActionIdentity(configurationID: UUID(), libraryRevision: 1, selectedModelID: "model")
+        await #expect(throws: ScribeProviderConnectionError.activeActionConfirmationRequired) {
+            try await runtime.controller.selectOnDevice(activeAction: active)
+        }
+        library.result = .rejected(.malformed)
+        await #expect(throws: ScribeProviderFailure.self) {
+            try await runtime.controller.selectOnDevice(activeAction: nil)
+        }
+        #expect(library.saveCount == 0)
+    }
+
+    @Test
     func activeActionMutationRequiresConfirmationBeforeLibraryChange() {
         let activeID = UUID()
         let identity = ScribeProviderActionIdentity(
@@ -464,5 +546,17 @@ struct ScribeProviderControllerV2Tests {
             disclosureRevision: ScribeProviderDisclosure.currentVersion,
             acceptedAt: Date(timeIntervalSince1970: 10)
         )
+    }
+}
+
+private final class ChangingLocalProvider: ScribeProvider, @unchecked Sendable {
+    private let lock = NSLock()
+    private var available = false
+    var capabilities: ScribeProviderCapabilities {
+        lock.withLock { available ? [.semanticGeneration, .cancellation] : [] }
+    }
+    func setAvailable(_ value: Bool) { lock.withLock { available = value } }
+    func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
+        throw ScribeProviderError.unavailable
     }
 }

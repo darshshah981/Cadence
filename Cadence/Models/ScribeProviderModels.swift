@@ -13,7 +13,7 @@ enum ScribeProviderKind: String, CaseIterable, Codable, Equatable, Sendable {
         case .openAIDirect: return "OpenAI"
         case .openRouter: return "OpenRouter"
         case .advanced: return "Advanced provider"
-        case .legacyLocal: return "On-device provider"
+        case .legacyLocal: return "Apple Intelligence"
         }
     }
 }
@@ -646,6 +646,25 @@ struct ScribeProviderLibraryConfiguration: Codable, Equatable, Identifiable, Sen
     }
 }
 
+extension ScribeProviderLibraryConfiguration {
+    /// The local URI and reference are schema identifiers, never an endpoint
+    /// or a Keychain credential. Keep the persisted legacyLocal kind compatible.
+    static func onDevice(id: UUID = UUID()) throws -> Self {
+        let date = Date(timeIntervalSince1970: 0)
+        return try Self(
+            id: id, kind: .legacyLocal, displayName: ScribeProviderKind.legacyLocal.displayName,
+            normalizedOrigin: "local://this-mac",
+            baseURL: URL(string: "local://this-mac")!,
+            requestURL: URL(string: "local://this-mac")!,
+            selectedModelID: "apple-system-on-device", catalogID: nil,
+            disclosureVersion: ScribeProviderDisclosure.currentVersion,
+            acceptedAt: date, lastValidatedAt: date,
+            credentialReference: .init(rawValue: "on-device-no-credential"),
+            isEnabled: true
+        )
+    }
+}
+
 enum ScribeProviderLibraryConfigurationValidator {
     static func isValid(_ configuration: ScribeProviderLibraryConfiguration) -> Bool {
         let value = configuration.normalized()
@@ -765,6 +784,30 @@ enum ScribeProviderReadiness: Equatable, Sendable {
     case needsAttention(ScribeProviderKind)
     case deprecated(ScribeProviderKind)
     case removed
+
+    func statusText(
+        configuredKind: ScribeProviderKind?,
+        onDeviceUnavailableReason: String?
+    ) -> String {
+        switch self {
+        case .disabled:
+            return configuredKind == .legacyLocal
+                ? "Compose is disabled · no API key needed"
+                : "Compose is disabled · provider key retained"
+        case .setupRequired: return "Provider setup required · literal Dictation remains available"
+        case .validating: return "Validating the selected provider…"
+        case .ready(.legacyLocal):
+            return onDeviceUnavailableReason ?? "On-device · no API key · review before insert"
+        case let .ready(kind): return "\(kind.displayName) connected · review before insert"
+        case .temporarilyUnavailable(.legacyLocal):
+            return onDeviceUnavailableReason ?? "Apple Intelligence is temporarily unavailable"
+        case let .temporarilyUnavailable(kind): return "\(kind.displayName) is temporarily unavailable"
+        case .configurationInvalid: return "Provider configuration needs repair"
+        case let .needsAttention(kind): return "\(kind.displayName) needs attention"
+        case let .deprecated(kind): return "\(kind.displayName) needs a Cadence update"
+        case .removed: return "Provider removed · provider setup required"
+        }
+    }
 }
 
 /// A single destination prevents duplicate Replace controls and keeps setup

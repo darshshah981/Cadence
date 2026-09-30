@@ -502,6 +502,13 @@ enum ScribeActionPolicy {
                 id: id("done"), title: "Done", role: .primary,
                 keyboardShortcut: .defaultAction, route: .close
             )]
+        case .memoryNotice:
+            return [.init(
+                id: id("memory-done"), title: "Done", role: .primary,
+                keyboardShortcut: .defaultAction, route: .close
+            )]
+        case .persistentMemoryProposal, .persistentMemoryForgetProposal:
+            return []
         case .cancelled:
             return []
         case .failed:

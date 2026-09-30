@@ -51,8 +51,10 @@ struct ScribeProviderManagementView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         DisclosureGroup {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text(ScribeProviderDisclosure.directDictationSummary)
-                                if let recipient = appModel.configuredScribeRecipient {
+                                Text(kind == .legacyLocal
+                                    ? "Compose processes your spoken text with Apple Intelligence on this Mac. No API key is stored and no draft text is sent to a cloud provider."
+                                    : ScribeProviderDisclosure.directDictationSummary)
+                                if kind != .legacyLocal, let recipient = appModel.configuredScribeRecipient {
                                     Text("Recipient: \(recipient)")
                                         .font(.system(.caption, design: .monospaced))
                                 }
@@ -67,7 +69,7 @@ struct ScribeProviderManagementView: View {
                             .foregroundStyle(FlowTheme.textSecondary)
                             .padding(.top, 8)
                         } label: {
-                            Text("Data sent to \(kind.displayName)")
+                            Text(kind == .legacyLocal ? "On-device processing" : "Data sent to \(kind.displayName)")
                                 .accessibilityIdentifier("scribe-provider-data-disclosure")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(FlowTheme.textPrimary)
@@ -102,7 +104,9 @@ struct ScribeProviderManagementView: View {
                     }
                     Button("Cancel", role: .cancel) {}
                 } message: {
-                    Text(ScribeProviderDisclosure.removal(provider: kind.displayName))
+                    Text(kind == .legacyLocal
+                        ? "Compose will need a provider selected again. Removing this choice does not change your Mac's Apple Intelligence settings."
+                        : ScribeProviderDisclosure.removal(provider: kind.displayName))
                 }
             }
 

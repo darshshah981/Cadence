@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Held-out synthetic instruction-following cases. Reserve these from prompt tuning and use them only after a primary development-corpus run.",
+  "evaluationOrder": "Run instruction-following.json with instruction-rubric.json first; reserve this file for held-out evaluation.",
+  "cases": [
+    {"id":"holdout-leading-style","family":"messaging","spoken":"Make this upbeat and brief. Tell Nora the rehearsal starts at nine.","exampleDraft":"Nora, the rehearsal starts at nine.","required":["Nora","nine"],"forbidden":["Make this upbeat"]},
+    {"id":"holdout-trailing-style","family":"general","spoken":"The vendor confirmed the sample arrived. Make that more polished.","exampleDraft":"The vendor has confirmed that the sample arrived.","required":["sample"],"forbidden":["more polished"]},
+    {"id":"holdout-recipient-instruction","family":"messaging","spoken":"Tell Priya to make the status note friendlier.","exampleDraft":"Priya, please make the status note friendlier.","required":["Priya","friendlier"],"forbidden":[]},
+    {"id":"holdout-quoted-literal","family":"general","spoken":"Put the exact wording \"Send it after lunch\" in the card.","exampleDraft":"Send it after lunch","required":["Send it after lunch"],"forbidden":[]},
+    {"id":"holdout-final-correction","family":"messaging","spoken":"Tell Omar the review is at three, actually at four. Keep it concise.","exampleDraft":"Omar, the review is at four.","required":["Omar","four"],"forbidden":["three","Keep it concise"]},
+    {"id":"holdout-ambiguous-this","family":"general","spoken":"Make this friendlier.","exampleDraft":"Make this friendlier.","required":[],"forbidden":["invoice","schedule","project"]},
+    {"id":"holdout-compound-length-format","family":"general","spoken":"In three short bullets, say the outline is approved, copy is pending, and the launch remains Friday.","exampleDraft":"- The outline is approved.\n- Copy is pending.\n- The launch remains Friday.","required":["outline","copy","Friday"],"forbidden":[]},
+    {"id":"holdout-prompt-scaffold-literal","family":"coding","spoken":"Ask the coding assistant to locate \"Final answer:\" in docs/Guide.md without changing the file.","exampleDraft":"Locate \"Final answer:\" in docs/Guide.md without changing the file.","required":["Final answer:","docs/Guide.md","without changing the file"],"forbidden":[]},
+    {"id":"holdout-uncertain-fact","family":"messaging","spoken":"Tell Mei I may have the numbers ready tomorrow, but I am not certain.","exampleDraft":"Mei, I may have the numbers ready tomorrow, but I am not certain.","required":["Mei","may","tomorrow"],"forbidden":["will have"]},
+    {"id":"holdout-negative-limit","family":"coding","spoken":"Draft a short request to review the cache miss, but do not modify configuration.","exampleDraft":"Review the cache miss without modifying configuration.","required":["cache miss","without modifying configuration"],"forbidden":["I modified","change configuration"]},
+    {"id":"holdout-recipient-question","family":"messaging","spoken":"Could you ask Dana whether the invoice needs approval before Monday?","exampleDraft":"Dana, does the invoice need approval before Monday?","required":["Dana","invoice","Monday"],"forbidden":["approved the invoice"]},
+    {"id":"holdout-literal-flag","family":"coding","spoken":"Ask the agent to inspect tools/replay.sh using --dry-run and leave files untouched.","exampleDraft":"Inspect tools/replay.sh using --dry-run and leave files untouched.","required":["tools/replay.sh","--dry-run","leave files untouched"],"forbidden":[]},
+    {"id":"holdout-destination-scaffold","family":"general","spoken":"I think the draft is ready. Write it as a reply in Slack.","exampleDraft":"I think the draft is ready.","required":["think","ready"],"forbidden":["reply in Slack","Here is"]},
+    {"id":"holdout-no-invention","family":"messaging","spoken":"Tell Eli I cannot join the call, and keep the reason private.","exampleDraft":"Eli, I cannot join the call.","required":["Eli","cannot join"],"forbidden":["because","travel","appointment"]},
+    {"id":"holdout-quoted-format-command","family":"general","spoken":"Write a note that says \"Use two bullets\" exactly.","exampleDraft":"Use two bullets","required":["Use two bullets"],"forbidden":[]},
+    {"id":"holdout-mixed-facts","family":"general","spoken":"The demo is Wednesday; the memo is due Thursday. Make this clear.","exampleDraft":"The demo is Wednesday, and the memo is due Thursday.","required":["Wednesday","Thursday"],"forbidden":["Make this clear"]}
+  ]
+}

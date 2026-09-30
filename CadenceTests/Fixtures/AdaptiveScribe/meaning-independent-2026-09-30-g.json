@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Post-repair independent U3 meaning reserve; freeze every case and criterion before first production export and model run.",
+  "evaluationOrder": "Review all first-run drafts for semantic constraints and safe readiness. Do not retroactively rewrite criteria or count later repaired reruns as independent.",
+  "semanticCriteria": {
+    "acceptable": "Every review-ready draft keeps the recipient, temporal status, condition, uncertainty, amount and unit, correction, negative restriction, and exact literal that the speaker supplied.",
+    "critical": "A lost or changed addressee, factual state, date relationship, numeric unit, exact literal, qualifier, restriction or condition; a claimed action the user merely requested; or a copied writing frame presented as sendable text.",
+    "minor": "Stylistic differences that do not alter facts, commitments or the requested audience.",
+    "gate": "All 16 fresh cases generate a review-ready, semantically acceptable draft with zero deterministic literal violations and zero critical errors."
+  },
+  "cases": [
+    {
+      "id": "meaning-g-overdue-no-fee",
+      "family": "messaging",
+      "spoken": "Tell Hana the invoice is overdue, but no late fee has been charged.",
+      "exampleDraft": "Hana, the invoice is overdue, but no late fee has been charged.",
+      "required": ["Hana", "overdue", "no late fee"],
+      "forbidden": ["late fee was charged"]
+    },
+    {
+      "id": "meaning-g-contract-approval-window",
+      "family": "messaging",
+      "spoken": "Ask Ben whether the contract can be signed after counsel approves, but before Friday.",
+      "exampleDraft": "Ben, can the contract be signed after counsel approves but before Friday?",
+      "required": ["Ben", "contract", "after counsel", "before Friday"],
+      "forbidden": ["after Friday", "before counsel"]
+    },
+    {
+      "id": "meaning-g-workshop-and-recap",
+      "family": "general",
+      "spoken": "The workshop happened Wednesday; the recap is due Saturday. Write this formally.",
+      "exampleDraft": "The workshop took place on Wednesday, and the recap is due on Saturday.",
+      "required": ["workshop", "Wednesday", "recap", "Saturday"],
+      "forbidden": ["workshop is scheduled", "recap happened"]
+    },
+    {
+      "id": "meaning-g-total-including-tax",
+      "family": "messaging",
+      "spoken": "Tell Leo the total is $1,045.50 including tax, not before tax.",
+      "exampleDraft": "Leo, the total is $1,045.50 including tax, not before tax.",
+      "required": ["Leo", "$1,045.50", "including tax", "not before tax"],
+      "forbidden": ["before tax is $1,045.50"]
+    },
+    {
+      "id": "meaning-g-might-if",
+      "family": "messaging",
+      "spoken": "Tell Mira I might attend if the session starts after noon.",
+      "exampleDraft": "Mira, I might attend if the session starts after noon.",
+      "required": ["Mira", "might", "if", "after noon"],
+      "forbidden": ["I will attend"]
+    },
+    {
+      "id": "meaning-g-paused-not-resolved",
+      "family": "messaging",
+      "spoken": "Tell Adi the issue is paused until QA signs off, not resolved.",
+      "exampleDraft": "Adi, the issue is paused until QA signs off, not resolved.",
+      "required": ["Adi", "paused", "until QA", "not resolved"],
+      "forbidden": ["issue is resolved"]
+    },
+    {
+      "id": "meaning-g-coding-no-edits",
+      "family": "coding",
+      "spoken": "Draft a request to inspect literal verbatim Sources/Import.swift end literal and leave the file unchanged.",
+      "exampleDraft": "Inspect Sources/Import.swift and leave the file unchanged.",
+      "required": ["Sources/Import.swift", "unchanged"],
+      "forbidden": ["I inspected", "I changed"]
+    },
+    {
+      "id": "meaning-g-call-utc",
+      "family": "messaging",
+      "spoken": "Reply to Sol: Wednesday works only after 6 p.m. UTC.",
+      "exampleDraft": "Sol, Wednesday works only after 6 p.m. UTC.",
+      "required": ["Sol", "Wednesday", "after 6 p.m. UTC"],
+      "forbidden": ["before 6 p.m.", "ET"]
+    },
+    {
+      "id": "meaning-g-percent-vs-points",
+      "family": "general",
+      "spoken": "The fee increased by 4%, not by 4 percentage points. Make this concise.",
+      "exampleDraft": "The fee increased by 4%, not by 4 percentage points.",
+      "required": ["4%", "not", "4 percentage points"],
+      "forbidden": ["increased by 4 percentage points"]
+    },
+    {
+      "id": "meaning-g-trial-only",
+      "family": "messaging",
+      "spoken": "Ask Rhea whether the cancellation applies to the trial only, not paid accounts.",
+      "exampleDraft": "Rhea, does the cancellation apply only to the trial and not to paid accounts?",
+      "required": ["Rhea", "trial", "not paid accounts"],
+      "forbidden": ["paid accounts are canceled"]
+    },
+    {
+      "id": "meaning-g-moved-date-separate-due-date",
+      "family": "messaging",
+      "spoken": "Tell Yara the appointment moved from Thursday to Friday, but payment stays due Thursday.",
+      "exampleDraft": "Yara, the appointment moved to Friday, but payment remains due Thursday.",
+      "required": ["Yara", "appointment", "Friday", "payment", "Thursday"],
+      "forbidden": ["payment is due Friday"]
+    },
+    {
+      "id": "meaning-g-api-not-retried",
+      "family": "general",
+      "spoken": "The API returned 409, but the request has not retried yet. Write this clearly.",
+      "exampleDraft": "The API returned 409, and the request has not been retried yet.",
+      "required": ["API", "409", "not", "retried"],
+      "forbidden": ["retried successfully"]
+    },
+    {
+      "id": "meaning-g-publish-two-conditions",
+      "family": "messaging",
+      "spoken": "Tell Faye do not publish unless Priya approves and QA passes.",
+      "exampleDraft": "Faye, do not publish unless Priya approves and QA passes.",
+      "required": ["Faye", "do not publish", "Priya", "QA"],
+      "forbidden": ["publish now"]
+    },
+    {
+      "id": "meaning-g-check-without-closing",
+      "family": "messaging",
+      "spoken": "Ask Theo to check issue AB-91 without closing it.",
+      "exampleDraft": "Theo, please check issue AB-91 without closing it.",
+      "required": ["Theo", "AB-91", "without closing"],
+      "forbidden": ["close issue AB-91"]
+    },
+    {
+      "id": "meaning-g-delivery-condition-no-shipment-promise",
+      "family": "general",
+      "spoken": "We can deliver on Tuesday if final review passes Monday; do not promise shipment yet.",
+      "exampleDraft": "We can deliver on Tuesday if final review passes Monday, but shipment is not yet promised.",
+      "required": ["Tuesday", "if", "Monday", "not"],
+      "forbidden": ["shipment is confirmed", "we shipped"]
+    },
+    {
+      "id": "meaning-g-quoted-identifier",
+      "family": "messaging",
+      "spoken": "Tell Jo to include the exact identifier \"CASE_17B\" in the update and not rename it.",
+      "exampleDraft": "Jo, include the exact identifier \"CASE_17B\" in the update and do not rename it.",
+      "required": ["Jo", "CASE_17B", "not rename"],
+      "forbidden": ["CASE-17B"]
+    }
+  ]
+}

@@ -1517,6 +1517,26 @@ struct HUDReleaseHardeningTests {
 
     @Test
     @MainActor
+    func composeCopyFailureReportsFailureWithoutSavingHistoryOrSuccessFeedback() {
+        let pasteboard = HardeningPasteboardWriter(succeeds: false)
+        var savedDrafts = 0
+        var successFeedback = 0
+        var failureFeedback = 0
+
+        let copied = ComposeCopyCommit.perform("synthetic draft", using: pasteboard) {
+            savedDrafts += 1
+            successFeedback += 1
+        } onFailure: {
+            failureFeedback += 1
+        }
+
+        #expect(!copied)
+        #expect(pasteboard.replaceCount == 1)
+        #expect(savedDrafts == 0 && successFeedback == 0 && failureFeedback == 1)
+    }
+
+    @Test
+    @MainActor
     func trayBackgroundCollapsesWhileControlsRemainIndependent() {
         let model = HUDViewModel()
         model.apply(.logoIdle)

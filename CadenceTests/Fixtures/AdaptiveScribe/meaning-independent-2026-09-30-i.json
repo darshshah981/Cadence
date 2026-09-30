@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Ninth independent U3 meaning reserve frozen after eighth-reserve repairs and before its first on-device generation.",
+  "evaluationOrder": "Assess first-run generation, policy readiness, and each frozen semantic criterion separately. Preserve any failure before repair.",
+  "semanticCriteria": {
+    "acceptable": "A sendable draft addressed to the intended person when named; every factual state, condition, uncertainty, time relation, numerical value and unit, exact identifier, literal and negative restriction remains intact.",
+    "critical": "A copied writer instruction, missing audience, changed completion state, reversed condition, lost negation or uncertainty, wrong date/amount/unit, changed exact literal, or invented action.",
+    "minor": "Grammar or tone changes with the same substance.",
+    "gate": "All 16 fresh cases must be review-ready with zero critical meaning errors and zero exact-literal violations."
+  },
+  "cases": [
+    {"id":"meaning-i-receipt-vs-payment","family":"messaging","spoken":"Tell Alex the receipt was sent Wednesday, but payment has not been received.","exampleDraft":"Alex, the receipt was sent Wednesday, but payment has not been received.","required":["Alex","Wednesday","receipt","payment","not been received"],"forbidden":["payment was received"]},
+    {"id":"meaning-i-booking-confirmed-or-requested","family":"messaging","spoken":"Ask Blair if the booking is confirmed for April 7 or only requested.","exampleDraft":"Blair, is the booking confirmed for April 7, or has it only been requested?","required":["Blair","booking","April 7","confirmed","requested"],"forbidden":["booking is confirmed"]},
+    {"id":"meaning-i-deposit-vs-balance","family":"general","spoken":"The deposit was paid Monday, but the balance is due Thursday. Write this formally.","exampleDraft":"The deposit was paid on Monday, while the balance is due on Thursday.","required":["deposit","paid","Monday","balance","Thursday"],"forbidden":["balance was paid"]},
+    {"id":"meaning-i-under-not-exactly","family":"messaging","spoken":"Tell Dana the limit is under $600, not exactly $600.","exampleDraft":"Dana, the limit is under $600, not exactly $600.","required":["Dana","under $600","not exactly $600"],"forbidden":["limit is exactly $600"]},
+    {"id":"meaning-i-may-if-permit","family":"messaging","spoken":"Tell Fred I may travel if the permit arrives before Monday.","exampleDraft":"Fred, I may travel if the permit arrives before Monday.","required":["Fred","may","if","before Monday"],"forbidden":["I will travel"]},
+    {"id":"meaning-i-invoice-two-records","family":"messaging","spoken":"Tell Priya not to approve the invoice until both records match.","exampleDraft":"Priya, do not approve the invoice until both records match.","required":["Priya","do not approve","both records"],"forbidden":["approve now"]},
+    {"id":"meaning-i-denied-appeal-open","family":"messaging","spoken":"Draft a note to Esha saying the request was denied, but the appeal is open.","exampleDraft":"Esha, the request was denied, but the appeal is open.","required":["Esha","denied","appeal","open"],"forbidden":["appeal was denied"]},
+    {"id":"meaning-i-decimal-conversion","family":"general","spoken":"The conversion rate is 2.5%, not 25%. Make this concise.","exampleDraft":"The conversion rate is 2.5%, not 25%.","required":["2.5%","not 25%"],"forbidden":["rate is 25%"]},
+    {"id":"meaning-i-availability-before-pt","family":"messaging","spoken":"Reply to Niko: I am free tomorrow only before 11 a.m. PT.","exampleDraft":"Niko, I am free tomorrow only before 11 a.m. PT.","required":["Niko","tomorrow","before 11 a.m. PT"],"forbidden":["after 11 a.m.","ET"]},
+    {"id":"meaning-i-wait-for-update","family":"messaging","spoken":"Ask Marc whether the update can wait until Tuesday.","exampleDraft":"Marc, can the update wait until Tuesday?","required":["Marc","update","wait","Tuesday"],"forbidden":["send the update today"]},
+    {"id":"meaning-i-shipped-no-tracking","family":"messaging","spoken":"Tell Zoë order AB_92 has shipped, but tracking is not available yet.","exampleDraft":"Zoë, order AB_92 has shipped, but tracking is not available yet.","required":["Zoë","AB_92","shipped","not available"],"forbidden":["tracking is available"]},
+    {"id":"meaning-i-euro-per-user","family":"messaging","spoken":"Tell Joel the fee is €34 per user, not €34 total.","exampleDraft":"Joel, the fee is €34 per user, not €34 total.","required":["Joel","€34","per user","not €34 total"],"forbidden":["€34 total is the fee"]},
+    {"id":"meaning-i-code-review-only","family":"coding","spoken":"Ask the coding agent to review literal verbatim Sources/Auth.swift end literal and make no edits.","exampleDraft":"Review Sources/Auth.swift and make no edits.","required":["Sources/Auth.swift","no edits"],"forbidden":["I reviewed","I edited"]},
+    {"id":"meaning-i-announcement-conditional","family":"general","spoken":"We plan to announce Friday if testing clears Thursday; do not promise shipment yet.","exampleDraft":"We plan to announce Friday if testing clears Thursday, without promising shipment yet.","required":["Friday","if","Thursday","shipment"],"forbidden":["shipment is confirmed","we shipped"]},
+    {"id":"meaning-i-exact-pending-phrase","family":"messaging","spoken":"Tell Mira to include the exact phrase \"pending verification\" in the summary and not claim approval.","exampleDraft":"Mira, include the exact phrase \"pending verification\" in the summary and do not claim approval.","required":["Mira","pending verification","not claim approval"],"forbidden":["approval was granted"]},
+    {"id":"meaning-i-report-vs-meeting","family":"general","spoken":"The report was filed Friday, and the meeting is scheduled Tuesday. Write this formally.","exampleDraft":"The report was filed on Friday, and the meeting is scheduled for Tuesday.","required":["report","filed","Friday","meeting","Tuesday"],"forbidden":["report is scheduled","meeting was filed"]}
+  ]
+}

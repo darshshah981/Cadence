@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh Apple Intelligence Compose instruction-quality reserve after the U3 N pass, frozen before production export and first model generation.",
+  "evaluationOrder": "Judge the first run against the frozen task, style, recipient, and literal criteria; preserve raw requests/results/replay before any repair.",
+  "semanticCriteria": {
+    "acceptable": "The 14 contentful requests produce sendable drafts that apply the stated writing direction without including that direction in the message, preserve recipient and source meaning, and keep exact literals and recipient restrictions. Two source-free transformations must be rejected before review.",
+    "critical": "A writer instruction copied into the outgoing draft, omitted addressee or negative restriction, changed fact or uncertainty, altered exact literal, invented source content, or missing-source result marked ready.",
+    "minor": "A weak but recognizable tone change, extra politeness, or grammar variation with full meaning intact.",
+    "gate": "All 14 contentful cases review-ready with zero critical errors, at least 11 of the 14 satisfying their stated style or format direction, and both source-free cases rejected."
+  },
+  "cases": [
+    {"id":"instruction-o-formal-greeting","family":"tone","spoken":"Hey, how's it going? Write this formally.","exampleDraft":"Hello, how are you?","required":["Hello","how are you"],"forbidden":["Write this formally"]},
+    {"id":"instruction-o-casual-lateness","family":"tone","spoken":"Tell Dev I will be five minutes late to the call. Make it casual.","exampleDraft":"Hey Dev, I'll be five minutes late to the call.","required":["Dev","five minutes","late","call"],"forbidden":["Make it casual"]},
+    {"id":"instruction-o-warm-preview","family":"tone","spoken":"Keep this warm and short. Tell Zoe the preview is ready for review.","exampleDraft":"Hi Zoe, the preview is ready for review.","required":["Zoe","preview","ready for review"],"forbidden":["Keep this warm"]},
+    {"id":"instruction-o-upbeat-rehearsal","family":"tone","spoken":"Make this upbeat and brief. Tell Priya the rehearsal starts at eight.","exampleDraft":"Priya, the rehearsal starts at eight!","required":["Priya","rehearsal","eight"],"forbidden":["Make this upbeat"]},
+    {"id":"instruction-o-formal-uncertainty","family":"tone","spoken":"I think the proposal may be ready Thursday. Write this formally.","exampleDraft":"I believe the proposal may be ready on Thursday.","required":["proposal","may","Thursday"],"forbidden":["proposal is ready Thursday","Write this formally"]},
+    {"id":"instruction-o-concise-two-facts","family":"length","spoken":"The release is ready and the review begins Monday. Make this concise.","exampleDraft":"The release is ready; review begins Monday.","required":["release","ready","review","Monday"],"forbidden":["Make this concise"]},
+    {"id":"instruction-o-two-bullets","family":"format","spoken":"Put this in two bullets: the prototype works and QA starts Friday.","exampleDraft":"- The prototype works.\n- QA starts Friday.","required":["prototype","works","QA","Friday"],"forbidden":["Put this in two bullets"]},
+    {"id":"instruction-o-corrected-day","family":"correction","spoken":"Tell Maya the call is Tuesday, sorry, Thursday. Keep it short.","exampleDraft":"Maya, the call is Thursday.","required":["Maya","Thursday"],"forbidden":["Tuesday","sorry","Keep it short"]},
+    {"id":"instruction-o-coding-restriction","family":"coding","spoken":"Ask the coding agent to inspect literal verbatim Sources/Login.swift end literal and do not edit files. Make this a concise prompt.","exampleDraft":"Inspect Sources/Login.swift and do not edit files.","required":["Sources/Login.swift","do not edit files"],"forbidden":["I inspected","I edited","Make this a concise prompt"]},
+    {"id":"instruction-o-recipient-style-task","family":"recipient","spoken":"Tell Ada to make the announcement more formal.","exampleDraft":"Ada, please make the announcement more formal.","required":["Ada","announcement","more formal"],"forbidden":["The announcement is"]},
+    {"id":"instruction-o-quoted-command","family":"literal","spoken":"Include the exact sentence \"Write this formally\" in the note.","exampleDraft":"Write this formally","required":["Write this formally"],"forbidden":["Here's the message"]},
+    {"id":"instruction-o-private-decline","family":"tone","spoken":"Tell Ellis I cannot attend the review, and keep the reason private.","exampleDraft":"Ellis, I cannot attend the review.","required":["Ellis","cannot attend","review"],"forbidden":["keep the reason private","because"]},
+    {"id":"instruction-o-codex-reply","family":"reply","spoken":"I'm not sure this approach will work. Can you write this as a response in Codex?","exampleDraft":"I'm not sure this approach will work.","required":["not sure","approach","work"],"forbidden":["Can you write this","Sure, here's"]},
+    {"id":"instruction-o-polite-request","family":"tone","spoken":"Ask Omar to send the notes by Friday, and make the request polite.","exampleDraft":"Omar, could you please send the notes by Friday?","required":["Omar","notes","Friday"],"forbidden":["make the request polite"]},
+    {"id":"instruction-o-source-free-shorter","family":"missingSource","spoken":"Make this shorter.","exampleDraft":"[needs source text]","required":["missing source"],"forbidden":["Make this shorter"]},
+    {"id":"instruction-o-source-free-summary","family":"missingSource","spoken":"Summarize this in one sentence.","exampleDraft":"[needs source text]","required":["missing source"],"forbidden":["Summarize this"]}
+  ]
+}

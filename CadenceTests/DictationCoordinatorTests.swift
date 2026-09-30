@@ -249,6 +249,32 @@ struct DictationCoordinatorTests {
     }
 
     @Test
+    func buttonBackedWebComposerInsertsWithBackupWithoutSubmitting() async throws {
+        let assessment = DictationTargetCapabilityPolicy.assess(
+            .init(role: "AXButton", selectedTextIsSettable: false, hasTextCursorHint: true),
+            bundleIdentifier: "com.meta.endo"
+        )
+        let fixture = DictationCoordinatorFixture(
+            target: Self.capture(), transcript: "Keep this transcript press enter",
+            targetAssessment: assessment
+        )
+        var configuration = TranscriptionConfiguration()
+        configuration.pressEnterCommandEnabled = true
+        _ = try await fixture.coordinator.updateTranscriptionConfiguration(configuration)
+        var states: [HUDVisualState] = []
+        fixture.coordinator.onHUDChange = { states.append($0.visualState) }
+
+        await fixture.coordinator.startDictation()
+        await fixture.coordinator.finishDictation()
+
+        #expect(fixture.pasteboard.value == "Keep this transcript")
+        #expect(fixture.insertion.values == ["Keep this transcript"])
+        #expect(!fixture.insertion.events.contains(.pressReturn))
+        #expect(states.contains(.success))
+        #expect(!states.contains(.copied))
+    }
+
+    @Test
     func unknownCustomEditorBacksUpClipboardAndAttemptsKeyboardInsertion() async {
         let fixture = DictationCoordinatorFixture(
             target: Self.capture(),
@@ -263,6 +289,35 @@ struct DictationCoordinatorTests {
         #expect(fixture.insertion.values.map {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
         } == ["Keep this transcript"])
+    }
+
+    @Test(arguments: [
+        DictationTargetCapabilityAssessment.unknown(.webTextCursorHint),
+        .notEditable(.nonTextRole)
+    ])
+    func clipboardFailureRetainsWordsWithoutTypingOrClaimingSuccess(
+        _ assessment: DictationTargetCapabilityAssessment
+    ) async {
+        let fixture = DictationCoordinatorFixture(
+            target: Self.capture(), targetAssessment: assessment
+        )
+        fixture.pasteboard.succeeds = false
+        var retainedTranscript: String?
+        var displayedError: String?
+        var states: [HUDVisualState] = []
+        fixture.coordinator.onTranscript = { text, _ in retainedTranscript = text }
+        fixture.coordinator.onError = { displayedError = $0 }
+        fixture.coordinator.onHUDChange = { states.append($0.visualState) }
+
+        await fixture.coordinator.startDictation()
+        await fixture.coordinator.finishDictation()
+
+        #expect(retainedTranscript == "Keep this transcript")
+        #expect(displayedError == "Couldn’t copy that — try again")
+        #expect(fixture.pasteboard.value == nil)
+        #expect(fixture.insertion.events.isEmpty)
+        #expect(fixture.feedback.completionCount == 0)
+        #expect(!states.contains(.copied) && !states.contains(.success))
     }
 
     @Test
@@ -512,8 +567,10 @@ private final class DictationTargetCapabilityFake: DictationTargetCapabilityServ
 @MainActor
 private final class DictationPasteboardFake: TextPasteboardWriting {
     private(set) var value: String?
+    var succeeds = true
 
     func replaceContents(with text: String) -> Bool {
+        guard succeeds else { return false }
         value = text
         return true
     }

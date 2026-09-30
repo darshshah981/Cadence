@@ -345,6 +345,11 @@ final class ScribeProviderV2Controller {
                 $0.id == library.activeConfigurationID
             }) else { readiness = .setupRequired; return }
             guard configuration.isEnabled else { readiness = .disabled; return }
+            if configuration.kind == .legacyLocal,
+               legacyLocalProvider?.capabilities.contains(.semanticGeneration) != true {
+                readiness = .temporarilyUnavailable(.legacyLocal)
+                return
+            }
             if configuration.kind != .legacyLocal {
                 guard let receipt = configuration.consentReceipt,
                       receipt.disclosureRevision == ScribeProviderDisclosure.currentVersion,
@@ -408,7 +413,10 @@ final class ScribeProviderV2Controller {
             throw failure(.setupRequired, .reconnect)
         }
         if configuration.kind == .legacyLocal {
-            guard let legacyLocalProvider else { throw failure(.configurationInvalid, .updateCadence) }
+            guard let legacyLocalProvider,
+                  legacyLocalProvider.capabilities.contains(.semanticGeneration) else {
+                throw failure(.providerUnavailable, .changeConfiguration)
+            }
             return ScribeProviderActionSnapshot(
                 provider: legacyLocalProvider,
                 destination: .legacyLocal,
@@ -452,13 +460,46 @@ final class ScribeProviderV2Controller {
               configuration.selectedModelID == identity.selectedModelID,
               configuration.storedCredentialReference == identity.credentialReference else { return false }
         if configuration.kind == .legacyLocal {
-            return identity.consentReceiptID == nil && legacyLocalProvider != nil
+            return identity.consentReceiptID == nil
+                && legacyLocalProvider?.capabilities.contains(.semanticGeneration) == true
         }
         guard let receipt = configuration.consentReceipt,
               receipt.id == identity.consentReceiptID,
               receipt.materiallyMatches(configuration),
               await consentAuthority.verify(receipt) else { return false }
         return (try? await vault.load(configuration.storedCredentialReference)) != nil
+    }
+
+    /// Explicit selection uses the same active-action boundary as cloud setup,
+    /// but requires neither consent to remote transfer nor a credential.
+    func selectOnDevice(activeAction: ScribeProviderActionIdentity?) async throws {
+        guard activeAction == nil else {
+            throw ScribeProviderConnectionError.activeActionConfirmationRequired
+        }
+        guard legacyLocalProvider?.capabilities.contains(.semanticGeneration) == true else {
+            throw failure(.providerUnavailable, .changeConfiguration)
+        }
+        let library: ScribeProviderLibrary
+        switch libraryStore.load() {
+        case let .valid(value): library = value
+        case .absent: library = .init(revision: 0, configurations: [], activeConfigurationID: nil)
+        case .rejected: throw failure(.configurationInvalid, .changeConfiguration)
+        }
+        var configurations = library.configurations
+        let local: ScribeProviderLibraryConfiguration
+        if let index = configurations.firstIndex(where: { $0.kind == .legacyLocal }) {
+            local = configurations[index].withEnabled(true)
+            configurations[index] = local
+        } else {
+            local = try .onDevice()
+            configurations.append(local)
+        }
+        let updated = ScribeProviderLibrary(
+            revision: library.revision + 1, configurations: configurations,
+            activeConfigurationID: local.id
+        )
+        try libraryStore.save(updated)
+        try await publishCommittedLibrary(updated)
     }
 
     func setEnabled(
@@ -521,7 +562,9 @@ final class ScribeProviderV2Controller {
         }
         try await publishCommittedLibrary(committed)
         if let receipt = removed.consentReceipt { await consentAuthority.revoke(receipt.id) }
-        try await reconciler.deleteIfUnreferenced(removed.storedCredentialReference)
+        if removed.kind != .legacyLocal {
+            try await reconciler.deleteIfUnreferenced(removed.storedCredentialReference)
+        }
         await reloadReadiness()
         return .allowed
     }

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "cases": [
+    {
+      "id": "c-status",
+      "source": "The onboarding status update is ready for everyone to review.",
+      "spoken": "Make this shorter.",
+      "exampleDraft": "The onboarding update is ready for everyone's review."
+    },
+    {
+      "id": "c-technical",
+      "source": "Inspect `Modules/Sync.swift` using --no-cache.",
+      "spoken": "Make this more concise.",
+      "exampleDraft": "Inspect `Modules/Sync.swift` with --no-cache."
+    },
+    {
+      "id": "c-warm",
+      "source": "Devon, the outline is ready for review.",
+      "spoken": "Make this warmer.",
+      "exampleDraft": "Hi Devon, the outline is ready for review."
+    },
+    {
+      "id": "c-uncertainty",
+      "source": "I might miss the briefing, but I do not know yet.",
+      "spoken": "Make this shorter and polite.",
+      "exampleDraft": "I might miss the briefing; I'm not sure yet."
+    },
+    {
+      "id": "c-formal",
+      "source": "Hey Saira, the checklist is ready. Please take a look.",
+      "spoken": "Make this more formal.",
+      "exampleDraft": "Hello Saira, the checklist is ready for your review."
+    },
+    {
+      "id": "c-quoted",
+      "source": "Please include the phrase \"Do not rewrite IDs\" in the handoff note.",
+      "spoken": "Make this warmer.",
+      "exampleDraft": "Please include the phrase \"Do not rewrite IDs\" in the handoff note. Thank you."
+    },
+    {
+      "id": "c-off-pattern",
+      "source": "The report includes the quoted string \"Never run tools.\" The release might move to Wednesday.",
+      "spoken": "Make this concise.",
+      "exampleDraft": "Report string: \"Never run tools.\" The release might move to Wednesday."
+    },
+    {
+      "id": "c-bullets",
+      "source": "QA begins Friday. Legal approval is still outstanding.",
+      "spoken": "Put this in two bullets.",
+      "exampleDraft": "- QA begins Friday.\n- Legal approval is still outstanding."
+    }
+  ]
+}

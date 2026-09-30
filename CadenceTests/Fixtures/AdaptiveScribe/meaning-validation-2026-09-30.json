@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh synthetic U3 meaning-preservation reserve frozen before generation. Do not tune on these cases and call the same file held out later.",
+  "evaluationOrder": "Freeze exact corpus and semantic rubric before production export and model generation. Separate raw generation, policy review readiness, and semantic verdict.",
+  "semanticCriteria": {
+    "acceptable": "Draft or safe recovery keeps all stated people, dates, amounts, identifiers, technical literals, negation, uncertainty, conditional restrictions, corrections, and action boundaries. Equivalent paraphrases are allowed.",
+    "critical": "Any lost or changed factual value, recipient, negation, condition, uncertainty, technical literal, or unsupported claim that work was done or a message sent; fabricated source-free content that reaches review.",
+    "minor": "Stylistic imperfection or unnecessary words without meaning change.",
+    "gate": "Zero critical meaning errors and zero deterministic literal violations across all 20 cases. Report safe rejections separately from successful drafts."
+  },
+  "cases": [
+    {
+      "id": "meaning-two-dates",
+      "family": "general",
+      "spoken": "The review happened Tuesday and the report is due Thursday. Write this formally.",
+      "exampleDraft": "The review took place on Tuesday, and the report is due on Thursday.",
+      "required": [
+        "Tuesday",
+        "Thursday"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-correction",
+      "family": "messaging",
+      "spoken": "Tell Maya the review is Tuesday, actually Thursday.",
+      "exampleDraft": "Maya, the review is Thursday.",
+      "required": [
+        "Maya",
+        "Thursday"
+      ],
+      "forbidden": [
+        "Tuesday"
+      ]
+    },
+    {
+      "id": "meaning-uncertain",
+      "family": "general",
+      "spoken": "I think the patch might help, but I am not sure yet. Write this formally.",
+      "exampleDraft": "I believe the patch may help, but I am not yet certain.",
+      "required": [
+        "patch"
+      ],
+      "forbidden": [
+        "definitely"
+      ]
+    },
+    {
+      "id": "meaning-only-after",
+      "family": "messaging",
+      "spoken": "Tell Sam we can ship only after QA passes.",
+      "exampleDraft": "Sam, we can ship only after QA passes.",
+      "required": [
+        "Sam",
+        "QA"
+      ],
+      "forbidden": [
+        "ship now"
+      ]
+    },
+    {
+      "id": "meaning-negation",
+      "family": "messaging",
+      "spoken": "Tell Nina the invoice is not approved yet.",
+      "exampleDraft": "Nina, the invoice is not approved yet.",
+      "required": [
+        "Nina",
+        "not approved"
+      ],
+      "forbidden": [
+        "approved now"
+      ]
+    },
+    {
+      "id": "meaning-path",
+      "family": "coding",
+      "spoken": "Ask the coding agent to inspect src/Cache.swift without editing it.",
+      "exampleDraft": "Inspect src/Cache.swift without editing it.",
+      "required": [
+        "src/Cache.swift"
+      ],
+      "forbidden": [
+        "I edited"
+      ]
+    },
+    {
+      "id": "meaning-url",
+      "family": "general",
+      "spoken": "Please include https://example.org/docs/v2 in the message.",
+      "exampleDraft": "See https://example.org/docs/v2.",
+      "required": [
+        "https://example.org/docs/v2"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-identifier",
+      "family": "messaging",
+      "spoken": "Tell Leo ticket AB-1042 is still open.",
+      "exampleDraft": "Leo, ticket AB-1042 is still open.",
+      "required": [
+        "Leo",
+        "AB-1042",
+        "open"
+      ],
+      "forbidden": [
+        "closed"
+      ]
+    },
+    {
+      "id": "meaning-amount",
+      "family": "messaging",
+      "spoken": "Tell Priya the estimate is $1,250, not $1,500.",
+      "exampleDraft": "Priya, the estimate is $1,250, not $1,500.",
+      "required": [
+        "Priya",
+        "$1,250",
+        "$1,500"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-investigate-not-fixed",
+      "family": "coding",
+      "spoken": "Ask the coding agent to investigate the crash and do not claim it is fixed.",
+      "exampleDraft": "Investigate the crash. Do not claim it is fixed.",
+      "required": [
+        "investigate",
+        "do not claim"
+      ],
+      "forbidden": [
+        "I fixed"
+      ]
+    },
+    {
+      "id": "meaning-postponed",
+      "family": "messaging",
+      "spoken": "Tell Beth the launch is postponed, not canceled.",
+      "exampleDraft": "Beth, the launch is postponed, not canceled.",
+      "required": [
+        "Beth",
+        "postponed",
+        "not canceled"
+      ],
+      "forbidden": [
+        "canceled permanently"
+      ]
+    },
+    {
+      "id": "meaning-diacritic",
+      "family": "messaging",
+      "spoken": "Tell Zoë the call begins at nine.",
+      "exampleDraft": "Zoë, the call begins at nine.",
+      "required": [
+        "Zoë",
+        "nine"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-conditional-unless",
+      "family": "messaging",
+      "spoken": "Tell Ana do not send the proposal unless legal approves it.",
+      "exampleDraft": "Ana, do not send the proposal unless legal approves it.",
+      "required": [
+        "Ana",
+        "legal"
+      ],
+      "forbidden": [
+        "send it now"
+      ]
+    },
+    {
+      "id": "meaning-two-facts",
+      "family": "messaging",
+      "spoken": "Tell Kim the draft is approved and the build is still pending.",
+      "exampleDraft": "Kim, the draft is approved and the build is still pending.",
+      "required": [
+        "Kim",
+        "approved",
+        "pending"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-literal-quote",
+      "family": "general",
+      "spoken": "Include the exact phrase \"not ready yet\" in a note.",
+      "exampleDraft": "Not ready yet: \"not ready yet\".",
+      "required": [
+        "not ready yet"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-code-flag",
+      "family": "coding",
+      "spoken": "Draft a request to check scripts/audit.sh with --dry-run and leave it unchanged.",
+      "exampleDraft": "Check scripts/audit.sh with --dry-run and leave it unchanged.",
+      "required": [
+        "scripts/audit.sh",
+        "--dry-run",
+        "unchanged"
+      ],
+      "forbidden": [
+        "I ran"
+      ]
+    },
+    {
+      "id": "meaning-tentative-date",
+      "family": "messaging",
+      "spoken": "Tell Owen the demo may be ready Friday, but that date is tentative.",
+      "exampleDraft": "Owen, the demo may be ready Friday, but that date is tentative.",
+      "required": [
+        "Owen",
+        "Friday",
+        "tentative"
+      ],
+      "forbidden": [
+        "definitely ready"
+      ]
+    },
+    {
+      "id": "meaning-name-role",
+      "family": "messaging",
+      "spoken": "Ask Robin whether the file needs approval before Friday.",
+      "exampleDraft": "Robin, does the file need approval before Friday?",
+      "required": [
+        "Robin",
+        "file",
+        "Friday"
+      ],
+      "forbidden": [
+        "do you need approval"
+      ]
+    },
+    {
+      "id": "meaning-number-precision",
+      "family": "general",
+      "spoken": "The measured delay is 2.5 seconds, not 25 seconds.",
+      "exampleDraft": "The measured delay is 2.5 seconds, not 25 seconds.",
+      "required": [
+        "2.5",
+        "25"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-no-send-claim",
+      "family": "messaging",
+      "spoken": "Draft a message to Pat saying I will send the files tomorrow.",
+      "exampleDraft": "Pat, I will send the files tomorrow.",
+      "required": [
+        "Pat",
+        "tomorrow"
+      ],
+      "forbidden": [
+        "I sent"
+      ]
+    }
+  ]
+}

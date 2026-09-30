@@ -4,6 +4,68 @@ import Testing
 
 struct ScribeMigrationTests {
     @Test
+    func freshInstallDefaultsToOnDeviceWithoutCredentialsAndRemovalPersists() throws {
+        let fixture = try ProviderMigrationFixture()
+        defer { fixture.cleanUp() }
+        _ = try fixture.migration().migrate(.absent)
+        guard case let .valid(library) = fixture.providerStore.load() else {
+            Issue.record("Expected the built-in default"); return
+        }
+        let local = try #require(library.configurations.first)
+        #expect(library.configurations.count == 1)
+        #expect(library.activeConfigurationID == local.id)
+        #expect(local.kind == .legacyLocal)
+        #expect(local.consentReceipt == nil)
+        #expect(local.credentialStorageDomain == nil)
+        #expect(ScribeProviderLibraryConfigurationValidator.isValid(local))
+
+        try fixture.providerStore.save(.init(
+            revision: 2, configurations: [], activeConfigurationID: nil
+        ))
+        #expect(try fixture.migration().migrate(.absent) == .alreadyComplete)
+        guard case let .valid(removed) = fixture.providerStore.load() else {
+            Issue.record("Expected retained removal"); return
+        }
+        #expect(removed.configurations.isEmpty)
+    }
+
+    @Test(arguments: [
+        AdaptiveScribeMigrationPoint.afterDestinationWrite,
+        .afterSemanticReadback, .beforeMarkerWrite
+    ])
+    func onDeviceDefaultResumesInterruptedFirstLaunch(point: AdaptiveScribeMigrationPoint) throws {
+        let fixture = try ProviderMigrationFixture()
+        defer { fixture.cleanUp() }
+        #expect(throws: MigrationInterruption.self) {
+            try fixture.migration(interrupt: { observed in
+                if observed == point { throw MigrationInterruption() }
+            }).migrate(.absent)
+        }
+        let bytes = fixture.defaults.data(forKey: fixture.providerKey)
+        _ = try fixture.migration().migrate(.absent)
+        #expect(fixture.defaults.data(forKey: fixture.providerKey) == bytes)
+        #expect(fixture.markerStore.load(.providerLibrary) == .valid)
+    }
+
+    @Test
+    func disabledCloudChoiceNeverBecomesOnDeviceDefault() throws {
+        let fixture = try ProviderMigrationFixture()
+        defer { fixture.cleanUp() }
+        var cloud = try ScribeProviderConfiguration.deepSeek(
+            credentialReference: .init(rawValue: "retained-cloud"),
+            acceptedAt: Date(timeIntervalSince1970: 10)
+        )
+        cloud.isEnabled = false
+        _ = try fixture.migration().migrate(.valid(cloud))
+        guard case let .valid(library) = fixture.providerStore.load() else {
+            Issue.record("Expected retained cloud choice"); return
+        }
+        #expect(library.configurations.map(\.kind) == [.deepSeek])
+        #expect(library.activeConfigurationID == nil)
+        #expect(library.configurations.first?.isEnabled == false)
+    }
+
+    @Test
     func completedMarkerTrustsFreshValidDestinationWithoutReplayingLegacySource() throws {
         let fixture = try ProviderMigrationFixture()
         defer { fixture.cleanUp() }

@@ -17,6 +17,77 @@ struct CadenceFeatureFlagTests {
 
         #expect(flags.scribeEnabled)
         #expect(flags.granolaEnabled == false)
+        #expect(flags.composeContextEnabled)
+        #expect(!flags.composeMemoryEnabled)
+        #expect(!flags.composePersistentMemoryEnabled)
+        #expect(!flags.composeAdaptersEnabled)
+    }
+
+    @Test
+    func contextKillSwitchPreservesStoredConsentButDisablesRuntimeCapture() throws {
+        let suite = "CadenceFeatureFlagTests.context.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: CadenceFeatureFlags.composeContextDefaultsKey)
+        defaults.set(true, forKey: CadenceFeatureFlags.composeMemoryDefaultsKey)
+        defaults.set(true, forKey: CadenceFeatureFlags.composePersistentMemoryDefaultsKey)
+        defaults.set(true, forKey: CadenceFeatureFlags.composeAdaptersDefaultsKey)
+        let stored = ComposeSelectedTextContextPreferences(
+            isEnabled: true, textEditAllowed: true,
+            disclosureRevision: ComposeSelectedTextContextPreferences.currentDisclosureRevision
+        )
+        let flags = CadenceFeatureFlags.resolve(defaults: defaults, environment: [:], arguments: [])
+        #expect(flags.scribeEnabled)
+        #expect(!flags.composeContextEnabled)
+        #expect(!flags.composeMemoryEnabled)
+        #expect(!flags.composePersistentMemoryEnabled)
+        #expect(!flags.composeAdaptersEnabled)
+        #expect(!flags.effectiveSelectedTextPreferences(stored).permitsTextEditCapture)
+        #expect(stored.permitsTextEditCapture)
+        #expect(CadenceFeatureFlags.resolve(
+            defaults: defaults, environment: [:], arguments: ["--enable-compose-context"]
+        ).effectiveSelectedTextPreferences(stored) == stored)
+    }
+
+    @Test
+    func memoryAndAdaptersRequireContextAndMasterCompose() throws {
+        let suite = "CadenceFeatureFlagTests.hierarchy.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let env = [
+            CadenceFeatureFlags.composeMemoryEnvironmentKey: "true",
+            CadenceFeatureFlags.composePersistentMemoryEnvironmentKey: "true",
+            CadenceFeatureFlags.composeAdaptersEnvironmentKey: "true"
+        ]
+        let enabled = CadenceFeatureFlags.resolve(defaults: defaults, environment: env, arguments: [])
+        #expect(enabled.composeContextEnabled && enabled.composeMemoryEnabled && enabled.composeAdaptersEnabled)
+        #expect(enabled.composePersistentMemoryEnabled)
+        let contextOff = CadenceFeatureFlags.resolve(
+            defaults: defaults, environment: env, arguments: ["--disable-compose-context"]
+        )
+        #expect(!contextOff.composeContextEnabled && !contextOff.composeMemoryEnabled && !contextOff.composeAdaptersEnabled)
+        #expect(!contextOff.composePersistentMemoryEnabled)
+        let masterOff = CadenceFeatureFlags.resolve(
+            defaults: defaults, environment: env, arguments: ["--disable-scribe"]
+        )
+        #expect(!masterOff.scribeEnabled && !masterOff.composeContextEnabled
+                && !masterOff.composeMemoryEnabled && !masterOff.composeAdaptersEnabled)
+        #expect(!masterOff.composePersistentMemoryEnabled)
+        let memoryOff = CadenceFeatureFlags.resolve(
+            defaults: defaults, environment: env, arguments: ["--disable-compose-memory"]
+        )
+        #expect(memoryOff.composeContextEnabled && !memoryOff.composeMemoryEnabled && memoryOff.composeAdaptersEnabled)
+        #expect(!memoryOff.composePersistentMemoryEnabled)
+        let adaptersOff = CadenceFeatureFlags.resolve(
+            defaults: defaults, environment: env, arguments: ["--disable-compose-adapters"]
+        )
+        #expect(adaptersOff.composeMemoryEnabled && !adaptersOff.composeAdaptersEnabled)
+        #expect(!adaptersOff.composePersistentMemoryEnabled)
+        let durableOff = CadenceFeatureFlags.resolve(
+            defaults: defaults, environment: env, arguments: ["--disable-compose-persistent-memory"]
+        )
+        #expect(durableOff.composeMemoryEnabled && durableOff.composeAdaptersEnabled)
+        #expect(!durableOff.composePersistentMemoryEnabled)
     }
 
     @Test

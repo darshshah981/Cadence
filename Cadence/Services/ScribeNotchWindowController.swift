@@ -48,11 +48,18 @@ enum ScribeReviewKeyboardCommand: Hashable, Sendable {
 
 enum ScribeReviewKeyboardPolicy {
     static func commands(
-        for content: ScribeNotchContent
+        for content: ScribeNotchContent,
+        isRefining: Bool = false,
+        isInspectingSource: Bool = false,
+        permitsInsertion: Bool = true
     ) -> Set<ScribeReviewKeyboardCommand> {
+        if isInspectingSource { return [] }
+        if isRefining { return [.discard] }
         switch content {
         case .replacing, .ready, .insertionRecovery:
-            return [.insert, .copy, .discard]
+            return permitsInsertion ? [.insert, .copy, .discard] : [.copy, .discard]
+        case .memoryNotice:
+            return []
         case let .failure(_, literalTranscript, _):
             return literalTranscript == nil ? [.discard] : [.copy, .discard]
         default:
@@ -309,7 +316,7 @@ final class ScribeNotchWindowController {
         viewModel.onInteractionAvailabilityChanged = { [weak self] isInteractive in
             guard let self else { return }
             self.panel?.ignoresMouseEvents = !isInteractive
-            if isInteractive {
+            if isInteractive || self.viewModel.isRefining {
                 self.startReviewKeyboardMonitoring()
             } else {
                 self.stopReviewKeyboardMonitoring()
@@ -352,6 +359,13 @@ final class ScribeNotchWindowController {
 
         if presentation.content == .hidden {
             viewModel.apply(presentation)
+            if viewModel.isRefining {
+                // Refinement uses the recording pill while listening. Keep
+                // Escape available without a visible review or a new target.
+                panel?.orderOut(nil)
+                startReviewKeyboardMonitoring()
+                return
+            }
             dismissalTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .milliseconds(420))
                 guard !Task.isCancelled else { return }
@@ -364,9 +378,13 @@ final class ScribeNotchWindowController {
 
         let panel = makePanelIfNeeded()
         position(panel)
-        panel.ignoresMouseEvents = !presentation.allowsReviewActions
+        panel.ignoresMouseEvents = !(presentation.allowsReviewActions || viewModel.isRefining)
         panel.orderFrontRegardless()
+        let presentationChanged = viewModel.presentation != presentation
         viewModel.apply(presentation)
+        if !presentationChanged, viewModel.allowsInteraction {
+            startReviewKeyboardMonitoring()
+        }
 
         if let delay = ScribeNotchAutoDismissPolicy.delay(for: presentation) {
             dismissalTask = Task { @MainActor [weak self] in
@@ -476,6 +494,7 @@ final class ScribeNotchWindowController {
     }
 
     private func dismissCopiedReviewIfOutside(_ clickLocation: NSPoint) {
+        guard !viewModel.isInspectingContext else { return }
         guard ScribeCopyOutsideDismissalPolicy.shouldDismiss(
             clickLocation: clickLocation,
             panelFrame: panel?.frame
@@ -500,8 +519,12 @@ final class ScribeNotchWindowController {
     private func startReviewKeyboardMonitoring() {
         stopReviewKeyboardMonitoring()
         let commands = ScribeReviewKeyboardPolicy.commands(
-            for: viewModel.presentation.content
+            for: viewModel.presentation.content,
+            isRefining: viewModel.isRefining,
+            isInspectingSource: viewModel.isInspectingContext,
+            permitsInsertion: viewModel.permitsReviewedInsertion
         )
+        guard !commands.isEmpty else { return }
         if case .failure = viewModel.presentation.content {
             guard panel?.isKeyWindow == true else { return }
             // Local delivery plus window identity prevents recovery from consuming
@@ -527,7 +550,12 @@ final class ScribeNotchWindowController {
         }
         reviewKeyboardMonitor.start(commands: commands) { [weak self] command in
             guard let self,
-                  ScribeReviewKeyboardPolicy.commands(for: self.viewModel.presentation.content)
+                  ScribeReviewKeyboardPolicy.commands(
+                    for: self.viewModel.presentation.content,
+                    isRefining: self.viewModel.isRefining,
+                    isInspectingSource: self.viewModel.isInspectingContext,
+                    permitsInsertion: self.viewModel.permitsReviewedInsertion
+                  )
                     .contains(command) else { return }
             // A previously queued global event must not act on a new failure.
             if case .failure = self.viewModel.presentation.content { return }
@@ -537,9 +565,16 @@ final class ScribeNotchWindowController {
 
     private func performReviewCommand(_ command: ScribeReviewKeyboardCommand) {
         switch command {
-        case .insert: viewModel.onInsert?()
+        case .insert:
+            guard viewModel.permitsReviewedInsertion else { return }
+            viewModel.onInsert?()
         case .copy: viewModel.onCopy?()
-        case .discard: viewModel.onDiscard?()
+        case .discard:
+            if viewModel.isRefining {
+                viewModel.onCancelRefinement?()
+            } else {
+                viewModel.onDiscard?()
+            }
         }
     }
 
