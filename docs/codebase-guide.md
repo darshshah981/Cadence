@@ -95,10 +95,14 @@ the exact action, pinned window/process, screen-capture grant, separate
 provider-transmission grant, source hash and 120-second freshness before use.
 Recognized screen text is labeled untrusted data, and image bytes cannot enter
 the text-provider input. A resulting draft is copy-only: the compiler cannot
-certify conversation identity or grant insertion into a recipient field. This
+certify conversation identity or grant insertion into a recipient field.
 The local provider route rechecks action, target and consent before dispatch,
 after generation and before Copy. Signed live picker/capture behavior and
 recipient-field certification remain unverified; this route never inserts.
+The hardware-notch inset is reserved by the containing surface, so the screen
+review content adds only a small inner top margin. Offscreen synthetic frames
+cover floating and hardware layouts with long source/draft text; their buttons
+stay visible while the text scrolls.
 
 The first native conversation identity adapter is
 `ScribeTextEditDocumentIdentityAdapter`. It can identify a saved TextEdit file

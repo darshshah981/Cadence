@@ -727,11 +727,17 @@ struct ScribeNotchView: View {
                     model.onApproveScreenReading?()
                 }
             case .choosingAndReading:
-                Text("Choose the original window in the system picker. Reading visible text on this Mac…")
+                Text("Choose the original window in the system picker. Cadence will read only that window on this Mac.")
                     .font(.system(size: 11))
                     .foregroundStyle(FlowTheme.textSecondary)
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Waiting for window selection")
+                        .font(.system(size: 10))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                }
+                .padding(.top, 4)
                 Spacer(minLength: 0)
-                ProgressView().controlSize(.small)
             case let .awaitingProviderApproval(sourcePreview):
                 Text("Send this recognized text to Apple Intelligence on this Mac to draft a response? It will not be saved as memory.")
                     .font(.system(size: 11))
@@ -751,8 +757,14 @@ struct ScribeNotchView: View {
                 Text("Drafting from the text you approved…")
                     .font(.system(size: 11))
                     .foregroundStyle(FlowTheme.textSecondary)
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Apple Intelligence is writing")
+                        .font(.system(size: 10))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                }
+                .padding(.top, 4)
                 Spacer(minLength: 0)
-                ProgressView().controlSize(.small)
             case let .ready(text):
                 Text("Screen-grounded draft · Review and copy")
                     .font(.system(size: 11))
@@ -776,7 +788,9 @@ struct ScribeNotchView: View {
             }
         }
         .padding(.horizontal, 13)
-        .padding(.top, model.hasHardwareNotch ? ScribeNotchGeometry.hardwareNotchContentInset + 9 : 10)
+        // The containing surface has already reserved the hardware-notch
+        // inset. Adding it again clips the preview and copy-only draft.
+        .padding(.top, model.hasHardwareNotch ? 9 : 10)
         .padding(.bottom, 11)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityIdentifier("scribe-screen-review")

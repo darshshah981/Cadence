@@ -272,6 +272,18 @@ window-picker/capture smoke, UI geometry, arbitrary-window compatibility,
 recipient-field certification and broader reply quality remain open; U10 and
 U12 are not complete.
 
+The following visual check rendered fifteen synthetic notch states offscreen,
+including long OCR previews and long copy-only drafts in both floating and
+hardware-notch layouts. The first hardware render exposed a duplicated top
+inset that clipped the preview and draft. Removing that inset made both texts
+scroll within the surface while keeping the approval and Copy controls
+visible. The final frame test passed, and entry-state renders show “Use screen”
+in the ordinary review and missing-source recovery. These generated frames
+verify layout for the synthetic content; live focus, picker, and motion remain
+uncertified. The final 15-case native frame test log and PNGs are saved under
+`evidence/u10-screen-notch-layout/` in the external recovery staging area;
+the log SHA-256 is `11e7694ae2652916d7a62f61fc75b1cd02f15d9e9dbcd32e871b48aa7a04a6c1`.
+
 Later September 30 U14 host-Keychain smoke: a standalone ad-hoc-signed probe
 used `SystemScribePersistentMemorySecurityBackend` and a unique synthetic
 namespace. Three separate process launches created a 32-byte key, reopened

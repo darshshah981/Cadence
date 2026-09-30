@@ -5,15 +5,55 @@ import Testing
 
 @MainActor
 struct ScribeNotchFrameTests {
-    @Test(arguments: ["short-ready-light", "long-ready-dark", "failure-light", "reduced-typing-dark", "memory-proposal-dark"])
+    @Test(arguments: [
+        "short-ready-light", "long-ready-dark", "failure-light", "reduced-typing-dark",
+        "memory-proposal-dark", "screen-capture-floating", "screen-provider-floating",
+        "screen-ready-floating", "screen-unavailable-floating",
+        "screen-provider-hardware", "screen-ready-hardware",
+        "screen-entry-failure-hardware", "screen-entry-ready-floating",
+        "screen-choosing-floating", "screen-drafting-hardware"
+    ])
     func mainStatesStayInsideTheNotchCanvas(_ fixture: String) async throws {
         let reduced = fixture.hasPrefix("reduced")
         let dark = fixture.hasSuffix("dark")
         let model = ScribeNotchViewModel()
-        model.configureDisplay(hasHardwareNotch: false)
+        model.configureDisplay(hasHardwareNotch: fixture.hasSuffix("hardware"))
         model.setReducedMotion(reduced)
 
-        if fixture.hasPrefix("memory-proposal") {
+        if fixture.hasPrefix("screen-entry-") {
+            model.updateScreenDraftAvailability(true)
+            if fixture.contains("failure") {
+                model.apply(.init(content: .failure(
+                    message: "This reply needs visible context from the original app.",
+                    literalTranscript: "Reply to this.", recovery: .none
+                ), pill: .failed))
+            } else {
+                model.apply(.init(content: .ready(ScribeResult(
+                    requestID: UUID(), text: "The original synthetic draft is ready."
+                )), pill: .scribed))
+            }
+        } else if fixture.hasPrefix("screen-") {
+            model.apply(.init(content: .ready(ScribeResult(
+                requestID: UUID(), text: "The original synthetic draft remains available."
+            )), pill: .scribed))
+            if fixture.hasPrefix("screen-capture") {
+                model.updateScreenDraftPhase(.awaitingCaptureApproval)
+            } else if fixture.hasPrefix("screen-choosing") {
+                model.updateScreenDraftPhase(.choosingAndReading)
+            } else if fixture.hasPrefix("screen-provider") {
+                model.updateScreenDraftPhase(.awaitingProviderApproval(sourcePreview:
+                    String(repeating: "The synthetic support thread asks for an update. ", count: 45)
+                ))
+            } else if fixture.hasPrefix("screen-ready") {
+                model.updateScreenDraftPhase(.ready(
+                    String(repeating: "Could you please share an update on the synthetic refund? ", count: 25)
+                ))
+            } else if fixture.hasPrefix("screen-drafting") {
+                model.updateScreenDraftPhase(.drafting)
+            } else {
+                model.updateScreenDraftPhase(.unavailable)
+            }
+        } else if fixture.hasPrefix("memory-proposal") {
             model.apply(.init(
                 content: .persistentMemoryProposal(.init(
                     requestID: UUID(), proposalID: UUID(),
