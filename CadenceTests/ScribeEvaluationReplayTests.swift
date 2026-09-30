@@ -101,7 +101,10 @@ struct ScribeEvaluationReplayTests {
                 let normalized = ScribeLiteralNormalizer.normalize(
                     fixture.spoken, environmentID: fixture.family == "coding" ? .claudeCode : .global
                 )
-                let protectedValues = normalized.exactLiterals.map(\.value)
+                let requestLiterals = ScribeRequestPolicy.directCodingLiterals(
+                    in: normalized.text, existing: normalized.exactLiterals
+                )
+                let protectedValues = requestLiterals.map(\.value)
                 let writing = ScribeWritingDirectionParser.parse(
                     normalized.text, protectedValues: protectedValues
                 )
@@ -114,7 +117,7 @@ struct ScribeEvaluationReplayTests {
                 }
                 do {
                     let validated = try ScribeRequestPolicy.validateOutput(
-                        draft, requiredLiterals: normalized.exactLiterals, spokenRequest: normalized.text
+                        draft, requiredLiterals: requestLiterals, spokenRequest: normalized.text
                     )
                     try ScribeRequestPolicy.validateDirectDraftDirectionSeparation(
                         validated, spokenRequest: normalized.text, protectedValues: protectedValues

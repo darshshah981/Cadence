@@ -471,7 +471,7 @@ struct ScribeTests {
             "meaning-independent-2026-09-30-g", "meaning-independent-2026-09-30-h",
             "meaning-independent-2026-09-30-i", "meaning-independent-2026-09-30-k",
             "meaning-independent-2026-09-30-l", "meaning-independent-2026-09-30-m",
-            "meaning-independent-2026-09-30-n"
+            "meaning-independent-2026-09-30-n", "coding-targets-2026-09-30"
         ].contains(fixtureName))
         // Fixtures are bundled with the test target. Reading the source checkout
         // can block on Documents-folder permission in a native test host.
@@ -510,13 +510,16 @@ struct ScribeTests {
             let normalized = ScribeLiteralNormalizer.normalize(
                 fixture.spoken, environmentID: family == .coding ? .claudeCode : .global
             )
+            let requestLiterals = ScribeRequestPolicy.directCodingLiterals(
+                in: normalized.text, existing: normalized.exactLiterals
+            )
             let request = ScribeRequest(
                 intent: .compose, spokenTranscript: normalized.text,
-                resolvedGuidance: guidance, exactLiterals: normalized.exactLiterals
+                resolvedGuidance: guidance, exactLiterals: requestLiterals
             )
             let input = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .deepSeek)
             let localInput = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .legacyLocal)
-            let localWriting = ScribeWritingDirectionParser.parse(normalized.text, protectedValues: normalized.exactLiterals.map(\.value))
+            let localWriting = ScribeWritingDirectionParser.parse(normalized.text, protectedValues: requestLiterals.map(\.value))
             let structuralComposition = localWriting.request.writingDirections.contains {
                 switch $0 { case .bullets, .avoidGivingReason: return true; default: return false }
             }
@@ -531,6 +534,9 @@ struct ScribeTests {
                 message = "Hi " + message
             }
             #expect(localInput.userMessage.contains(label + "\n" + message))
+            if !requestLiterals.isEmpty {
+                #expect(localInput.userMessage.contains("Exact literals"))
+            }
             #expect(request.spokenTranscript == normalized.text)
             #expect(localInput.userMessage.contains(preset.compiledInstructions))
             #expect(!usesFocusedRewrite
@@ -552,14 +558,14 @@ struct ScribeTests {
             #expect(!input.userMessage.contains("\\/"))
             #expect(request.context == nil)
             #expect(try ScribeRequestPolicy.validateOutput(
-                fixture.exampleDraft, requiredLiterals: normalized.exactLiterals,
+                fixture.exampleDraft, requiredLiterals: requestLiterals,
                 spokenRequest: normalized.text
             ) == fixture.exampleDraft)
             if let generated = generatedDrafts[fixture.id] {
                 // Validate actual synthetic model results through the same output
                 // policy used before review; meaning still needs separate assessment.
                 #expect(try ScribeRequestPolicy.validateOutput(
-                    generated, requiredLiterals: normalized.exactLiterals,
+                    generated, requiredLiterals: requestLiterals,
                     spokenRequest: normalized.text
                 ) == generated.trimmingCharacters(in: .whitespacesAndNewlines))
             }

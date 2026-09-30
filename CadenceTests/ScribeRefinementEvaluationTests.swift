@@ -30,6 +30,9 @@ struct ScribeRefinementEvaluationTests {
             let instruction = ScribeLiteralNormalizer.normalize(fixture.instruction, environmentID: environment)
             try #require(original.parseStatus == .clean)
             try #require(instruction.parseStatus == .clean)
+            let originalLiterals = ScribeRequestPolicy.directCodingLiterals(
+                in: original.text, existing: original.exactLiterals
+            )
 
             // The fixture enters through the same in-memory session and token
             // authority as runtime refinement. These synthetic identities must
@@ -50,11 +53,11 @@ struct ScribeRefinementEvaluationTests {
                 revisionUtterance: instruction.text
             )
             let originalRequest = ScribeRequest.directDictation(
-                id: origin.actionID, processedDictation: original.text, exactLiterals: original.exactLiterals
+                id: origin.actionID, processedDictation: original.text, exactLiterals: originalLiterals
             )
             let request = try ScribeDraftRefinementPolicy.request(
                 token: token, session: session, originalRequest: originalRequest,
-                instructionLiterals: original.exactLiterals + instruction.exactLiterals
+                instructionLiterals: originalLiterals + instruction.exactLiterals
             )
             try #require(request.baseDraft == fixture.baseDraft)
             try #require(request.token.instruction.utterance == instruction.text)

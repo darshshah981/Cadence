@@ -84,11 +84,14 @@ struct ScribeRefinementEvaluationReplayTests {
         let original = ScribeLiteralNormalizer.normalize(f.originalSpokenRequest, environmentID: environment)
         let instruction = ScribeLiteralNormalizer.normalize(f.instruction, environmentID: environment)
         guard original.parseStatus == .clean, instruction.parseStatus == .clean else { throw RefinementReplayError.invalidArtifact }
+        let originalLiterals = ScribeRequestPolicy.directCodingLiterals(
+            in: original.text, existing: original.exactLiterals
+        )
         let origin = ScribeDraftRevisionOrigin(actionID: UUID(), captureID: UUID(), target: .init(processIdentifier: 42, bundleIdentifier: "com.example.synthetic-refinement-target"), providerActionIdentity: .init(configurationID: UUID(), libraryRevision: 1, selectedModelID: "synthetic-local-model-binding"))
         let store = ScribeDraftRevisionStore(); let session = store.start(origin: origin, originalSpokenRequest: f.originalSpokenRequest, initialDraft: f.baseDraft)
         let token = try store.beginRevision(sessionID: session.id, origin: origin, baseVersionID: session.currentVersion.id, revisionUtterance: instruction.text)
-        let originalRequest = ScribeRequest.directDictation(id: origin.actionID, processedDictation: original.text, exactLiterals: original.exactLiterals)
-        return try ScribeDraftRefinementPolicy.request(token: token, session: session, originalRequest: originalRequest, instructionLiterals: original.exactLiterals + instruction.exactLiterals)
+        let originalRequest = ScribeRequest.directDictation(id: origin.actionID, processedDictation: original.text, exactLiterals: originalLiterals)
+        return try ScribeDraftRefinementPolicy.request(token: token, session: session, originalRequest: originalRequest, instructionLiterals: originalLiterals + instruction.exactLiterals)
     }
 }
 
