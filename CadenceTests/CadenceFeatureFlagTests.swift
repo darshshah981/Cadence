@@ -4,7 +4,7 @@ import Testing
 
 struct CadenceFeatureFlagTests {
     @Test
-    func scribeIsEnabledByDefault() throws {
+    func scribeAndTextEditMemoryControlsAreAvailableByDefault() throws {
         let suite = "CadenceFeatureFlagTests.default.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -18,9 +18,13 @@ struct CadenceFeatureFlagTests {
         #expect(flags.scribeEnabled)
         #expect(flags.granolaEnabled == false)
         #expect(flags.composeContextEnabled)
-        #expect(!flags.composeMemoryEnabled)
+        #expect(flags.composeMemoryEnabled)
         #expect(!flags.composePersistentMemoryEnabled)
-        #expect(!flags.composeAdaptersEnabled)
+        #expect(flags.composeAdaptersEnabled)
+        let consent = ComposeSessionMemoryPreferences()
+        #expect(!consent.permitsTextEditUse)
+        #expect(!consent.permitsTextEditRetention)
+        #expect(!consent.permitsLocalDraftUse)
     }
 
     @Test

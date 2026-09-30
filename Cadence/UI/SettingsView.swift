@@ -202,7 +202,7 @@ struct SettingsView: View {
                 }
             }
             if appModel.featureFlags.composeMemoryEnabled && appModel.featureFlags.composeAdaptersEnabled {
-                settingsSection(title: "Document identity (development preview)") {
+                settingsSection(title: "TextEdit session memory (preview)") {
                     FlowSectionCard {
                         ScribeSessionMemorySettingsView(appModel: appModel)
                     }

@@ -52,13 +52,13 @@ struct CadenceFeatureFlags: Equatable, Sendable {
             defaults: defaults, environment: environment, arguments: arguments,
             defaultsKey: composeMemoryDefaultsKey, environmentKey: composeMemoryEnvironmentKey,
             enableArguments: ["--enable-compose-memory"], disableArgument: "--disable-compose-memory",
-            defaultValue: false
+            defaultValue: true
         )
         let adapters = context && resolveFeature(
             defaults: defaults, environment: environment, arguments: arguments,
             defaultsKey: composeAdaptersDefaultsKey, environmentKey: composeAdaptersEnvironmentKey,
             enableArguments: ["--enable-compose-adapters"], disableArgument: "--disable-compose-adapters",
-            defaultValue: false
+            defaultValue: true
         )
         return CadenceFeatureFlags(
             scribeEnabled: scribe,

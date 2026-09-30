@@ -2,6 +2,20 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U13 TextEdit opt-in pilot: the session-memory and saved-document
+adapter rollout flags now default on, so their Settings section is
+visible in a normal install. Every actual permission inside it still defaults
+off: recognizing a saved document, remembering explicit facts, retaining a
+chosen draft, and using relevant facts in local generation all require
+separate affirmative controls. The disclosure revision advanced, so consent
+from an earlier hidden development build cannot silently activate this
+pilot. Other apps and cloud providers remain excluded. Forty-eight focused
+feature-flag, consent, scope, and store tests passed; the current full native
+run passed 1,367 tests in 116 suites with the known focus-dependent keyboard
+suite excluded. The privacy-canary scan passed. This exposes the existing
+TextEdit workflow for an eventual trial; integrated installed-app interaction
+and a supported chat-thread adapter remain unverified.
+
 September 30 U1 current-source quality baseline: the existing frozen 24-case
 synthetic instruction corpus was exported through the production compiler and
 run three times with the current on-device generator. All 72 requests completed

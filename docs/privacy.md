@@ -54,8 +54,10 @@ Existing cloud consent covers only the transcript-only fields below. Selecting a
 
 ## Local Document Session Memory Preview
 
-The session-memory and adapter rollout switches are off by default. When both
-are enabled, a separate Settings preview can allow Cadence to identify the
+The session-memory and TextEdit adapter controls are available by default, but
+their separate Settings permissions are off by default. Earlier development
+consent does not automatically activate this preview; it must be enabled again
+under the current disclosure. After you enable the controls, Cadence can identify the
 currently focused saved TextEdit document on an explicit Compose action. It
 uses Accessibility document metadata and local file identity, without reading
 document contents. Work starts after the microphone is live and is cleared

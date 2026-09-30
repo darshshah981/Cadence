@@ -64,7 +64,8 @@ struct ComposeSessionMemoryConsentTests {
         let now = Date(timeIntervalSince1970: 50_000)
         let old = ComposeSessionMemoryConsentController(
             preferences: .init(isEnabled: true, textEditAllowed: true,
-                               rememberExplicitFacts: true, disclosureRevision: 0),
+                               rememberExplicitFacts: true,
+                               disclosureRevision: ComposeSessionMemoryPreferences.currentDisclosureRevision - 1),
             enabled: { true }, now: { now }
         )
         #expect(!old.policy.isEnabled)

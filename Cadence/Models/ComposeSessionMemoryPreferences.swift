@@ -3,7 +3,9 @@ import Foundation
 /// Consent metadata only. Neither facts nor source text are persisted here.
 /// A new disclosure revision invalidates consent saved by an older build.
 struct ComposeSessionMemoryPreferences: Equatable, Sendable {
-    static let currentDisclosureRevision = 3
+    // Exposing the formerly hidden TextEdit pilot requires renewed opt-in from
+    // anyone who enabled an earlier development build's permissions.
+    static let currentDisclosureRevision = 4
 
     var isEnabled = false
     var textEditAllowed = false
