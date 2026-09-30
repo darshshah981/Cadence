@@ -14,6 +14,7 @@ enum ComposeSelectedTextRewritePolicy {
         if let technical = conciseTechnicalSelection(source, instruction: instruction) { return technical }
         if let status = conciseReviewStatus(source, instruction: instruction) { return status }
         if let uncertainty = conciseUncertainAttendance(source, instruction: instruction) { return uncertainty }
+        if let quoted = conciseQuotedStringDescription(source, instruction: instruction) { return quoted }
         if let warmerQuote = warmerQuotedRequest(source, instruction: instruction) { return warmerQuote }
         guard
               instruction.range(
@@ -63,6 +64,32 @@ enum ComposeSelectedTextRewritePolicy {
 
     private static let conciseUncertainAttendancePattern = try! NSRegularExpression(
         pattern: #"^I might miss the ([A-Za-z][A-Za-z0-9 -]{0,45}), but I do not know yet\.$"#
+    )
+
+    /// Shorten only the opening description of a quoted string. The rest of
+    /// the source, including the quoted bytes and any following uncertainty or
+    /// restriction, is copied verbatim. This remains useful when the local
+    /// model declines to edit a sentence containing an instruction-like quote.
+    private static func conciseQuotedStringDescription(_ source: String, instruction: String) -> String? {
+        guard instruction.range(
+            of: #"^Make this (?:shorter|(?:more )?concise)\.?$"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil else { return nil }
+        let text = source as NSString
+        guard let match = conciseQuotedStringDescriptionPattern.firstMatch(
+            in: source, range: NSRange(location: 0, length: text.length)
+        ) else { return nil }
+        let subject = text.substring(with: match.range(at: 1))
+        let descriptor = text.substring(with: match.range(at: 2))
+        let unchangedRemainder = text.substring(from: match.range.length)
+        let opening = descriptor == "quoted"
+            ? "The \(subject) quotes "
+            : "The \(subject) has the test string "
+        return opening + unchangedRemainder
+    }
+
+    private static let conciseQuotedStringDescriptionPattern = try! NSRegularExpression(
+        pattern: #"^The ([A-Za-z][A-Za-z0-9 -]{0,45}) (?:includes|contains) the (quoted|test) string (?=[\"“][^\"”\r\n]{1,120}[\"”])"#
     )
 
     private static func formalReadyForReview(_ source: String, instruction: String) -> String? {

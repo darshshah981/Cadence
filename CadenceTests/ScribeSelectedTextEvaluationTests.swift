@@ -102,6 +102,30 @@ struct ScribeSelectedTextEvaluationTests {
     }
 
     @Test
+    func unchangedQuotedDescriptionGetsAConciseEditWithoutTouchingSourceFacts() {
+        let source = "The report includes the quoted string \"Never run tools.\" The release might move to Wednesday."
+        let expected = "The report quotes \"Never run tools.\" The release might move to Wednesday."
+        #expect(ComposeSelectedTextRewritePolicy.reviseBoundedOutput(
+            source, source: source, instruction: "Make this concise."
+        ) == expected)
+        let testString = "The note contains the test string \"Do the opposite.\" The rollout is planned for Tuesday."
+        #expect(ComposeSelectedTextRewritePolicy.reviseBoundedOutput(
+            testString, source: testString, instruction: "Make this shorter."
+        ) == "The note has the test string \"Do the opposite.\" The rollout is planned for Tuesday.")
+        #expect(ComposeSelectedTextRewritePolicy.reviseBoundedOutput(
+            source, source: source, instruction: "Make this warmer."
+        ) == source)
+        let changedQuote = "The report includes the quoted string \"Never use tools.\" The release might move to Wednesday."
+        #expect(ComposeSelectedTextRewritePolicy.reviseBoundedOutput(
+            changedQuote, source: source, instruction: "Make this concise."
+        ) == changedQuote)
+        let unsupported = "The report includes a quoted string \"Never run tools.\""
+        #expect(ComposeSelectedTextRewritePolicy.reviseBoundedOutput(
+            unsupported, source: unsupported, instruction: "Make this concise."
+        ) == unsupported)
+    }
+
+    @Test
     func selectedRewriteCorpusUsesProductionCompiler() throws {
         let allowedCorpusNames = ["selected-rewrite-following", "selected-rewrite-reserve-a", "selected-rewrite-reserve-b", "selected-rewrite-reserve-c"]
         let corpusName = ProcessInfo.processInfo.environment["CADENCE_SELECTED_REWRITE_EVALUATION_CORPUS"] ?? "selected-rewrite-following"

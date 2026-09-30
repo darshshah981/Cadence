@@ -1363,3 +1363,13 @@ cases but the rubric covered only 23; the missing case was added and the
 count check now verifies source-ID uniqueness rather than a fixed size. This
 is a local recovery checkpoint, not a reconciliation of the dirty primary
 checkout or an installed-app certification.
+
+A later bounded U9 increment handles one remaining unchanged-output form:
+“make this concise” on a sentence introducing a quoted or test string.
+It shortens only that introductory clause and copies the quotation plus every
+following sentence unchanged. The current production guard replay against the
+previously frozen eight-case reserve C now reports eight review-ready results,
+zero unchanged notices, and seven bounded revisions. Seven focused native
+tests pass, including a changed-quote no-fallback case. This is saved-output
+replay on an exposed synthetic corpus, not a fresh independent model-quality
+gate or a claim of general selected-text editing.
