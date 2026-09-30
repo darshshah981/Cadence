@@ -283,7 +283,7 @@ enum ScribeRequestPolicy {
     }
 
     private static let pastAndScheduledEventPattern = try! NSRegularExpression(
-        pattern: #"^The\s+([\p{L}-]+)\s+was\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+and\s+the\s+([\p{L}-]+)\s+is\s+scheduled\s+for\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\.?$"#,
+        pattern: #"^The\s+([\p{L}-]+)\s+was\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+and\s+the\s+([\p{L}-]+)\s+is\s+scheduled\s+for\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\.?$"#,
         options: .caseInsensitive
     )
 
@@ -452,7 +452,7 @@ enum ScribeRequestPolicy {
         ) else { return false }
         let name = (spokenRequest as NSString).substring(with: match.range(at: 1))
         let copiedFrame = #"^\s*(?:(?:can|could|would)\s+you\s+(?:please\s+)?|please\s+)?ask\s+"#
-            + NSRegularExpression.escapedPattern(for: name) + #"\s+whether\b"#
+            + NSRegularExpression.escapedPattern(for: name) + #"\s+(?:whether|if)\b"#
         return output.range(of: copiedFrame, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
@@ -481,7 +481,7 @@ enum ScribeRequestPolicy {
     }
 
     private static let namedWhetherFramePattern = try! NSRegularExpression(
-        pattern: #"^\s*[Aa]sk\s+(\p{Lu}[\p{L}-]*)\s+whether\b"#
+        pattern: #"^\s*[Aa]sk\s+(\p{Lu}[\p{L}-]*)\s+(?:whether|if)\b"#
     )
     private static let pricePeriodContrastPattern = try! NSRegularExpression(
         pattern: #"\bprice\s+is\s+(\$[\d,]+(?:\.\d{2})?)\s+per\s+(month|year),\s+not\s+(\$[\d,]+(?:\.\d{2})?)\s+per\s+(month|year)\b"#,

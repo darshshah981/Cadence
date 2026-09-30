@@ -270,6 +270,9 @@ enum ScribeDirectDraftPolicy {
         if let match = namedWhetherCanBePattern.firstMatch(in: request.message, range: range) {
             return "\(source.substring(with: match.range(at: 1))), can the \(source.substring(with: match.range(at: 2))) \(source.substring(with: match.range(at: 3)))?"
         }
+        if let match = namedIfTicketCanPattern.firstMatch(in: request.message, range: range) {
+            return "\(source.substring(with: match.range(at: 1))), can \(source.substring(with: match.range(at: 2))) \(source.substring(with: match.range(at: 3)))?"
+        }
         if let match = namedIfIsPattern.firstMatch(in: request.message, range: range) {
             return "\(source.substring(with: match.range(at: 1))), is the \(source.substring(with: match.range(at: 2))) \(source.substring(with: match.range(at: 3)))?"
         }
@@ -658,6 +661,10 @@ enum ScribeDirectDraftPolicy {
     )
     private static let namedWhetherCanBePattern = try! NSRegularExpression(
         pattern: #"^[Aa]sk\s+(\p{Lu}[\p{L}-]*)\s+whether\s+the\s+([\p{L}-]+)\s+can\s+(\S[^.!?\r\n]{1,160})\.$"#
+    )
+    private static let namedIfTicketCanPattern = try! NSRegularExpression(
+        pattern: #"^[Aa]sk\s+(\p{Lu}[\p{L}-]*)\s+if\s+((?:ticket|issue|case)\s+[\p{L}\p{N}_-]{2,40})\s+can\s+(\S[^.!?\r\n]{1,160})\.$"#,
+        options: .caseInsensitive
     )
     private static let namedIfIsPattern = try! NSRegularExpression(
         pattern: #"^[Aa]sk\s+(\p{Lu}[\p{L}-]*)\s+if\s+the\s+([\p{L}-]+)\s+is\s+(\S[^.!?\r\n]{1,160})\.$"#

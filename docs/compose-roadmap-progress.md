@@ -2,6 +2,23 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U3 recovered-reserve increment: the original checkout became
+readable again. Its 201 dirty files were archived without changing that
+checkout, and its previously frozen but unevaluated meaning reserve J was
+restored to the clean recovery branch with the same SHA-256. On the first
+current-source on-device run, all 16 synthetic cases generated and the native
+replay marked all 16 READY, but manual semantic review found two critical
+READY errors: a copied “Ask Max if…” writer frame and a past meeting recast as
+merely scheduled. The first-run independent gate therefore **failed** despite
+zero mechanical phrase warnings. A bounded direct question path now handles
+single ticket/issue/case identifiers, and the existing past-versus-scheduled
+cue and output guard accept the natural comma before “and.” The focused native
+suites passed 96 tests. Current policy replay rejects both original bad
+outputs; the repaired development rerun changed only those two drafts and
+marked all 16 READY. This corpus is now exposed development evidence. A fresh
+independent reserve is required for any new U3 quality claim, and the original
+checkout and installed app remain unreconciled.
+
 September 30 U15 immediate-preference increment: four complete, single-sentence
 forms with one explicit saved tone or concision preference now produce a
 bounded local edit without model latency. Four previously unchanged drafts in

@@ -47,6 +47,14 @@ struct ScribeWritingRequestTests {
             "Omar, can review begin only after the logs finish uploading?",
             requiredLiterals: [], spokenRequest: omar
         ) == "Omar, can review begin only after the logs finish uploading?")
+        let max = "Ask Max if ticket ZX-19 can reopen after QA signs off."
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateOutput(max, requiredLiterals: [], spokenRequest: max)
+        }
+        #expect(try ScribeRequestPolicy.validateOutput(
+            "Max, can ticket ZX-19 reopen after QA signs off?",
+            requiredLiterals: [], spokenRequest: max
+        ) == "Max, can ticket ZX-19 reopen after QA signs off?")
     }
 
     @Test
@@ -868,6 +876,12 @@ struct ScribeWritingRequestTests {
         let request = ScribeRequest.directDictation(processedDictation: spoken)
         let local = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .legacyLocal)
         #expect(local.systemMessage.contains(cue))
+        let commaVersion = ScribeRequest.directDictation(
+            processedDictation: "The meeting was Monday, and the demo is scheduled for Wednesday. Write this formally."
+        )
+        #expect(try ScribeRequestPolicy.providerSafeInput(
+            for: commaVersion, destination: .legacyLocal
+        ).systemMessage.contains(cue))
         for excluded in [
             "The meeting was scheduled for Monday and the demo is scheduled for Wednesday. Write this formally.",
             "The meeting was Monday and the demo is scheduled for Wednesday. Make it casual.",
@@ -891,6 +905,13 @@ struct ScribeWritingRequestTests {
             try ScribeRequestPolicy.validateOutput(
                 "The meeting was scheduled for Monday, and the demo is scheduled for Wednesday.",
                 requiredLiterals: [], spokenRequest: speech
+            )
+        }
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateOutput(
+                "The meeting was scheduled for Monday, and the demo is scheduled for Thursday.",
+                requiredLiterals: [],
+                spokenRequest: "The meeting was Monday, and the demo is scheduled for Thursday. Write this formally."
             )
         }
         try ScribeRequestPolicy.validateOutput(

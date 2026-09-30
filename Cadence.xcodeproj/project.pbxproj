@@ -151,6 +151,7 @@
 		76260FD4F0061F8FFE5ACB9E /* UnavailableScribeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E54A61FAA183DBB172417E /* UnavailableScribeProvider.swift */; };
 		777C5D45908C04A190E7F14D /* ScribeSelectedTextEvaluationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1026DEAAF33445F87836A742 /* ScribeSelectedTextEvaluationTests.swift */; };
 		7793765D3F3F0BABF46F4C17 /* CadenceControlSemanticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14AAB6B540E0A37B3128C27F /* CadenceControlSemanticsTests.swift */; };
+		7A961D55469C123D937AC6C6 /* meaning-independent-2026-09-30-j.json in Resources */ = {isa = PBXBuildFile; fileRef = 39921872B0825B8D27FAE3B1 /* meaning-independent-2026-09-30-j.json */; };
 		7AAEF22D998FBD9958ACB736 /* ComposeTextEditWritingDefaultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E480D90717259BBD4FFB1F2C /* ComposeTextEditWritingDefaultsView.swift */; };
 		7B41DA6D093D8E8ED4FC135E /* instruction-reserve-2026-09-30.json in Resources */ = {isa = PBXBuildFile; fileRef = 841260794810E35848A86AE9 /* instruction-reserve-2026-09-30.json */; };
 		7CBFABCD28248DCD37850366 /* ScribeContextPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B38695FC1EFBC5F53EF641B /* ScribeContextPolicyTests.swift */; };
@@ -421,6 +422,7 @@
 		38903CEFC746CA9498A73960 /* ComposeSelectedTextContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeSelectedTextContextTests.swift; sourceTree = "<group>"; };
 		3930EEBEA410BBC0249A684C /* ComposeSessionMemoryPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeSessionMemoryPreferences.swift; sourceTree = "<group>"; };
 		393D34EA2315483D46C808AC /* OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTests.swift; sourceTree = "<group>"; };
+		39921872B0825B8D27FAE3B1 /* meaning-independent-2026-09-30-j.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "meaning-independent-2026-09-30-j.json"; sourceTree = "<group>"; };
 		3A66E30E921DDEF50028694D /* ScribeProviderSetupSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderSetupSession.swift; sourceTree = "<group>"; };
 		3BD8226A6E492745025CF418 /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
 		3C68A8D784A88158DD7BDF16 /* ComposeTextEditWritingDefaultsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeTextEditWritingDefaultsTests.swift; sourceTree = "<group>"; };
@@ -710,6 +712,7 @@
 				E05E1536437895935A5DA94F /* meaning-independent-2026-09-30-g.json */,
 				CD2986D2F2DB47966F282CF4 /* meaning-independent-2026-09-30-h.json */,
 				35200974FB455CB59C8D93D5 /* meaning-independent-2026-09-30-i.json */,
+				39921872B0825B8D27FAE3B1 /* meaning-independent-2026-09-30-j.json */,
 				D5AA383F0898AE8813498A04 /* meaning-independent-2026-09-30-k.json */,
 				5DF2161C7F16090F9DDB494C /* meaning-independent-2026-09-30-l.json */,
 				27465C4D5A8B4E071878DD2F /* meaning-independent-2026-09-30-m.json */,
@@ -1234,6 +1237,7 @@
 				31582036015D6908602E9508 /* meaning-independent-2026-09-30-g.json in Resources */,
 				70903F39C6F94C494D41B186 /* meaning-independent-2026-09-30-h.json in Resources */,
 				9BF56D1ED92F51CA4E602122 /* meaning-independent-2026-09-30-i.json in Resources */,
+				7A961D55469C123D937AC6C6 /* meaning-independent-2026-09-30-j.json in Resources */,
 				052A050E9B27F4BDC08AF446 /* meaning-independent-2026-09-30-k.json in Resources */,
 				B2C7E2B40F2B0073968E4DD5 /* meaning-independent-2026-09-30-l.json in Resources */,
 				F848F371BDA274776261BE1E /* meaning-independent-2026-09-30-m.json in Resources */,

@@ -469,7 +469,8 @@ struct ScribeTests {
             "meaning-independent-2026-09-30-c", "meaning-independent-2026-09-30-d",
             "meaning-independent-2026-09-30-e", "meaning-independent-2026-09-30-f",
             "meaning-independent-2026-09-30-g", "meaning-independent-2026-09-30-h",
-            "meaning-independent-2026-09-30-i", "meaning-independent-2026-09-30-k",
+            "meaning-independent-2026-09-30-i", "meaning-independent-2026-09-30-j",
+            "meaning-independent-2026-09-30-k",
             "meaning-independent-2026-09-30-l", "meaning-independent-2026-09-30-m",
             "meaning-independent-2026-09-30-n", "coding-targets-2026-09-30"
         ].contains(fixtureName))

@@ -322,7 +322,11 @@ struct ScribeDirectDraftPolicyTests {
             ("Ask Marc whether the update can wait until Tuesday.",
              "Marc, can the update wait until Tuesday?"),
             ("Ask Blair if the booking is confirmed for April 7 or only requested.",
-             "Blair, is the booking confirmed for April 7 or only requested?")
+             "Blair, is the booking confirmed for April 7 or only requested?"),
+            ("Ask Max if ticket ZX-19 can reopen after QA signs off.",
+             "Max, can ticket ZX-19 reopen after QA signs off?"),
+            ("Ask Ria if case CS_20 can close after review finishes.",
+             "Ria, can case CS_20 close after review finishes?")
         ] {
             #expect(try ScribeRequestPolicy.providerSafeInput(
                 for: .directDictation(processedDictation: speech), destination: .legacyLocal
@@ -336,6 +340,8 @@ struct ScribeDirectDraftPolicyTests {
             "Ask Ben whether the contract can be signed after counsel approves, but before Friday. Also ask about tax.",
             "Ask Rhea whether the cancellation applies to paid accounts only, not the trial.",
             "Ask Omar whether review can begin before the logs finish uploading.",
+            "Ask Max if ticket ZX-19 can reopen after QA signs off. Also ask about billing.",
+            "Quote: Ask Max if ticket ZX-19 can reopen after QA signs off.",
             "Quote: Ask Rhea whether the cancellation applies to the trial only, not paid accounts."
         ] {
             #expect(try ScribeRequestPolicy.providerSafeInput(
