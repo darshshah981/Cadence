@@ -1820,7 +1820,15 @@ final class ScribeCoordinator {
             retainReviewedDraftOrFail(.provider(.invalidResult), requestID: request.id)
             return
         }
-        state = .generating(requestID: request.id)
+        // Prepared on-device drafts return without starting model work. Keep
+        // the existing transcribing presentation until review is ready rather
+        // than publishing a one-frame composing state for an immediate result.
+        let immediateLocalDraft = providerAction.destination == .legacyLocal
+            && providerRequest.input.preparedDraft != nil
+            && { if case .transcribing = state { return true }; return false }()
+        if !immediateLocalDraft {
+            state = .generating(requestID: request.id)
+        }
         performanceRecorder?.mark(.generationStarted, actionID: request.id)
         activeProviderRequest = providerRequest
         let attemptID = UUID()
@@ -1828,17 +1836,19 @@ final class ScribeCoordinator {
         let recipientRestrictions = ScribeRecipientRestrictionPolicy.extract(from: selectedSource?.selectedText ?? request.spokenTranscript)
         let requiredLiterals = selectedSource.map { ComposeSelectedTextRewritePolicy.protectedLiterals(in: $0.selectedText) } ?? request.exactLiterals
         softWaitTask?.cancel()
-        softWaitTask = Task { @MainActor [weak self, generationSoftWait] in
-            do {
-                try await Task.sleep(for: generationSoftWait)
-            } catch {
-                return
+        if !immediateLocalDraft {
+            softWaitTask = Task { @MainActor [weak self, generationSoftWait] in
+                do {
+                    try await Task.sleep(for: generationSoftWait)
+                } catch {
+                    return
+                }
+                guard let self,
+                      self.generation == expectedGeneration,
+                      self.activeAttemptID == attemptID,
+                      case .generating = self.state else { return }
+                self.state = .generatingSlow(requestID: request.id)
             }
-            guard let self,
-                  self.generation == expectedGeneration,
-                  self.activeAttemptID == attemptID,
-                  case .generating = self.state else { return }
-            self.state = .generatingSlow(requestID: request.id)
         }
 
         let task = Task { [provider = providerAction.provider, generationTimeout] in

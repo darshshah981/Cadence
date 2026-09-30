@@ -2304,6 +2304,34 @@ struct ScribeCoordinatorTests {
     }
 
     @Test
+    func immediateLocalDraftMovesFromTranscriptionStraightToReview() async throws {
+        let spoken = "Can you send me the report by Friday?"
+        let provider = CapturingScribeProvider(resultText: spoken)
+        let action = ScribeProviderActionSnapshot(
+            provider: provider, destination: .legacyLocal,
+            selectedModelID: "local"
+        )
+        let fixture = ScribeCoordinatorFixture(
+            providerActionResolver: { action },
+            engine: StubScribeTranscriptionEngine(text: spoken)
+        )
+        var states: [ScribeSessionState] = []
+        fixture.coordinator.onStateChange = { states.append($0) }
+
+        try await fixture.coordinator.beginDirectDictation()
+        await fixture.coordinator.finishRecording()
+
+        let sent = await provider.requests
+        #expect(sent.count == 1)
+        #expect(sent.first?.input.preparedDraft == spoken)
+        #expect(fixture.coordinator.reviewedResult?.text == spoken)
+        #expect(states.contains { if case .transcribing = $0 { return true }; return false })
+        #expect(states.contains { if case .reviewing = $0 { return true }; return false })
+        #expect(!states.contains { if case .generating = $0 { return true }; return false })
+        #expect(!states.contains { if case .generatingSlow = $0 { return true }; return false })
+    }
+
+    @Test
     func performanceRecorderCapturesLifecycleWithoutContent() async throws {
         let sink = ScribePerformanceSampleBuffer()
         let recorder = ScribePerformanceRecorder(clock: CoordinatorPerformanceClock(), sink: sink)

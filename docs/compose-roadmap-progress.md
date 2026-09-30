@@ -18,6 +18,17 @@ policy replay remained 23 READY and one missing-source REJECTED. Installed-app
 latency remains unverified. The rule deliberately does
 not handle open-ended questions or unspecified “send this” requests.
 
+September 30 U6 immediate-draft presentation increment: when a direct Compose
+action already has a prepared Apple Intelligence draft, the coordinator keeps
+the transcribing presentation until the checked result reaches review. It no
+longer publishes a fleeting composing state or starts the slow-generation
+timer for that path. Ordinary model generation still publishes its progress
+state. Focused coordinator and notch-presentation suites passed 165 tests,
+including an observed-state assertion for the exact recipient-question case;
+the full native suite passed 1,369 tests in 116 suites with the known
+focus-dependent keyboard suite excluded.
+The installed notch transition has not been visually checked.
+
 September 30 U13 TextEdit opt-in pilot: the session-memory and saved-document
 adapter rollout flags now default on, so their Settings section is
 visible in a normal install. Every actual permission inside it still defaults
