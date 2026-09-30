@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import OSLog
 
@@ -25,6 +26,7 @@ final class ComposeScreenContextActionController: @preconcurrency ComposeScreenT
     private let permissions: @MainActor () -> ScribeContextPlatformPermissions
     private let actionIsCurrent: @MainActor (UUID) -> Bool
     private let captureIsCurrent: @MainActor (ScribeContextSnapshot) -> Bool
+    private let focusedWindowFrame: @MainActor (ScribeContextSnapshot) throws -> CGRect?
     private let targetIsCurrent: @MainActor (ScribeContextSnapshot) async -> Bool
     private let now: @MainActor () -> Date
     private var active: Active?
@@ -49,6 +51,7 @@ final class ComposeScreenContextActionController: @preconcurrency ComposeScreenT
         permissions: @escaping @MainActor () -> ScribeContextPlatformPermissions = { .init() },
         actionIsCurrent: @escaping @MainActor (UUID) -> Bool = { _ in false },
         captureIsCurrent: @escaping @MainActor (ScribeContextSnapshot) -> Bool = { _ in false },
+        focusedWindowFrame: @escaping @MainActor (ScribeContextSnapshot) throws -> CGRect? = { _ in nil },
         targetIsCurrent: @escaping @MainActor (ScribeContextSnapshot) async -> Bool = { _ in false },
         now: @escaping @MainActor () -> Date = Date.init
     ) {
@@ -59,6 +62,7 @@ final class ComposeScreenContextActionController: @preconcurrency ComposeScreenT
         self.permissions = permissions
         self.actionIsCurrent = actionIsCurrent
         self.captureIsCurrent = captureIsCurrent
+        self.focusedWindowFrame = focusedWindowFrame
         self.targetIsCurrent = targetIsCurrent
         self.now = now
     }
@@ -98,7 +102,14 @@ final class ComposeScreenContextActionController: @preconcurrency ComposeScreenT
                        authorization: authorization, target: nil)
         defer { active = nil }
         do {
-            let window = try await picker.chooseWindow(actionID: actionID, capture: capture)
+            guard let expectedFrame = try focusedWindowFrame(capture),
+                  ComposeScreenWindowPickerPolicy.valid(expectedFrame) else {
+                throw ComposeScreenCaptureFailure.invalidTarget
+            }
+            try revalidateCurrentAction()
+            let window = try await picker.chooseWindow(
+                actionID: actionID, capture: capture, expectedFrame: expectedFrame
+            )
             try revalidateCurrentAction()
             guard await targetIsCurrent(capture) else {
                 throw ComposeScreenCaptureFailure.targetChanged
@@ -111,6 +122,7 @@ final class ComposeScreenContextActionController: @preconcurrency ComposeScreenT
                   window.bundleIdentifier == capture.target.bundleIdentifier,
                   window.processIdentity == capture.applicationTarget.process,
                   let frame = window.expectedFrame,
+                  frame == expectedFrame,
                   frame.origin.x.isFinite, frame.origin.y.isFinite,
                   frame.width.isFinite, frame.height.isFinite,
                   frame.width > 0, frame.height > 0 else {

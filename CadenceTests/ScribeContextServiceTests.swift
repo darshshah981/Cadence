@@ -1,9 +1,26 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import Cadence
 
 @MainActor
 struct ScribeContextServiceTests {
+    @Test
+    func originalFocusedWindowFrameIsPinnedWithoutReadingContent() throws {
+        let frame = CGRect(x: 20, y: 30, width: 600, height: 400)
+        let reader = StubScribeAccessibilityReader(snapshot: .init(
+            target: .init(processIdentifier: 42, bundleIdentifier: "com.apple.TextEdit"),
+            verificationToken: "selected-field"
+        ))
+        reader.pinnedWindowFrame = frame
+        let service = Self.makeService(reader)
+        let capture = try service.capture()
+        #expect(reader.windowFrameReadCount == 0)
+        #expect(try service.pinnedWindowFrame(for: capture) == frame)
+        #expect(reader.windowFrameReadCount == 1)
+        #expect(capture.selectedText.isEmpty)
+    }
+
     @Test
     func transientFocusedElementAbsenceRetriesBeforeCapturing() async throws {
         let reader = StubScribeAccessibilityReader(snapshot: .init(
@@ -887,6 +904,8 @@ private final class StubScribeAccessibilityReader: ScribeAccessibilityReading {
     var currentFocusError: ScribeContextError?
     private(set) var pinnedReadCount = 0
     private(set) var currentFocusReadCount = 0
+    var pinnedWindowFrame: CGRect?
+    private(set) var windowFrameReadCount = 0
     private(set) var restoredProcessIdentifiers: [pid_t] = []
 
     init(snapshot: ScribeAccessibilityReadSnapshot, isTrusted: Bool = true) {
@@ -913,6 +932,11 @@ private final class StubScribeAccessibilityReader: ScribeAccessibilityReading {
         currentFocusReadCount += 1
         if let currentFocusError { throw currentFocusError }
         return currentSnapshot ?? snapshot
+    }
+
+    func readPinnedWindowFrame() -> CGRect? {
+        windowFrameReadCount += 1
+        return pinnedWindowFrame
     }
 
     func restorePinnedTargetFocus(processIdentifier: pid_t) throws {

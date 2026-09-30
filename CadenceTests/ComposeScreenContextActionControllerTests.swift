@@ -12,6 +12,7 @@ struct ComposeScreenContextActionControllerTests {
             actionID: fixture.actionID, capture: fixture.capture, eligibility: .eligible
         ) == .unavailable(.policy(.disabled)))
         #expect(fixture.picker.callCount == 0)
+        #expect(fixture.frameReadCount == 0)
         #expect(await fixture.screen.callCount == 0)
     }
 
@@ -28,6 +29,18 @@ struct ComposeScreenContextActionControllerTests {
             eligibility: .eligible, budget: budget
         ) == .unavailable(.invalidBudget))
         #expect(fixture.picker.callCount == 0)
+        #expect(fixture.frameReadCount == 0)
+    }
+
+    @Test
+    func missingPinnedWindowGeometryNeverOpensPicker() async {
+        let fixture = Fixture()
+        fixture.focusedFrame = nil
+        #expect(await fixture.controller.captureForExplicitChoice(
+            actionID: fixture.actionID, capture: fixture.capture, eligibility: .eligible
+        ) == .unavailable(.invalidTarget))
+        #expect(fixture.picker.callCount == 0)
+        #expect(await fixture.screen.callCount == 0)
     }
 
     @Test
@@ -43,6 +56,7 @@ struct ComposeScreenContextActionControllerTests {
         #expect(snapshot.target.window == fixture.window)
         #expect(await fixture.screen.windows == [fixture.window])
         #expect(fixture.picker.callCount == 1)
+        #expect(fixture.frameReadCount == 1)
     }
 
     @Test
@@ -92,6 +106,20 @@ struct ComposeScreenContextActionControllerTests {
     }
 
     @Test
+    func anotherWindowInTheSameAppIsNotThePinnedEditor() async {
+        let fixture = Fixture()
+        fixture.picker.selectedWindow = .init(
+            windowID: 8, processIdentifier: 42, bundleIdentifier: "test.editor",
+            processIdentity: fixture.capture.applicationTarget.process,
+            expectedFrame: .init(x: 30, y: 30, width: 100, height: 40)
+        )
+        #expect(await fixture.controller.captureForExplicitChoice(
+            actionID: fixture.actionID, capture: fixture.capture, eligibility: .eligible
+        ) == .unavailable(.invalidTarget))
+        #expect(await fixture.screen.callCount == 0)
+    }
+
+    @Test
     func secondActionCannotRaceAnOpenPicker() async {
         let fixture = Fixture()
         fixture.picker.suspendNextChoice = true
@@ -125,12 +153,18 @@ struct ComposeScreenContextActionControllerTests {
         var currentActionID: UUID?
         var currentCapture: ScribeContextSnapshot?
         var targetIsCurrent = true
+        var focusedFrame: CGRect? = .init(x: 20, y: 30, width: 100, height: 40)
+        var frameReadCount = 0
         lazy var controller = ComposeScreenContextActionController(
             picker: picker, captureAdapter: screen, ocr: ocr,
             policy: { [unowned self] in self.policy },
             permissions: { .init(screenRecording: true) },
             actionIsCurrent: { [unowned self] id in self.currentActionID == id },
             captureIsCurrent: { [unowned self] capture in self.currentCapture == capture },
+            focusedWindowFrame: { [unowned self] _ in
+                self.frameReadCount += 1
+                return self.focusedFrame
+            },
             targetIsCurrent: { [unowned self] _ in self.targetIsCurrent },
             now: { [unowned self] in self.now }
         )
@@ -144,7 +178,8 @@ struct ComposeScreenContextActionControllerTests {
             )
             capture = .init(
                 id: id, target: .init(processIdentifier: 42, bundleIdentifier: "test.editor"),
-                selectedText: "", applicationTarget: .init(
+                selectedText: "",
+                applicationTarget: .init(
                     id: id, process: process, identityRevision: 1,
                     captureRevision: 1, source: .scribeAccessibility
                 )
@@ -176,7 +211,8 @@ private final class PickerFake: ComposeScreenWindowChoosing {
     private(set) var callCount = 0
 
     init(selectedWindow: ComposeScreenWindowIdentity) { self.selectedWindow = selectedWindow }
-    func chooseWindow(actionID _: UUID, capture _: ScribeContextSnapshot) async throws -> ComposeScreenWindowIdentity {
+    func chooseWindow(actionID _: UUID, capture _: ScribeContextSnapshot,
+                      expectedFrame _: CGRect) async throws -> ComposeScreenWindowIdentity {
         callCount += 1
         observer?.resume(); observer = nil
         if suspendNextChoice {

@@ -8,7 +8,9 @@ struct ComposeScreenWindowPickerTests {
     func systemPickerIsDisabledWithoutAnExplicitActionOwner() async {
         let picker = SystemComposeScreenWindowPicker()
         await #expect(throws: ComposeScreenWindowPickerError.unavailable) {
-            try await picker.chooseWindow(actionID: UUID(), capture: makeCapture())
+            try await picker.chooseWindow(
+                actionID: UUID(), capture: makeCapture(), expectedFrame: window().frame
+            )
         }
     }
 
@@ -17,7 +19,7 @@ struct ComposeScreenWindowPickerTests {
         let capture = makeCapture()
         let result = try ComposeScreenWindowPickerPolicy.resolve(
             styleIsWindow: true,
-            windows: [window()], capture: capture
+            windows: [window()], capture: capture, expectedFrame: window().frame
         )
         #expect(result.windowID == 7)
         #expect(result.processIdentity == capture.applicationTarget.process)
@@ -40,12 +42,16 @@ struct ComposeScreenWindowPickerTests {
             (true, [.init(windowID: 7, processIdentifier: 42,
                           bundleIdentifier: "test.editor", frame: window().frame, isOnScreen: false)]),
             (true, [.init(windowID: 7, processIdentifier: 42,
-                          bundleIdentifier: "test.editor", frame: .zero, isOnScreen: true)])
+                          bundleIdentifier: "test.editor", frame: .zero, isOnScreen: true)]),
+            (true, [.init(windowID: 8, processIdentifier: 42,
+                           bundleIdentifier: "test.editor",
+                           frame: .init(x: 30, y: 30, width: 600, height: 400), isOnScreen: true)])
         ]
         for (styleIsWindow, windows) in variants {
             #expect(throws: ComposeScreenWindowPickerError.invalidSelection) {
                 try ComposeScreenWindowPickerPolicy.resolve(
-                    styleIsWindow: styleIsWindow, windows: windows, capture: capture
+                    styleIsWindow: styleIsWindow, windows: windows, capture: capture,
+                    expectedFrame: window().frame
                 )
             }
         }
@@ -60,7 +66,8 @@ struct ComposeScreenWindowPickerTests {
         )
         #expect(throws: ComposeScreenWindowPickerError.targetChanged) {
             try ComposeScreenWindowPickerPolicy.resolve(
-                styleIsWindow: true, windows: [window()], capture: stale
+                styleIsWindow: true, windows: [window()], capture: stale,
+                expectedFrame: window().frame
             )
         }
         let dictationTarget = ApplicationTargetCapture(
@@ -73,7 +80,8 @@ struct ComposeScreenWindowPickerTests {
         )
         #expect(throws: ComposeScreenWindowPickerError.targetChanged) {
             try ComposeScreenWindowPickerPolicy.resolve(
-                styleIsWindow: true, windows: [window()], capture: dictation
+                styleIsWindow: true, windows: [window()], capture: dictation,
+                expectedFrame: window().frame
             )
         }
     }

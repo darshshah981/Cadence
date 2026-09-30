@@ -20,7 +20,7 @@ enum ComposeScreenWindowPickerError: Error, Equatable {
 @MainActor
 protocol ComposeScreenWindowChoosing: AnyObject {
     func chooseWindow(
-        actionID: UUID, capture: ScribeContextSnapshot
+        actionID: UUID, capture: ScribeContextSnapshot, expectedFrame: CGRect
     ) async throws -> ComposeScreenWindowIdentity
 }
 
@@ -38,7 +38,8 @@ enum ComposeScreenWindowPickerPolicy {
     static func resolve(
         styleIsWindow: Bool,
         windows: [ComposePickedWindowMetadata],
-        capture: ScribeContextSnapshot
+        capture: ScribeContextSnapshot,
+        expectedFrame: CGRect
     ) throws -> ComposeScreenWindowIdentity {
         let process = capture.applicationTarget.process
         guard capture.applicationTarget.id == capture.id,
@@ -55,6 +56,7 @@ enum ComposeScreenWindowPickerPolicy {
               chosen.windowID != 0, chosen.isOnScreen,
               chosen.processIdentifier == process.processIdentifier,
               chosen.bundleIdentifier == process.bundleIdentifier,
+              expectedFrame == chosen.frame,
               valid(chosen.frame) else {
             throw ComposeScreenWindowPickerError.invalidSelection
         }
@@ -67,7 +69,7 @@ enum ComposeScreenWindowPickerPolicy {
         )
     }
 
-    private static func valid(_ frame: CGRect) -> Bool {
+    static func valid(_ frame: CGRect) -> Bool {
         frame.origin.x.isFinite && frame.origin.y.isFinite
             && frame.width.isFinite && frame.height.isFinite
             && frame.width > 0 && frame.height > 0
@@ -85,6 +87,7 @@ final class SystemComposeScreenWindowPicker: NSObject, ComposeScreenWindowChoosi
     private struct Pending {
         let actionID: UUID
         let capture: ScribeContextSnapshot
+        let expectedFrame: CGRect
         let priorConfiguration: SCContentSharingPickerConfiguration
         let priorActive: Bool
         let continuation: CheckedContinuation<ComposeScreenWindowIdentity, Error>
@@ -110,7 +113,7 @@ final class SystemComposeScreenWindowPicker: NSObject, ComposeScreenWindowChoosi
     }
 
     func chooseWindow(
-        actionID: UUID, capture: ScribeContextSnapshot
+        actionID: UUID, capture: ScribeContextSnapshot, expectedFrame: CGRect
     ) async throws -> ComposeScreenWindowIdentity {
         try Task.checkCancellation()
         guard #available(macOS 15.2, *) else {
@@ -118,7 +121,8 @@ final class SystemComposeScreenWindowPicker: NSObject, ComposeScreenWindowChoosi
         }
         guard enabled() else { throw ComposeScreenWindowPickerError.unavailable }
         guard pending == nil, !picker.isActive else { throw ComposeScreenWindowPickerError.busy }
-        guard isCurrent(actionID: actionID, capture: capture) else {
+        guard ComposeScreenWindowPickerPolicy.valid(expectedFrame),
+              isCurrent(actionID: actionID, capture: capture) else {
             throw ComposeScreenWindowPickerError.targetChanged
         }
         return try await withTaskCancellationHandler {
@@ -131,6 +135,7 @@ final class SystemComposeScreenWindowPicker: NSObject, ComposeScreenWindowChoosi
                 let priorConfiguration = picker.defaultConfiguration
                 pending = .init(
                     actionID: actionID, capture: capture,
+                    expectedFrame: expectedFrame,
                     priorConfiguration: priorConfiguration, priorActive: picker.isActive,
                     continuation: continuation
                 )
@@ -189,7 +194,8 @@ final class SystemComposeScreenWindowPicker: NSObject, ComposeScreenWindowChoosi
         do {
             let identity = try ComposeScreenWindowPickerPolicy.resolve(
                 styleIsWindow: filter.style == .window,
-                windows: windows, capture: pending.capture
+                windows: windows, capture: pending.capture,
+                expectedFrame: pending.expectedFrame
             )
             finish(.success(identity))
         } catch {

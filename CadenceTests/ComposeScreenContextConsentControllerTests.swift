@@ -163,7 +163,8 @@ struct ComposeScreenContextConsentControllerTests {
             )
             capture = .init(id: id,
                             target: .init(processIdentifier: 42, bundleIdentifier: "test.editor"),
-                            selectedText: "", applicationTarget: .init(
+                            selectedText: "",
+                            applicationTarget: .init(
                                 id: id, process: process, identityRevision: 1,
                                 captureRevision: 1, source: .scribeAccessibility
                             ))

@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import CoreGraphics
 import Foundation
 
 enum ScribeContextError: String, Error, Equatable, Sendable {
@@ -65,11 +66,13 @@ protocol ScribeAccessibilityReading: AnyObject {
     func pinFocusedTarget() throws
     func readPinnedSnapshot() throws -> ScribeAccessibilityReadSnapshot
     func readCurrentFocusSnapshot() throws -> ScribeAccessibilityReadSnapshot
+    func readPinnedWindowFrame() -> CGRect?
     func restorePinnedTargetFocus(processIdentifier: pid_t) throws
     func clearPinnedTarget()
 }
 
 extension ScribeAccessibilityReading {
+    func readPinnedWindowFrame() -> CGRect? { nil }
     func readCurrentFocusSnapshot() throws -> ScribeAccessibilityReadSnapshot {
         try readPinnedSnapshot()
     }
@@ -83,6 +86,7 @@ protocol ScribeContextServing: AnyObject {
     func capture() throws -> ScribeContextSnapshot
     func verifyTarget(for capture: ScribeContextSnapshot) throws -> Bool
     func verifyTargetAllowingComposeReviewFocus(for capture: ScribeContextSnapshot) throws -> Bool
+    func pinnedWindowFrame(for capture: ScribeContextSnapshot) throws -> CGRect?
     func restoreTargetForContextRefresh(_ capture: ScribeContextSnapshot) async throws
     func insert(_ text: String, for capture: ScribeContextSnapshot) async throws -> Bool
     func insert(_ text: String, for capture: ScribeContextSnapshot, selectedTextPreflight: @escaping @MainActor () async -> Bool) async throws -> Bool
@@ -91,6 +95,7 @@ protocol ScribeContextServing: AnyObject {
 }
 
 extension ScribeContextServing {
+    func pinnedWindowFrame(for _: ScribeContextSnapshot) throws -> CGRect? { nil }
     func verifyTargetAllowingComposeReviewFocus(for capture: ScribeContextSnapshot) throws -> Bool {
         try verifyTarget(for: capture)
     }
@@ -315,6 +320,20 @@ final class ScribeContextService: ScribeContextServing {
     /// and window before any durable write.
     func verifyTargetAllowingComposeReviewFocus(for capture: ScribeContextSnapshot) throws -> Bool {
         try verifyTarget(for: capture, allowingTransientControlFocus: true)
+    }
+
+    /// Read geometry only when the user explicitly requests screen context.
+    /// Normal Compose capture and verification do no extra AX round trips.
+    func pinnedWindowFrame(for capture: ScribeContextSnapshot) throws -> CGRect? {
+        guard try verifyTarget(for: capture, allowingTransientControlFocus: true),
+              activeCaptures[capture.id]?.mode == .accessibilityElement else {
+            throw ScribeContextError.targetChanged
+        }
+        let frame = reader.readPinnedWindowFrame()
+        guard try verifyTarget(for: capture, allowingTransientControlFocus: true) else {
+            throw ScribeContextError.targetChanged
+        }
+        return frame
     }
 
     /// Explicit refresh restores only the already-pinned field. It cannot
@@ -600,7 +619,7 @@ final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
         }
         return try snapshot(
             focusedElement: focusedElement,
-            window: window,
+            window: window
         )
     }
 
@@ -609,8 +628,13 @@ final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
         let (focusedElement, window) = try currentFocusedElementAndWindow()
         return try snapshot(
             focusedElement: focusedElement,
-            window: window,
+            window: window
         )
+    }
+
+    func readPinnedWindowFrame() -> CGRect? {
+        guard isTrusted, let pinnedWindow else { return nil }
+        return readWindowFrame(pinnedWindow)
     }
 
     private func snapshot(
@@ -747,5 +771,27 @@ final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
             return nil
         }
         return value as? String
+    }
+
+    private func readWindowFrame(_ window: AXUIElement) -> CGRect? {
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString,
+                                            &positionValue) == .success,
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString,
+                                            &sizeValue) == .success,
+              let positionValue, let sizeValue,
+              CFGetTypeID(positionValue) == AXValueGetTypeID(),
+              CFGetTypeID(sizeValue) == AXValueGetTypeID() else { return nil }
+        let position = unsafeBitCast(positionValue, to: AXValue.self)
+        let size = unsafeBitCast(sizeValue, to: AXValue.self)
+        var origin = CGPoint.zero
+        var dimensions = CGSize.zero
+        guard AXValueGetValue(position, .cgPoint, &origin),
+              AXValueGetValue(size, .cgSize, &dimensions),
+              origin.x.isFinite, origin.y.isFinite,
+              dimensions.width.isFinite, dimensions.height.isFinite,
+              dimensions.width > 0, dimensions.height > 0 else { return nil }
+        return CGRect(origin: origin, size: dimensions)
     }
 }

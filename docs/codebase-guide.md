@@ -77,6 +77,12 @@ local Vision OCR. It rechecks authority across asynchronous boundaries and
 does not create a grant or send extracted text to a provider. The picker can
 expose the selected window ID only on macOS 15.2 or newer. No Settings or
 Compose review control currently activates this path.
+The original Accessibility-focused window frame is read from the pinned AX
+window only after an explicit screen-context request; ordinary recording does
+no geometry read. The picker choice must match that frame, so another window
+in the same app cannot be substituted merely because its process ID matches.
+A missing frame fails closed. Frame equality still needs signed live-app
+certification.
 `ComposeScreenContextConsentController` is the inert action-scoped grant owner:
 local OCR and exact-provider text transmission need separate explicit approval
 calls, and neither approval creates a retention grant. The owner is not yet
