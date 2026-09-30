@@ -919,6 +919,59 @@ struct ScribeConversationActionScopeTests {
     }
 
     @Test
+    func twoAdaptersClaimingOneSurfaceCannotChooseMemoryByRegistrationOrder() throws {
+        let fixture = ActionScopeFixture()
+        let competing = SecondActionScopeAdapter(process: fixture.adapter.process)
+        let scope = try fixture.makeScope(additionalAdapters: [competing])
+        let actionID = UUID()
+        fixture.currentActionID = actionID
+        let capture = fixture.capture()
+        #expect(scope.begin(actionID: actionID, capture: capture) == nil)
+        #expect(competing.captureCount == 1)
+        competing.claimsSurface = false
+        let selected = try #require(scope.begin(actionID: actionID, capture: capture))
+        #expect(selected.conversation.adapterID == fixture.adapter.registration.adapterID)
+        #expect(scope.isCurrent(selected))
+    }
+
+    @Test
+    func secondHostGetsIndependentScopeAndInvalidatesTheFirstAction() throws {
+        let fixture = ActionScopeFixture()
+        let otherProcess = ApplicationProcessIdentity(
+            processIdentifier: 88, bundleIdentifier: "com.example.SecondEditor",
+            bundleURL: URL(fileURLWithPath: "/Applications/SecondEditor.app"),
+            incarnation: UUID(), launchDate: Date(timeIntervalSince1970: 49_100)
+        )
+        let second = SecondActionScopeAdapter(process: otherProcess)
+        let grantWindow = ScribeContextGrantWindow(
+            acceptedAt: fixture.now - 100, expiresAt: fixture.now + 1_000
+        )
+        fixture.policy.captureGrants.append(.init(
+            id: UUID(), scope: .application(bundleIdentifier: otherProcess.bundleIdentifier),
+            categories: [.sessionMemory], window: grantWindow
+        ))
+        let scope = try fixture.makeScope(additionalAdapters: [second])
+
+        let firstAction = UUID()
+        fixture.currentActionID = firstAction
+        let firstCapture = fixture.capture()
+        let first = try #require(scope.begin(actionID: firstAction, capture: firstCapture))
+        let secondAction = UUID()
+        fixture.currentActionID = secondAction
+        let secondCapture = fixture.capture(
+            process: otherProcess, targetBundle: otherProcess.bundleIdentifier
+        )
+        let other = try #require(scope.begin(actionID: secondAction, capture: secondCapture))
+        #expect(first.conversation.memoryKey != other.conversation.memoryKey)
+        #expect(first.conversation.adapterID != other.conversation.adapterID)
+        #expect(scope.currentAccess(actionID: firstAction, capture: firstCapture) == nil)
+        #expect(scope.currentAccess(actionID: secondAction, capture: secondCapture) == other)
+        #expect(second.captureCount == 1)
+        second.navigationRevision = UUID()
+        #expect(scope.currentAccess(actionID: secondAction, capture: secondCapture) == nil)
+    }
+
+    @Test
     func verifiedActionAndSessionStoreKeepDocumentsIsolated() throws {
         let fixture = ActionScopeFixture()
         let scope = try fixture.makeScope()
@@ -1013,9 +1066,12 @@ private final class ActionScopeFixture {
         )]
     }
 
-    func makeScope() throws -> ScribeConversationActionScope {
+    func makeScope(
+        additionalAdapters: [any ScribeConversationBindingCapturing] = []
+    ) throws -> ScribeConversationActionScope {
         try ScribeConversationActionScope(
-            adapter: adapter, enabled: { self.enabled }, policy: { self.policy },
+            adapter: adapter, additionalAdapters: additionalAdapters,
+            enabled: { self.enabled }, policy: { self.policy },
             permissions: { self.permissions },
             actionIsCurrent: { actionID in self.currentActionID.map { $0 == actionID } ?? true },
             targetIsCurrent: { _ in self.targetCurrent },
@@ -1076,6 +1132,54 @@ private final class ActionScopeFixtureAdapter: ScribeConversationBindingCapturin
             accountID: .init(rawValue: "synthetic-user"),
             workspaceID: .notApplicable, projectID: .notApplicable,
             conversationID: documentID
+        )
+    }
+}
+
+@MainActor
+private final class SecondActionScopeAdapter: ScribeConversationBindingCapturing {
+    let process: ApplicationProcessIdentity
+    let registration: ScribeConversationAdapterRegistration
+    let window = UUID()
+    var navigationRevision = UUID()
+    var claimsSurface = true
+    var captureCount = 0
+
+    init(process: ApplicationProcessIdentity) {
+        self.process = process
+        registration = .init(
+            adapterID: .init(rawValue: "second-test-adapter")!, schemaVersion: 1,
+            source: .nativeIntegration,
+            hostBundleIdentifier: process.bundleIdentifier,
+            applicationID: .init(rawValue: process.bundleIdentifier)!
+        )
+    }
+
+    func captureBinding(
+        actionID: UUID, process: ApplicationProcessIdentity
+    ) -> ScribeConversationActionBinding? {
+        captureCount += 1
+        guard claimsSurface, process == self.process else { return nil }
+        return .init(
+            actionID: actionID, process: process, windowIncarnation: window,
+            tabIncarnation: nil, navigationRevision: navigationRevision
+        )
+    }
+
+    func evidence(
+        for binding: ScribeConversationActionBinding
+    ) -> ScribeConversationIdentityEvidence? {
+        guard claimsSurface, binding.process == process,
+              binding.windowIncarnation == window,
+              binding.navigationRevision == navigationRevision else { return nil }
+        return .init(
+            adapterID: registration.adapterID, schemaVersion: registration.schemaVersion,
+            source: .nativeIntegration, binding: binding,
+            confidence: .verifiedStableIdentifiers, privacyState: .regular,
+            applicationID: registration.applicationID,
+            accountID: .init(rawValue: "synthetic-user")!,
+            workspaceID: .notApplicable, projectID: .notApplicable,
+            conversationID: .init(rawValue: "second-document")!
         )
     }
 }

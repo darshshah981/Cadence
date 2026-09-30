@@ -65,6 +65,7 @@ final class ComposeSessionMemoryContextController: ComposeSessionMemoryContextSe
     init(
         consent: ComposeSessionMemoryConsentController,
         adapter: (any ScribeConversationBindingCapturing)? = nil,
+        additionalAdapters: [any ScribeConversationBindingCapturing] = [],
         enabled: @escaping @MainActor () -> Bool = { false },
         permissions: @escaping @MainActor () -> ScribeContextPlatformPermissions = { .init() },
         actionIsCurrent: @escaping @MainActor (UUID) -> Bool = { _ in false },
@@ -75,7 +76,8 @@ final class ComposeSessionMemoryContextController: ComposeSessionMemoryContextSe
         self.now = now
         let adapter = adapter ?? ScribeTextEditDocumentIdentityAdapter()
         let scope = try ScribeConversationActionScope(
-            adapter: adapter, enabled: enabled, policy: { consent.policy },
+            adapter: adapter, additionalAdapters: additionalAdapters,
+            enabled: enabled, policy: { consent.policy },
             permissions: permissions, actionIsCurrent: actionIsCurrent,
             targetIsCurrent: targetIsCurrent, now: now
         )

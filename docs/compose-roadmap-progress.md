@@ -2,6 +2,19 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U11 multi-adapter action-scope increment: the action owner and
+session-memory controller can now register more than one trusted identity
+adapter. Only adapters for the pinned process are asked to capture identity,
+and memory access is issued only when exactly one adapter verifies that
+surface; two valid claims fail closed rather than selecting by registration
+order. Synthetic tests show a second host gets a distinct scope, replaces the
+old action, and loses access on navigation change. The focused identity,
+action-scope and session-store run passed 57 tests; the full native suite
+passed 1,375 tests in 116 suites with the known focus-dependent keyboard
+suite excluded. Production still registers
+only the saved-TextEdit adapter and keeps its separate opt-in consent; this is
+integration groundwork, not ChatGPT, Codex, Muse, or browser recognition.
+
 September 30 U12 spoken-schedule guard: a deterministic regression showed
 that screen-text output validation would have accepted Friday at 3, Thursday
 at 4, or an added Friday when the speaker had explicitly said “Reply that

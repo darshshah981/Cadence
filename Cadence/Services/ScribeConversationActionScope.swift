@@ -16,7 +16,7 @@ final class ScribeConversationActionScope {
         let authorization: ScribeContextAccessAuthorization
     }
 
-    private let adapter: any ScribeConversationBindingCapturing
+    private let adapters: [any ScribeConversationBindingCapturing]
     let identityResolver: ScribeConversationIdentityResolver
     private let enabled: @MainActor () -> Bool
     private let policy: @MainActor () -> ScribeContextPolicySnapshot
@@ -29,6 +29,7 @@ final class ScribeConversationActionScope {
 
     init(
         adapter: any ScribeConversationBindingCapturing,
+        additionalAdapters: [any ScribeConversationBindingCapturing] = [],
         enabled: @escaping @MainActor () -> Bool = { false },
         policy: @escaping @MainActor () -> ScribeContextPolicySnapshot = { .init() },
         permissions: @escaping @MainActor () -> ScribeContextPlatformPermissions = { .init() },
@@ -36,8 +37,9 @@ final class ScribeConversationActionScope {
         targetIsCurrent: @escaping @MainActor (ScribeContextSnapshot) -> Bool = { _ in false },
         now: @escaping @MainActor () -> Date = Date.init
     ) throws {
-        self.adapter = adapter
-        self.identityResolver = try ScribeConversationIdentityResolver(adapters: [adapter])
+        let adapters = [adapter] + additionalAdapters
+        self.adapters = adapters
+        self.identityResolver = try ScribeConversationIdentityResolver(adapters: adapters)
         self.enabled = enabled
         self.policy = policy
         self.permissions = permissions
@@ -57,13 +59,20 @@ final class ScribeConversationActionScope {
         let process = capture.applicationTarget.process
         guard process.processIdentifier == capture.target.processIdentifier,
               (capture.target.bundleIdentifier == nil
-                || capture.target.bundleIdentifier == process.bundleIdentifier),
-              process.bundleIdentifier == adapter.registration.hostBundleIdentifier,
-              let binding = adapter.captureBinding(actionID: actionID, process: process),
-              binding.actionID == actionID, binding.process == process,
-              case let .verified(identity) = identityResolver.resolve(
-                adapterID: adapter.registration.adapterID, for: binding
-              ) else { return nil }
+                || capture.target.bundleIdentifier == process.bundleIdentifier) else { return nil }
+        let verified = adapters.compactMap { adapter -> ScribeVerifiedConversationIdentity? in
+            guard process.bundleIdentifier == adapter.registration.hostBundleIdentifier,
+                  let binding = adapter.captureBinding(actionID: actionID, process: process),
+                  binding.actionID == actionID, binding.process == process,
+                  case let .verified(identity) = identityResolver.resolve(
+                    adapterID: adapter.registration.adapterID, for: binding
+                  ) else { return nil }
+            return identity
+        }
+        // Two integrations claiming one surface would make memory authority
+        // ambiguous. Never choose an adapter by registration order.
+        guard verified.count == 1, let identity = verified.first else { return nil }
+        let binding = identity.binding
 
         let action = ScribeContextActionBinding(
             actionID: actionID, captureID: capture.id,
