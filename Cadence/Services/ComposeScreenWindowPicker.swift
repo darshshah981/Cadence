@@ -17,6 +17,13 @@ enum ComposeScreenWindowPickerError: Error, Equatable {
     case cancelled
 }
 
+@MainActor
+protocol ComposeScreenWindowChoosing: AnyObject {
+    func chooseWindow(
+        actionID: UUID, capture: ScribeContextSnapshot
+    ) async throws -> ComposeScreenWindowIdentity
+}
+
 /// Closed metadata from a system-picker result. No title, pixels, OCR text,
 /// window contents, or display-wide fallback enters this value.
 struct ComposePickedWindowMetadata: Equatable {
@@ -73,7 +80,8 @@ enum ComposeScreenWindowPickerPolicy {
 /// provider use, and the action's surface eligibility. No filter is retained
 /// after the choice completes.
 @MainActor
-final class SystemComposeScreenWindowPicker: NSObject, @preconcurrency SCContentSharingPickerObserver {
+final class SystemComposeScreenWindowPicker: NSObject, ComposeScreenWindowChoosing,
+    @preconcurrency SCContentSharingPickerObserver {
     private struct Pending {
         let actionID: UUID
         let capture: ScribeContextSnapshot

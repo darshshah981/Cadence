@@ -69,6 +69,15 @@ Intelligence requests only. The coordinator pins and rechecks the fact set
 before publishing a draft, Copy, or Insert; changed facts invalidate the draft.
 Cloud destinations remain transcript-only for saved memory.
 
+Screenshot context remains an unregistered, default-denied development path.
+`ComposeScreenContextActionController` requires an eligible pinned Compose
+action, a separate live screenshot grant, Screen Recording permission, and an
+explicit single-window picker choice before invoking exact-window capture and
+local Vision OCR. It rechecks authority across asynchronous boundaries and
+does not create a grant or send extracted text to a provider. The picker can
+expose the selected window ID only on macOS 15.2 or newer. No Settings or
+Compose review control currently activates this path.
+
 The first native conversation identity adapter is
 `ScribeTextEditDocumentIdentityAdapter`. It can identify a saved TextEdit file
 from a live Accessibility document attribute and exact window/process binding.
