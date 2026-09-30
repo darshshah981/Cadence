@@ -39,7 +39,8 @@ For one launch, pass `--enable-scribe` or `--disable-scribe`. Automation can set
 Compose also has separate rollout switches for optional context, memory, and
 surface adapters. `Cadence.feature.composeContext` defaults on so the existing
 explicit selected-text preview remains available; `Cadence.feature.composeMemory`
-and `Cadence.feature.composeAdapters` default off. Their corresponding environment
+and `Cadence.feature.composeAdapters` default on so the TextEdit pilot controls
+are visible. Their corresponding environment
 variables are `CADENCE_COMPOSE_CONTEXT_ENABLED`, `CADENCE_COMPOSE_MEMORY_ENABLED`,
 and `CADENCE_COMPOSE_ADAPTERS_ENABLED`. Launch overrides use
 `--enable-compose-context` / `--disable-compose-context`, with matching
@@ -47,8 +48,9 @@ and `CADENCE_COMPOSE_ADAPTERS_ENABLED`. Launch overrides use
 precedence, and memory/adapters cannot resolve enabled when context is off.
 Disabling context preserves saved user preferences but prevents the selected-text
 controller from receiving an active grant and hides that Settings section until
-the next launch. Memory and adapter switches both default off; when both are
-enabled, a separate development-preview disclosure can authorize TextEdit
+the next launch. The memory and adapter switches grant no access by themselves:
+when both are enabled, a separate current disclosure and default-off Settings
+permissions can authorize TextEdit
 document identity on an explicit Compose action. Neither flag itself grants
 consent, retention, or provider transmission.
 
