@@ -1339,3 +1339,16 @@ two no-op replacements, one partial formal edit, and one proposed replacement
 that altered protected quoted text. The existing exact-literal guard would
 reject that last edit. The prototype was not integrated into Cadence; its
 source and outputs are under `Build/ComposeRoadmap/U9-edit-plan-prototype/`.
+
+The primary Documents checkout continued to hang on file opens after the
+candidate was preserved. An isolated local Git checkout was created from the
+same `main` commit as the primary checkout, then the candidate's source was
+copied without deleting any tracked files. The 421 compared source and
+documentation files matched byte-for-byte. XcodeGen regenerated the project;
+the Git-backed checkout passed 1,318 native tests across 111 suites, 46
+offline evaluator tests, the runtime privacy-canary scan and the Git diff
+whitespace check. One stale rubric test revealed that its development corpus had 24
+cases but the rubric covered only 23; the missing case was added and the
+count check now verifies source-ID uniqueness rather than a fixed size. This
+is a local recovery checkpoint, not a reconciliation of the dirty primary
+checkout or an installed-app certification.
