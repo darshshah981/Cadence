@@ -724,6 +724,11 @@ struct ScribeTests {
         #expect(cloud.userMessage.contains("A statement requested as a reply or response remains a statement"))
         #expect(cloud.userMessage.contains("never invent restrictions or actions"))
         #expect(!cloud.userMessage.contains("including negative instructions such as \"Do not make any changes\""))
+        let delegated = try ScribeRequestPolicy.providerSafeInput(for: .directDictation(
+            processedDictation: "Ask Codex to inspect src/Cache.swift with --no-cache. Do not edit any files."
+        ), destination: .openAIDirect)
+        #expect(delegated.userMessage.contains("Recognized coding-agent task body:\ninspect src/Cache.swift with --no-cache. Do not edit any files."))
+        #expect(delegated.userMessage.contains("Start with the task verb"))
         for (speech, badDraft) in [
             ("Tell Priya the draft is ready for her review. Make this casual.", "The draft is ready for your review whenever you have a moment."),
             ("Tell Lia the call is at 11 AM. Sorry, make that 12 PM. Ask her to confirm.", "The call is at 12 PM. Could you please confirm?"),

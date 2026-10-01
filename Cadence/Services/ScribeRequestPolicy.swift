@@ -141,6 +141,21 @@ enum ScribeRequestPolicy {
             If the request asks to transform absent text, return that unresolved request unchanged.
             """)
         } else {
+            let writing = ScribeWritingDirectionParser.parse(
+                request.spokenTranscript, protectedValues: request.exactLiterals.map(\.value)
+            )
+            if let frame = writing.request.recipientFrame, frame.kind == .ask,
+               isExplicitCodingRequest(request.spokenTranscript),
+               case .named(let name) = frame.recipient,
+               ["Codex", "Claude"].contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
+                // This is derived entirely from current dictation, not app
+                // identity. Supply the parser's task body so preserving a
+                // destination name cannot preserve the writer wrapper.
+                sections.append("""
+                Recognized coding-agent task body:\n\(frame.body)
+                Write this task directly to the coding agent. The destination wrapper is a consumed writing direction, not an exact name in the task body. Start with the task verb, never with "Ask \(name) to" or "Tell \(name) to".
+                """)
+            }
             sections.append("""
             Return only the resulting draft. Apply these final checks before returning it:
             - A named human recipient in a tell, ask, note, or reply request must appear by that exact name in the draft. Address the person directly; removing the writer frame must not remove the addressee. This required address takes precedence over a default against adding greetings. A coding-agent product name may remain implicit in a prompt for that agent.
