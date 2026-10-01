@@ -739,6 +739,40 @@ struct ScribeDirectDraftPolicyTests {
     }
 
     @Test
+    func correctedHourBecomesAConfirmationToTheNamedRecipient() throws {
+        let speech = "The call is at 2 PM. Actually 3 PM. Tell Ian and ask him to confirm."
+        let request = ScribeRequest.directDictation(processedDictation: speech)
+        let input = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .legacyLocal)
+        #expect(input.preparedDraft == "Ian, the call is at 3 PM. Can you confirm?")
+        #expect(try ScribeRequestPolicy.providerSafeInput(
+            for: request, destination: .deepSeek
+        ).preparedDraft == nil)
+        let copiedFrame = "Tell Ian and ask him to confirm that the call is at 3 PM."
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateDirectDraftRecipient(
+                copiedFrame, spokenRequest: speech, protectedValues: []
+            )
+        }
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateOutput(
+                "Ian, the call is at 2 PM. Can you confirm?", requiredLiterals: [], spokenRequest: speech
+            )
+        }
+        #expect(try ScribeRequestPolicy.validateOutput(
+            "Ian, the call is at 3 PM. Can you confirm?", requiredLiterals: [], spokenRequest: speech
+        ) == input.preparedDraft)
+        for unsupported in [
+            "The call is at 2 PM. Actually 2 PM. Tell Ian and ask him to confirm.",
+            "The call is at 2 PM. Actually 3 PM. Tell Ian and ask him to confirm. Mention the agenda too.",
+            "Quote: The call is at 2 PM. Actually 3 PM. Tell Ian and ask him to confirm."
+        ] {
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: unsupported), destination: .legacyLocal
+            ).preparedDraft == nil)
+        }
+    }
+
+    @Test
     func privateReviewDeclineAndPoliteRequestKeepWriterDirectionsOut() throws {
         let decline = "Tell Ellis I cannot attend the review, and keep the reason private."
         let declineInput = try ScribeRequestPolicy.providerSafeInput(

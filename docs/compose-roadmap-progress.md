@@ -2,6 +2,18 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U2 corrected-hour recipient increment: independent S returned
+“Tell Ian and ask him to confirm that the call is at 3 PM” after the speaker
+corrected 2 PM to 3 PM, leaving a writer instruction in the outgoing text.
+For a complete call/meeting/review/demo correction followed by a named
+confirmation request, the local path now prepares a message to that person
+using only the final hour. Direct-draft validation rejects the old hour,
+missing confirmation, or an unaddressed writer frame for this form. The
+current-source production export contains “Ian, the call is at 3 PM. Can you
+confirm?” and saved-result replay changes the original model row from READY
+to REJECTED. Seventy-eight focused native tests passed. This exposed repair
+does not certify broader correction phrasing or the independent U2 gate.
+
 September 30 U2 private-reason decline increment: independent S showed the
 model returning “Ravi, I cannot join because of a private matter” despite the
 speaker’s explicit “Do not share the reason.” For this complete named decline,

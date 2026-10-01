@@ -41,6 +41,7 @@ enum ScribeDirectDraftPolicy {
         if let availability = preparesPrivateReasonAvailability(request) { return availability }
         if let decline = preparesPrivateMatterDecline(request) { return decline }
         if let correction = preparesCorrectedDayConfirmation(request) { return correction }
+        if let correction = preparesCorrectedHourConfirmation(request) { return correction }
         if let inspection = preservesQuotedCodingInspection(request) { return inspection }
         if let imperative = preservesCodingInstruction(request) { return imperative }
         if let complete = preservesConstraintHeavyNamedMessage(request) { return complete }
@@ -267,6 +268,34 @@ enum ScribeDirectDraftPolicy {
             source.substring(with: match.range(at: 2)),
             source.substring(with: match.range(at: 3)),
             source.substring(with: match.range(at: 4))
+        )
+    }
+
+    /// The time correction precedes a trailing delivery instruction. Keep
+    /// only the final hour and turn the confirmation request toward the
+    /// addressee instead of copying “Tell Ian” into the outgoing text.
+    private static func preparesCorrectedHourConfirmation(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections.isEmpty,
+              request.unresolvedReferences.isEmpty,
+              request.message == request.originalTranscript,
+              request.protectedSpans.isEmpty,
+              let parts = correctedHourConfirmationParts(in: request.message),
+              parts.oldHour.caseInsensitiveCompare(parts.newHour) != .orderedSame else { return nil }
+        return "\(parts.recipient), the \(parts.subject) is at \(parts.newHour). Can you confirm?"
+    }
+
+    static func correctedHourConfirmationParts(in speech: String) -> (
+        recipient: String, subject: String, oldHour: String, newHour: String
+    )? {
+        let source = speech as NSString
+        guard let match = correctedHourConfirmationPattern.firstMatch(
+            in: speech, range: NSRange(location: 0, length: source.length)
+        ) else { return nil }
+        return (
+            source.substring(with: match.range(at: 4)),
+            source.substring(with: match.range(at: 1)),
+            source.substring(with: match.range(at: 2)),
+            source.substring(with: match.range(at: 3))
         )
     }
 
@@ -797,6 +826,10 @@ enum ScribeDirectDraftPolicy {
     )
     private static let correctedDayConfirmationPattern = try! NSRegularExpression(
         pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]*)\s+the\s+([\p{L}-]+(?:\s+[\p{L}-]+){0,2})\s+is\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\.\s+Sorry,\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\.\s+Ask\s+(?:him|her|them)\s+to\s+confirm\.$"#,
+        options: [.caseInsensitive]
+    )
+    private static let correctedHourConfirmationPattern = try! NSRegularExpression(
+        pattern: #"^[Tt]he\s+(call|meeting|review|demo)\s+is\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\.\s+Actually\s+(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\.\s+Tell\s+(\p{Lu}[\p{L}-]*)\s+and\s+ask\s+(?:him|her|them)\s+to\s+confirm\.$"#,
         options: [.caseInsensitive]
     )
 

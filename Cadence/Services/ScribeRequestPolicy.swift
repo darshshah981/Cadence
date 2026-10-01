@@ -361,7 +361,8 @@ enum ScribeRequestPolicy {
               !isPercentPointContrastChanged(normalized, spokenRequest: spokenRequest),
               !isNumericNotExactlyDropped(normalized, spokenRequest: spokenRequest),
               !isOnlyRequestedAlternativeDropped(normalized, spokenRequest: spokenRequest),
-              !isSupersededDayCorrectionLeaked(normalized, spokenRequest: spokenRequest) else {
+              !isSupersededDayCorrectionLeaked(normalized, spokenRequest: spokenRequest),
+              !isSupersededHourCorrectionLeaked(normalized, spokenRequest: spokenRequest) else {
             throw ScribeProviderError.invalidResult
         }
         let outputBytes = Data(normalized.utf8)
@@ -592,6 +593,18 @@ enum ScribeRequestPolicy {
                             options: [.regularExpression, .caseInsensitive]) != nil
     }
 
+    private static func isSupersededHourCorrectionLeaked(_ output: String, spokenRequest: String) -> Bool {
+        guard let parts = ScribeDirectDraftPolicy.correctedHourConfirmationParts(in: spokenRequest),
+              parts.oldHour.caseInsensitiveCompare(parts.newHour) != .orderedSame else { return false }
+        let oldHour = #"\b"# + NSRegularExpression.escapedPattern(for: parts.oldHour) + #"\b"#
+        let newHour = #"\b"# + NSRegularExpression.escapedPattern(for: parts.newHour) + #"\b"#
+        return output.range(of: oldHour, options: [.regularExpression, .caseInsensitive]) != nil
+            || output.range(of: newHour, options: [.regularExpression, .caseInsensitive]) == nil
+            || output.range(of: #"\bconfirm\b"#, options: [.regularExpression, .caseInsensitive]) == nil
+            || output.range(of: #"\b(?:actually|tell\s+\p{Lu}[\p{L}-]*\s+and\s+ask)\b"#,
+                            options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
     private static let numericNotExactlyPattern = try! NSRegularExpression(
         pattern: #"\b(?:under|over|at\s+most|at\s+least)\s+(\$[\d,]+(?:\.\d{2})?),\s+not\s+exactly\s+(\$[\d,]+(?:\.\d{2})?)\b"#,
         options: [.caseInsensitive]
@@ -750,6 +763,13 @@ enum ScribeRequestPolicy {
         if let note = ScribeDirectDraftPolicy.exactWordsNoteParts(in: spokenRequest) {
             let address = #"^\s*(?:(?:Hi|Hello|Dear)\s+)?"#
                 + NSRegularExpression.escapedPattern(for: note.recipient) + #"\s*[,!:]"#
+            guard output.range(of: address, options: .regularExpression) != nil else {
+                throw ScribeProviderError.invalidResult
+            }
+        }
+        if let correction = ScribeDirectDraftPolicy.correctedHourConfirmationParts(in: spokenRequest) {
+            let address = #"^\s*(?:(?:Hi|Hello|Dear)\s+)?"#
+                + NSRegularExpression.escapedPattern(for: correction.recipient) + #"\s*[,!:]"#
             guard output.range(of: address, options: .regularExpression) != nil else {
                 throw ScribeProviderError.invalidResult
             }
