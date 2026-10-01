@@ -134,6 +134,18 @@ struct ComposeScreenTextDraftCompilerTests {
             request: request, compilation: compilation
         )
         #expect(alreadyAsked == repaired)
+        #expect(try ComposeScreenTextDraftCompiler.validateOutput(
+            "What's the status of refund RF-12?",
+            request: request, compilation: compilation
+        ) == "What's the status of refund RF-12?")
+        #expect(try ComposeScreenTextDraftCompiler.validateOutput(
+            "Any questions about refund RF-12?",
+            request: request, compilation: compilation
+        ) == repaired)
+        #expect(try ComposeScreenTextDraftCompiler.validateOutput(
+            "Refund RF-12 is pending. Any questions?",
+            request: request, compilation: compilation
+        ) == repaired)
 
         for unsupported in [
             "Ask for an update on this.",

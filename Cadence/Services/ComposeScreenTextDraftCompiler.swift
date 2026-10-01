@@ -294,9 +294,12 @@ enum ComposeScreenTextDraftCompiler {
     }
 
     private static func outputAsksForUpdate(_ output: String) -> Bool {
-        output.contains("?") || output.range(
-            of: #"\b(?:please\s+(?:provide|share|send|give)|let\s+me\s+know)\b.{0,80}\b(?:update|status)\b"#,
-            options: [.regularExpression, .caseInsensitive]
-        ) != nil
+        // An unrelated question mark is not an update request. Keep the
+        // request cue and its subject in one question clause so a screen-status
+        // echo followed by "Any questions?" cannot pass this check.
+        let question = #"\b(?:what(?:['’]s| is)|how|could you|can you|would you|please|any|let me know)\b[^.!?\r\n]{0,100}\b(?:update|status|progress)\b[^.!?\r\n]*\?"#
+        let imperative = #"\b(?:please\s+(?:provide|share|send|give)|let\s+me\s+know)\b[^.!?\r\n]{0,80}\b(?:update|status|progress)\b"#
+        return output.range(of: question, options: [.regularExpression, .caseInsensitive]) != nil
+            || output.range(of: imperative, options: [.regularExpression, .caseInsensitive]) != nil
     }
 }

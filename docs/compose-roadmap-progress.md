@@ -2,6 +2,19 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U12 explicit-update intent increment: an update request whose
+output was merely "Any questions about refund RF-12?" passed because the
+validator treated any question mark as an update request. A red test
+reproduced that error. The bounded check now requires an update, status, or
+progress request in the same question clause, while preserving valid forms
+such as "What's the status of refund RF-12?" For a fully named single subject,
+an unrelated question or status echo becomes the safe update question derived
+from the speaker's own words. The focused suite passed 13 tests, including
+four opt-in synthetic Apple Intelligence cases. No full native rerun or
+installed-app check was performed for this compiler-only change. More
+complex update requests, added factual claims, and general grounded replies
+still need separate verification.
+
 September 30 U12 scheduling-commitment polarity increment: the existing
 day-and-hour guard still accepted "Thursday at 3 does not work for me" for a
 speaker who said "Reply that Thursday at 3 works." A red run reproduced four
