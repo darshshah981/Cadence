@@ -747,6 +747,12 @@ struct ScribeTests {
             try ScribeRequestPolicy.validateOutput("Noah, wait until security approves.", requiredLiterals: [], spokenRequest: speech)
         }
         #expect(try ScribeRequestPolicy.validateOutput("Noah, Wait until security approves.", requiredLiterals: [], spokenRequest: speech) == "Noah, Wait until security approves.")
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateDirectDraftRecipient("Noah, please use the exact words \"Wait until security approves\".", spokenRequest: speech, protectedValues: [])
+        }
+        try ScribeRequestPolicy.validateDirectDraftRecipient("Noah, \"Wait until security approves\".", spokenRequest: speech, protectedValues: [])
+        let cloud = try ScribeRequestPolicy.providerSafeInput(for: .directDictation(processedDictation: speech), destination: .openAIDirect)
+        #expect(cloud.userMessage.contains("Entire note body (preserve exactly):\nWait until security approves"))
         // Ordinary quoted speech does not request exact byte preservation.
         #expect(try ScribeRequestPolicy.validateOutput("Noah, wait until security approves.", requiredLiterals: [], spokenRequest: "Tell Noah \"Wait until security approves\".") == "Noah, wait until security approves.")
     }

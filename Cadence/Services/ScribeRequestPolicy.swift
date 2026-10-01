@@ -141,6 +141,13 @@ enum ScribeRequestPolicy {
             If the request asks to transform absent text, return that unresolved request unchanged.
             """)
         } else {
+            if let note = ScribeDirectDraftPolicy.exactWordsNoteParts(in: request.spokenTranscript) {
+                sections.append("""
+                Recognized exact-words note recipient: \(note.recipient)
+                Entire note body (preserve exactly):\n\(note.words)
+                Return the recipient address followed by that body. The exact-words direction is addressed to you, not the recipient; do not tell the recipient to use or say those words.
+                """)
+            }
             let writing = ScribeWritingDirectionParser.parse(
                 request.spokenTranscript, protectedValues: request.exactLiterals.map(\.value)
             )
@@ -797,7 +804,8 @@ enum ScribeRequestPolicy {
         }
         if let note = ScribeDirectDraftPolicy.exactWordsNoteParts(in: spokenRequest) {
             let address = #"^\s*(?:(?:Hi|Hello|Dear)\s+)?"#
-                + NSRegularExpression.escapedPattern(for: note.recipient) + #"\s*[,!:]"#
+                + NSRegularExpression.escapedPattern(for: note.recipient) + #"\s*[,!:]\s*["“]?"#
+                + NSRegularExpression.escapedPattern(for: note.words) + #"["”]?[.!?]?\s*$"#
             guard output.range(of: address, options: .regularExpression) != nil else {
                 throw ScribeProviderError.invalidResult
             }

@@ -941,7 +941,7 @@ enum ScribeDirectDraftPolicy {
         pattern: #"^[Ii]nclude\s+the\s+exact\s+phrase\s+[\"“]([^\"”\r\n]{1,120})[\"”]\s+in\s+a\s+note\s+to\s+(\p{Lu}[\p{L}-]*)\.?$"#
     )
     private static let exactWordsNotePattern = try! NSRegularExpression(
-        pattern: #"^[Ww]rite\s+a\s+note\s+to\s+(\p{Lu}[\p{L}-]*)\s+saying\s+the\s+exact\s+words\s+[\"“]([^\"”\r\n]{1,120})[\"”]\.?$"#
+        pattern: #"^[Ww]rite\s+a\s+note\s+to\s+(\p{Lu}[\p{L}-]*)\s+(?:saying|with)\s+the\s+exact\s+words\s+[\"“]([^\"”\r\n]{1,120})[\"”]\.?$"#
     )
 
     private static let namedTicketStatusPattern =
