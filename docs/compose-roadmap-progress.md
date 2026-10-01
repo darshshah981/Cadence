@@ -2,6 +2,16 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U2 friendly tracking request increment: independent S produced
+an invented sent package, arrival question and sign-off for “Ask Elise for the
+tracking number, and keep it friendly.” For that complete, named request, the
+local path now prepares “Hi Elise, could you please send me the tracking
+number?” without model generation. The named-address check prevents a cloud
+draft from dropping Elise, but broader cloud factual quality remains
+unverified. A current-source production export changed only this one request
+among the 16 exposed S cases, and 79 focused native tests passed in two
+suites. This does not convert the failed independent S run into a pass.
+
 September 30 U2 corrected-hour recipient increment: independent S returned
 “Tell Ian and ask him to confirm that the call is at 3 PM” after the speaker
 corrected 2 PM to 3 PM, leaving a writer instruction in the outgoing text.

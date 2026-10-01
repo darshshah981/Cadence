@@ -773,6 +773,34 @@ struct ScribeDirectDraftPolicyTests {
     }
 
     @Test
+    func friendlyTrackingRequestDoesNotInventDeliveryDetails() throws {
+        let speech = "Ask Elise for the tracking number, and keep it friendly."
+        let request = ScribeRequest.directDictation(processedDictation: speech)
+        let input = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .legacyLocal)
+        #expect(input.preparedDraft == "Hi Elise, could you please send me the tracking number?")
+        #expect(try ScribeRequestPolicy.providerSafeInput(
+            for: request, destination: .deepSeek
+        ).preparedDraft == nil)
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateDirectDraftRecipient(
+                "Could you send me the tracking number?", spokenRequest: speech, protectedValues: []
+            )
+        }
+        try ScribeRequestPolicy.validateDirectDraftRecipient(
+            "Hi Elise, could you send me the tracking number?", spokenRequest: speech, protectedValues: []
+        )
+        for unsupported in [
+            "Ask Elise to keep it friendly.",
+            "Ask Elise for the tracking number, and keep it friendly. Mention the package too.",
+            "Quote: Ask Elise for the tracking number, and keep it friendly."
+        ] {
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: unsupported), destination: .legacyLocal
+            ).preparedDraft == nil)
+        }
+    }
+
+    @Test
     func privateReviewDeclineAndPoliteRequestKeepWriterDirectionsOut() throws {
         let decline = "Tell Ellis I cannot attend the review, and keep the reason private."
         let declineInput = try ScribeRequestPolicy.providerSafeInput(

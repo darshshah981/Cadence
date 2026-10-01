@@ -774,6 +774,13 @@ enum ScribeRequestPolicy {
                 throw ScribeProviderError.invalidResult
             }
         }
+        if let recipient = ScribeDirectDraftPolicy.friendlyTrackingRequestRecipient(in: spokenRequest) {
+            let address = #"^\s*(?:(?:Hi|Hello|Dear)\s+)?"#
+                + NSRegularExpression.escapedPattern(for: recipient) + #"\s*[,!:]"#
+            guard output.range(of: address, options: .regularExpression) != nil else {
+                throw ScribeProviderError.invalidResult
+            }
+        }
         if let note = ScribeDirectDraftPolicy.quotedPhraseSummaryParts(in: spokenRequest) {
             let address = #"^\s*(?:(?:Hi|Hello|Dear)\s+)?"#
                 + NSRegularExpression.escapedPattern(for: note.recipient) + #"\s*[,!:]"#

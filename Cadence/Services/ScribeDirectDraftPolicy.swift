@@ -33,6 +33,7 @@ enum ScribeDirectDraftPolicy {
         if let statuses = preparesDistinctStatusMessage(request) { return statuses }
         if let decline = preparesPoliteAttendanceDecline(request) { return decline }
         if let request = preparesPoliteNamedRequest(request) { return request }
+        if let friendly = preparesFriendlyTrackingRequest(request) { return friendly }
         if let question = preservesApprovalQuestionSubject(request) { return question }
         if let note = preparesExactPhraseNote(request) { return note }
         if let status = preservesNamedTicketStatus(request) { return status }
@@ -350,6 +351,25 @@ enum ScribeDirectDraftPolicy {
             in: speech, range: NSRange(location: 0, length: source.length)
         ) else { return nil }
         return (source.substring(with: match.range(at: 1)), source.substring(with: match.range(at: 2)))
+    }
+
+    /// This request needs no inferred shipment or arrival facts. Its explicit
+    /// friendly tone is satisfied with a greeting and one polite question.
+    private static func preparesFriendlyTrackingRequest(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections.isEmpty,
+              request.unresolvedReferences.isEmpty,
+              request.message == request.originalTranscript,
+              request.protectedSpans.isEmpty,
+              let recipient = friendlyTrackingRequestRecipient(in: request.message) else { return nil }
+        return "Hi \(recipient), could you please send me the tracking number?"
+    }
+
+    static func friendlyTrackingRequestRecipient(in speech: String) -> String? {
+        let source = speech as NSString
+        guard let match = friendlyTrackingRequestPattern.firstMatch(
+            in: speech, range: NSRange(location: 0, length: source.length)
+        ) else { return nil }
+        return source.substring(with: match.range(at: 1))
     }
 
     /// A complete availability reply needs only its explicit addressee frame
@@ -845,6 +865,10 @@ enum ScribeDirectDraftPolicy {
 
     private static let politeNamedRequestPattern = try! NSRegularExpression(
         pattern: #"^[Aa]sk\s+(\p{Lu}[\p{L}-]*)\s+to\s+([a-z][^,.!?\r\n]{1,180}),\s+and\s+make\s+the\s+request\s+polite\.$"#
+    )
+    private static let friendlyTrackingRequestPattern = try! NSRegularExpression(
+        pattern: #"^[Aa]sk\s+(\p{Lu}[\p{L}-]*)\s+for\s+the\s+tracking\s+number,\s+and\s+keep\s+it\s+friendly\.$"#,
+        options: [.caseInsensitive]
     )
 
     private static let namedResponseDeclinePattern = try! NSRegularExpression(
