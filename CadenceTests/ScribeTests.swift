@@ -92,7 +92,8 @@ struct ScribeTests {
             "Summarize this in one sentence.", "Please sum up that briefly.",
             "Summarize it in two sentences.",
             "Summarize this in two bullets.",
-            "Summarize that in 3 bullet points."
+            "Summarize that in 3 bullet points.",
+            "Put this into two bullets."
         ] {
             let parsed = ScribeWritingDirectionParser.parse(spoken)
             #expect(parsed.unresolvedReferences == [.sourceRequired(transform: .rewrite)])
@@ -101,11 +102,27 @@ struct ScribeTests {
         }
         for spoken in [
             "Tell Maya to summarize this in one sentence.",
+            "Tell Maya to put this into two bullets.",
             "Write a note saying summarize this in one sentence.",
+            "Put this into two bullets: fix the retry path and document the timeout.",
             "Include the exact phrase \"Summarize this\" in the note."
         ] {
             #expect(ScribeWritingDirectionParser.parse(spoken).unresolvedReferences.isEmpty)
         }
+    }
+
+    @Test
+    func unsolicitedModelIdentityRefusalCannotBecomeAComposeDraft() throws {
+        let spoken = "I might be wrong, but I think the issue is in the cache. Write this as a Codex reply."
+        let refusal = "I'm sorry, but as a chatbot created by Apple, I cannot comply with your request. As an AI language model, I follow guidelines."
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateOutput(refusal, requiredLiterals: [], spokenRequest: spoken)
+        }
+        let literal = "Write a note quoting: As an AI language model, I cannot comply with your request."
+        #expect(try ScribeRequestPolicy.validateOutput(
+            "As an AI language model, I cannot comply with your request.",
+            requiredLiterals: [], spokenRequest: literal
+        ).contains("cannot comply"))
     }
 
     @Test

@@ -345,6 +345,9 @@ enum ScribeRequestPolicy {
         guard !isUnrequestedCodingCompletionClaim(normalized, spokenRequest: spokenRequest) else {
             throw ScribeProviderError.invalidResult
         }
+        guard !isUnrequestedProviderRefusal(normalized, spokenRequest: spokenRequest) else {
+            throw ScribeProviderError.invalidResult
+        }
         guard !isPastEventRecastAsScheduled(normalized, spokenRequest: spokenRequest) else {
             throw ScribeProviderError.invalidResult
         }
@@ -399,6 +402,19 @@ enum ScribeRequestPolicy {
         let permittedClaim = #"\bI(?:['’]ve| have| had)?\s+"#
             + NSRegularExpression.escapedPattern(for: verb) + #"\b"#
         return spokenRequest.range(of: permittedClaim, options: [.regularExpression, .caseInsensitive]) == nil
+    }
+
+    /// A local model can return an assistant identity and refusal in place of
+    /// an ordinary outgoing message. That is not a reviewable draft. Permit
+    /// the same words only when the speaker explicitly dictated them.
+    private static func isUnrequestedProviderRefusal(_ output: String, spokenRequest: String) -> Bool {
+        let identity = #"\b(?:as\s+(?:a|an)\s+(?:AI\s+language\s+model|chatbot)|chatbot\s+created\s+by\s+Apple)\b"#
+        let refusal = #"\b(?:cannot|can't|can’t|will\s+not|won't|won’t)\s+(?:comply|fulfill|help\s+with)\b"#
+        guard output.range(of: identity, options: [.regularExpression, .caseInsensitive]) != nil,
+              output.range(of: refusal, options: [.regularExpression, .caseInsensitive]) != nil else {
+            return false
+        }
+        return spokenRequest.range(of: identity, options: [.regularExpression, .caseInsensitive]) == nil
     }
 
     private static func isPastEventRecastAsScheduled(

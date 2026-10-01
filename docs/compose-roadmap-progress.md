@@ -2,6 +2,22 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U2 independent instruction reserve S: a second separately
+frozen 16-case synthetic corpus produced 16/16 first-run drafts, with only
+13/14 contentful drafts review-ready and one of two source-free commands
+rejected. Manual semantic review found seven critical errors, including an
+irrelevant provider-identity refusal for a harmless Codex reply, invented
+package details, an unprocessed writer frame, omitted recipients, a disclosed
+private reason, and a source-free bullet draft that copied internal guidance.
+The first-run requests, results, replay and review are preserved under
+`Build/ComposeRoadmap/U2-independent-s/`. Production now rejects an
+unrequested model-identity refusal before review and recognizes the
+source-free “Put this into two bullets” form. Thirty-one focused native tests
+pass. These are safety repairs; they do not make the model generate a useful
+reply, and the independent U2 quality gate still fails. A cloud-provider
+quality comparison can be evaluated separately if configured with a user
+supplied key and explicit provider consent.
+
 September 30 U2 independent instruction reserve R: a frozen, separately
 committed synthetic corpus produced 16/16 first-run drafts, but semantic
 review found five critical failures. The warm note dropped Hana, the monthly

@@ -408,7 +408,7 @@ enum ScribeWritingDirectionParser {
     ]
     private static let standaloneSummaryPattern = #"^(?:please\s+)?(?:summarize|sum\s+up)\s+(?:this|that|it)(?:\s+(?:in\s+(?:one|two|three|1|2|3|a\s+single)\s+(?:sentences?|bullets?|bullet\s+points?)|briefly))?[.!?]*\s*$"#
     private static let standaloneContextReplyPattern = #"^\s*(?:(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:reply|respond|answer)\s+to\s+|(?:please\s+)?(?:write|draft|compose)\s+(?:a\s+)?(?:reply|response)\s+to\s+)(?:this|that|it)(?:\s+(?:message|chat|thread))?[.!?]*\s*$"#
-    private static let standaloneUncountedBulletsPattern = #"^\s*(?:please\s+)?(?:turn\s+(?:this|that|it)\s+into|put\s+(?:this|that|it)\s+in|format\s+(?:this|that|it)\s+as)\s+(?:bullet\s+points?|bullets?)[.!?]*\s*$"#
+    private static let standaloneUncountedBulletsPattern = #"^\s*(?:please\s+)?(?:turn\s+(?:this|that|it)\s+into|put\s+(?:this|that|it)\s+(?:in|into)|format\s+(?:this|that|it)\s+as)\s+(?:(?:one|two|three|1|2|3)\s+)?(?:bullet\s+points?|bullets?)[.!?]*\s*$"#
     private static let adjective = #"(?:formal|casual|polite|professional|polished|warm|warmer|friendly|friendlier|upbeat|concise|short|shorter|brief)"#
     private static let adverb = #"(?:formally|casually|politely|professionally|concisely)"#
     private static let styleCommand = #"(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:(?:write|rewrite|phrase|say)\s+(?:this|that|it)\s+(?:"#
