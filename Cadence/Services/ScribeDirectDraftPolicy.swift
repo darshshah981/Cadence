@@ -24,6 +24,7 @@ enum ScribeDirectDraftPolicy {
         if preservesUncertaintyReply(request) { return request.message }
         if let contrast = preservesShortNamedContrast(request) { return contrast }
         if let identifier = preparesQuotedIdentifierNote(request) { return identifier }
+        if let note = preparesExactWordsNote(request) { return note }
         if let phrase = preparesQuotedPhraseSummary(request) { return phrase }
         if let phrase = preparesExactPhraseRecipientInstruction(request) { return phrase }
         if let contrast = preservesNamedBudgetContrast(request) { return contrast }
@@ -503,6 +504,26 @@ enum ScribeDirectDraftPolicy {
         return "\(parts.recipient), include the exact identifier \(parts.identifier) in the update and do not rename it."
     }
 
+    /// The exact quoted sentence is already the note's content. Preserve its
+    /// bytes and add only the explicitly named addressee; the local model can
+    /// otherwise return the quote alone and silently drop that person.
+    private static func preparesExactWordsNote(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections.isEmpty,
+              request.unresolvedReferences.isEmpty,
+              request.message == request.originalTranscript,
+              let parts = exactWordsNoteParts(in: request.message) else { return nil }
+        let terminal = parts.words.last.map { ".!?".contains($0) } == true ? "" : "."
+        return "\(parts.recipient), \(parts.words)\(terminal)"
+    }
+
+    static func exactWordsNoteParts(in speech: String) -> (recipient: String, words: String)? {
+        let source = speech as NSString
+        guard let match = exactWordsNotePattern.firstMatch(
+            in: speech, range: NSRange(location: 0, length: source.length)
+        ) else { return nil }
+        return (source.substring(with: match.range(at: 1)), source.substring(with: match.range(at: 2)))
+    }
+
     static func quotedIdentifierNoteParts(in speech: String) -> (recipient: String, identifier: String)? {
         let source = speech as NSString
         guard let match = quotedIdentifierNotePattern.firstMatch(
@@ -837,6 +858,9 @@ enum ScribeDirectDraftPolicy {
 
     private static let exactPhraseNotePattern = try! NSRegularExpression(
         pattern: #"^[Ii]nclude\s+the\s+exact\s+phrase\s+[\"“]([^\"”\r\n]{1,120})[\"”]\s+in\s+a\s+note\s+to\s+(\p{Lu}[\p{L}-]*)\.?$"#
+    )
+    private static let exactWordsNotePattern = try! NSRegularExpression(
+        pattern: #"^[Ww]rite\s+a\s+note\s+to\s+(\p{Lu}[\p{L}-]*)\s+saying\s+the\s+exact\s+words\s+[\"“]([^\"”\r\n]{1,120})[\"”]\.?$"#
     )
 
     private static let namedTicketStatusPattern =

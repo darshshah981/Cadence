@@ -653,6 +653,34 @@ struct ScribeDirectDraftPolicyTests {
     }
 
     @Test
+    func exactQuotedWordsNoteKeepsItsNamedAddressee() throws {
+        let speech = "Write a note to Mo saying the exact words \"Do not ship until QA signs off\"."
+        let request = ScribeRequest.directDictation(processedDictation: speech)
+        let input = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .legacyLocal)
+        #expect(input.preparedDraft == "Mo, Do not ship until QA signs off.")
+        #expect(try ScribeRequestPolicy.providerSafeInput(
+            for: request, destination: .deepSeek
+        ).preparedDraft == nil)
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateDirectDraftRecipient(
+                "Do not ship until QA signs off.", spokenRequest: speech, protectedValues: []
+            )
+        }
+        try ScribeRequestPolicy.validateDirectDraftRecipient(
+            "Mo, Do not ship until QA signs off.", spokenRequest: speech, protectedValues: []
+        )
+        for unsupported in [
+            "Write a note to Mo Chen saying the exact words \"Do not ship until QA signs off\".",
+            "Write a note to Mo saying the exact words \"Do not ship until QA signs off\". Also mention the date.",
+            "Quote: Write a note to Mo saying the exact words \"Do not ship until QA signs off\"."
+        ] {
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: unsupported), destination: .legacyLocal
+            ).preparedDraft == nil)
+        }
+    }
+
+    @Test
     func finalDayCorrectionSupersedesTheOldDay() throws {
         let speech = "Tell Omar the review is Tuesday. Sorry, Thursday. Ask him to confirm."
         let input = try ScribeRequestPolicy.providerSafeInput(
