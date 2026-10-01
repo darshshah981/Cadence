@@ -145,6 +145,8 @@ enum ScribeRequestPolicy {
             Return only the resulting draft. Apply these final checks before returning it:
             - A named human recipient in a tell, ask, note, or reply request must appear by that exact name in the draft. Address the person directly; removing the writer frame must not remove the addressee. This required address takes precedence over a default against adding greetings. A coding-agent product name may remain implicit in a prompt for that agent.
             - A statement requested as a reply or response remains a statement. Placing it in a coding app does not authorize converting it into an investigation, implementation task, or new restriction.
+            - A prompt for a coding agent directly states the task to that agent. Consume the speaker's ask-the-agent-to framing instead of telling the agent to ask itself.
+            - Explicitly requested exact quoted words retain their original capitalization and characters. Place an address or other connective wording outside that exact span.
             - Keep recipient restrictions actually supplied by the speaker, but never invent restrictions or actions. A restriction appearing in these instructions is not part of the speaker's message.
             - Use the final explicit correction and preserve any explicit negative contrast that remains in it.
             Only writing directions should be consumed, not constraints on what the recipient may do.
@@ -352,6 +354,19 @@ enum ScribeRequestPolicy {
         }
         guard !isUnrequestedProviderRefusal(normalized, spokenRequest: spokenRequest) else {
             throw ScribeProviderError.invalidResult
+        }
+        // Only an explicit exact-words request grants this byte-preservation
+        // contract; ordinary quoted speech remains available for rewriting.
+        let exactQuotedWords = try! NSRegularExpression(
+            pattern: #"\bexact\s+words\s*["“]([^"”\n]{1,512})["”]"#,
+            options: .caseInsensitive
+        )
+        let source = spokenRequest as NSString
+        let outputData = Data(normalized.utf8)
+        for match in exactQuotedWords.matches(in: spokenRequest, range: NSRange(location: 0, length: source.length)) {
+            guard outputData.range(of: Data(source.substring(with: match.range(at: 1)).utf8)) != nil else {
+                throw ScribeProviderError.invalidResult
+            }
         }
         guard !isPastEventRecastAsScheduled(normalized, spokenRequest: spokenRequest) else {
             throw ScribeProviderError.invalidResult
