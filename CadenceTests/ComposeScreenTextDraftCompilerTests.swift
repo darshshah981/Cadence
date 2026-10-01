@@ -146,6 +146,10 @@ struct ComposeScreenTextDraftCompilerTests {
             "Refund RF-12 is pending. Any questions?",
             request: request, compilation: compilation
         ) == repaired)
+        #expect(try ComposeScreenTextDraftCompiler.validateOutput(
+            "Could you please provide an update on refund RF-12? It was approved and paid.",
+            request: request, compilation: compilation
+        ) == repaired)
 
         for unsupported in [
             "Ask for an update on this.",
@@ -162,6 +166,17 @@ struct ComposeScreenTextDraftCompilerTests {
                     request: unsafeRequest, compilation: unsafeCompilation
                 )
             }
+        }
+        let unresolved = ScribeRequest(
+            id: fixture.request.id, intent: .compose,
+            spokenTranscript: "Ask for an update on this. Do not claim it was approved or paid."
+        )
+        let unresolvedCompilation = try fixture.compile(request: unresolved)
+        #expect(throws: ScribeProviderError.invalidResult) {
+            _ = try ComposeScreenTextDraftCompiler.validateOutput(
+                "Could you provide an update? It was approved and paid.",
+                request: unresolved, compilation: unresolvedCompilation
+            )
         }
     }
 

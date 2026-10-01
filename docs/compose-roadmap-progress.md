@@ -2,6 +2,19 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U12 explicit-outcome restriction increment: the same refund
+fixture revealed that an otherwise valid status question could append "It was
+approved and paid" despite the speaker saying not to claim either outcome.
+A red test reproduced that accepted draft. For the exact spoken restriction
+"Do not claim it was approved or paid," the screen-text validator now removes
+any approval/payment mention by replacing a simple, fully named update
+request with a question built from the speaker's subject. An unresolved
+subject with those words is rejected. This is intentionally conservative,
+including a negative mention of those outcomes, because the requested draft
+does not need to repeat them. The focused suite passed 13 tests, including
+four opt-in synthetic Apple Intelligence cases. It does not establish general
+contradiction detection, live screen capture, or installed-app behavior.
+
 September 30 U12 explicit-update intent increment: an update request whose
 output was merely "Any questions about refund RF-12?" passed because the
 validator treated any question mark as an update request. A red test

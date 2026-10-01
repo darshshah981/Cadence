@@ -183,10 +183,17 @@ enum ComposeScreenTextDraftCompiler {
            request.spokenTranscript.range(of: wrapperPattern, options: [.regularExpression, .caseInsensitive]) == nil {
             throw ScribeProviderError.invalidResult
         }
+        let restrictedOutcomeMention = mentionsRestrictedOutcome(
+            output, spokenRequest: request.spokenTranscript
+        )
         let repair = repairMissingExplicitUpdateRequest(
             output, spokenRequest: request.spokenTranscript,
-            exactLiterals: request.exactLiterals
+            exactLiterals: request.exactLiterals,
+            replaceOutcomeMention: restrictedOutcomeMention
         )
+        if restrictedOutcomeMention && repair == nil {
+            throw ScribeProviderError.invalidResult
+        }
         if request.spokenTranscript.range(
             of: #"^Ask for an update\b"#,
             options: [.regularExpression, .caseInsensitive]
@@ -268,7 +275,8 @@ enum ComposeScreenTextDraftCompiler {
     private static func repairMissingExplicitUpdateRequest(
         _ output: String,
         spokenRequest: String,
-        exactLiterals: [ScribeExactLiteral]
+        exactLiterals: [ScribeExactLiteral],
+        replaceOutcomeMention: Bool
     ) -> String? {
         let requestPattern = #"^Ask for an update on ([^.!?\r\n]{5,100})(?:\.(?:\s+Do not claim [^.!?\r\n]{4,100}\.)?)?$"#
         guard let range = spokenRequest.range(
@@ -289,8 +297,24 @@ enum ComposeScreenTextDraftCompiler {
                 options: [.regularExpression, .caseInsensitive]
               ) == nil,
               exactLiterals.allSatisfy({ subject.contains($0.value) }),
-              !outputAsksForUpdate(output) else { return nil }
+              replaceOutcomeMention || !outputAsksForUpdate(output) else { return nil }
         return "Could you please provide an update on \(subject)?"
+    }
+
+    /// This exact spoken restriction is a strong signal that approval/payment
+    /// words from the visible source must not become a drafted outcome claim.
+    /// A simple named update request can be rebuilt without those words; an
+    /// unresolved request is rejected rather than shown with an uncertain claim.
+    private static func mentionsRestrictedOutcome(
+        _ output: String, spokenRequest: String
+    ) -> Bool {
+        spokenRequest.range(
+            of: #"\bDo not claim it was approved or paid\.?$"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil && output.range(
+            of: #"\b(?:approved|paid)\b"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
     }
 
     private static func outputAsksForUpdate(_ output: String) -> Bool {
