@@ -477,7 +477,8 @@ struct ScribeWritingRequestTests {
     }
 
     @Test(arguments: ["Turn this into two bullets.", "Could you turn this into two bullet points?",
-                      "Please format that as 2 bullet points.", "Would you put it in two bullets please?"])
+                      "Please format that as 2 bullet points.", "Would you put it in two bullets please?",
+                      "Put this into two bullets."])
     func naturalBulletCommandsRequireSource(_ speech: String) {
         let result = ScribeWritingDirectionParser.parse(speech)
         #expect(result.request.writingDirections == [.bullets(count: 2)])

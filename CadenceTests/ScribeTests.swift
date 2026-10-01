@@ -92,14 +92,17 @@ struct ScribeTests {
             "Summarize this in one sentence.", "Please sum up that briefly.",
             "Summarize it in two sentences.",
             "Summarize this in two bullets.",
-            "Summarize that in 3 bullet points.",
-            "Put this into two bullets."
+            "Summarize that in 3 bullet points."
         ] {
             let parsed = ScribeWritingDirectionParser.parse(spoken)
             #expect(parsed.unresolvedReferences == [.sourceRequired(transform: .rewrite)])
             #expect(parsed.content == spoken)
             #expect(!ComposeSelectedTextRewritePolicy.canUseSelection(for: parsed))
         }
+        let countedBullets = ScribeWritingDirectionParser.parse("Put this into two bullets.")
+        #expect(countedBullets.unresolvedReferences == [.sourceRequired(transform: .rewrite)])
+        #expect(countedBullets.request.writingDirections == [.bullets(count: 2)])
+        #expect(ComposeSelectedTextRewritePolicy.canUseSelection(for: countedBullets))
         for spoken in [
             "Tell Maya to summarize this in one sentence.",
             "Tell Maya to put this into two bullets.",

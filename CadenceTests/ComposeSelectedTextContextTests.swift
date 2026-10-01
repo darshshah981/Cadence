@@ -4,7 +4,8 @@ import Testing
 
 @MainActor
 struct ComposeSelectedTextContextTests {
-    @Test(arguments: ["Turn this into two bullet points.", "Could you format this as two bullets?", "Could you make this more formal?"])
+    @Test(arguments: ["Turn this into two bullet points.", "Could you format this as two bullets?",
+                      "Put this into two bullets.", "Could you make this more formal?"])
     func naturalEditAliasesCompileToExistingSelectedRewriteInput(_ speech: String) async throws {
         let reader = SelectedTextRuntimeTestReader(text: "The draft is ready. Review starts Thursday.")
         let controller = makeController(reader)

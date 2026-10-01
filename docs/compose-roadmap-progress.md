@@ -2,6 +2,17 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U2 counted-bullet regression repair: the broader native run after
+the reserve S safety repair caught six issues because the new source-free
+bullet preflight intercepted existing counted-bullet selected-text rewrites.
+Counted commands, including “Put this into two bullets,” now use the existing
+direction parser: without source they remain unresolved, and with a certified
+selection they can rewrite that selection. Exact protected literals stay
+untouched. The failed broad run is preserved; after the repair, 114 affected
+tests in four suites and 1,384 native tests in 116 suites passed (excluding
+the focus-dependent notch keyboard suite). This fixes a regression, not the
+independent U2 quality gate or installed-app behavior.
+
 September 30 U2 friendly tracking request increment: independent S produced
 an invented sent package, arrival question and sign-off for “Ask Elise for the
 tracking number, and keep it friendly.” For that complete, named request, the
