@@ -250,6 +250,15 @@ enum ComposeScreenTextDraftCompiler {
         guard output.range(of: hourPattern, options: [.regularExpression, .caseInsensitive]) != nil else {
             throw ScribeProviderError.invalidResult
         }
+        // Keeping the named slot is insufficient if the model reverses the
+        // speaker's acceptance or turns it back into an open question. This
+        // deliberately covers only the complete "Reply that ... works" shape.
+        let negatedCommitment = #"\b(?:does(?:n['’]t| not)|is(?:n['’]t| not)|can(?:['’]t|not| not)|could(?:n['’]t| not)|would(?:n['’]t| not)|won['’]t|unable|unavailable|not)\b"#
+        let affirmativeCommitment = #"\b(?:works|fine|good|okay|ok|available|suits|possible|yes|can\s+(?:meet|do|make)|let['’]s\s+meet)\b"#
+        guard output.range(of: negatedCommitment, options: [.regularExpression, .caseInsensitive]) == nil,
+              output.range(of: affirmativeCommitment, options: [.regularExpression, .caseInsensitive]) != nil else {
+            throw ScribeProviderError.invalidResult
+        }
     }
 
     /// A local model can echo a visible status instead of drafting the

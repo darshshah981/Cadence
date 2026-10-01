@@ -172,10 +172,19 @@ struct ComposeScreenTextDraftCompilerTests {
             "Thu at three works for me.", request: request,
             compilation: compilation
         ) == "Thu at three works for me.")
+        #expect(try ComposeScreenTextDraftCompiler.validateOutput(
+            "I can meet Thu at three.", request: request,
+            compilation: compilation
+        ) == "I can meet Thu at three.")
         for wrong in [
             "Friday at 3 works for me.",
             "Thursday at 4 works for me.",
-            "Thursday at 3 works for me. Friday is also fine."
+            "Thursday at 3 works for me. Friday is also fine.",
+            "Thursday at 3 does not work for me.",
+            "I can't meet Thursday at 3.",
+            "Thursday at 3 won't work for me.",
+            "Thursday at 3?",
+            "Thursday at 3 is unavailable."
         ] {
             #expect(throws: ScribeProviderError.invalidResult) {
                 _ = try ComposeScreenTextDraftCompiler.validateOutput(

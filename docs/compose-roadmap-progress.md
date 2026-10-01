@@ -2,6 +2,18 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U12 scheduling-commitment polarity increment: the existing
+day-and-hour guard still accepted "Thursday at 3 does not work for me" for a
+speaker who said "Reply that Thursday at 3 works." A red run reproduced four
+unsafe accepted drafts: explicit rejection, inability to meet, an unanswered
+question, and unavailability. The narrow output check now requires an
+affirmative commitment and refuses negation for that complete spoken form.
+Positive paraphrases such as "I can meet Thu at three" remain accepted. The
+focused native suite passed 13 tests, including four opt-in synthetic
+Apple Intelligence cases; a full native rerun was not needed for this
+compiler-only change. It does not cover other scheduling request shapes,
+general reply grounding, a live screen capture, or the installed app.
+
 September 30 U11 multi-adapter action-scope increment: the action owner and
 session-memory controller can now register more than one trusted identity
 adapter. Only adapters for the pinned process are asked to capture identity,
