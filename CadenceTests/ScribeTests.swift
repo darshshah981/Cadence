@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import Testing
 @testable import Cadence
@@ -483,6 +484,7 @@ struct ScribeTests {
             ?? "instruction-following"
         try #require([
             "instruction-following", "instruction-holdout", "instruction-reserve-2026-09-30",
+            "openai-core-2026-10-01",
             "instruction-independent-2026-09-30", "instruction-independent-2026-09-30-o",
             "instruction-independent-2026-09-30-p",
             "instruction-independent-2026-09-30-q", "instruction-independent-2026-09-30-r",
@@ -627,6 +629,86 @@ struct ScribeTests {
             try JSONSerialization.data(withJSONObject: exported, options: [.prettyPrinted, .sortedKeys])
                 .write(to: directory.appendingPathComponent("requests.json"), options: .atomic)
         }
+    }
+
+    // Explicit synthetic-only comparison. Normal test runs never read a key or
+    // contact OpenAI. The credential arrives through a private FIFO, never an
+    // environment variable, command argument, request export, or regular file.
+    @Test
+    func optInOpenAICoreWritingComparison() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["CADENCE_RUN_OPENAI_CORE_COMPARISON"] == "1" else { return }
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let directory = root.appendingPathComponent("Build/ComposeRoadmap/U2-openai-direct")
+        let fixtureURL = try #require(Bundle(for: ScribeFixtureBundle.self).url(
+            forResource: "openai-core-2026-10-01", withExtension: "json"
+        ))
+        let data = try Data(contentsOf: fixtureURL)
+        let corpus = try JSONDecoder().decode(InstructionCorpus.self, from: data)
+        try #require(corpus.syntheticOnly && corpus.cases.count == 20)
+        let pipePath = directory.appendingPathComponent("credential.pipe").path
+        var attributes = stat()
+        try #require(lstat(pipePath, &attributes) == 0)
+        try #require(attributes.st_mode & S_IFMT == S_IFIFO && attributes.st_mode & 0o777 == 0o600)
+        let descriptor = open(pipePath, O_RDONLY | O_NONBLOCK)
+        try #require(descriptor >= 0)
+        defer { close(descriptor) }
+        var event = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
+        try #require(poll(&event, 1, 60_000) > 0 && event.revents & Int16(POLLIN) != 0)
+        var bytes = [UInt8](repeating: 0, count: 512)
+        let count = read(descriptor, &bytes, bytes.count)
+        try #require(count > 0 && count < bytes.count)
+        let credential = try #require(String(bytes: bytes.prefix(count), encoding: .utf8))
+        let provider = OpenAIDirectScribeProvider(
+            model: try ScribeModelIdentifier("gpt-4.1-2025-04-14"),
+            credentialLoader: { credential }
+        )
+        var results: [[String: Any]] = []
+        for fixture in corpus.cases {
+            let family: ScribeEnvironmentFamilyID = fixture.family == "coding" ? .coding :
+                fixture.family == "messaging" ? .messaging : .general
+            let definition = try #require(ScribeGuidanceCatalog.releaseOne.family(family))
+            let preset = try #require(ScribeGuidanceCatalog.releaseOne.preset(definition.defaultPresetID, in: family))
+            let guidance = ResolvedScribeGuidance(
+                familyID: family, familyDefinitionVersion: definition.definitionVersion,
+                presetID: preset.id, presetDefinitionVersion: preset.definitionVersion,
+                compiledPresetInstructions: preset.compiledInstructions, customGuidance: nil,
+                resolutionSource: .bundledDefault, preservesExactLiterals: true,
+                literalCapabilities: family == .coding ? [.automaticTechnicalLiteralNormalization] : []
+            )
+            let normalized = ScribeLiteralNormalizer.normalize(
+                fixture.spoken, environmentID: family == .coding ? .claudeCode : .global
+            )
+            let literals = ScribeRequestPolicy.directCodingLiterals(in: normalized.text, existing: normalized.exactLiterals)
+            let request = ScribeRequest(intent: .compose, spokenTranscript: normalized.text,
+                                        resolvedGuidance: guidance, exactLiterals: literals)
+            let input = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .openAIDirect)
+            var row: [String: Any] = ["id": fixture.id,
+                "requestSHA256": EvaluationRequestExport.hash(system: input.systemMessage, user: input.userMessage)]
+            let start = Date()
+            do {
+                let result = try await provider.generate(ScribeProviderRequest(id: UUID(), input: input))
+                row["draft"] = result.text
+                do {
+                    _ = try ScribeRequestPolicy.validateOutput(result.text, requiredLiterals: literals, spokenRequest: normalized.text)
+                    row["policyAccepted"] = true
+                } catch { row["policyAccepted"] = false }
+            } catch let failure as ScribeProviderFailure {
+                row["failureCategory"] = failure.category.rawValue
+                row["policyAccepted"] = false
+            } catch {
+                row["failureCategory"] = "unclassified"
+                row["policyAccepted"] = false
+            }
+            row["elapsedMilliseconds"] = Int(Date().timeIntervalSince(start) * 1_000)
+            results.append(row)
+            let envelope: [String: Any] = ["syntheticOnly": true, "sourceCommit": environment["CADENCE_COMPARISON_SOURCE_COMMIT"] ?? "unknown",
+                "model": "gpt-4.1-2025-04-14", "corpusSHA256": SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(),
+                "semanticGate": "NOT_GRADED", "results": results]
+            try JSONSerialization.data(withJSONObject: envelope, options: [.prettyPrinted, .sortedKeys])
+                .write(to: directory.appendingPathComponent("first-results.json"), options: .atomic)
+        }
+        #expect(results.count == 20)
     }
 
     @Test
