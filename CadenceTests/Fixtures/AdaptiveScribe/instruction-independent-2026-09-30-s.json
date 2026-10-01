@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh independent Compose instruction reserve S, frozen before production export or model generation.",
+  "evaluationOrder": "Record and grade the first outputs before changing production behavior in response to them.",
+  "semanticCriteria": {
+    "acceptable": "Fourteen contentful cases produce usable messages or coding prompts with addressees, facts, conditions, uncertainty, recipient restrictions and exact literals intact. Two source-free transformations are rejected before review.",
+    "critical": "A writer direction or superseded fact enters the message, a recipient or restriction is omitted, a number or timezone changes, uncertainty or a condition is lost, a technical or quoted literal changes, action is falsely claimed, or a source-free transform becomes review-ready.",
+    "minor": "A different but faithful paraphrase or weak style change that retains all operative meaning.",
+    "gate": "All fourteen contentful cases review-ready with zero critical errors, four explicit tone or length directions visibly applied, and both source-free cases rejected before review."
+  },
+  "cases": [
+    {"id":"instruction-s-renewal-unit","family":"general","spoken":"The renewal is $120 per user each year, not for the entire team.","exampleDraft":"The renewal is $120 per user each year, not for the entire team.","required":["$120","per user","each year","not for the entire team"],"forbidden":["$120 for the entire team"]},
+    {"id":"instruction-s-conditional-mockups","family":"messaging","spoken":"Tell Nia I can send the mockups tomorrow if design signs off today; otherwise Friday.","exampleDraft":"Nia, I can send the mockups tomorrow if design signs off today; otherwise, Friday.","required":["Nia","mockups","tomorrow","if design signs off today","otherwise Friday"],"forbidden":["will send the mockups tomorrow"]},
+    {"id":"instruction-s-recipient-edit-limit","family":"messaging","spoken":"Tell Carlos to leave the second paragraph unchanged when editing the email.","exampleDraft":"Carlos, please leave the second paragraph unchanged when editing the email.","required":["Carlos","second paragraph","unchanged","email"],"forbidden":["I edited the email"]},
+    {"id":"instruction-s-friendly-tracking","family":"messaging","spoken":"Ask Elise for the tracking number, and keep it friendly.","exampleDraft":"Hi Elise, could you please send me the tracking number?","required":["Elise","tracking number"],"forbidden":["keep it friendly"]},
+    {"id":"instruction-s-uncertain-codex-reply","family":"general","spoken":"I might be wrong, but I think the issue is in the cache. Write this as a Codex reply.","exampleDraft":"I might be wrong, but I think the issue is in the cache.","required":["might be wrong","think","cache"],"forbidden":["Write this as a Codex reply","The issue is in the cache"]},
+    {"id":"instruction-s-corrected-hour","family":"messaging","spoken":"The call is at 2 PM. Actually 3 PM. Tell Ian and ask him to confirm.","exampleDraft":"Ian, the call is at 3 PM. Can you confirm?","required":["Ian","3 PM","confirm"],"forbidden":["2 PM","Actually"]},
+    {"id":"instruction-s-under-review","family":"messaging","spoken":"Tell Bea ticket AB-9 is under review; it has not been closed.","exampleDraft":"Bea, ticket AB-9 is under review and has not been closed.","required":["Bea","AB-9","under review","not been closed"],"forbidden":["has been closed"]},
+    {"id":"instruction-s-coding-configuration","family":"coding","spoken":"Ask Codex to inspect literal verbatim src/Router.swift end literal using literal flag no cache end literal. Do not change the configuration.","exampleDraft":"Inspect src/Router.swift using --no-cache. Do not change the configuration.","required":["src/Router.swift","--no-cache","Do not change the configuration"],"forbidden":["I inspected","I changed"]},
+    {"id":"instruction-s-warm-outline","family":"messaging","spoken":"Make this warm. Tell Leena the outline is ready and I would love her thoughts.","exampleDraft":"Hi Leena, the outline is ready, and I'd love your thoughts.","required":["Leena","outline","ready","thoughts"],"forbidden":["Make this warm"]},
+    {"id":"instruction-s-formal-uncertainty","family":"general","spoken":"We should be done by Monday, I think. Write this formally.","exampleDraft":"I believe we should be finished by Monday.","required":["Monday","think"],"forbidden":["will be done by Monday","Write this formally"]},
+    {"id":"instruction-s-concise-workshop","family":"messaging","spoken":"Tell Max I cannot attend the workshop tomorrow, but I can send feedback tonight. Keep this short.","exampleDraft":"Max, I can't attend tomorrow's workshop, but I can send feedback tonight.","required":["Max","cannot attend","workshop","tomorrow","feedback","tonight"],"forbidden":["Keep this short"]},
+    {"id":"instruction-s-quoted-qa","family":"messaging","spoken":"Write a note to Mo saying the exact words \"Do not ship until QA signs off\".","exampleDraft":"Mo, Do not ship until QA signs off.","required":["Mo","Do not ship until QA signs off"],"forbidden":["Here is a note"]},
+    {"id":"instruction-s-timezone-choice","family":"messaging","spoken":"Ask Zoe if she can meet at 10 AM ET next Thursday, not Friday.","exampleDraft":"Zoe, can you meet at 10 AM ET next Thursday, not Friday?","required":["Zoe","10 AM ET","Thursday","not Friday"],"forbidden":["10 AM PT"]},
+    {"id":"instruction-s-private-matter","family":"messaging","spoken":"Tell Ravi I cannot join because of a private matter. Do not share the reason.","exampleDraft":"Ravi, I cannot join.","required":["Ravi","cannot join"],"forbidden":["private matter","Do not share the reason"]},
+    {"id":"instruction-s-missing-shorter","family":"general","spoken":"Make it shorter.","exampleDraft":"[needs source text]","required":["missing source"],"forbidden":["Make it shorter"]},
+    {"id":"instruction-s-missing-bullets","family":"general","spoken":"Put this into two bullets.","exampleDraft":"[needs source text]","required":["missing source"],"forbidden":["Put this into two bullets"]}
+  ]
+}

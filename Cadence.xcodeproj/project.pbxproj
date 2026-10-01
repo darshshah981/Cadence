@@ -137,6 +137,7 @@
 		6E15683DC839CC8616DA90E1 /* ScribePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D967993988BE3091065B08 /* ScribePanel.swift */; };
 		6E66CA2CA47C7E8920B5C1BA /* ScribeProviderConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E7798F0223BD96AFDC68E23 /* ScribeProviderConnectionManager.swift */; };
 		6EEA0FEF55A747191E62FC60 /* MenuContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D31167C2A859EE0ABCF3AB /* MenuContentView.swift */; };
+		6F1F0CE5728C8F67CC0973C2 /* instruction-independent-2026-09-30-s.json in Resources */ = {isa = PBXBuildFile; fileRef = B8465716ADA0C6CACF860B3B /* instruction-independent-2026-09-30-s.json */; };
 		6FF55CC68EB071290621C280 /* ScribePersistentMemorySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA8160598A203B47A59DE7EF /* ScribePersistentMemorySettingsView.swift */; };
 		700C635D1CD95C1F3AA72028 /* selected-rewrite-rubric.json in Resources */ = {isa = PBXBuildFile; fileRef = F96428B3D4F77A36B58CCF3C /* selected-rewrite-rubric.json */; };
 		702F209FCD8FF9E5F807ADBC /* AdaptiveScribePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F4324DF697FB97549A63C05 /* AdaptiveScribePerformanceTests.swift */; };
@@ -589,6 +590,7 @@
 		B770D4DE5565CBBC6EABFAED /* ComposeScreenDraftReviewControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeScreenDraftReviewControllerTests.swift; sourceTree = "<group>"; };
 		B81C5F573963A4551FB00213 /* instruction-following.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "instruction-following.json"; sourceTree = "<group>"; };
 		B82DFA8D72277D8A1A6424D2 /* PersonalizationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalizationModels.swift; sourceTree = "<group>"; };
+		B8465716ADA0C6CACF860B3B /* instruction-independent-2026-09-30-s.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "instruction-independent-2026-09-30-s.json"; sourceTree = "<group>"; };
 		B9B4106A29FBC922BA0F2C0E /* meaning-independent-2026-09-30-c.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "meaning-independent-2026-09-30-c.json"; sourceTree = "<group>"; };
 		BAAE902E9A7F2F2906C91892 /* MeetingDetectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetectionService.swift; sourceTree = "<group>"; };
 		BB1DD5815D59E02FF0F36E3D /* ScribeProviderManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeProviderManagementView.swift; sourceTree = "<group>"; };
@@ -701,6 +703,7 @@
 				126D210B00A22422F969F468 /* instruction-independent-2026-09-30-p.json */,
 				7B52C1E51C749B2E4E274DE1 /* instruction-independent-2026-09-30-q.json */,
 				5B9F06968165657319C65595 /* instruction-independent-2026-09-30-r.json */,
+				B8465716ADA0C6CACF860B3B /* instruction-independent-2026-09-30-s.json */,
 				ED3460EEFCC052D179D8FB1B /* instruction-independent-2026-09-30.json */,
 				841260794810E35848A86AE9 /* instruction-reserve-2026-09-30.json */,
 				BBE7CDA8B1EA248AF0E157E9 /* instruction-rubric.json */,
@@ -1227,6 +1230,7 @@
 				9FAE9B6B4D15BAE69A9F8FA7 /* instruction-independent-2026-09-30-p.json in Resources */,
 				749522F0853ACBE47F5B29D3 /* instruction-independent-2026-09-30-q.json in Resources */,
 				16EFA3D64501B69E582F7B20 /* instruction-independent-2026-09-30-r.json in Resources */,
+				6F1F0CE5728C8F67CC0973C2 /* instruction-independent-2026-09-30-s.json in Resources */,
 				8D75F4F60B07350A47FDA2C0 /* instruction-independent-2026-09-30.json in Resources */,
 				7B41DA6D093D8E8ED4FC135E /* instruction-reserve-2026-09-30.json in Resources */,
 				3CA07CC8EC4CCA945840E1ED /* instruction-rubric.json in Resources */,
