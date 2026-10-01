@@ -691,6 +691,10 @@ struct ScribeTests {
                 row["draft"] = result.text
                 do {
                     _ = try ScribeRequestPolicy.validateOutput(result.text, requiredLiterals: literals, spokenRequest: normalized.text)
+                    try ScribeRequestPolicy.validateDirectDraftDirectionSeparation(result.text, spokenRequest: normalized.text, protectedValues: literals.map(\.value))
+                    try ScribeRequestPolicy.validateDirectDraftUncertainty(result.text, spokenRequest: normalized.text, protectedValues: literals.map(\.value))
+                    try ScribeRequestPolicy.validateDirectDraftRecipient(result.text, spokenRequest: normalized.text, protectedValues: literals.map(\.value))
+                    try ScribeRecipientRestrictionPolicy.validate(output: result.text, requirements: ScribeRecipientRestrictionPolicy.extract(from: normalized.text))
                     row["policyAccepted"] = true
                 } catch { row["policyAccepted"] = false }
             } catch let failure as ScribeProviderFailure {
@@ -709,6 +713,26 @@ struct ScribeTests {
                 .write(to: directory.appendingPathComponent("first-results.json"), options: .atomic)
         }
         #expect(results.count == 20)
+    }
+
+    @Test
+    func cloudWritingChecksPreserveNamedRecipientsAndReplyActionBoundaries() throws {
+        let request = ScribeRequest.directDictation(processedDictation:
+            "I might be mistaken, but I think the slowdown starts in the parser. Write this as a Codex reply.")
+        let cloud = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .openAIDirect)
+        #expect(cloud.userMessage.contains("must not remove the addressee"))
+        #expect(cloud.userMessage.contains("A statement requested as a reply or response remains a statement"))
+        #expect(cloud.userMessage.contains("never invent restrictions or actions"))
+        #expect(!cloud.userMessage.contains("including negative instructions such as \"Do not make any changes\""))
+        for (speech, badDraft) in [
+            ("Tell Priya the draft is ready for her review. Make this casual.", "The draft is ready for your review whenever you have a moment."),
+            ("Tell Lia the call is at 11 AM. Sorry, make that 12 PM. Ask her to confirm.", "The call is at 12 PM. Could you please confirm?"),
+            ("Tell Mei ticket ZX-42 is still under review and has not been approved.", "Ticket ZX-42 is still under review and hasn't been approved yet.")
+        ] {
+            #expect(throws: ScribeProviderError.invalidResult) {
+                try ScribeRequestPolicy.validateDirectDraftRecipient(badDraft, spokenRequest: speech, protectedValues: [])
+            }
+        }
     }
 
     @Test

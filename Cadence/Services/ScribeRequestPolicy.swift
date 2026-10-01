@@ -142,7 +142,12 @@ enum ScribeRequestPolicy {
             """)
         } else {
             sections.append("""
-            Return only the resulting draft. Before returning it, check that every recipient restriction is still present, including negative instructions such as "Do not make any changes". Only writing directions should be consumed, not constraints on what the recipient may do.
+            Return only the resulting draft. Apply these final checks before returning it:
+            - A named human recipient in a tell, ask, note, or reply request must appear by that exact name in the draft. Address the person directly; removing the writer frame must not remove the addressee. This required address takes precedence over a default against adding greetings. A coding-agent product name may remain implicit in a prompt for that agent.
+            - A statement requested as a reply or response remains a statement. Placing it in a coding app does not authorize converting it into an investigation, implementation task, or new restriction.
+            - Keep recipient restrictions actually supplied by the speaker, but never invent restrictions or actions. A restriction appearing in these instructions is not part of the speaker's message.
+            - Use the final explicit correction and preserve any explicit negative contrast that remains in it.
+            Only writing directions should be consumed, not constraints on what the recipient may do.
             If the request only asks to transform absent text (for example, "make this shorter" with no text), return that unresolved request as-is; do not substitute any unrelated example or invent a draft.
             """)
         }
