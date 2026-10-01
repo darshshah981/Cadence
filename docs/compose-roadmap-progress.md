@@ -2,6 +2,23 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U2 independent instruction reserve R: a frozen, separately
+committed synthetic corpus produced 16/16 first-run drafts, but semantic
+review found five critical failures. The warm note dropped Hana, the monthly
+fee dropped its “not total” contrast, a private writer instruction entered
+the outgoing message, a day correction kept the superseded Tuesday, and a
+source-free two-bullet summary was marked ready. Only 13/14 contentful cases
+were review-ready and only one of two source-free commands was rejected.
+The corpus, first-run requests/results/replay, and manual semantic review are
+preserved under `Build/ComposeRoadmap/U2-independent-r/`. Focused local fixes
+now recognize the two-bullet missing-source form, keep complete fee and
+private-availability messages intact, prepare a short warm named status, and
+use the final day in an explicit correction before asking for confirmation.
+The fee and correction validators also reject the observed lossy model
+outputs. The final focused native run passed 74 tests in two suites. This is
+development against an exposed reserve; U2 still needs a fresh independent
+quality check and the full roadmap remains open.
+
 September 30 U12 explicit-outcome restriction increment: the same refund
 fixture revealed that an otherwise valid status question could append "It was
 approved and paid" despite the speaker saying not to claim either outcome.

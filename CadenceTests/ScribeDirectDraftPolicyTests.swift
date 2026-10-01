@@ -341,6 +341,32 @@ struct ScribeDirectDraftPolicyTests {
     }
 
     @Test
+    func recurringFeeIsNotReducedToAnUnqualifiedAmount() throws {
+        let speech = "The fee is $45 per month, not $45 total. Make this concise."
+        let input = try ScribeRequestPolicy.providerSafeInput(
+            for: .directDictation(processedDictation: speech), destination: .legacyLocal
+        )
+        #expect(input.preparedDraft == "The fee is $45 per month, not $45 total.")
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateOutput(
+                "The fee is $45 per month.", requiredLiterals: [], spokenRequest: speech
+            )
+        }
+        #expect(try ScribeRequestPolicy.validateOutput(
+            "The fee is $45 per month, not $45 total.", requiredLiterals: [], spokenRequest: speech
+        ) == input.preparedDraft)
+        for unsupported in [
+            "The fee is $45 per month, not $50 total. Make this concise.",
+            "The fee is $45 per month, not $45 total. Also mention the discount.",
+            "Quote: The fee is $45 per month, not $45 total. Make this concise."
+        ] {
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: unsupported), destination: .legacyLocal
+            ).preparedDraft == nil)
+        }
+    }
+
+    @Test
     func namedWhetherQuestionsPreserveTheirExistingConditions() throws {
         for (speech, draft) in [
             ("Ask Nico whether the change is approved for staging only, not production.",
@@ -587,6 +613,72 @@ struct ScribeDirectDraftPolicyTests {
         #expect(draft != "Eli, I cannot join the call, and I will keep the reason private.")
         #expect(try ScribeRequestPolicy.validateOutput(draft, requiredLiterals: [], spokenRequest: speech) == draft)
         #expect(try ScribeRequestPolicy.providerSafeInput(for: request, destination: .deepSeek).preparedDraft == nil)
+    }
+
+    @Test
+    func privateAvailabilityDoesNotCopyTheWriterInstruction() throws {
+        let speech = "Tell Lisa I can join only before noon, not after, and keep the reason private."
+        let input = try ScribeRequestPolicy.providerSafeInput(
+            for: .directDictation(processedDictation: speech), destination: .legacyLocal
+        )
+        #expect(input.preparedDraft == "Lisa, I can join only before noon, not after.")
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateDirectDraftDirectionSeparation(
+                "Lisa, I can join only before noon, not after, and keep the reason private.",
+                spokenRequest: speech, protectedValues: []
+            )
+        }
+        for unsupported in [
+            "Tell Lisa to keep the reason private.",
+            "Tell Lisa I can join only before noon because I am sick, and keep the reason private.",
+            "Tell Lisa I can join only before noon, not after, and keep the reason private. Ask for a time.",
+            "Quote: Tell Lisa I can join only before noon, not after, and keep the reason private."
+        ] {
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: unsupported), destination: .legacyLocal
+            ).preparedDraft == nil)
+        }
+    }
+
+    @Test
+    func warmReadyReviewKeepsTheNamedAddressee() throws {
+        let speech = "Keep this warm and short. Tell Hana the deck is ready to review."
+        let input = try ScribeRequestPolicy.providerSafeInput(
+            for: .directDictation(processedDictation: speech), destination: .legacyLocal
+        )
+        #expect(input.preparedDraft == "Hi Hana, the deck is ready to review.")
+        #expect(try ScribeRequestPolicy.providerSafeInput(
+            for: .directDictation(processedDictation: speech), destination: .deepSeek
+        ).preparedDraft == nil)
+    }
+
+    @Test
+    func finalDayCorrectionSupersedesTheOldDay() throws {
+        let speech = "Tell Omar the review is Tuesday. Sorry, Thursday. Ask him to confirm."
+        let input = try ScribeRequestPolicy.providerSafeInput(
+            for: .directDictation(processedDictation: speech), destination: .legacyLocal
+        )
+        #expect(input.preparedDraft == "Omar, the review is Thursday. Can you confirm?")
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateOutput(
+                "Omar, the review is Tuesday. Sorry, Thursday. Ask him to confirm.",
+                requiredLiterals: [], spokenRequest: speech
+            )
+        }
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateOutput(
+                "Omar, the review is Thursday.", requiredLiterals: [], spokenRequest: speech
+            )
+        }
+        for unsupported in [
+            "Tell Omar the review is Tuesday. Sorry, Tuesday. Ask him to confirm.",
+            "Tell Omar the review is Tuesday. Sorry, Thursday. Ask him to confirm. Also mention the time.",
+            "Quote: Tell Omar the review is Tuesday. Sorry, Thursday. Ask him to confirm."
+        ] {
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: unsupported), destination: .legacyLocal
+            ).preparedDraft == nil)
+        }
     }
 
     @Test

@@ -90,7 +90,9 @@ struct ScribeTests {
     func sourceFreeSummaryIsUnresolvedWithoutConsumingRecipientOrQuotedCommands() {
         for spoken in [
             "Summarize this in one sentence.", "Please sum up that briefly.",
-            "Summarize it in two sentences."
+            "Summarize it in two sentences.",
+            "Summarize this in two bullets.",
+            "Summarize that in 3 bullet points."
         ] {
             let parsed = ScribeWritingDirectionParser.parse(spoken)
             #expect(parsed.unresolvedReferences == [.sourceRequired(transform: .rewrite)])
@@ -390,7 +392,7 @@ struct ScribeTests {
         )
         let local = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .legacyLocal)
         #expect(local.userMessage.hasSuffix("Spoken message:\nHi Maya, the preview is ready for review."))
-        #expect(local.preparedDraft == nil)
+        #expect(local.preparedDraft == "Hi Maya, the preview is ready for review.")
         for speech in ["Tell Maya the preview is ready for review.", "The preview is ready for review. Keep this warm."] {
             let unchangedRecipient = try ScribeRequestPolicy.providerSafeInput(
                 for: .directDictation(processedDictation: speech), destination: .legacyLocal

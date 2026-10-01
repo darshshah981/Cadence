@@ -353,10 +353,12 @@ enum ScribeRequestPolicy {
         }
         guard !isUnprocessedNamedWhetherFrame(normalized, spokenRequest: spokenRequest),
               !isExplicitPricePeriodContrastDropped(normalized, spokenRequest: spokenRequest),
+              !isExplicitFeeTotalContrastDropped(normalized, spokenRequest: spokenRequest),
               !isExplicitTaxContrastDropped(normalized, spokenRequest: spokenRequest),
               !isPercentPointContrastChanged(normalized, spokenRequest: spokenRequest),
               !isNumericNotExactlyDropped(normalized, spokenRequest: spokenRequest),
-              !isOnlyRequestedAlternativeDropped(normalized, spokenRequest: spokenRequest) else {
+              !isOnlyRequestedAlternativeDropped(normalized, spokenRequest: spokenRequest),
+              !isSupersededDayCorrectionLeaked(normalized, spokenRequest: spokenRequest) else {
             throw ScribeProviderError.invalidResult
         }
         let outputBytes = Data(normalized.utf8)
@@ -488,6 +490,27 @@ enum ScribeRequestPolicy {
         options: [.caseInsensitive]
     )
 
+    private static func isExplicitFeeTotalContrastDropped(
+        _ output: String, spokenRequest: String
+    ) -> Bool {
+        let writing = ScribeWritingDirectionParser.parse(spokenRequest)
+        let source = writing.content as NSString
+        guard let match = feeTotalContrastPattern.firstMatch(
+            in: writing.content, range: NSRange(location: 0, length: source.length)
+        ) else { return false }
+        let recurring = source.substring(with: match.range(at: 1))
+        let period = source.substring(with: match.range(at: 2))
+        let total = source.substring(with: match.range(at: 3))
+        guard recurring == total else { return false }
+        return output.range(of: "\(recurring) per \(period)", options: .caseInsensitive) == nil
+            || output.range(of: "not \(total) total", options: .caseInsensitive) == nil
+    }
+
+    private static let feeTotalContrastPattern = try! NSRegularExpression(
+        pattern: #"^[Tt]he\s+(?:fee|price)\s+is\s+(\$[\d,]+(?:\.\d{2})?)\s+per\s+(month|year),\s+not\s+(\$[\d,]+(?:\.\d{2})?)\s+total\.$"#,
+        options: [.caseInsensitive]
+    )
+
     private static func isExplicitTaxContrastDropped(
         _ output: String, spokenRequest: String
     ) -> Bool {
@@ -540,6 +563,19 @@ enum ScribeRequestPolicy {
             || output.range(of: "requested", options: .caseInsensitive) == nil
     }
 
+    private static func isSupersededDayCorrectionLeaked(_ output: String, spokenRequest: String) -> Bool {
+        guard let parts = ScribeDirectDraftPolicy.correctedDayConfirmationParts(in: spokenRequest),
+              parts.oldDay.caseInsensitiveCompare(parts.newDay) != .orderedSame else { return false }
+        return output.range(of: #"\b"# + NSRegularExpression.escapedPattern(for: parts.oldDay) + #"\b"#,
+                            options: [.regularExpression, .caseInsensitive]) != nil
+            || output.range(of: #"\b"# + NSRegularExpression.escapedPattern(for: parts.newDay) + #"\b"#,
+                            options: [.regularExpression, .caseInsensitive]) == nil
+            || output.range(of: #"\bconfirm\b"#,
+                            options: [.regularExpression, .caseInsensitive]) == nil
+            || output.range(of: #"\b(?:sorry|correction)\b"#,
+                            options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
     private static let numericNotExactlyPattern = try! NSRegularExpression(
         pattern: #"\b(?:under|over|at\s+most|at\s+least)\s+(\$[\d,]+(?:\.\d{2})?),\s+not\s+exactly\s+(\$[\d,]+(?:\.\d{2})?)\b"#,
         options: [.caseInsensitive]
@@ -568,7 +604,8 @@ enum ScribeRequestPolicy {
         }
         // These trailing clauses direct the writer even when the general
         // edge-command parser leaves them inside the spoken recipient frame.
-        if ScribeDirectDraftPolicy.isPrivateReasonAttendanceRequest(spokenRequest),
+        if (ScribeDirectDraftPolicy.isPrivateReasonAttendanceRequest(spokenRequest)
+            || ScribeDirectDraftPolicy.isPrivateReasonAvailabilityRequest(spokenRequest)),
            output.range(of: #"\bkeep\s+the\s+reason\s+private\b"#,
                         options: [.regularExpression, .caseInsensitive]) != nil {
             throw ScribeProviderError.invalidResult

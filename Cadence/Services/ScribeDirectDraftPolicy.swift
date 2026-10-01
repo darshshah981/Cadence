@@ -12,11 +12,13 @@ enum ScribeDirectDraftPolicy {
         if let greeting = preparesFormalGreeting(request) { return greeting }
         if let question = preservesCompleteRecipientQuestion(request) { return question }
         if let casual = preparesCasualReadyStatus(request) { return casual }
+        if let warm = preparesWarmReadyReview(request) { return warm }
         if let concise = preparesConciseTwoEventStatus(request) { return concise }
         if let tentative = preparesFormalTentativeStatement(request) { return tentative }
         if let question = preparesTwoApprovalQuestion(request) { return question }
         if let question = preparesNamedWhetherQuestion(request) { return question }
         if let price = preservesPricePeriodContrast(request) { return price }
+        if let fee = preservesFeeTotalContrast(request) { return fee }
         if let units = preservesPercentPointContrast(request) { return units }
         if let limit = preservesNamedNumericContrast(request) { return limit }
         if preservesUncertaintyReply(request) { return request.message }
@@ -35,6 +37,8 @@ enum ScribeDirectDraftPolicy {
         if let status = preservesNamedTicketStatus(request) { return status }
         if let negative = preservesNamedNegativeInstruction(request) { return negative }
         if let attendance = preparesPrivateReasonAttendance(request) { return attendance }
+        if let availability = preparesPrivateReasonAvailability(request) { return availability }
+        if let correction = preparesCorrectedDayConfirmation(request) { return correction }
         if let inspection = preservesQuotedCodingInspection(request) { return inspection }
         if let imperative = preservesCodingInstruction(request) { return imperative }
         if let complete = preservesConstraintHeavyNamedMessage(request) { return complete }
@@ -109,6 +113,24 @@ enum ScribeDirectDraftPolicy {
         return "Hey \(name), the \(subject)'s ready for \(audience)."
     }
 
+    /// A short ready-for-review status has no missing content. The spoken
+    /// warmth direction can be satisfied with a greeting while retaining the
+    /// named addressee and the entire factual sentence.
+    private static func preparesWarmReadyReview(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections.contains(.tone(.warm)),
+              request.writingDirections.allSatisfy({ $0 == .tone(.warm) || $0 == .concise }),
+              request.unresolvedReferences.isEmpty,
+              request.protectedSpans.isEmpty,
+              let frame = request.recipientFrame,
+              frame.kind == .tell,
+              case .named(let name) = frame.recipient else { return nil }
+        let source = request.message as NSString
+        guard let match = warmReadyReviewPattern.firstMatch(
+            in: request.message, range: NSRange(location: 0, length: source.length)
+        ), source.substring(with: match.range(at: 1)) == name else { return nil }
+        return "Hi \(name), \(source.substring(with: match.range(at: 2)))."
+    }
+
     /// Condense two independent present-tense facts by removing only the
     /// repeated articles/copula. The subjects and time stay byte-for-byte.
     private static func preparesConciseTwoEventStatus(_ request: ScribeWritingRequest) -> String? {
@@ -171,6 +193,60 @@ enum ScribeDirectDraftPolicy {
         privateReasonAttendancePattern.firstMatch(
             in: speech, range: NSRange(location: 0, length: (speech as NSString).length)
         ) != nil
+    }
+
+    /// A short availability statement is already sendable. The trailing
+    /// privacy instruction belongs to the writer and must not be forwarded.
+    private static func preparesPrivateReasonAvailability(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections.isEmpty,
+              request.unresolvedReferences.isEmpty,
+              request.message == request.originalTranscript,
+              request.protectedSpans.allSatisfy({ $0.kind != .quotedOrLiteralRequest }),
+              let frame = request.recipientFrame,
+              frame.kind == .tell,
+              case .named(let name) = frame.recipient else { return nil }
+        let source = request.message as NSString
+        guard let match = privateReasonAvailabilityPattern.firstMatch(
+            in: request.message, range: NSRange(location: 0, length: source.length)
+        ), source.substring(with: match.range(at: 1)) == name else { return nil }
+        return "\(name), \(source.substring(with: match.range(at: 2)))."
+    }
+
+    static func isPrivateReasonAvailabilityRequest(_ speech: String) -> Bool {
+        privateReasonAvailabilityPattern.firstMatch(
+            in: speech, range: NSRange(location: 0, length: (speech as NSString).length)
+        ) != nil
+    }
+
+    /// Use the final explicit day correction and keep the request for
+    /// confirmation as a question to the addressee.
+    private static func preparesCorrectedDayConfirmation(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections.isEmpty,
+              request.unresolvedReferences.isEmpty,
+              request.message == request.originalTranscript,
+              request.protectedSpans.isEmpty,
+              let frame = request.recipientFrame,
+              frame.kind == .tell,
+              case .named(let name) = frame.recipient,
+              let parts = correctedDayConfirmationParts(in: request.message),
+              parts.name == name,
+              parts.oldDay.caseInsensitiveCompare(parts.newDay) != .orderedSame else { return nil }
+        return "\(name), the \(parts.subject) is \(parts.newDay). Can you confirm?"
+    }
+
+    static func correctedDayConfirmationParts(in speech: String) -> (
+        name: String, subject: String, oldDay: String, newDay: String
+    )? {
+        let source = speech as NSString
+        guard let match = correctedDayConfirmationPattern.firstMatch(
+            in: speech, range: NSRange(location: 0, length: source.length)
+        ) else { return nil }
+        return (
+            source.substring(with: match.range(at: 1)),
+            source.substring(with: match.range(at: 2)),
+            source.substring(with: match.range(at: 3)),
+            source.substring(with: match.range(at: 4))
+        )
     }
 
     /// A final sentence about keeping two stated statuses distinct directs
@@ -321,6 +397,23 @@ enum ScribeDirectDraftPolicy {
            source.substring(with: match.range(at: 2)).caseInsensitiveCompare(
                 source.substring(with: match.range(at: 4))
            ) != .orderedSame else { return nil }
+        return request.message
+    }
+
+    /// The spoken sentence already distinguishes a recurring fee from a
+    /// one-time total. Keeping it intact is safer and faster than a rewrite
+    /// that can silently drop the negative half of the contrast.
+    private static func preservesFeeTotalContrast(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections.isEmpty || request.writingDirections == [.concise],
+              request.unresolvedReferences.isEmpty,
+              request.recipientFrame == nil,
+              request.protectedSpans.isEmpty else { return nil }
+        let source = request.message as NSString
+        guard let match = feeTotalContrastPattern.firstMatch(
+            in: request.message, range: NSRange(location: 0, length: source.length)
+        ), source.substring(with: match.range(at: 1)) == source.substring(with: match.range(at: 3)) else {
+            return nil
+        }
         return request.message
     }
 
@@ -649,6 +742,18 @@ enum ScribeDirectDraftPolicy {
         pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]*)\s+(I\s+(?:cannot|can't|can’t|will not|won't|won’t)\s+(?:join|attend|make)\s+(?:the\s+)?(?:call|meeting|session|event|rehearsal|dinner|appointment|review|it)(?:\s+(?:today|tomorrow|tonight))?),\s+and\s+keep\s+the\s+reason\s+private\.?$"#,
         options: [.caseInsensitive]
     )
+    private static let privateReasonAvailabilityPattern = try! NSRegularExpression(
+        pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]*)\s+(I\s+can\s+(?:join|attend|make\s+it)\s+only\s+before\s+(?:noon|midday|\d{1,2}(?::\d{2})?\s*(?:AM|PM))(?:,\s+not\s+after)?),\s+and\s+keep\s+the\s+reason\s+private\.?$"#,
+        options: [.caseInsensitive]
+    )
+    private static let warmReadyReviewPattern = try! NSRegularExpression(
+        pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]*)\s+(the\s+[\p{L}-]+(?:\s+[\p{L}-]+){0,2}\s+is\s+ready\s+(?:to|for)\s+review)\.$"#,
+        options: [.caseInsensitive]
+    )
+    private static let correctedDayConfirmationPattern = try! NSRegularExpression(
+        pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]*)\s+the\s+([\p{L}-]+(?:\s+[\p{L}-]+){0,2})\s+is\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\.\s+Sorry,\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\.\s+Ask\s+(?:him|her|them)\s+to\s+confirm\.$"#,
+        options: [.caseInsensitive]
+    )
 
     private static let distinctStatusesPattern = try! NSRegularExpression(
         pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]*)\s+((?:the\s+[\p{L}-]+(?:\s+[\p{L}-]+){0,2}\s+is\s+(?:pending|approved|rejected|paid|unpaid|complete|incomplete|open|closed|blocked|delayed))\s+and\s+(?:the\s+[\p{L}-]+(?:\s+[\p{L}-]+){0,2}\s+is\s+(?:pending|approved|rejected|paid|unpaid|complete|incomplete|open|closed|blocked|delayed)))\.\s+Keep\s+the\s+two\s+statuses\s+distinct\.?$"#,
@@ -719,6 +824,10 @@ enum ScribeDirectDraftPolicy {
 
     private static let pricePeriodContrastPattern = try! NSRegularExpression(
         pattern: #"^[Tt]he\s+price\s+is\s+(\$[\d,]+(?:\.\d{2})?)\s+per\s+(month|year),\s+not\s+(\$[\d,]+(?:\.\d{2})?)\s+per\s+(month|year)\.$"#,
+        options: [.caseInsensitive]
+    )
+    private static let feeTotalContrastPattern = try! NSRegularExpression(
+        pattern: #"^[Tt]he\s+(?:fee|price)\s+is\s+(\$[\d,]+(?:\.\d{2})?)\s+per\s+(month|year),\s+not\s+(\$[\d,]+(?:\.\d{2})?)\s+total\.$"#,
         options: [.caseInsensitive]
     )
 
