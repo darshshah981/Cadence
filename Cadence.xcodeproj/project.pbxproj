@@ -266,6 +266,7 @@
 		CD2CC09844391437AE662E30 /* ScribeProviderConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DB208296457A9AD795C2206 /* ScribeProviderConfigurationTests.swift */; };
 		CD80E21E5AAA78C76661C9F0 /* meaning-independent-2026-09-30-d.json in Resources */ = {isa = PBXBuildFile; fileRef = EE93B3B6BA483A502BEC076E /* meaning-independent-2026-09-30-d.json */; };
 		CDF4F5E8D88183DD0240068C /* ScribeProviderController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886112D50EF5D18E5F0AD28F /* ScribeProviderController.swift */; };
+		CE9CE4E23C2B69EC2BE91CFA /* openai-core-2026-10-01.json in Resources */ = {isa = PBXBuildFile; fileRef = 936AB670416CB98D5816C9FC /* openai-core-2026-10-01.json */; };
 		CED23C0651206274B8D9ECC6 /* PersonalizationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B82DFA8D72277D8A1A6424D2 /* PersonalizationModels.swift */; };
 		CF5EB8BDD7B0DB8D62A7A276 /* ScribeRefinementEvaluationReplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6712D1E4FC02D739326FE00 /* ScribeRefinementEvaluationReplayTests.swift */; };
 		CF89B7D90066DBE31A3C5FA1 /* ComposeSelectedTextContextPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC87441F446994A357E0797B /* ComposeSelectedTextContextPreferences.swift */; };
@@ -539,6 +540,7 @@
 		8FF8EE95079506DB9E841BEB /* ScribeNotchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeNotchView.swift; sourceTree = "<group>"; };
 		9225F522B8DF2974685FB191 /* ComposeScreenWindowPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeScreenWindowPickerTests.swift; sourceTree = "<group>"; };
 		92617578D8E7278F00452C6A /* PersonalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalizationTests.swift; sourceTree = "<group>"; };
+		936AB670416CB98D5816C9FC /* openai-core-2026-10-01.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "openai-core-2026-10-01.json"; sourceTree = "<group>"; };
 		93CCD174495C1B12CC5393E5 /* ScribePerformanceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribePerformanceModels.swift; sourceTree = "<group>"; };
 		93FFB0F65384AA2F774E98FD /* WritingEnvironmentResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingEnvironmentResolver.swift; sourceTree = "<group>"; };
 		941A0F9411B0C69E14C6A4E6 /* ComposePersistentMemoryCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposePersistentMemoryCommandTests.swift; sourceTree = "<group>"; };
@@ -725,6 +727,7 @@
 				7B443B3FF5B33E6B5DD25AF1 /* meaning-independent-2026-09-30-n.json */,
 				204E871F350158DFBB690041 /* meaning-validation-2026-09-30-b.json */,
 				99051683D36EDC9DC2C39E1F /* meaning-validation-2026-09-30.json */,
+				936AB670416CB98D5816C9FC /* openai-core-2026-10-01.json */,
 				9AEDC021CB58476A4FB96E92 /* quality-corpus-manifest.json */,
 				113DBC10FED7509DA4FD5824 /* quality-corpus.json */,
 				5876090467C9968D0317039F /* refinement-following.json */,
@@ -1252,6 +1255,7 @@
 				FEE1FBBBFF5B5A14B1E93C14 /* meaning-independent-2026-09-30-n.json in Resources */,
 				0622D2A3F77770370987DCF1 /* meaning-validation-2026-09-30-b.json in Resources */,
 				5A7DAAA0B46DBCC25DE10009 /* meaning-validation-2026-09-30.json in Resources */,
+				CE9CE4E23C2B69EC2BE91CFA /* openai-core-2026-10-01.json in Resources */,
 				565802BC12300CB87A5E4A76 /* quality-corpus-manifest.json in Resources */,
 				DB4CE2A3A7F999054FAE609D /* quality-corpus.json in Resources */,
 				B16D5C683D71FAB026AEDC45 /* refinement-following.json in Resources */,
