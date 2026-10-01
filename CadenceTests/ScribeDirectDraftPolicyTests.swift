@@ -909,6 +909,28 @@ struct ScribeDirectDraftPolicyTests {
     }
 
     @Test
+    func completeUncertainCodexReplySkipsIrrelevantModelRefusal() throws {
+        let message = "I might be wrong, but I think the issue is in the cache."
+        let speech = message + " Write this as a Codex reply."
+        let parsed = ScribeWritingDirectionParser.parse(speech)
+        #expect(parsed.content == message)
+        #expect(parsed.request.writingDirections == [.reply])
+        #expect(parsed.unresolvedReferences.isEmpty)
+        let request = ScribeRequest.directDictation(processedDictation: speech)
+        let local = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .legacyLocal)
+        #expect(local.preparedDraft == message)
+        #expect(try ScribeRequestPolicy.validateOutput(
+            message, requiredLiterals: [], spokenRequest: speech
+        ) == message)
+        #expect(try ScribeRequestPolicy.providerSafeInput(
+            for: request, destination: .deepSeek
+        ).preparedDraft == nil)
+        let sourceFree = ScribeWritingDirectionParser.parse("Write this as a Codex reply.")
+        #expect(sourceFree.unresolvedReferences == [.sourceRequired(transform: .reply)])
+        #expect(ScribeDirectDraftPolicy.prepare(sourceFree.request) == nil)
+    }
+
+    @Test
     func uncertaintyShortcutDoesNotConsumeOtherWritingWork() {
         for speech in [
             "I think the draft is ready.",
@@ -922,7 +944,10 @@ struct ScribeDirectDraftPolicyTests {
             "I think the phrase is \"write it formally\". Write it as a reply in Slack.",
             "Tell Maya I think the draft is ready. Write it as a reply in Slack.",
             "Write this as a response in Codex.",
-            "I think the draft is ready.\nPlease review it. Write it as a reply in Slack."
+            "I think the draft is ready.\nPlease review it. Write it as a reply in Slack.",
+            "I might be wrong, but I think the issue is in the cache. Then check the logs. Write this as a Codex reply.",
+            "I might be wrong, but I think the issue is in the cache. Make it formal. Write this as a Codex reply.",
+            "Tell Maya I might be wrong, but I think the issue is in the cache. Write this as a Codex reply."
         ] {
             #expect(ScribeDirectDraftPolicy.prepare(ScribeWritingDirectionParser.parse(speech).request) == nil)
         }

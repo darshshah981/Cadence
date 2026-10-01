@@ -413,7 +413,7 @@ enum ScribeWritingDirectionParser {
     private static let adverb = #"(?:formally|casually|politely|professionally|concisely)"#
     private static let styleCommand = #"(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:(?:write|rewrite|phrase|say)\s+(?:this|that|it)\s+(?:"#
         + adverb + #"|in\s+(?:a\s+)?"# + adjective + #"\s+(?:tone|style))|(?:make|keep)\s+(?:this|that|it|the\s+prompt)\s+(?:more\s+)?"# + adjective + #"(?:\s+and\s+(?:more\s+)?"# + adjective + #")*(?:\s+and\s+do\s+not\s+give\s+a\s+reason)?|make\s+(?:this|that|it)\s+(?:a\s+)?(?:concise|short)\s+prompt)(?:\s+please)?"#
-    private static let replyCommand = #"(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:write|rewrite|draft|compose|phrase)\s+(?:this|that|it)\s+as\s+(?:a\s+)?(?:reply|response|message)(?:\s+(?:in|on|for)\s+(?:this\s+(?:chat|thread)|[\p{L}\p{N}][\p{L}\p{N}_-]*))?(?:\s+please)?"#
+    private static let replyCommand = #"(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:write|rewrite|draft|compose|phrase)\s+(?:this|that|it)\s+as\s+(?:a\s+)?(?:reply|response|message)(?:\s+(?:in|on|for)\s+(?:this\s+(?:chat|thread)|[\p{L}\p{N}][\p{L}\p{N}_-]*))?(?:\s+please)?|(?:please\s+)?write\s+(?:this|that|it)\s+as\s+a\s+Codex\s+reply(?:\s+please)?"#
     private static let bulletCommand = #"(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:put\s+(?:this|that|it)\s+(?:in|into)|turn\s+(?:this|that|it)\s+into|format\s+(?:this|that|it)\s+as)\s+(?:one|two|three|1|2|3)\s+(?:bullets?|bullet\s+points?)(?:\s+please)?"#
     private static let clarityCommand = #"(?:please\s+)?write\s+this\s+clearly(?:\s+please)?"#
     private static let command = "(?:" + styleCommand + "|" + replyCommand + "|" + bulletCommand + "|" + clarityCommand + ")"

@@ -2,6 +2,20 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+September 30 U2 uncertain Codex reply increment: independent reserve S returned
+an irrelevant provider-identity refusal for the complete spoken request “I
+might be wrong, but I think the issue is in the cache. Write this as a Codex
+reply.” The trailing Codex placement is now recognized as a writing direction,
+and the existing narrow uncertainty shortcut preserves the full first-person
+statement as a local prepared draft. A source-free Codex reply still requires
+the missing message; compound, quoted, recipient-directed and saved-style
+cases retain their guarded routes. A current-source production export changed
+only this row among 16 exposed S requests. The affected suites passed 137
+tests, and the broad native run passed 1,385 tests in 116 suites with the
+focus-dependent notch keyboard suite excluded. This bypasses the bad model
+result for this narrow form; it does not certify general Codex replies, the
+independent U2 quality gate, or installed behavior.
+
 September 30 U2 counted-bullet regression repair: the broader native run after
 the reserve S safety repair caught six issues because the new source-free
 bullet preflight intercepted existing counted-bullet selected-text rewrites.

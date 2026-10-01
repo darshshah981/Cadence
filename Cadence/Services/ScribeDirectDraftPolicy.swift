@@ -819,7 +819,7 @@ enum ScribeDirectDraftPolicy {
     // One short first-person uncertainty statement. Questions, quotations,
     // multiple sentences, technical punctuation and compound task framing stay
     // on the model path. This does not remove or normalize any message bytes.
-    private static let uncertaintyStatement = #"^(?:I (?:think|believe|suspect)|I['’]m (?:unsure|not sure), but I think) [^,.!?;:\r\n\"“”‘’`\p{Pd}]{1,320}\.?$"#
+    private static let uncertaintyStatement = #"^(?:I (?:think|believe|suspect)|I['’]m (?:unsure|not sure), but I think|I might be wrong, but I think) [^,.!?;:\r\n\"“”‘’`\p{Pd}]{1,320}\.?$"#
 
     private static let casualReadyStatusPattern = try! NSRegularExpression(
         pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]{1,39})\s+the\s+([\p{Ll}][\p{L}-]{1,39})\s+is\s+ready\s+for\s+((?:the\s+)?[\p{Ll}][\p{L}-]{1,39})\.\s+Make\s+it\s+casual\.?$"#
