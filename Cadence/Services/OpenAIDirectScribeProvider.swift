@@ -65,7 +65,8 @@ struct OpenAIDirectScribeProvider: ScribeProvider {
         _ = try await execute(
             input: .connectionValidation,
             phase: .validation,
-            maxTokens: 8
+            // Responses rejects a limit below 16 before generation begins.
+            maxTokens: 16
         )
     }
 

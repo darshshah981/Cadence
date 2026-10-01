@@ -71,7 +71,7 @@ struct FixedOriginScribeProviderTests {
         #expect(String(
             data: try #require(await openAITransport.requests.first?.httpBody),
             encoding: .utf8
-        ) == #"{"input":"Cadence provider compatibility check.","instructions":"Return only OK.","max_output_tokens":8,"model":"gpt-test","store":false,"stream":false}"#)
+        ) == #"{"input":"Cadence provider compatibility check.","instructions":"Return only OK.","max_output_tokens":16,"model":"gpt-test","store":false,"stream":false}"#)
 
         let openRouterTransport = U4RecordingTransport(results: [.success(U4Fixtures.response(
             url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!,

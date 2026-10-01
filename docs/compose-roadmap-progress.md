@@ -2,6 +2,23 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
+Current priority: the user selected OpenAI Direct for core Compose quality.
+Pause new screen/memory features and individual Apple Intelligence phrasing
+shortcuts. First configure the API provider, then evaluate a frozen 20-request
+core writing corpus with at least 19 useful drafts and no critical changes to
+meaning, recipients or writing-direction separation. API credentials belong
+only in the secure provider setup and Keychain, never in this ledger or Git.
+
+September 30 OpenAI connection repair: live model discovery succeeded, but the
+installed provider's synthetic validation failed for both a reasoning model
+and GPT-4.1. A content-free diagnostic reproduced HTTP 400 with
+`integer_below_min_value`: Responses requires at least 16 output tokens,
+while Cadence requested eight. Validation now uses 16; generation remains
+bounded at 1,024. Thirty-seven focused tests across fixed-origin providers,
+model discovery and provider setup passed. The installed connection and
+provider-specific writing quality still need live verification after this
+repair.
+
 September 30 U2 uncertain Codex reply increment: independent reserve S returned
 an irrelevant provider-identity refusal for the complete spoken request “I
 might be wrong, but I think the issue is in the cache. Write this as a Codex
