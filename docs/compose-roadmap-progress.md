@@ -2,22 +2,47 @@
 
 The [feature roadmap](plans/2026-09-22-0042-feat-compose-feature-roadmap-plan.md) remains the long-term reference. This ledger separates implemented increments from verified milestone completion. Work proceeds one small goal at a time; no milestone is complete merely because a new type, test fixture, or UI control exists.
 
-Current priority: the user selected OpenAI Direct for core Compose quality.
-Pause new screen/memory features and individual Apple Intelligence phrasing
-shortcuts. First configure the API provider, then evaluate a frozen 20-request
-core writing corpus with at least 19 useful drafts and no critical changes to
-meaning, recipients or writing-direction separation. API credentials belong
-only in the secure provider setup and Keychain, never in this ledger or Git.
+Current priority: OpenAI Direct core writing, followed by independent quality
+and installed-flow verification. No new screen/memory features or individual
+Apple Intelligence phrasing shortcuts while those checks remain unfinished.
 
-September 30 OpenAI connection repair: live model discovery succeeded, but the
-installed provider's synthetic validation failed for both a reasoning model
-and GPT-4.1. A content-free diagnostic reproduced HTTP 400 with
-`integer_below_min_value`: Responses requires at least 16 output tokens,
-while Cadence requested eight. Validation now uses 16; generation remains
-bounded at 1,024. Thirty-seven focused tests across fixed-origin providers,
-model discovery and provider setup passed. The installed connection and
-provider-specific writing quality still need live verification after this
-repair.
+September 30 OpenAI milestone: connection setup succeeds in the installed
+Release UI with `gpt-4.1-2025-04-14`, enabled for new Compose drafts. The key is
+stored by Cadence in this Mac's non-synchronizing Keychain. The connection
+request now uses the Responses API minimum of 16 output tokens; 37 focused
+provider/catalog/setup tests passed.
+
+The 20-case synthetic corpus was frozen before generation. Its first run
+failed (11 useful, nine critical errors). After cloud-writing and exact-word
+repairs, the final exposed development rerun produced 20 useful, policy-ready
+drafts and zero critical errors. Median provider generation was 686.5 ms;
+maximum was 2,963 ms. This excludes microphone capture, transcription,
+review, and insertion time. Automated production guards checked direction
+separation, uncertainty, named recipients, recipient restrictions and exact
+literals. Agent semantic review checked the predeclared per-case meaning
+criteria; meaning was not judged by an automated model scorer. Failed runs
+are preserved. These 20 cases are now development examples, so the result
+is not an independent unseen-quality certification.
+
+Current code commit `101da02` passed 155 focused tests in five suites, including
+writing policy and insertion integration. A Developer ID signed universal
+Release test build from that commit replaces `/Applications/Cadence.app`;
+the prior installation and OAuth configuration are preserved privately.
+The Mac locked before its launch could be verified. The old process is still
+running and needs a restart; do not claim the new build's live behavior has
+been verified. This local test app is not notarized or distributable.
+
+Evidence: private staging `evidence/u2-openai-direct/` retains the frozen
+corpus, bound requests, first-run failures, development reruns, software logs,
+semantic review, credential-pattern scan and installation manifest. Synthetic
+comparison credentials used a transient 0600 FIFO, not a regular file or
+environment variable. No real audio, user context or memory was transmitted
+in these checks. Broad U2/U3 quality, current microphone-to-insertion behavior,
+Muse readback, screen identity, cloud context/memory and release gates remain
+open. Next bounded goal: a frozen unseen 20-request first-run comparison and
+a controlled current-build Compose review/insertion smoke check when the Mac
+is unlocked. Do not widen the feature scope or ask for individual overnight
+user tests.
 
 September 30 U2 uncertain Codex reply increment: independent reserve S returned
 an irrelevant provider-identity refusal for the complete spoken request “I
