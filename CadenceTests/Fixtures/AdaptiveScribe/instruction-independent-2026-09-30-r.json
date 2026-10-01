@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh independent Compose instruction and meaning reserve, frozen before its first production export or model run.",
+  "evaluationOrder": "Preserve the first generated output and review every case against these criteria before any output-dependent implementation change.",
+  "semanticCriteria": {
+    "acceptable": "Fourteen contentful cases produce usable outgoing messages or coding prompts with the addressee, operative facts, uncertainty, conditions, restrictions, and quoted or technical literals intact. Two source-free edit requests are rejected before review.",
+    "critical": "A writer command in the outgoing draft, dropped addressee or restriction, changed date or unit, invented approval or performed action, lost uncertainty or condition, altered protected literal, or source-free output marked ready.",
+    "minor": "An equivalent paraphrase or weak tone/length change that preserves every consequential fact and recipient instruction.",
+    "gate": "All fourteen contentful cases review-ready with zero critical errors, all four explicit tone or length directions visibly applied, and both source-free cases rejected before review."
+  },
+  "cases": [
+    {"id":"instruction-r-conditional-shipment","family":"messaging","spoken":"Tell Mira the shipment may arrive Friday, but only if customs clears the parts Thursday.","exampleDraft":"Mira, the shipment may arrive Friday, but only if customs clears the parts Thursday.","required":["Mira","may","Friday","only if","Thursday"],"forbidden":["will arrive Friday"]},
+    {"id":"instruction-r-recipient-heading","family":"messaging","spoken":"Tell Theo to write the heading in all caps.","exampleDraft":"Theo, please write the heading in all caps.","required":["Theo","heading","all caps"],"forbidden":["THE HEADING","Write this in all caps"]},
+    {"id":"instruction-r-concise-decline","family":"messaging","spoken":"Tell Layla I cannot join Tuesday, but I can review the draft Wednesday. Make it concise.","exampleDraft":"Layla, I can't join Tuesday, but I can review the draft Wednesday.","required":["Layla","Tuesday","Wednesday","draft"],"forbidden":["Make it concise","can join Tuesday"]},
+    {"id":"instruction-r-past-versus-planned","family":"general","spoken":"The demo was Monday and the launch is scheduled Thursday. Write this formally.","exampleDraft":"The demo took place on Monday, and the launch is scheduled for Thursday.","required":["demo","Monday","launch","Thursday"],"forbidden":["demo is scheduled","Write this formally"]},
+    {"id":"instruction-r-pending-case","family":"messaging","spoken":"Tell Ben case ZX-41 is still pending, not approved.","exampleDraft":"Ben, case ZX-41 is still pending and has not been approved.","required":["Ben","ZX-41","pending","not approved"],"forbidden":["has been approved"]},
+    {"id":"instruction-r-coding-dry-run","family":"coding","spoken":"Ask the coding agent to inspect literal verbatim src/Cache.swift end literal with literal flag dry run end literal. Do not edit files.","exampleDraft":"Inspect src/Cache.swift with --dry-run. Do not edit files.","required":["src/Cache.swift","--dry-run","Do not edit files"],"forbidden":["I inspected","I edited"]},
+    {"id":"instruction-r-coding-rename","family":"coding","spoken":"Ask the coding agent to rename literal verbatim src/Old.swift end literal to literal verbatim src/New.swift end literal, but do not run tests.","exampleDraft":"Rename src/Old.swift to src/New.swift, but do not run tests.","required":["src/Old.swift","src/New.swift","do not run tests"],"forbidden":["I renamed","I ran tests"]},
+    {"id":"instruction-r-warm-review","family":"messaging","spoken":"Keep this warm and short. Tell Hana the deck is ready to review.","exampleDraft":"Hi Hana, the deck is ready to review.","required":["Hana","deck","ready to review"],"forbidden":["Keep this warm and short"]},
+    {"id":"instruction-r-recipient-question","family":"messaging","spoken":"Ask Rowan if they can send the report by 4 PM PT Friday.","exampleDraft":"Rowan, can you send the report by 4 PM PT Friday?","required":["Rowan","report","4 PM PT","Friday"],"forbidden":["I sent the report"]},
+    {"id":"instruction-r-monthly-fee","family":"general","spoken":"The fee is $45 per month, not $45 total. Make this concise.","exampleDraft":"The fee is $45 per month, not $45 total.","required":["$45 per month","not $45 total"],"forbidden":["Make this concise"]},
+    {"id":"instruction-r-codex-uncertainty","family":"general","spoken":"I do not know whether this will work, but I think it is worth a try. Write this as a reply in Codex.","exampleDraft":"I do not know whether this will work, but I think it is worth a try.","required":["do not know","think","worth a try"],"forbidden":["Write this as a reply in Codex","It will work"]},
+    {"id":"instruction-r-private-reason","family":"messaging","spoken":"Tell Lisa I can join only before noon, not after, and keep the reason private.","exampleDraft":"Lisa, I can join only before noon, not after.","required":["Lisa","only before noon","not after"],"forbidden":["keep the reason private","because"]},
+    {"id":"instruction-r-quoted-publication","family":"messaging","spoken":"Include the exact sentence \"Do not publish yet\" in the note.","exampleDraft":"Do not publish yet","required":["Do not publish yet"],"forbidden":["Here is the note"]},
+    {"id":"instruction-r-correction-day","family":"messaging","spoken":"Tell Omar the review is Tuesday. Sorry, Thursday. Ask him to confirm.","exampleDraft":"Omar, the review is Thursday. Can you confirm?","required":["Omar","Thursday","confirm"],"forbidden":["Tuesday","Sorry"]},
+    {"id":"instruction-r-missing-rewrite","family":"general","spoken":"Make that more formal.","exampleDraft":"[needs source text]","required":["missing source"],"forbidden":["Make that more formal"]},
+    {"id":"instruction-r-missing-summary","family":"general","spoken":"Summarize this in two bullets.","exampleDraft":"[needs source text]","required":["missing source"],"forbidden":["Summarize this in two bullets"]}
+  ]
+}

@@ -463,7 +463,7 @@ struct ScribeTests {
             "instruction-following", "instruction-holdout", "instruction-reserve-2026-09-30",
             "instruction-independent-2026-09-30", "instruction-independent-2026-09-30-o",
             "instruction-independent-2026-09-30-p",
-            "instruction-independent-2026-09-30-q",
+            "instruction-independent-2026-09-30-q", "instruction-independent-2026-09-30-r",
             "instruction-validation-2026-09-30-b",
             "meaning-validation-2026-09-30", "meaning-validation-2026-09-30-b",
             "meaning-independent-2026-09-30-c", "meaning-independent-2026-09-30-d",
