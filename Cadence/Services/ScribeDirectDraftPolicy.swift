@@ -39,6 +39,7 @@ enum ScribeDirectDraftPolicy {
         if let negative = preservesNamedNegativeInstruction(request) { return negative }
         if let attendance = preparesPrivateReasonAttendance(request) { return attendance }
         if let availability = preparesPrivateReasonAvailability(request) { return availability }
+        if let decline = preparesPrivateMatterDecline(request) { return decline }
         if let correction = preparesCorrectedDayConfirmation(request) { return correction }
         if let inspection = preservesQuotedCodingInspection(request) { return inspection }
         if let imperative = preservesCodingInstruction(request) { return imperative }
@@ -217,6 +218,25 @@ enum ScribeDirectDraftPolicy {
         privateReasonAvailabilityPattern.firstMatch(
             in: speech, range: NSRange(location: 0, length: (speech as NSString).length)
         ) != nil
+    }
+
+    /// In this complete form the speaker explicitly withholds the supplied
+    /// reason. A sendable decline needs only the addressee and refusal.
+    private static func preparesPrivateMatterDecline(_ request: ScribeWritingRequest) -> String? {
+        guard request.writingDirections.isEmpty,
+              request.unresolvedReferences.isEmpty,
+              request.message == request.originalTranscript,
+              request.protectedSpans.isEmpty,
+              let parts = privateMatterDeclineParts(in: request.message) else { return nil }
+        return "\(parts.recipient), \(parts.decline)."
+    }
+
+    static func privateMatterDeclineParts(in speech: String) -> (recipient: String, decline: String)? {
+        let source = speech as NSString
+        guard let match = privateMatterDeclinePattern.firstMatch(
+            in: speech, range: NSRange(location: 0, length: source.length)
+        ) else { return nil }
+        return (source.substring(with: match.range(at: 1)), source.substring(with: match.range(at: 2)))
     }
 
     /// Use the final explicit day correction and keep the request for
@@ -765,6 +785,10 @@ enum ScribeDirectDraftPolicy {
     )
     private static let privateReasonAvailabilityPattern = try! NSRegularExpression(
         pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]*)\s+(I\s+can\s+(?:join|attend|make\s+it)\s+only\s+before\s+(?:noon|midday|\d{1,2}(?::\d{2})?\s*(?:AM|PM))(?:,\s+not\s+after)?),\s+and\s+keep\s+the\s+reason\s+private\.?$"#,
+        options: [.caseInsensitive]
+    )
+    private static let privateMatterDeclinePattern = try! NSRegularExpression(
+        pattern: #"^[Tt]ell\s+(\p{Lu}[\p{L}-]*)\s+(I\s+(?:cannot|can't|can’t)\s+(?:join|attend))\s+because\s+of\s+a\s+private\s+matter\.\s+Do\s+not\s+share\s+the\s+reason\.$"#,
         options: [.caseInsensitive]
     )
     private static let warmReadyReviewPattern = try! NSRegularExpression(

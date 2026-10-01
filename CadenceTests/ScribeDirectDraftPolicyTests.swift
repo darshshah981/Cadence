@@ -641,6 +641,35 @@ struct ScribeDirectDraftPolicyTests {
     }
 
     @Test
+    func explicitlyPrivateMatterStaysOutOfTheOutgoingDecline() throws {
+        let speech = "Tell Ravi I cannot join because of a private matter. Do not share the reason."
+        let request = ScribeRequest.directDictation(processedDictation: speech)
+        let input = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .legacyLocal)
+        #expect(input.preparedDraft == "Ravi, I cannot join.")
+        #expect(try ScribeRequestPolicy.providerSafeInput(
+            for: request, destination: .deepSeek
+        ).preparedDraft == nil)
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateDirectDraftDirectionSeparation(
+                "Ravi, I cannot join because of a private matter.",
+                spokenRequest: speech, protectedValues: []
+            )
+        }
+        try ScribeRequestPolicy.validateDirectDraftDirectionSeparation(
+            "Ravi, I cannot join.", spokenRequest: speech, protectedValues: []
+        )
+        for unsupported in [
+            "Tell Ravi to keep the reason private.",
+            "Tell Ravi I cannot join because of a private matter. Please ask for another time.",
+            "Quote: Tell Ravi I cannot join because of a private matter. Do not share the reason."
+        ] {
+            #expect(try ScribeRequestPolicy.providerSafeInput(
+                for: .directDictation(processedDictation: unsupported), destination: .legacyLocal
+            ).preparedDraft == nil)
+        }
+    }
+
+    @Test
     func warmReadyReviewKeepsTheNamedAddressee() throws {
         let speech = "Keep this warm and short. Tell Hana the deck is ready to review."
         let input = try ScribeRequestPolicy.providerSafeInput(

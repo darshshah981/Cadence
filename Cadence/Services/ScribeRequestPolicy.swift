@@ -626,6 +626,11 @@ enum ScribeRequestPolicy {
                         options: [.regularExpression, .caseInsensitive]) != nil {
             throw ScribeProviderError.invalidResult
         }
+        if ScribeDirectDraftPolicy.privateMatterDeclineParts(in: spokenRequest) != nil,
+           output.range(of: #"\bprivate\s+matter\b|\bshare\s+the\s+reason\b"#,
+                        options: [.regularExpression, .caseInsensitive]) != nil {
+            throw ScribeProviderError.invalidResult
+        }
         if ScribeDirectDraftPolicy.politeNamedRequestParts(in: spokenRequest) != nil,
            output.range(of: #"\bmake\s+the\s+request\s+polite\b"#,
                         options: [.regularExpression, .caseInsensitive]) != nil {
