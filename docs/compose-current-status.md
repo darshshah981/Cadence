@@ -39,7 +39,15 @@ Ordinary Dictation and direct Compose remain enabled. Context, memory, conversat
 
 ## Stabilization verification
 
-Verification is in progress. A final report will record canonical checkout/HEAD, recovery integrity, ignored-secret boundaries, project regeneration, build, existing automated checks and remaining live limitations. No new feature or test harness is being built. Installed Cadence remains the preceding working Release until a verified replacement is ready.
+Stabilization and consolidation are complete at runtime source `aed7e29a576757da56e97e7d2d62c0b609b964cb`; subsequent status-only commits do not change the app's source. The Documents checkout is clean and authoritative. Both original and recovery histories are ancestors of this reconciled branch. Eight ignore probes passed; no tracked local configuration or credential pattern was found. XcodeGen regeneration produces no project diff.
+
+- Existing default-flag regression failed before the change, then 56 focused tests passed.
+- The broader hosted run passed 1,394 Swift tests in 116 suites plus four XCTest cases with the seven-test keyboard-focus suite excluded. The unexcluded run executed 1,401 Swift tests and failed one assertion because the test app could not become active; it is preserved and is not counted as a full-suite pass.
+- The canonical Documents checkout built and passed 85 focused tests across feature flags, repository/privacy contracts, dictation and insertion. All 46 Python checks passed, and the existing privacy-canary scan passed.
+- A scoped consolidation code review completed with no actionable findings. No new test harness, feature, provider request or broad runtime refactor was added.
+- The canonical source produced a Developer ID signed universal Release with a verified signature. It replaced the same `/Applications/Cadence.app`; source/executable identity, launch, preserved OAuth configuration, enabled OpenAI provider and absence of experimental context/memory controls were verified. One Cadence app remains in Applications. The previous app is backed up privately.
+
+The local app is **not notarized or distributable**. This checkpoint adds no new live microphone/Muse or screen/memory certification; prior live evidence and the TextEdit focus gap remain as recorded above. Private verification and installation reports are in `evidence/stabilization-2026-10-02/`. Large existing orchestrators remain architectural debt; this consolidation does not claim a complete redesign.
 
 ## Next work
 
