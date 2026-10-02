@@ -485,6 +485,7 @@ struct ScribeTests {
         try #require([
             "instruction-following", "instruction-holdout", "instruction-reserve-2026-09-30",
             "openai-core-2026-10-01",
+            "openai-independent-2026-10-02-a",
             "instruction-independent-2026-09-30", "instruction-independent-2026-09-30-o",
             "instruction-independent-2026-09-30-p",
             "instruction-independent-2026-09-30-q", "instruction-independent-2026-09-30-r",
@@ -639,9 +640,17 @@ struct ScribeTests {
         let environment = ProcessInfo.processInfo.environment
         guard environment["CADENCE_RUN_OPENAI_CORE_COMPARISON"] == "1" else { return }
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let directory = root.appendingPathComponent("Build/ComposeRoadmap/U2-openai-direct")
+        let fixtureName = environment["CADENCE_SCRIBE_EVALUATION_CORPUS"] ?? "openai-core-2026-10-01"
+        try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a"].contains(fixtureName))
+        let independent = fixtureName == "openai-independent-2026-10-02-a"
+        let directory = root.appendingPathComponent(independent
+            ? "Build/ComposeRoadmap/U2-openai-independent-2026-10-02-a"
+            : "Build/ComposeRoadmap/U2-openai-direct")
+        if independent {
+            try #require(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("first-results.json").path))
+        }
         let fixtureURL = try #require(Bundle(for: ScribeFixtureBundle.self).url(
-            forResource: "openai-core-2026-10-01", withExtension: "json"
+            forResource: fixtureName, withExtension: "json"
         ))
         let data = try Data(contentsOf: fixtureURL)
         let corpus = try JSONDecoder().decode(InstructionCorpus.self, from: data)

@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh independent OpenAI Compose reserve A, October 2. Freeze and commit before any production export or generation.",
+  "semanticCriteria": {
+    "gate": "At least 19 of 20 useful review-ready drafts; zero critical changes to meaning, recipients, exact words, restrictions, uncertainty, privacy or writing-direction separation. A rejected draft is not useful.",
+    "critical": "Changed or invented operative facts, dropped recipient or condition, changed exact literal, a consumed writer instruction in the message, an invented task, disclosed excluded reason or claimed execution.",
+    "minor": "Faithful stylistic paraphrase, capitalization outside exact text, punctuation or list formatting that retains all operative meaning.",
+    "review": "Grade the first model outputs using frozen per-case criteria and production output guards. Preserve failures; do not tune or rerun before grading."
+  },
+  "cases": [
+    {
+      "id": "formal-question",
+      "family": "general",
+      "spoken": "Good morning, did you receive my note? Make this professional.",
+      "exampleDraft": "Good morning, have you received my note?",
+      "completionCriteria": "Preserve greeting and question; consume professional direction."
+    },
+    {
+      "id": "casual-review",
+      "family": "messaging",
+      "spoken": "Tell Elena the slides are ready and she can review them after lunch. Keep it casual.",
+      "exampleDraft": "Elena, the slides are ready for you to review after lunch.",
+      "completionCriteria": "Elena, slides ready, permissive timing after lunch; casual."
+    },
+    {
+      "id": "tentative-delivery",
+      "family": "messaging",
+      "spoken": "Tell Ben I expect to finish the draft this evening unless the supplier sends more changes.",
+      "exampleDraft": "Ben, I expect to finish the draft this evening unless the supplier sends more changes.",
+      "completionCriteria": "Preserve tentative expectation and supplier condition, not a firm promise."
+    },
+    {
+      "id": "corrected-date",
+      "family": "messaging",
+      "spoken": "Tell Asha the review is on Wednesday. Actually, it is on Thursday. Please ask whether that works.",
+      "exampleDraft": "Asha, the review is on Thursday. Does that work for you?",
+      "completionCriteria": "Only Thursday; Asha; ask availability."
+    },
+    {
+      "id": "exact-note",
+      "family": "messaging",
+      "spoken": "Write a note to Finn with the exact words \"Hold the release until Friday\".",
+      "exampleDraft": "Finn, Hold the release until Friday.",
+      "completionCriteria": "Finn and complete exact quoted body; no instruction to use the words."
+    },
+    {
+      "id": "unit-contrast",
+      "family": "general",
+      "spoken": "The fee is $45 per account each quarter, not per month.",
+      "exampleDraft": "The fee is $45 per account each quarter, not per month.",
+      "completionCriteria": "Keep amount, account unit, quarter period and negative month contrast."
+    },
+    {
+      "id": "private-decline",
+      "family": "messaging",
+      "spoken": "Tell Greta I cannot help this weekend because I have a family commitment. Leave out the reason.",
+      "exampleDraft": "Greta, I cannot help this weekend.",
+      "completionCriteria": "Recipient, decline and weekend; no family reason or writer direction."
+    },
+    {
+      "id": "recipient-instruction",
+      "family": "messaging",
+      "spoken": "Ask Nadia to shorten the opening section but keep every example in the appendix.",
+      "exampleDraft": "Nadia, please shorten the opening section, but keep every example in the appendix.",
+      "completionCriteria": "Preserve recipient editing instructions and every-example restriction."
+    },
+    {
+      "id": "warm-thanks",
+      "family": "messaging",
+      "spoken": "Tell Victor I appreciate his patience while we review the application. Make it warm.",
+      "exampleDraft": "Victor, I really appreciate your patience while we review the application.",
+      "completionCriteria": "Victor, appreciation, ongoing review; no approval implied."
+    },
+    {
+      "id": "concise-alternative",
+      "family": "messaging",
+      "spoken": "Tell Hana I cannot finish the outline today, but I can send the first section tomorrow morning. Make this concise.",
+      "exampleDraft": "Hana, I cannot finish the outline today, but I can send the first section tomorrow morning.",
+      "completionCriteria": "Keep both actions, negative finish boundary, today and tomorrow morning."
+    },
+    {
+      "id": "three-bullets",
+      "family": "general",
+      "spoken": "Write three bullets: the adapter is installed; the sync has not finished; the rollout date is tentative.",
+      "exampleDraft": "- The adapter is installed.\n- The sync has not finished.\n- The rollout date is tentative.",
+      "completionCriteria": "Exactly three distinct bullets; preserve negative and tentative status."
+    },
+    {
+      "id": "read-only-review",
+      "family": "coding",
+      "spoken": "Ask Codex to review `lib/Session.swift` and `lib/Store.swift`. Do not change code or commit anything.",
+      "exampleDraft": "Review lib/Session.swift and lib/Store.swift. Do not change code or commit anything.",
+      "completionCriteria": "Direct prompt, exact paths, both negative action restrictions."
+    },
+    {
+      "id": "explain-error",
+      "family": "coding",
+      "spoken": "Ask Claude to explain why `loadRecord` returns nil for an empty index. Do not implement a fix.",
+      "exampleDraft": "Explain why loadRecord returns nil for an empty index. Do not implement a fix.",
+      "completionCriteria": "Direct explanation task, identifier, nil, empty-index condition, no implementation."
+    },
+    {
+      "id": "uncertain-reply",
+      "family": "coding",
+      "spoken": "I am not certain, but the last retry may have reused the old token. Write this as a reply in Codex.",
+      "exampleDraft": "I am not certain, but the last retry may have reused the old token.",
+      "completionCriteria": "Keep uncertainty and statement; no invented coding task."
+    },
+    {
+      "id": "timezone-invitation",
+      "family": "messaging",
+      "spoken": "Ask Pavel if 9:30 AM PT on Monday works, or whether Tuesday would be better.",
+      "exampleDraft": "Pavel, does 9:30 AM PT on Monday work, or would Tuesday be better?",
+      "completionCriteria": "Recipient, exact time and timezone, two weekday alternatives, question."
+    },
+    {
+      "id": "not-approved",
+      "family": "messaging",
+      "spoken": "Tell Daria request REQ-73 is queued, but it has not been approved or rejected.",
+      "exampleDraft": "Daria, request REQ-73 is queued and has not been approved or rejected.",
+      "completionCriteria": "Exact identifier, queued status, both negative decision states."
+    },
+    {
+      "id": "correction-contrast",
+      "family": "messaging",
+      "spoken": "Tell Iris the transfer is complete. Sorry, the upload is complete; the transfer is still pending.",
+      "exampleDraft": "Iris, the upload is complete; the transfer is still pending.",
+      "completionCriteria": "Corrected subject, completed upload, pending transfer and recipient."
+    },
+    {
+      "id": "exact-technical",
+      "family": "coding",
+      "spoken": "Ask Codex to run the parser tests with literal flag dry run end literal for literal verbatim tests/ParserTests.swift end literal. Do not publish the results.",
+      "exampleDraft": "Run the parser tests with --dry-run for tests/ParserTests.swift. Do not publish the results.",
+      "completionCriteria": "Direct task, exact --dry-run and path, no publication, no claimed execution."
+    },
+    {
+      "id": "polite-boundary",
+      "family": "messaging",
+      "spoken": "Tell Ken I can review one proposal this week, but I cannot take on the entire project. Make this polite.",
+      "exampleDraft": "Ken, I can review one proposal this week, but I cannot take on the entire project.",
+      "completionCriteria": "Recipient, one-proposal capacity, this week, project boundary."
+    },
+    {
+      "id": "professional-question",
+      "family": "general",
+      "spoken": "I think the totals exclude shipping, but I am not sure. Could you confirm before we send the estimate? Write this professionally.",
+      "exampleDraft": "I believe the totals exclude shipping, but I am not certain. Could you confirm before we send the estimate?",
+      "completionCriteria": "Preserve uncertainty, shipping exclusion, confirmation question and before-send condition."
+    }
+  ]
+}
