@@ -171,6 +171,9 @@ enum ScribeRequestPolicy {
             - Explicitly requested exact quoted words retain their original capitalization and characters. Place an address or other connective wording outside that exact span.
             - Keep recipient restrictions actually supplied by the speaker, but never invent restrictions or actions. A restriction appearing in these instructions is not part of the speaker's message.
             - Use the final explicit correction and preserve any explicit negative contrast that remains in it.
+            - Preserve the original question's action: asking whether a note arrived must not become asking whether it was reviewed. Do not add follow-up requests, offers, or questions solely to sound professional.
+            - Preserve ability versus commitment: "I can send" states ability, not "I will send" or "I'll send". Concision and politeness never authorize a stronger promise.
+            - Keep each explicit personal uncertainty qualifier, even when the draft also asks for confirmation. A confirmation question does not replace "I think", "I am not sure", or another stated uncertainty.
             Only writing directions should be consumed, not constraints on what the recipient may do.
             If the request only asks to transform absent text (for example, "make this shorter" with no text), return that unresolved request as-is; do not substitute any unrelated example or invent a draft.
             """)
@@ -732,7 +735,8 @@ enum ScribeRequestPolicy {
     private static func formalUncertaintyQualifiers(
         in writing: ScribeWritingDirectionParser.Result
     ) -> [UncertaintyQualifier] {
-        guard writing.request.writingDirections.contains(.tone(.formal)),
+        guard writing.request.writingDirections.contains(.tone(.formal))
+                || writing.request.writingDirections.contains(.tone(.professional)),
               writing.unresolvedReferences.isEmpty,
               !writing.request.protectedSpans.contains(where: { $0.kind == .quotedOrLiteralRequest }),
               writing.content.range(of: #"\b(?:actually|instead|rather|I mean|correction)\b"#,

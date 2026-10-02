@@ -643,7 +643,11 @@ struct ScribeTests {
         let fixtureName = environment["CADENCE_SCRIBE_EVALUATION_CORPUS"] ?? "openai-core-2026-10-01"
         try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a"].contains(fixtureName))
         let independent = fixtureName == "openai-independent-2026-10-02-a"
-        let directory = root.appendingPathComponent(independent
+        let phase = environment["CADENCE_OPENAI_COMPARISON_PHASE"] ?? "first"
+        try #require(["first", "development-1"].contains(phase))
+        let directory = root.appendingPathComponent(independent && phase == "development-1"
+            ? "Build/ComposeRoadmap/U2-openai-development-2026-10-02-a"
+            : independent
             ? "Build/ComposeRoadmap/U2-openai-independent-2026-10-02-a"
             : "Build/ComposeRoadmap/U2-openai-direct")
         if independent {
@@ -722,6 +726,25 @@ struct ScribeTests {
                 .write(to: directory.appendingPathComponent("first-results.json"), options: .atomic)
         }
         #expect(results.count == 20)
+        if independent && phase == "development-1" {
+            // A single published host fixture connects the real provider output
+            // to the existing insertion check. Never accept arbitrary file text.
+            let literal = "SYNTHETIC alpha 314."
+            let request = ScribeRequest.directDictation(
+                processedDictation: "Write the exact words \"\(literal)\".",
+                exactLiterals: [.init(id: 0, value: literal, source: .alreadyExact)]
+            )
+            let input = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .openAIDirect)
+            let result = try await provider.generate(ScribeProviderRequest(id: UUID(), input: input))
+            try #require(result.text == literal)
+            try Data(result.text.utf8).write(to: directory.appendingPathComponent("generated-insertion-draft.txt"), options: .atomic)
+            let manifest: [String: Any] = ["syntheticOnly": true, "model": "gpt-4.1-2025-04-14",
+                "requestSHA256": EvaluationRequestExport.hash(system: input.systemMessage, user: input.userMessage),
+                "draftSHA256": SHA256.hash(data: Data(result.text.utf8)).map { String(format: "%02x", $0) }.joined(),
+                "sourceCommit": environment["CADENCE_COMPARISON_SOURCE_COMMIT"] ?? "unknown"]
+            try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+                .write(to: directory.appendingPathComponent("generated-insertion-manifest.json"), options: .atomic)
+        }
     }
 
     @Test

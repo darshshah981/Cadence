@@ -86,7 +86,14 @@ struct ComposeInsertionIntegrationTests {
                         throw SyntheticIntegrationFailure.targetVerificationFailed
                     }
                     let inserted = try await Self.stage("insert") {
-                        try await service.insert(SyntheticInsertionHost.fixtures[fixture]!, for: capture)
+                        var draft = SyntheticInsertionHost.fixtures[fixture]!
+                        if id == "native-field-one-copy",
+                           let generatedPath = environment["CADENCE_COMPOSE_GENERATED_SYNTHETIC_DRAFT"] {
+                            let generated = try String(contentsOfFile: generatedPath, encoding: .utf8)
+                            guard generated == draft else { throw SyntheticIntegrationFailure.valueMismatch }
+                            draft = generated
+                        }
+                        return try await service.insert(draft, for: capture)
                     }
                     guard inserted,
                           insertion.realInsertionCallCount == 1 else {

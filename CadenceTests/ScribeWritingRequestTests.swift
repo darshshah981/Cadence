@@ -286,6 +286,22 @@ struct ScribeWritingRequestTests {
     }
 
     @Test
+    func professionalQuestionCannotReplaceExplicitUncertaintyWithConfirmation() throws {
+        let speech = "I think the totals exclude shipping, but I am not sure. Could you confirm before we send the estimate? Write this professionally."
+        // Actual first-run OpenAI result from the frozen independent reserve.
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateDirectDraftUncertainty(
+                "Could you please confirm whether the totals exclude shipping before we send the estimate? Thank you.",
+                spokenRequest: speech, protectedValues: []
+            )
+        }
+        try ScribeRequestPolicy.validateDirectDraftUncertainty(
+            "I believe the totals exclude shipping, but I am uncertain. Could you confirm before we send the estimate?",
+            spokenRequest: speech, protectedValues: []
+        )
+    }
+
+    @Test
     func uncertaintyGuardDoesNotOverrideConfidentLiteralOrCorrectedContent() throws {
         for (speech, draft) in [
             ("I know the draft is ready. Write this formally.", "I know the draft is ready."),
