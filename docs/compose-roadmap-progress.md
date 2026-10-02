@@ -29,12 +29,16 @@ old app is backed up, OAuth configuration is preserved, and there remains one
 Cadence app in Applications. This is a local, unnotarized test build. Evidence:
 private staging `evidence/u6-muse-focus-2026-10-02/`.
 
-**The Muse failure is not yet certified fixed.** The regression establishes
-removal of an unnecessary focus reset, not its causal role in the live failure.
-A new installed Muse trial must show the reviewed draft once in the unsent
-editor without foregrounding Cadence. TextEdit's earlier exact editor/history
-match is observed, but trigger-time focus still needs user confirmation. The
-installed voice-path goal remains incomplete; no other feature is started.
+**The installed Muse retry passed.** The user confirmed that text appeared and
+Cadence did not jump forward. Independent screenshot readback shows one unsent
+draft; its hash matches the latest saved Compose result exactly. No message was
+sent or existing draft overwritten by automation. This resolves the reported
+Muse failure for this trial; it does not certify all conversations or establish
+the original failure's exact mechanism. Software evidence remains 48 focused
+checks and 18 controlled insertion cases. Automation did not observe live
+microphone capture or the pre-insertion review. TextEdit's earlier single exact
+editor/history match remains verified, with trigger-time focus confirmation
+pending. No next feature has started. Private evidence: `muse-live-verified.json`.
 
 October 2 completed checkpoint: source `871013c` passes the first run of a fresh,
 frozen 20-request lexical reserve in supported task families: **20 useful,
