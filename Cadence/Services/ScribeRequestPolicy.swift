@@ -172,6 +172,14 @@ enum ScribeRequestPolicy {
                isExplicitCodingRequest(request.spokenTranscript),
                case .named(let name) = frame.recipient,
                ["Codex", "Claude"].contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
+                if destination == .openAIDirect {
+                    // Do not send both the consumed writer frame and its task
+                    // body as competing content sources to the cloud model.
+                    sections[2] = "Spoken writing request:\n" + frame.body
+                    if !writing.instructions.isEmpty {
+                        sections.append("Explicit writing directions:\n" + writing.instructions.joined(separator: "\n"))
+                    }
+                }
                 // This is derived entirely from current dictation, not app
                 // identity. Supply the parser's task body so preserving a
                 // destination name cannot preserve the writer wrapper.
@@ -688,6 +696,14 @@ enum ScribeRequestPolicy {
         protectedValues: [String]
     ) throws {
         let parsed = ScribeWritingDirectionParser.parse(spokenRequest, protectedValues: protectedValues)
+        if isExplicitCodingRequest(spokenRequest),
+           let recipient = parsed.request.recipientFrame?.recipient,
+           case .named(let name) = recipient,
+           ["Codex", "Claude"].contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }),
+           output.range(of: #"^\s*(?:please\s+)?ask\s+(?:Codex|Claude)\s+to\b"#,
+                        options: [.regularExpression, .caseInsensitive]) != nil {
+            throw ScribeProviderError.invalidResult
+        }
         for command in parsed.consumedCommands {
             guard !parsed.request.message.localizedCaseInsensitiveContains(command) else { continue }
             if output.localizedCaseInsensitiveContains(command) {
