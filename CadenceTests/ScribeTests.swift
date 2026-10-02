@@ -644,9 +644,9 @@ struct ScribeTests {
         try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a"].contains(fixtureName))
         let independent = fixtureName == "openai-independent-2026-10-02-a"
         let phase = environment["CADENCE_OPENAI_COMPARISON_PHASE"] ?? "first"
-        try #require(["first", "development-1"].contains(phase))
-        let directory = root.appendingPathComponent(independent && phase == "development-1"
-            ? "Build/ComposeRoadmap/U2-openai-development-2026-10-02-a"
+        try #require(["first", "development-1", "development-2"].contains(phase))
+        let directory = root.appendingPathComponent(independent && phase != "first"
+            ? "Build/ComposeRoadmap/U2-openai-\(phase)-2026-10-02-a"
             : independent
             ? "Build/ComposeRoadmap/U2-openai-independent-2026-10-02-a"
             : "Build/ComposeRoadmap/U2-openai-direct")
@@ -726,7 +726,7 @@ struct ScribeTests {
                 .write(to: directory.appendingPathComponent("first-results.json"), options: .atomic)
         }
         #expect(results.count == 20)
-        if independent && phase == "development-1" {
+        if independent && phase != "first" {
             // A single published host fixture connects the real provider output
             // to the existing insertion check. Never accept arbitrary file text.
             let literal = "SYNTHETIC alpha 314."

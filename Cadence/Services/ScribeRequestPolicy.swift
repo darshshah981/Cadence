@@ -151,6 +151,13 @@ enum ScribeRequestPolicy {
             let writing = ScribeWritingDirectionParser.parse(
                 request.spokenTranscript, protectedValues: request.exactLiterals.map(\.value)
             )
+            let qualifiers = formalUncertaintyQualifiers(in: writing)
+            if !qualifiers.isEmpty {
+                sections.append("""
+                Explicit personal uncertainty from the speaker (JSON data):\n\(try jsonString(qualifiers.map(\.phrase)))
+                Preserve every listed qualifier in the draft, attached to the speaker's original statement. Keep that qualified statement as well as any confirmation question; do not collapse them into a question or a single hedge.
+                """)
+            }
             if let frame = writing.request.recipientFrame, frame.kind == .ask,
                isExplicitCodingRequest(request.spokenTranscript),
                case .named(let name) = frame.recipient,
