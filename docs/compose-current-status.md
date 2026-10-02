@@ -4,7 +4,7 @@ Updated October 2, 2026. This page is the authoritative current status. The [ful
 
 ## Authoritative workspace
 
-Develop in `/Users/darshshah/Documents/My Projects/Coding Projects/Cadence` on `codex/stabilize-cadence`. The recovery clone at `/tmp/cadence-compose-git-recovery/Cadence` becomes an archived, non-development copy after consolidation. `main` remains the last published baseline; this local branch contains the reconciled work and is not yet pushed.
+Develop in `/Users/darshshah/Documents/My Projects/Coding Projects/Cadence`. The consolidated work is published through `codex/stabilize-cadence`; after its PR is merged, use `main` as the shared baseline and create a `codex/` branch for each new bounded goal. The recovery clone at `/tmp/cadence-compose-git-recovery/Cadence` is an archived, non-development copy.
 
 The original pre-consolidation source is recoverable at `codex/preserve-pre-consolidation-2026-10-02` (`fd35540147847b4f34a324841b595c18c4b14411`). The prior recovery head is preserved at `codex/preserve-recovery-2026-10-02` (`5ee468f68a30900ce89aa6bd9247e4c8a83593b0`). Private snapshots, file reconciliation decisions, verification logs and complete Git bundles are under `/Users/darshshah/.codex/cadence-compose-staging-2026-09-30/evidence/stabilization-2026-10-02/`. Existing unrelated branches and the Calendar worktree are retained.
 
@@ -51,4 +51,4 @@ The local app is **not notarized or distributable**. This checkpoint adds no new
 
 ## Next work
 
-Feature work remains paused until stabilization finishes. Memory is the user's preferred next area; choose one small goal and one supported workspace after this checkpoint. Keep capture, retention and OpenAI transmission separate, and verify conversation isolation before using facts in drafts. The overnight heartbeat remains paused.
+Stabilization is complete. Feature work remains paused until the next bounded goal is selected. Memory is the user's preferred next area; choose one small goal and one supported workspace after this checkpoint. Keep capture, retention and OpenAI transmission separate, and verify conversation isolation before using facts in drafts. The overnight heartbeat remains paused.

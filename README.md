@@ -6,7 +6,7 @@ Cadence is a small menu bar app for push-to-talk dictation. Hold a shortcut, spe
 
 ## Development status
 
-Use the Documents checkout on `codex/stabilize-cadence` as the authoritative development workspace. See [current feature status and verification](docs/compose-current-status.md) and [the codebase guide](docs/codebase-guide.md). The recovery clone is a preserved historical copy, not a second place to develop. Context, memory, and conversation adapters are unfinished previews and default off; normal Dictation and Compose remain available.
+Use the Documents checkout as the authoritative development workspace, with `main` as the shared baseline after the consolidation PR merges and a `codex/` branch for each new goal. See [current feature status and verification](docs/compose-current-status.md) and [the codebase guide](docs/codebase-guide.md). The recovery clone is a preserved historical copy, not a second place to develop. Context, memory, and conversation adapters are unfinished previews and default off; normal Dictation and Compose remain available.
 
 ## Design
 
