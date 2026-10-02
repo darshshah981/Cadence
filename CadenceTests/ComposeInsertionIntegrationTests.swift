@@ -100,6 +100,7 @@ struct ComposeInsertionIntegrationTests {
                         throw SyntheticIntegrationFailure.insertionNotAttemptedOnce
                     }
                     try await controller.requireExactInsertion(target: target, fixture: fixture)
+                    try await controller.validateFinalEventBoundary(expectedGeneration: controller.windowGeneration)
                 }
             }
             await report.record("repeat-successful-insert-refused") {
@@ -414,6 +415,7 @@ private final class InsertionIntegrationReport {
             "testExecutablePath": Bundle.main.executableURL?.path ?? "unavailable",
             "osVersion": ProcessInfo.processInfo.operatingSystemVersionString,
             "expectedCaseCount": 18, "completedCaseCount": rows.count,
+            "generatedSyntheticDraftRequested": ProcessInfo.processInfo.environment["CADENCE_COMPOSE_GENERATED_SYNTHETIC_DRAFT"] != nil,
             "passedCaseCount": rows.count - failures, "failedCaseCount": failures,
             "cases": rows,
             "limitations": ["The cross-bundle focus switch uses a new system editor instance with a synthetic document; no user document is read or certified.", "Does not exercise clipboard failure or a naturally occurring partial CGEvent failure.", "A dead process is tested; OS PID reuse is not forced."]

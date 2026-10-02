@@ -486,6 +486,7 @@ struct ScribeTests {
             "instruction-following", "instruction-holdout", "instruction-reserve-2026-09-30",
             "openai-core-2026-10-01",
             "openai-independent-2026-10-02-a",
+            "openai-independent-2026-10-02-b",
             "instruction-independent-2026-09-30", "instruction-independent-2026-09-30-o",
             "instruction-independent-2026-09-30-p",
             "instruction-independent-2026-09-30-q", "instruction-independent-2026-09-30-r",
@@ -641,14 +642,15 @@ struct ScribeTests {
         guard environment["CADENCE_RUN_OPENAI_CORE_COMPARISON"] == "1" else { return }
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let fixtureName = environment["CADENCE_SCRIBE_EVALUATION_CORPUS"] ?? "openai-core-2026-10-01"
-        try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a"].contains(fixtureName))
-        let independent = fixtureName == "openai-independent-2026-10-02-a"
+        try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a", "openai-independent-2026-10-02-b"].contains(fixtureName))
+        let independent = fixtureName != "openai-core-2026-10-01"
         let phase = environment["CADENCE_OPENAI_COMPARISON_PHASE"] ?? "first"
         try #require(["first", "development-1", "development-2"].contains(phase))
+        try #require(fixtureName != "openai-independent-2026-10-02-b" || phase == "first")
         let directory = root.appendingPathComponent(independent && phase != "first"
             ? "Build/ComposeRoadmap/U2-openai-\(phase)-2026-10-02-a"
             : independent
-            ? "Build/ComposeRoadmap/U2-openai-independent-2026-10-02-a"
+            ? "Build/ComposeRoadmap/U2-\(fixtureName)"
             : "Build/ComposeRoadmap/U2-openai-direct")
         if independent {
             try #require(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("first-results.json").path))
