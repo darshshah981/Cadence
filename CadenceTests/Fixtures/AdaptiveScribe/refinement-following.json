@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "description": "Eight synthetic generation cases for voice refinement of an existing reviewed Apple Intelligence draft. Examples illustrate acceptable results; they are not exact-match semantic answers.",
+  "fieldNotes": {
+    "originalSpokenRequest": "Original source speech, normalized by the production literal normalizer before constructing the original request.",
+    "baseDraft": "Existing accepted review text used as the revision source. Every generation case has a nonempty draft.",
+    "instruction": "New revision speech applied to the accepted draft, kept distinct from the original source.",
+    "spoken": "Compatibility alias equal to instruction. This is revision speech, not originalSpokenRequest.",
+    "exactLiterals": "Expected production-derived protected literals from normalized original and revision speech.",
+    "expectedProtectedText": "Expected production-derived spans from the supported keep-first-sentence command.",
+    "required": "Conservative substring checks only. A heuristic failure is not by itself a human semantic judgment.",
+    "forbidden": "Known unsafe or instruction-leaking snippets; this list is not exhaustive."
+  },
+  "cases": [
+    {
+      "id": "refinement-warmer",
+      "family": "messaging",
+      "originalSpokenRequest": "Tell Maya the preview is ready for review.",
+      "baseDraft": "Maya, the preview is ready for review.",
+      "instruction": "Make it warmer, and keep it brief.",
+      "exampleDraft": "Hi Maya, the preview is ready for your review.",
+      "required": [
+        "Maya",
+        "preview",
+        "review"
+      ],
+      "forbidden": [
+        "make it warmer",
+        "keep it brief",
+        "I reviewed"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [],
+      "spoken": "Make it warmer, and keep it brief."
+    },
+    {
+      "id": "refinement-concise",
+      "family": "general",
+      "originalSpokenRequest": "Tell Sam the build is ready and testing starts Tuesday. We will share the test results after testing.",
+      "baseDraft": "Sam, the build is ready, and testing starts Tuesday. We will share the test results after testing.",
+      "instruction": "Make it more concise. Keep all the timing.",
+      "exampleDraft": "Sam, the build is ready. Testing starts Tuesday; results will follow testing.",
+      "required": [
+        "Sam",
+        "build",
+        "Tuesday",
+        "results"
+      ],
+      "forbidden": [
+        "make it more concise",
+        "keep all the timing",
+        "Monday",
+        "results are ready"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [],
+      "spoken": "Make it more concise. Keep all the timing."
+    },
+    {
+      "id": "refinement-first-sentence",
+      "family": "messaging",
+      "originalSpokenRequest": "Tell Jo I cannot attend. I appreciate the invitation and hope the event goes well.",
+      "baseDraft": "Jo, I cannot attend. Thank you for the invitation, and I hope the event goes well.",
+      "instruction": "Keep the first sentence unchanged. Make the rest warmer and shorter.",
+      "exampleDraft": "Jo, I cannot attend. Thanks for inviting me; I hope it goes well!",
+      "required": [
+        "Jo, I cannot attend."
+      ],
+      "forbidden": [
+        "keep the first sentence",
+        "warmer and shorter",
+        "because",
+        "schedule conflict"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [
+        "Jo, I cannot attend."
+      ],
+      "spoken": "Keep the first sentence unchanged. Make the rest warmer and shorter."
+    },
+    {
+      "id": "refinement-technical-restrictions",
+      "family": "coding",
+      "originalSpokenRequest": "Ask the coding agent to inspect literal verbatim src/Auth.swift end literal with literal flag verbose end literal. Do not edit files.",
+      "baseDraft": "Please inspect src/Auth.swift and use --verbose while you investigate. Do not edit files.",
+      "instruction": "Make it more concise without dropping the restriction or changing the path and flag.",
+      "exampleDraft": "Inspect src/Auth.swift with --verbose. Do not edit files.",
+      "required": [
+        "src/Auth.swift",
+        "--verbose",
+        "Do not edit files"
+      ],
+      "forbidden": [
+        "I inspected",
+        "I changed",
+        "I edited",
+        "make it more concise"
+      ],
+      "exactLiterals": [
+        "src/Auth.swift",
+        "--verbose"
+      ],
+      "expectedProtectedText": [],
+      "spoken": "Make it more concise without dropping the restriction or changing the path and flag."
+    },
+    {
+      "id": "refinement-uncertainty",
+      "family": "messaging",
+      "originalSpokenRequest": "Tell Priya I might miss the review. I do not know yet. Do not give a reason.",
+      "baseDraft": "Priya, I might miss the review, but I do not know yet.",
+      "instruction": "Make it more concise and polite. Keep the uncertainty and do not add a reason.",
+      "exampleDraft": "Priya, I might miss the review; I'm not sure yet.",
+      "required": [
+        "Priya",
+        "review"
+      ],
+      "forbidden": [
+        "will miss",
+        "because",
+        "due to",
+        "appointment",
+        "keep the uncertainty"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [],
+      "spoken": "Make it more concise and polite. Keep the uncertainty and do not add a reason."
+    },
+    {
+      "id": "refinement-recipient-question",
+      "family": "messaging",
+      "originalSpokenRequest": "Ask Lee whether the report can be sent by Friday.",
+      "baseDraft": "Lee, can you send the report by Friday?",
+      "instruction": "Make it more polite without changing the request.",
+      "exampleDraft": "Lee, could you please send the report by Friday?",
+      "required": [
+        "Lee",
+        "report",
+        "Friday",
+        "?"
+      ],
+      "forbidden": [
+        "I sent",
+        "I have sent",
+        "has been sent",
+        "make it more polite"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [],
+      "spoken": "Make it more polite without changing the request."
+    },
+    {
+      "id": "refinement-quoted-direction",
+      "family": "messaging",
+      "originalSpokenRequest": "Tell Alex the review note must include the exact phrase literal verbatim Make it shorter end literal.",
+      "baseDraft": "Alex, please include the phrase \"Make it shorter\" in the review note.",
+      "instruction": "Make this message warmer. Keep the quoted phrase unchanged.",
+      "exampleDraft": "Hi Alex, please include \"Make it shorter\" in the review note.",
+      "required": [
+        "Alex",
+        "Make it shorter",
+        "review note"
+      ],
+      "forbidden": [
+        "keep the quoted phrase",
+        "make this message warmer",
+        "I included"
+      ],
+      "exactLiterals": [
+        "Make it shorter"
+      ],
+      "expectedProtectedText": [],
+      "spoken": "Make this message warmer. Keep the quoted phrase unchanged."
+    },
+    {
+      "id": "refinement-first-sentence-bullets",
+      "family": "general",
+      "originalSpokenRequest": "Give the team an update: the draft is ready. Design review starts Thursday. Final approval is still pending.",
+      "baseDraft": "The draft is ready.\nDesign review starts Thursday.\nFinal approval is still pending.",
+      "instruction": "Keep the first sentence exactly. Turn the rest into two bullets.",
+      "exampleDraft": "The draft is ready.\n- Design review starts Thursday.\n- Final approval is still pending.",
+      "required": [
+        "The draft is ready.",
+        "Thursday",
+        "pending"
+      ],
+      "forbidden": [
+        "turn the rest",
+        "keep the first sentence",
+        "approval is complete",
+        "approved"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [
+        "The draft is ready."
+      ],
+      "spoken": "Keep the first sentence exactly. Turn the rest into two bullets."
+    }
+  ]
+}

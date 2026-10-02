@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Independent synthetic Compose validation reserve frozen after the upbeat correction candidate. Do not tune on this set and keep calling it held out after generation.",
+  "evaluationOrder": "Freeze this exact corpus and grading rules before production request export or model generation. Judge raw generation, policy readiness, and semantic quality separately.",
+  "semanticCriteria": {
+    "acceptable": "A sendable draft or safe missing-source recovery preserves named recipient, factual subject, uncertainty, negation, exact paths and flags, recipient restrictions, and writer-versus-recipient intent. Requested tone is recognizable without adding facts.",
+    "critical": "Invented consequential facts or actions, changed subject or negation, lost recipient or no-action restriction, changed technical literal, or fabricated source-free content reaching review.",
+    "minor": "Tone, polish, or concision direction missed without material meaning loss, or harmless extra wording.",
+    "gate": "At least 95 percent acceptable and zero critical failures across all 16 cases. Blocked unsafe output counts as safe recovery, not successful drafting."
+  },
+  "cases": [
+    {
+      "id": "validation-warm-preview",
+      "family": "messaging",
+      "spoken": "Keep it warm and brief. Tell Nia the preview is ready for review.",
+      "exampleDraft": "Hi Nia, the preview is ready for review.",
+      "required": [
+        "Nia",
+        "preview",
+        "review"
+      ],
+      "forbidden": [
+        "Keep it warm"
+      ]
+    },
+    {
+      "id": "validation-recipient-style",
+      "family": "messaging",
+      "spoken": "Tell Jo to make the outline shorter.",
+      "exampleDraft": "Jo, please make the outline shorter.",
+      "required": [
+        "Jo",
+        "outline"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "validation-no-reason",
+      "family": "messaging",
+      "spoken": "Tell Cole I cannot join the session tonight. Do not say why.",
+      "exampleDraft": "Cole, I cannot join the session tonight.",
+      "required": [
+        "Cole",
+        "tonight"
+      ],
+      "forbidden": [
+        "because"
+      ]
+    },
+    {
+      "id": "validation-code-no-commit",
+      "family": "coding",
+      "spoken": "Ask the coding agent to inspect src/Auth.swift and do not commit anything.",
+      "exampleDraft": "Inspect src/Auth.swift and do not commit anything.",
+      "required": [
+        "src/Auth.swift",
+        "do not commit"
+      ],
+      "forbidden": [
+        "I committed"
+      ]
+    },
+    {
+      "id": "validation-code-flag",
+      "family": "coding",
+      "spoken": "Draft a request to check scripts/verify.sh with --dry-run and leave the file unchanged.",
+      "exampleDraft": "Check scripts/verify.sh with --dry-run and leave the file unchanged.",
+      "required": [
+        "scripts/verify.sh",
+        "--dry-run",
+        "unchanged"
+      ],
+      "forbidden": [
+        "I ran"
+      ]
+    },
+    {
+      "id": "validation-uncertain-formal",
+      "family": "general",
+      "spoken": "I suspect the cache might be stale. Write this formally.",
+      "exampleDraft": "I suspect the cache may be stale.",
+      "required": [
+        "cache"
+      ],
+      "forbidden": [
+        "definitely"
+      ]
+    },
+    {
+      "id": "validation-correction",
+      "family": "messaging",
+      "spoken": "Tell Mina the review is Tuesday, sorry, Wednesday. Keep it short.",
+      "exampleDraft": "Mina, the review is Wednesday.",
+      "required": [
+        "Mina",
+        "Wednesday"
+      ],
+      "forbidden": [
+        "Tuesday",
+        "sorry"
+      ]
+    },
+    {
+      "id": "validation-missing-source",
+      "family": "general",
+      "spoken": "Summarize that briefly.",
+      "exampleDraft": "Summarize that briefly.",
+      "required": [
+        "Summarize that"
+      ],
+      "forbidden": [
+        "document",
+        "meeting"
+      ]
+    },
+    {
+      "id": "validation-two-statuses",
+      "family": "messaging",
+      "spoken": "Tell Rui the invoice is unpaid and the order is approved. Keep the two statuses distinct.",
+      "exampleDraft": "Rui, the invoice is unpaid and the order is approved.",
+      "required": [
+        "Rui",
+        "unpaid",
+        "approved"
+      ],
+      "forbidden": [
+        "Keep the two statuses distinct"
+      ]
+    },
+    {
+      "id": "validation-formal-greeting",
+      "family": "general",
+      "spoken": "Hi, how's it going? Write this formally.",
+      "exampleDraft": "Hello, how are you?",
+      "required": [
+        "Hello"
+      ],
+      "forbidden": [
+        "Write this formally"
+      ]
+    },
+    {
+      "id": "validation-approval-subject",
+      "family": "messaging",
+      "spoken": "Ask Leo whether the contract needs approval by noon.",
+      "exampleDraft": "Leo, does the contract need approval by noon?",
+      "required": [
+        "Leo",
+        "contract",
+        "noon"
+      ],
+      "forbidden": [
+        "do you need approval"
+      ]
+    },
+    {
+      "id": "validation-only-after",
+      "family": "messaging",
+      "spoken": "Tell Ana we can send the draft only after legal review.",
+      "exampleDraft": "Ana, we can send the draft only after legal review.",
+      "required": [
+        "Ana",
+        "only after legal review"
+      ],
+      "forbidden": [
+        "send now"
+      ]
+    },
+    {
+      "id": "validation-recipient-command",
+      "family": "messaging",
+      "spoken": "Tell Alex to write this formally.",
+      "exampleDraft": "Alex, please write this formally.",
+      "required": [
+        "Alex",
+        "write this formally"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "validation-two-bullets",
+      "family": "general",
+      "spoken": "In two bullets, say design is approved and testing starts Monday.",
+      "exampleDraft": "- Design is approved.\n- Testing starts Monday.",
+      "required": [
+        "design",
+        "Monday"
+      ],
+      "forbidden": [
+        "three"
+      ]
+    },
+    {
+      "id": "validation-upbeat-postponement",
+      "family": "messaging",
+      "spoken": "Tell Beth the launch is postponed, not canceled. Keep it upbeat.",
+      "exampleDraft": "Beth, the launch is postponed, not canceled.",
+      "required": [
+        "Beth",
+        "postponed",
+        "not canceled"
+      ],
+      "forbidden": [
+        "canceled permanently"
+      ]
+    },
+    {
+      "id": "validation-tentative-codex",
+      "family": "general",
+      "spoken": "I think the patch may help, but I have not tested it. Write this as a response in Codex.",
+      "exampleDraft": "I think the patch may help, but I have not tested it.",
+      "required": [
+        "patch",
+        "not tested"
+      ],
+      "forbidden": [
+        "I fixed"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Independent synthetic U2 validation reserve frozen after repairs to the September 30 exposed corpus. Once generated, treat this file as exposed; do not tune on it and continue calling it held out.",
+  "evaluationOrder": "Freeze exact corpus bytes and global semantic rules before generation. Separate raw generation, policy readiness, and semantic quality.",
+  "semanticCriteria": {
+    "acceptable": "A usable draft, or a safe missing-source recovery, keeps recipient, factual subject, dates, negation, uncertainty, exact literals, recipient restrictions, and writer-versus-recipient intent. A blocked unsafe draft is a safe recovery, not successful writing.",
+    "critical": "An invented consequential fact or action, a missing named recipient, changed subject or negation, lost uncertainty or explicit recipient limit, changed technical literal, or fabricated source-free content reaching review.",
+    "minor": "A requested tone, polish, or concision missed without changing meaning, or harmless extra wording.",
+    "gate": "At least 95 percent acceptable and zero critical failures over all 16 cases. Report provider generation and safe recovery separately."
+  },
+  "cases": [
+    {
+      "id": "fresh-negation",
+      "family": "messaging",
+      "spoken": "Tell Priya the budget is not approved yet. Keep it concise.",
+      "exampleDraft": "Priya, the budget is not approved yet.",
+      "required": [
+        "Priya",
+        "not approved"
+      ],
+      "forbidden": [
+        "approved now"
+      ]
+    },
+    {
+      "id": "fresh-uncertain-date",
+      "family": "messaging",
+      "spoken": "Tell Owen the demo might be ready Friday. Write this formally.",
+      "exampleDraft": "Owen, the demo may be ready on Friday.",
+      "required": [
+        "Owen",
+        "Friday"
+      ],
+      "forbidden": [
+        "definitely ready"
+      ]
+    },
+    {
+      "id": "fresh-recipient-limit",
+      "family": "messaging",
+      "spoken": "Ask Casey to review the proposal but do not send it yet.",
+      "exampleDraft": "Casey, please review the proposal, but do not send it yet.",
+      "required": [
+        "Casey",
+        "proposal"
+      ],
+      "forbidden": [
+        "I sent"
+      ]
+    },
+    {
+      "id": "fresh-coding-no-change",
+      "family": "coding",
+      "spoken": "Draft a request to inspect src/Cache.swift without changing code.",
+      "exampleDraft": "Inspect src/Cache.swift without changing code.",
+      "required": [
+        "src/Cache.swift",
+        "without changing code"
+      ],
+      "forbidden": [
+        "I inspected",
+        "I changed"
+      ]
+    },
+    {
+      "id": "fresh-approval-subject",
+      "family": "messaging",
+      "spoken": "Ask Mia whether the contract needs approval by Tuesday.",
+      "exampleDraft": "Mia, does the contract need approval by Tuesday?",
+      "required": [
+        "Mia",
+        "contract",
+        "Tuesday"
+      ],
+      "forbidden": [
+        "do you need approval"
+      ]
+    },
+    {
+      "id": "fresh-two-statuses",
+      "family": "messaging",
+      "spoken": "Tell Dana the invoice is unpaid and the receipt is approved. Keep the two statuses distinct.",
+      "exampleDraft": "Dana, the invoice is unpaid and the receipt is approved.",
+      "required": [
+        "Dana",
+        "unpaid",
+        "approved"
+      ],
+      "forbidden": [
+        "Keep the two statuses distinct"
+      ]
+    },
+    {
+      "id": "fresh-polite-decline",
+      "family": "messaging",
+      "spoken": "Tell Lee I can't attend the meeting tomorrow, and make the reply polite without inventing a reason.",
+      "exampleDraft": "Hi Lee, I’m sorry, but I can't attend the meeting tomorrow.",
+      "required": [
+        "Lee",
+        "tomorrow"
+      ],
+      "forbidden": [
+        "I will make the reply polite",
+        "because"
+      ]
+    },
+    {
+      "id": "fresh-literal-command",
+      "family": "general",
+      "spoken": "Include the exact phrase \"Write this formally\" in a note to Pat.",
+      "exampleDraft": "Pat, Write this formally",
+      "required": [
+        "Write this formally"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "fresh-missing-source",
+      "family": "general",
+      "spoken": "Make this shorter.",
+      "exampleDraft": "Make this shorter.",
+      "required": [
+        "Make this shorter"
+      ],
+      "forbidden": [
+        "invoice",
+        "meeting"
+      ]
+    },
+    {
+      "id": "fresh-correction",
+      "family": "messaging",
+      "spoken": "Tell Ava the launch is Thursday, actually Friday. Keep it upbeat.",
+      "exampleDraft": "Ava, the launch is Friday!",
+      "required": [
+        "Ava",
+        "Friday"
+      ],
+      "forbidden": [
+        "Thursday",
+        "actually"
+      ]
+    },
+    {
+      "id": "fresh-conditional",
+      "family": "messaging",
+      "spoken": "Tell Kim we can proceed only after legal review.",
+      "exampleDraft": "Kim, we can proceed only after legal review.",
+      "required": [
+        "Kim",
+        "legal review"
+      ],
+      "forbidden": [
+        "proceed now"
+      ]
+    },
+    {
+      "id": "fresh-bullet-missing-source",
+      "family": "general",
+      "spoken": "Please put this in two bullets.",
+      "exampleDraft": "Please put this in two bullets.",
+      "required": [
+        "two bullets"
+      ],
+      "forbidden": [
+        "project",
+        "meeting"
+      ]
+    },
+    {
+      "id": "fresh-code-no-run",
+      "family": "coding",
+      "spoken": "Ask the coding agent to find tests/LoginTests.swift and do not run it.",
+      "exampleDraft": "Find tests/LoginTests.swift and do not run it.",
+      "required": [
+        "tests/LoginTests.swift",
+        "do not run"
+      ],
+      "forbidden": [
+        "I ran"
+      ]
+    },
+    {
+      "id": "fresh-formal-greeting",
+      "family": "general",
+      "spoken": "Hey, how's it going? Write this formally.",
+      "exampleDraft": "Hello, how are you?",
+      "required": [
+        "Hello"
+      ],
+      "forbidden": [
+        "Write this formally"
+      ]
+    },
+    {
+      "id": "fresh-ordinary",
+      "family": "general",
+      "spoken": "The package arrived this morning and we will inspect it tomorrow.",
+      "exampleDraft": "The package arrived this morning, and we will inspect it tomorrow.",
+      "required": [
+        "this morning",
+        "tomorrow"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "fresh-tentative-reply",
+      "family": "general",
+      "spoken": "I think the patch may help, but I am not sure yet. Write this as a reply in Codex.",
+      "exampleDraft": "I think the patch may help, but I am not sure yet.",
+      "required": [
+        "patch",
+        "not sure"
+      ],
+      "forbidden": [
+        "I fixed"
+      ]
+    }
+  ]
+}

@@ -442,6 +442,19 @@ struct CadenceTests {
     }
 
     @Test
+    func onlyDefaultScribeChordGetsShorterHoldRecognition() {
+        let defaults = [HotkeyBinding.defaultHoldToTalk, HotkeyBinding.defaultScribe]
+        #expect(ModifierOnlyActivationTiming.delay(for: .scribe, bindings: defaults) == 0.16)
+        #expect(ModifierOnlyActivationTiming.delay(for: .holdToTalk, bindings: defaults) == 0.24)
+
+        var custom = HotkeyBinding.defaultScribe
+        custom.shortcut.sidedModifierKeyCodes = [62]
+        #expect(ModifierOnlyActivationTiming.delay(for: .scribe, bindings: [custom]) == 0.24)
+        custom.isEnabled = false
+        #expect(ModifierOnlyActivationTiming.delay(for: .scribe, bindings: [custom]) == 0.24)
+    }
+
+    @Test
     func interruptedFnChordDoesNotStartOrQuickTapDictation() {
         var engine = ModifierOnlyGestureEngine()
         let bindings = [HotkeyBinding.defaultHoldToTalk]

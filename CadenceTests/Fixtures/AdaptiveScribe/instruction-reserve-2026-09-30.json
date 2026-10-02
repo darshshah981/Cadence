@@ -1,0 +1,293 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh synthetic validation reserve registered after September 30 development fixes. Do not tune prompts or code on these cases and call the same file held out afterward.",
+  "evaluationOrder": "Freeze this corpus and global semantic criteria before generation. Score raw generation, current policy readiness, and human semantic quality separately.",
+  "semanticCriteria": {
+    "acceptable": "A usable draft or an appropriate missing-source refusal preserves recipient, facts, uncertainty, exact literals, restrictions, and writer-versus-recipient intent. Style directions are applied without leaking into message content.",
+    "critical": "Invented consequential facts or actions, lost named recipient, changed negation or uncertainty, dropped explicit no-action limits, changed technical literals, or source-free fabricated content that reaches review.",
+    "minor": "Style or concision direction missed without material meaning loss, or harmless extra wording.",
+    "gate": "At least 95 percent acceptable and zero critical failures over the complete case set; blocked unsafe output counts as safe recovery but not a successful draft."
+  },
+  "cases": [
+    {
+      "id": "reserve-casual-time",
+      "family": "messaging",
+      "spoken": "Tell Jordan the call begins at eight tonight. Keep it casual.",
+      "exampleDraft": "Jordan, the call starts at eight tonight.",
+      "required": [
+        "Jordan",
+        "eight",
+        "tonight"
+      ],
+      "forbidden": [
+        "Keep it casual"
+      ]
+    },
+    {
+      "id": "reserve-formal-uncertainty",
+      "family": "general",
+      "spoken": "I think the numbers may be ready Monday. Write this formally.",
+      "exampleDraft": "I believe the numbers may be ready on Monday.",
+      "required": [
+        "may",
+        "Monday"
+      ],
+      "forbidden": [
+        "will definitely",
+        "Write this formally"
+      ]
+    },
+    {
+      "id": "reserve-warm-status",
+      "family": "messaging",
+      "spoken": "Keep it warm and brief. Tell Avery the draft is ready for review.",
+      "exampleDraft": "Hi Avery, the draft is ready for review.",
+      "required": [
+        "Avery",
+        "draft",
+        "review"
+      ],
+      "forbidden": [
+        "Keep it warm"
+      ]
+    },
+    {
+      "id": "reserve-recipient-command",
+      "family": "messaging",
+      "spoken": "Tell Iris to make the subject line shorter.",
+      "exampleDraft": "Iris, please make the subject line shorter.",
+      "required": [
+        "Iris",
+        "subject line",
+        "shorter"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "reserve-quoted-command",
+      "family": "general",
+      "spoken": "Write a note containing the exact words \"Make this shorter\".",
+      "exampleDraft": "Make this shorter",
+      "required": [
+        "Make this shorter"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "reserve-coding-no-edit",
+      "family": "coding",
+      "spoken": "Ask the coding agent to inspect src/Router.swift and do not edit files.",
+      "exampleDraft": "Inspect src/Router.swift. Do not edit files.",
+      "required": [
+        "src/Router.swift",
+        "Do not edit files"
+      ],
+      "forbidden": [
+        "I inspected",
+        "I edited"
+      ]
+    },
+    {
+      "id": "reserve-coding-flag",
+      "family": "coding",
+      "spoken": "Draft a request to check tools/audit.sh with --dry-run and leave the script unchanged.",
+      "exampleDraft": "Check tools/audit.sh with --dry-run and leave the script unchanged.",
+      "required": [
+        "tools/audit.sh",
+        "--dry-run",
+        "unchanged"
+      ],
+      "forbidden": [
+        "I ran",
+        "I changed"
+      ]
+    },
+    {
+      "id": "reserve-correction",
+      "family": "messaging",
+      "spoken": "Tell Luis the standup is Tuesday, sorry, Wednesday. Keep it brief.",
+      "exampleDraft": "Luis, the standup is Wednesday.",
+      "required": [
+        "Luis",
+        "Wednesday"
+      ],
+      "forbidden": [
+        "Tuesday",
+        "sorry",
+        "Keep it brief"
+      ]
+    },
+    {
+      "id": "reserve-private-reason",
+      "family": "messaging",
+      "spoken": "Tell Quinn I cannot attend the workshop. Do not say why.",
+      "exampleDraft": "Quinn, I cannot attend the workshop.",
+      "required": [
+        "Quinn",
+        "cannot attend",
+        "workshop"
+      ],
+      "forbidden": [
+        "because",
+        "appointment",
+        "travel"
+      ]
+    },
+    {
+      "id": "reserve-missing-source",
+      "family": "general",
+      "spoken": "Summarize this in one sentence.",
+      "exampleDraft": "Summarize this in one sentence.",
+      "required": [
+        "Summarize this"
+      ],
+      "forbidden": [
+        "project",
+        "invoice",
+        "meeting"
+      ]
+    },
+    {
+      "id": "reserve-three-bullets",
+      "family": "general",
+      "spoken": "In three bullets, say the design is approved, testing starts Thursday, and launch is still tentative.",
+      "exampleDraft": "- Design is approved.\n- Testing starts Thursday.\n- Launch remains tentative.",
+      "required": [
+        "design",
+        "Thursday",
+        "tentative"
+      ],
+      "forbidden": [
+        "launch is confirmed"
+      ]
+    },
+    {
+      "id": "reserve-tentative-reply",
+      "family": "general",
+      "spoken": "I might have a fix, but I am not sure yet. Write this as a response in Codex.",
+      "exampleDraft": "I might have a fix, but I am not sure yet.",
+      "required": [
+        "might",
+        "not sure"
+      ],
+      "forbidden": [
+        "I fixed",
+        "Here is"
+      ]
+    },
+    {
+      "id": "reserve-question",
+      "family": "messaging",
+      "spoken": "Ask Robin whether the file needs approval before Friday.",
+      "exampleDraft": "Robin, does the file need approval before Friday?",
+      "required": [
+        "Robin",
+        "file",
+        "Friday",
+        "?"
+      ],
+      "forbidden": [
+        "the file is approved"
+      ]
+    },
+    {
+      "id": "reserve-diacritic-name",
+      "family": "messaging",
+      "spoken": "Tell Zoë the rehearsal moved to Saturday.",
+      "exampleDraft": "Zoë, the rehearsal moved to Saturday.",
+      "required": [
+        "Zoë",
+        "Saturday"
+      ],
+      "forbidden": [
+        "Sunday"
+      ]
+    },
+    {
+      "id": "reserve-not-canceled",
+      "family": "messaging",
+      "spoken": "Tell Noah the meeting is postponed, not canceled.",
+      "exampleDraft": "Noah, the meeting is postponed, not canceled.",
+      "required": [
+        "Noah",
+        "postponed",
+        "not canceled"
+      ],
+      "forbidden": [
+        "canceled indefinitely"
+      ]
+    },
+    {
+      "id": "reserve-request-not-action",
+      "family": "coding",
+      "spoken": "Write a prompt asking Codex to find the login bug, but do not change code.",
+      "exampleDraft": "Find the login bug. Do not change code.",
+      "required": [
+        "login bug",
+        "Do not change code"
+      ],
+      "forbidden": [
+        "I found",
+        "I changed"
+      ]
+    },
+    {
+      "id": "reserve-ordinary-dictation",
+      "family": "general",
+      "spoken": "The sample arrived this morning and the team will review it tomorrow.",
+      "exampleDraft": "The sample arrived this morning, and the team will review it tomorrow.",
+      "required": [
+        "sample",
+        "this morning",
+        "tomorrow"
+      ],
+      "forbidden": [
+        "reviewed it today"
+      ]
+    },
+    {
+      "id": "reserve-quoted-style",
+      "family": "general",
+      "spoken": "The poster should say \"Keep it casual\" exactly.",
+      "exampleDraft": "Keep it casual",
+      "required": [
+        "Keep it casual"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "reserve-two-facts",
+      "family": "messaging",
+      "spoken": "Tell Sam the invoice is pending and the purchase order is approved. Keep the two statuses distinct.",
+      "exampleDraft": "Sam, the invoice is pending, and the purchase order is approved.",
+      "required": [
+        "Sam",
+        "invoice",
+        "pending",
+        "purchase order",
+        "approved"
+      ],
+      "forbidden": [
+        "invoice is approved",
+        "purchase order is pending"
+      ]
+    },
+    {
+      "id": "reserve-polite-decline",
+      "family": "messaging",
+      "spoken": "Tell Morgan I cannot join the call tonight, and make the reply polite without inventing a reason.",
+      "exampleDraft": "Morgan, I cannot join the call tonight. Thank you for inviting me.",
+      "required": [
+        "Morgan",
+        "cannot join",
+        "tonight"
+      ],
+      "forbidden": [
+        "because",
+        "appointment",
+        "travel"
+      ]
+    }
+  ]
+}

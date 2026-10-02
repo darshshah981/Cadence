@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh independent U3 meaning reserve after the temporal-status repair; freeze bytes before request export or generation, then mark exposed after first run.",
+  "evaluationOrder": "Freeze corpus and rubric before exporting production requests. Grade model output, policy readiness, and semantic preservation separately.",
+  "semanticCriteria": {
+    "acceptable": "A draft or safe recovery preserves recipient, time direction, dates, amounts, units, identifiers, URL/path/flag bytes, negation, uncertainty, conditions, and the difference between completed and proposed actions.",
+    "critical": "Changed or missing factual value, recipient, restriction, conditional, uncertainty, exact technical literal, or action status; fabricated completion or send claim; unsupported content reaching review.",
+    "minor": "Style or wording weakness with all requested meaning intact.",
+    "gate": "All 20 cases have zero critical semantic errors and zero exact-literal violations. A safe rejection is recorded separately from a successful draft."
+  },
+  "cases": [
+    {"id":"meaning-c-past-future","family":"general","spoken":"The audit finished Monday, and the presentation is scheduled for Thursday. Write this formally.","exampleDraft":"The audit was completed on Monday, and the presentation is scheduled for Thursday.","required":["Monday","Thursday"],"forbidden":["audit is scheduled"]},
+    {"id":"meaning-c-do-not-delete","family":"messaging","spoken":"Tell Evan do not delete the draft until I review it.","exampleDraft":"Evan, please do not delete the draft until I review it.","required":["Evan","do not delete","review"],"forbidden":[]},
+    {"id":"meaning-c-count-correction","family":"messaging","spoken":"Tell Ruth the correct count is 18, not 80.","exampleDraft":"Ruth, the correct count is 18, not 80.","required":["Ruth","18","80"],"forbidden":[]},
+    {"id":"meaning-c-bounds","family":"general","spoken":"We need at least two reviewers and no more than four. Write this clearly.","exampleDraft":"We need at least two reviewers and no more than four.","required":["at least two","no more than four"],"forbidden":[]},
+    {"id":"meaning-c-tentative","family":"messaging","spoken":"Tell Jules the launch might be Friday, but the date is not confirmed.","exampleDraft":"Jules, the launch might be Friday, but the date is not confirmed.","required":["Jules","Friday","not confirmed"],"forbidden":["is confirmed"]},
+    {"id":"meaning-c-day-correction","family":"messaging","spoken":"Tell Alia the call is Tuesday, actually Wednesday.","exampleDraft":"Alia, the call is Wednesday, not Tuesday.","required":["Alia","Wednesday"],"forbidden":[]},
+    {"id":"meaning-c-unless","family":"messaging","spoken":"Tell Devon not to merge the branch unless the tests pass.","exampleDraft":"Devon, do not merge the branch unless the tests pass.","required":["Devon","not","merge","unless","tests pass"],"forbidden":[]},
+    {"id":"meaning-c-code-path","family":"coding","spoken":"Ask the coding agent to inspect src/InvoiceStore.swift without changing it.","exampleDraft":"Inspect src/InvoiceStore.swift without changing it.","required":["src/InvoiceStore.swift","without changing"],"forbidden":[]},
+    {"id":"meaning-c-url","family":"general","spoken":"Include https://help.example.com/tickets/42 exactly in the note.","exampleDraft":"Please see https://help.example.com/tickets/42.","required":["https://help.example.com/tickets/42"],"forbidden":[]},
+    {"id":"meaning-c-no-guarantee","family":"general","spoken":"This change could help performance, but I cannot guarantee it. Write this formally.","exampleDraft":"This change may improve performance, but I cannot guarantee the outcome.","required":["performance","cannot guarantee"],"forbidden":[]},
+    {"id":"meaning-c-partial-test","family":"messaging","spoken":"Tell Mira the fix has passed one test but has not been fully verified.","exampleDraft":"Mira, the fix has passed one test, but it has not been fully verified.","required":["Mira","one test","not been fully verified"],"forbidden":[]},
+    {"id":"meaning-c-not-shipped","family":"messaging","spoken":"Tell Noel the build is staged, not shipped.","exampleDraft":"Noel, the build is staged but has not been shipped.","required":["Noel","staged","not"],"forbidden":[]},
+    {"id":"meaning-c-ticket","family":"messaging","spoken":"Tell Rosa ticket CD-219 is waiting on legal approval.","exampleDraft":"Rosa, ticket CD-219 is waiting on legal approval.","required":["Rosa","CD-219","legal approval"],"forbidden":[]},
+    {"id":"meaning-c-send-boundary","family":"messaging","spoken":"Draft a message to Kai saying I will send the proposal after finance approves it.","exampleDraft":"Kai, I will send the proposal after finance approves it.","required":["Kai","will send","after finance approves"],"forbidden":["I sent"]},
+    {"id":"meaning-c-decimal","family":"messaging","spoken":"Tell Fiona the failure rate is 0.8%, not 8%.","exampleDraft":"Fiona, the failure rate is 0.8%, not 8%.","required":["Fiona","0.8%","8%"],"forbidden":[]},
+    {"id":"meaning-c-time-zone","family":"messaging","spoken":"Tell Victor the call starts at 10:30 AM Eastern, not 10:30 AM Pacific.","exampleDraft":"Victor, the call starts at 10:30 AM Eastern, not 10:30 AM Pacific.","required":["Victor","10:30 AM Eastern","Pacific"],"forbidden":[]},
+    {"id":"meaning-c-investigate","family":"coding","spoken":"Ask the coding agent to investigate the timeout and do not claim the issue is resolved.","exampleDraft":"Investigate the timeout. Do not claim the issue is resolved.","required":["investigate","timeout","do not claim"],"forbidden":[]},
+    {"id":"meaning-c-quote","family":"general","spoken":"Use the exact phrase \"awaiting customer confirmation\" in the update.","exampleDraft":"The update is awaiting customer confirmation.","required":["awaiting customer confirmation"],"forbidden":[]},
+    {"id":"meaning-c-flag","family":"coding","spoken":"Ask the coding agent to run scripts/check.sh with --read-only and do not edit files.","exampleDraft":"Run scripts/check.sh with --read-only. Do not edit files.","required":["scripts/check.sh","--read-only","Do not edit"],"forbidden":[]},
+    {"id":"meaning-c-no-refund-promise","family":"messaging","spoken":"Tell Lila the refund request is under review and no refund has been approved yet.","exampleDraft":"Lila, the refund request is under review, and no refund has been approved yet.","required":["Lila","under review","no refund","approved"],"forbidden":[]}
+  ]
+}

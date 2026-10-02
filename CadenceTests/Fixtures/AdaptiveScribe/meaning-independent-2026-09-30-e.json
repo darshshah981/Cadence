@@ -1,0 +1,300 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh independent U3 meaning reserve frozen after bounded source and literal-context repairs. Mark exposed after first generation run.",
+  "evaluationOrder": "Freeze corpus and criteria before production request export and on-device generation. Report generation, readiness, and semantic review separately.",
+  "semanticCriteria": {
+    "acceptable": "A draft or safe recovery preserves recipient, status and timing, amount and unit, exact literals, negation, uncertainty, conditions, and action state.",
+    "critical": "A missing or changed recipient, fact, restriction, time direction, exact literal or condition; invented completion or send claim; unsafe unsupported content reaching review.",
+    "minor": "Style or formatting weakness with no meaning change.",
+    "gate": "All 20 cases have zero critical meaning errors and zero exact-literal violations; safe rejection is recorded separately from a successful draft."
+  },
+  "cases": [
+    {
+      "id": "meaning-e-refund-bank-window",
+      "family": "messaging",
+      "spoken": "Tell Aisha the refund was issued Tuesday, but the bank may take five business days to show it.",
+      "exampleDraft": "Aisha, the refund was issued Tuesday, but it may take the bank five business days to show it.",
+      "required": [
+        "Aisha",
+        "Tuesday",
+        "five business days"
+      ],
+      "forbidden": [
+        "refund will be issued",
+        "five calendar days"
+      ]
+    },
+    {
+      "id": "meaning-e-ticket-reopen-condition",
+      "family": "messaging",
+      "spoken": "Ask Devon whether ticket AB-42 can be reopened after QA signs off.",
+      "exampleDraft": "Devon, can ticket AB-42 be reopened after QA signs off?",
+      "required": [
+        "Devon",
+        "AB-42",
+        "after QA"
+      ],
+      "forbidden": [
+        "before QA",
+        "I reopened"
+      ]
+    },
+    {
+      "id": "meaning-e-pilot-next-cohort",
+      "family": "general",
+      "spoken": "The pilot ended Monday; the next cohort begins Thursday. Write this formally.",
+      "exampleDraft": "The pilot concluded on Monday, and the next cohort begins on Thursday.",
+      "required": [
+        "Monday",
+        "Thursday",
+        "pilot",
+        "cohort"
+      ],
+      "forbidden": [
+        "pilot begins",
+        "cohort ended"
+      ]
+    },
+    {
+      "id": "meaning-e-hold-shipment",
+      "family": "messaging",
+      "spoken": "Tell Mei do not ship the update until the two failing checks pass.",
+      "exampleDraft": "Mei, do not ship the update until the two failing checks pass.",
+      "required": [
+        "Mei",
+        "do not ship",
+        "two failing checks"
+      ],
+      "forbidden": [
+        "ship the update now"
+      ]
+    },
+    {
+      "id": "meaning-e-export-delay",
+      "family": "messaging",
+      "spoken": "Draft a message to Luis saying the export is delayed, not canceled, and we expect to retry Friday.",
+      "exampleDraft": "Luis, the export is delayed, not canceled, and we expect to retry Friday.",
+      "required": [
+        "Luis",
+        "delayed",
+        "not canceled",
+        "Friday"
+      ],
+      "forbidden": [
+        "export is canceled"
+      ]
+    },
+    {
+      "id": "meaning-e-source-free-exact",
+      "family": "general",
+      "spoken": "Use the exact phrase \"pending external review\" in the update.",
+      "exampleDraft": "Use the exact phrase \"pending external review\" in the update.",
+      "required": [
+        "pending external review"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-e-price-period",
+      "family": "general",
+      "spoken": "The price is $29 per month, not $29 per year. Make this concise.",
+      "exampleDraft": "The price is $29 per month, not per year.",
+      "required": [
+        "$29",
+        "per month",
+        "not"
+      ],
+      "forbidden": [
+        "$29 per year is the price"
+      ]
+    },
+    {
+      "id": "meaning-e-latency-percentile",
+      "family": "messaging",
+      "spoken": "Tell Sam the 95th percentile is under 80 ms; the average is not yet known.",
+      "exampleDraft": "Sam, the 95th percentile is under 80 ms; the average is not yet known.",
+      "required": [
+        "Sam",
+        "95th percentile",
+        "under 80 ms",
+        "average"
+      ],
+      "forbidden": [
+        "average is under 80",
+        "95 ms"
+      ]
+    },
+    {
+      "id": "meaning-e-coding-inspect",
+      "family": "coding",
+      "spoken": "Ask the coding agent to inspect literal verbatim src/Payments.swift end literal with literal flag dry run end literal. Do not edit files.",
+      "exampleDraft": "Inspect src/Payments.swift with --dry-run. Do not edit files.",
+      "required": [
+        "src/Payments.swift",
+        "--dry-run",
+        "Do not edit files"
+      ],
+      "forbidden": [
+        "I inspected",
+        "I edited"
+      ]
+    },
+    {
+      "id": "meaning-e-contract-unsent",
+      "family": "messaging",
+      "spoken": "Tell Morgan I have not sent the contract, but I plan to send it tomorrow.",
+      "exampleDraft": "Morgan, I have not sent the contract yet, but I plan to send it tomorrow.",
+      "required": [
+        "Morgan",
+        "not sent",
+        "tomorrow"
+      ],
+      "forbidden": [
+        "I sent the contract"
+      ]
+    },
+    {
+      "id": "meaning-e-conditional-call",
+      "family": "messaging",
+      "spoken": "Reply to Noor: Thursday works for a call, but only after 3 p.m. ET.",
+      "exampleDraft": "Noor, Thursday works for a call, but only after 3 p.m. ET.",
+      "required": [
+        "Noor",
+        "Thursday",
+        "after 3 p.m. ET"
+      ],
+      "forbidden": [
+        "before 3 p.m."
+      ]
+    },
+    {
+      "id": "meaning-e-unknown-number",
+      "family": "general",
+      "spoken": "Write this formally: We cannot confirm the number yet; finance will verify it next week.",
+      "exampleDraft": "We cannot confirm the number yet; finance will verify it next week.",
+      "required": [
+        "cannot confirm",
+        "finance",
+        "next week"
+      ],
+      "forbidden": [
+        "confirmed the number"
+      ]
+    },
+    {
+      "id": "meaning-e-incident-postmortem",
+      "family": "messaging",
+      "spoken": "Tell Priya the incident was resolved on Sunday, but the postmortem is still open.",
+      "exampleDraft": "Priya, the incident was resolved on Sunday, but the postmortem remains open.",
+      "required": [
+        "Priya",
+        "Sunday",
+        "resolved",
+        "postmortem",
+        "open"
+      ],
+      "forbidden": [
+        "postmortem is complete"
+      ]
+    },
+    {
+      "id": "meaning-e-named-url-note",
+      "family": "messaging",
+      "spoken": "Write a note to Ivy saying the outage is resolved and include https://status.example.org/incidents/14 exactly.",
+      "exampleDraft": "Ivy, the outage is resolved. See https://status.example.org/incidents/14.",
+      "required": [
+        "Ivy",
+        "outage",
+        "resolved",
+        "https://status.example.org/incidents/14"
+      ],
+      "forbidden": [
+        "outage is ongoing"
+      ]
+    },
+    {
+      "id": "meaning-e-source-free-url",
+      "family": "general",
+      "spoken": "Please include https://status.example.org/incidents/15 in the update.",
+      "exampleDraft": "Please include https://status.example.org/incidents/15 in the update.",
+      "required": [
+        "https://status.example.org/incidents/15"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-e-budget-lower-bound",
+      "family": "messaging",
+      "spoken": "Tell Elena the budget is at least $1,200, not at most $1,200.",
+      "exampleDraft": "Elena, the budget is at least $1,200, not at most $1,200.",
+      "required": [
+        "Elena",
+        "at least $1,200",
+        "not at most"
+      ],
+      "forbidden": [
+        "at most $1,200 is the budget"
+      ]
+    },
+    {
+      "id": "meaning-e-happened-vs-scheduled",
+      "family": "general",
+      "spoken": "The meeting happened Wednesday, and the demo is scheduled for Saturday. Write this formally.",
+      "exampleDraft": "The meeting took place on Wednesday, and the demo is scheduled for Saturday.",
+      "required": [
+        "meeting",
+        "Wednesday",
+        "demo",
+        "Saturday"
+      ],
+      "forbidden": [
+        "meeting is scheduled"
+      ]
+    },
+    {
+      "id": "meaning-e-legal-and-internal",
+      "family": "messaging",
+      "spoken": "Tell Omar do not publish unless legal signs off, and keep the draft internal.",
+      "exampleDraft": "Omar, do not publish unless legal signs off, and keep the draft internal.",
+      "required": [
+        "Omar",
+        "do not publish",
+        "unless legal",
+        "internal"
+      ],
+      "forbidden": [
+        "publish before legal"
+      ]
+    },
+    {
+      "id": "meaning-e-decline-no-reason",
+      "family": "messaging",
+      "spoken": "Write this as a response to Jae: I appreciate the invitation, but I cannot attend. Do not give a reason.",
+      "exampleDraft": "Jae, I appreciate the invitation, but I cannot attend.",
+      "required": [
+        "Jae",
+        "appreciate",
+        "cannot attend"
+      ],
+      "forbidden": [
+        "because",
+        "schedule conflict"
+      ]
+    },
+    {
+      "id": "meaning-e-api-visible-status",
+      "family": "general",
+      "spoken": "Write this clearly: The API returned 201, but the upload is not yet visible.",
+      "exampleDraft": "The API returned 201, but the upload is not yet visible.",
+      "required": [
+        "API",
+        "201",
+        "not yet visible"
+      ],
+      "forbidden": [
+        "upload is visible"
+      ]
+    }
+  ]
+}

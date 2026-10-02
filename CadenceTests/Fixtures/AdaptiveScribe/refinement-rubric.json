@@ -1,0 +1,496 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "sourceCorpus": "refinement-following.json",
+  "purpose": "Human semantic review of synthetic refinement outputs. Evaluate the accepted base draft and new instruction together. This rubric is separate from deterministic output admission and is not an automatic semantic oracle.",
+  "scoring": {
+    "critical": "Failure changes meaning, facts, uncertainty, protected content, recipient restrictions, or the draft-only boundary.",
+    "style": "Failure misses the requested tone, brevity, or formatting while preserving critical content.",
+    "pass": "All critical dimensions pass and the requested writing changes are adequately applied.",
+    "evidence": "Record the output and a short rationale per failed dimension. Substring checks may flag a candidate for review but do not establish semantic quality.",
+    "syntheticBoundary": "These cases exercise production request construction and synthetic generation only. They do not establish microphone capture, real-app target retention, insertion, or installed-app verification."
+  },
+  "cases": [
+    {
+      "id": "refinement-warmer",
+      "supportedLocalTaskCategory": "reviewed-draft-refinement",
+      "originalSpokenRequest": "Tell Maya the preview is ready for review.",
+      "baseDraft": "Maya, the preview is ready for review.",
+      "instruction": "Make it warmer, and keep it brief.",
+      "intendedMessage": [
+        "Address Maya and say that the preview is ready for review."
+      ],
+      "writerInstructions": [
+        "Make the accepted draft warmer.",
+        "Keep it brief."
+      ],
+      "facts": [
+        "Recipient is Maya.",
+        "The preview is ready for review; no review has been completed."
+      ],
+      "recipientInstructions": [],
+      "uncertainty": [],
+      "negation": [],
+      "dimensions": [
+        {
+          "name": "factualFidelity",
+          "severity": "critical",
+          "expectation": "Keep Maya, preview, and readiness for review. Do not invent a deadline, completed review, or commitment."
+        },
+        {
+          "name": "instructionExecution",
+          "severity": "style",
+          "expectation": "Make a discernible warm change while remaining a short message."
+        },
+        {
+          "name": "draftUsability",
+          "severity": "critical",
+          "expectation": "Return only the recipient-facing draft; no revision instruction or explanatory preface."
+        }
+      ],
+      "allowedParaphraseRules": [
+        "Hi or another simple greeting may supply warmth.",
+        "Ready for your review and ready for you to review are equivalent."
+      ],
+      "unacceptableOutputs": [
+        "A claim that the preview has already been reviewed.",
+        "An added deadline or promise to send the preview.",
+        "A verbatim copy that makes no warm change receives a style failure, even if facts are intact."
+      ],
+      "exactLiterals": [],
+      "protectedText": []
+    },
+    {
+      "id": "refinement-concise",
+      "supportedLocalTaskCategory": "reviewed-draft-refinement",
+      "originalSpokenRequest": "Tell Sam the build is ready and testing starts Tuesday. We will share the test results after testing.",
+      "baseDraft": "Sam, the build is ready, and testing starts Tuesday. We will share the test results after testing.",
+      "instruction": "Make it more concise. Keep all the timing.",
+      "intendedMessage": [
+        "Tell Sam the build is ready, testing starts Tuesday, and test results will be shared after testing."
+      ],
+      "writerInstructions": [
+        "Shorten the current draft.",
+        "Keep the timing relationships."
+      ],
+      "facts": [
+        "Recipient is Sam.",
+        "Build readiness is current.",
+        "Testing begins Tuesday.",
+        "Results are to be shared after testing, not already available."
+      ],
+      "recipientInstructions": [],
+      "uncertainty": [],
+      "negation": [],
+      "dimensions": [
+        {
+          "name": "factualFidelity",
+          "severity": "critical",
+          "expectation": "Retain all three update facts and the sequence from testing to sharing results."
+        },
+        {
+          "name": "instructionExecution",
+          "severity": "style",
+          "expectation": "Reduce wording without deleting substantive timing or outcomes."
+        },
+        {
+          "name": "draftUsability",
+          "severity": "critical",
+          "expectation": "Do not repeat the instruction or add a new date, recipient, delivery mechanism, or result."
+        }
+      ],
+      "allowedParaphraseRules": [
+        "Results will follow testing is equivalent to sharing test results after testing.",
+        "Contractions, semicolons, and shorter sentence boundaries are allowed."
+      ],
+      "unacceptableOutputs": [
+        "Results described as already ready or already sent.",
+        "Tuesday omitted or replaced.",
+        "A short output that drops the promise to share results after testing."
+      ],
+      "exactLiterals": [],
+      "protectedText": []
+    },
+    {
+      "id": "refinement-first-sentence",
+      "supportedLocalTaskCategory": "reviewed-draft-refinement",
+      "originalSpokenRequest": "Tell Jo I cannot attend. I appreciate the invitation and hope the event goes well.",
+      "baseDraft": "Jo, I cannot attend. Thank you for the invitation, and I hope the event goes well.",
+      "instruction": "Keep the first sentence unchanged. Make the rest warmer and shorter.",
+      "intendedMessage": [
+        "Tell Jo that the speaker cannot attend, thank Jo for the invitation, and express hope that the event goes well."
+      ],
+      "writerInstructions": [
+        "Keep the entire first sentence byte-for-byte unchanged.",
+        "Make the remaining sentence warmer and shorter."
+      ],
+      "facts": [
+        "Recipient is Jo.",
+        "Speaker cannot attend.",
+        "There was an invitation.",
+        "Speaker hopes the event goes well."
+      ],
+      "recipientInstructions": [],
+      "uncertainty": [],
+      "negation": [
+        "Cannot attend."
+      ],
+      "dimensions": [
+        {
+          "name": "protectedText",
+          "severity": "critical",
+          "expectation": "Preserve the exact text Jo, I cannot attend. at the beginning, including punctuation and spacing."
+        },
+        {
+          "name": "factualFidelity",
+          "severity": "critical",
+          "expectation": "Preserve gratitude and the good wish without inventing a reason for nonattendance."
+        },
+        {
+          "name": "instructionExecution",
+          "severity": "style",
+          "expectation": "Only the remaining text should become warmer and shorter."
+        }
+      ],
+      "allowedParaphraseRules": [
+        "Thanks for inviting me may replace Thank you for the invitation.",
+        "It may refer to the event in the second sentence.",
+        "The protected first sentence permits no paraphrase, even an equivalent contraction."
+      ],
+      "unacceptableOutputs": [
+        "Jo, I can't attend. as the first sentence.",
+        "A reason such as a schedule conflict.",
+        "The protected sentence moved after the revised text.",
+        "Loss of either thanks or the good wish."
+      ],
+      "exactLiterals": [],
+      "protectedText": [
+        "Jo, I cannot attend."
+      ]
+    },
+    {
+      "id": "refinement-technical-restrictions",
+      "supportedLocalTaskCategory": "reviewed-draft-refinement",
+      "originalSpokenRequest": "Ask the coding agent to inspect literal verbatim src/Auth.swift end literal with literal flag verbose end literal. Do not edit files.",
+      "baseDraft": "Please inspect src/Auth.swift and use --verbose while you investigate. Do not edit files.",
+      "instruction": "Make it more concise without dropping the restriction or changing the path and flag.",
+      "intendedMessage": [
+        "Ask a coding agent to inspect the specified file using the specified flag while keeping file edits prohibited."
+      ],
+      "writerInstructions": [
+        "Shorten the current prompt.",
+        "Keep the path, flag, and recipient restriction."
+      ],
+      "facts": [
+        "File path is src/Auth.swift.",
+        "Flag is --verbose.",
+        "Inspection is requested; no inspection has been performed by Compose."
+      ],
+      "recipientInstructions": [
+        "Inspect src/Auth.swift using --verbose.",
+        "Do not edit files."
+      ],
+      "uncertainty": [],
+      "negation": [
+        "Do not edit files."
+      ],
+      "dimensions": [
+        {
+          "name": "exactLiterals",
+          "severity": "critical",
+          "expectation": "Retain src/Auth.swift and --verbose byte-for-byte."
+        },
+        {
+          "name": "recipientIntent",
+          "severity": "critical",
+          "expectation": "Keep the request to inspect and the explicit prohibition on file edits."
+        },
+        {
+          "name": "executionBoundary",
+          "severity": "critical",
+          "expectation": "Do not claim inspection, command execution, or file changes occurred."
+        },
+        {
+          "name": "instructionExecution",
+          "severity": "style",
+          "expectation": "Use fewer words than the accepted base draft."
+        }
+      ],
+      "allowedParaphraseRules": [
+        "Inspect and investigate may vary if the file and flag remain associated with that request.",
+        "An equally explicit no-file-edits prohibition is semantically acceptable; the production restriction validator separately decides admission."
+      ],
+      "unacceptableOutputs": [
+        "A changed file path or single-dash verbose flag.",
+        "Removal of the no-edit restriction.",
+        "A statement that the file was inspected or modified.",
+        "A new instruction to fix or commit changes."
+      ],
+      "exactLiterals": [
+        "src/Auth.swift",
+        "--verbose"
+      ],
+      "protectedText": []
+    },
+    {
+      "id": "refinement-uncertainty",
+      "supportedLocalTaskCategory": "reviewed-draft-refinement",
+      "originalSpokenRequest": "Tell Priya I might miss the review. I do not know yet. Do not give a reason.",
+      "baseDraft": "Priya, I might miss the review, but I do not know yet.",
+      "instruction": "Make it more concise and polite. Keep the uncertainty and do not add a reason.",
+      "intendedMessage": [
+        "Tell Priya that the speaker might miss the review and is still unsure."
+      ],
+      "writerInstructions": [
+        "Make the message more concise and polite.",
+        "Keep uncertainty.",
+        "Do not add a reason."
+      ],
+      "facts": [
+        "Recipient is Priya.",
+        "The relevant event is the review.",
+        "Attendance remains uncertain."
+      ],
+      "recipientInstructions": [],
+      "uncertainty": [
+        "Might miss the review.",
+        "The speaker does not know yet."
+      ],
+      "negation": [
+        "Do not add an explanation for possible nonattendance."
+      ],
+      "dimensions": [
+        {
+          "name": "uncertainty",
+          "severity": "critical",
+          "expectation": "Keep the possibility of absence unresolved; do not turn it into certainty or a commitment."
+        },
+        {
+          "name": "factualFidelity",
+          "severity": "critical",
+          "expectation": "Do not invent an appointment, conflict, illness, reason, or date."
+        },
+        {
+          "name": "instructionExecution",
+          "severity": "style",
+          "expectation": "Shorten and soften the wording while addressing Priya."
+        }
+      ],
+      "allowedParaphraseRules": [
+        "May miss and might miss are equivalent.",
+        "I'm not sure yet may replace I do not know yet.",
+        "A brief polite acknowledgment is allowed only if it introduces no new facts or commitments."
+      ],
+      "unacceptableOutputs": [
+        "I will miss the review.",
+        "I can attend the review.",
+        "A fabricated explanation introduced by because or due to.",
+        "A promise to confirm by a newly invented time."
+      ],
+      "exactLiterals": [],
+      "protectedText": []
+    },
+    {
+      "id": "refinement-recipient-question",
+      "supportedLocalTaskCategory": "reviewed-draft-refinement",
+      "originalSpokenRequest": "Ask Lee whether the report can be sent by Friday.",
+      "baseDraft": "Lee, can you send the report by Friday?",
+      "instruction": "Make it more polite without changing the request.",
+      "intendedMessage": [
+        "Politely ask Lee to send the report by Friday."
+      ],
+      "writerInstructions": [
+        "Increase politeness.",
+        "Preserve the request and deadline."
+      ],
+      "facts": [
+        "Recipient is Lee.",
+        "The requested item is the report.",
+        "The deadline is by Friday."
+      ],
+      "recipientInstructions": [
+        "Send the report by Friday."
+      ],
+      "uncertainty": [],
+      "negation": [],
+      "dimensions": [
+        {
+          "name": "recipientIntent",
+          "severity": "critical",
+          "expectation": "Keep a question or request addressed to Lee, rather than answering it or carrying it out."
+        },
+        {
+          "name": "factualFidelity",
+          "severity": "critical",
+          "expectation": "Retain the report and the by-Friday deadline."
+        },
+        {
+          "name": "instructionExecution",
+          "severity": "style",
+          "expectation": "Use a more polite formulation."
+        },
+        {
+          "name": "executionBoundary",
+          "severity": "critical",
+          "expectation": "Do not state that the report has been sent or promise to send it as the speaker."
+        }
+      ],
+      "allowedParaphraseRules": [
+        "Could you please and would you be able to are acceptable polite formulations.",
+        "An equally polite request with the same deadline is semantically acceptable; the heuristic question-mark check is not a semantic verdict."
+      ],
+      "unacceptableOutputs": [
+        "I have sent the report.",
+        "The report will be sent by Friday as a new commitment.",
+        "A different deadline or recipient.",
+        "A generic offer to help instead of the draft."
+      ],
+      "exactLiterals": [],
+      "protectedText": []
+    },
+    {
+      "id": "refinement-quoted-direction",
+      "supportedLocalTaskCategory": "reviewed-draft-refinement",
+      "originalSpokenRequest": "Tell Alex the review note must include the exact phrase literal verbatim Make it shorter end literal.",
+      "baseDraft": "Alex, please include the phrase \"Make it shorter\" in the review note.",
+      "instruction": "Make this message warmer. Keep the quoted phrase unchanged.",
+      "intendedMessage": [
+        "Ask Alex to include the quoted phrase Make it shorter in the review note."
+      ],
+      "writerInstructions": [
+        "Make the surrounding message warmer.",
+        "Keep the quoted phrase unchanged."
+      ],
+      "facts": [
+        "Recipient is Alex.",
+        "The destination is the review note.",
+        "The phrase to include is Make it shorter."
+      ],
+      "recipientInstructions": [
+        "Include the quoted phrase in the review note."
+      ],
+      "uncertainty": [],
+      "negation": [],
+      "dimensions": [
+        {
+          "name": "exactLiterals",
+          "severity": "critical",
+          "expectation": "Keep Make it shorter exactly, including capitalization; it is recipient content, not the active revision direction."
+        },
+        {
+          "name": "recipientIntent",
+          "severity": "critical",
+          "expectation": "Keep the request for Alex to include the phrase in the review note."
+        },
+        {
+          "name": "instructionExecution",
+          "severity": "style",
+          "expectation": "Warm the surrounding wording without altering the quotation."
+        },
+        {
+          "name": "executionBoundary",
+          "severity": "critical",
+          "expectation": "Do not claim that the phrase has already been added to a note."
+        }
+      ],
+      "allowedParaphraseRules": [
+        "A greeting may make the message warmer.",
+        "Please include may become could you include.",
+        "Straight or typographic quotation delimiters are acceptable if the words inside remain byte-for-byte unchanged."
+      ],
+      "unacceptableOutputs": [
+        "A shortened message that removes Make it shorter.",
+        "Make it brief replacing the protected phrase.",
+        "Treating Make it shorter as the instruction to execute.",
+        "A claim that the note has already been changed."
+      ],
+      "exactLiterals": [
+        "Make it shorter"
+      ],
+      "protectedText": []
+    },
+    {
+      "id": "refinement-first-sentence-bullets",
+      "supportedLocalTaskCategory": "reviewed-draft-refinement",
+      "originalSpokenRequest": "Give the team an update: the draft is ready. Design review starts Thursday. Final approval is still pending.",
+      "baseDraft": "The draft is ready.\nDesign review starts Thursday.\nFinal approval is still pending.",
+      "instruction": "Keep the first sentence exactly. Turn the rest into two bullets.",
+      "intendedMessage": [
+        "Keep the opening readiness statement and present two remaining update facts as bullets."
+      ],
+      "writerInstructions": [
+        "Keep the first sentence exactly.",
+        "Turn the rest into exactly two bullets."
+      ],
+      "facts": [
+        "The draft is ready.",
+        "Design review starts Thursday.",
+        "Final approval is still pending."
+      ],
+      "recipientInstructions": [],
+      "uncertainty": [
+        "Final approval remains pending."
+      ],
+      "negation": [],
+      "dimensions": [
+        {
+          "name": "protectedText",
+          "severity": "critical",
+          "expectation": "Keep The draft is ready. exactly as the opening sentence."
+        },
+        {
+          "name": "factualFidelity",
+          "severity": "critical",
+          "expectation": "Keep Thursday and the pending status of final approval; do not upgrade pending to complete."
+        },
+        {
+          "name": "instructionExecution",
+          "severity": "style",
+          "expectation": "Keep the opening outside the list and format the remaining facts as exactly two bullets."
+        },
+        {
+          "name": "draftUsability",
+          "severity": "critical",
+          "expectation": "Do not duplicate facts or include revision labels and directions."
+        }
+      ],
+      "allowedParaphraseRules": [
+        "Bullet markers may be hyphens or other standard bullet glyphs.",
+        "Awaiting final approval is equivalent to approval still pending.",
+        "The protected opening sentence permits no paraphrase."
+      ],
+      "unacceptableOutputs": [
+        "The opening sentence edited or converted into a bullet.",
+        "Three bullets that repeat the opening readiness fact.",
+        "Final approval described as granted.",
+        "Thursday omitted or changed."
+      ],
+      "exactLiterals": [],
+      "protectedText": [
+        "The draft is ready."
+      ]
+    }
+  ],
+  "policyOnlyCoverage": [
+    {
+      "id": "missing-reviewed-draft",
+      "coverage": "Coordinator must reject starting refinement when there is no reviewed draft or revision session. No generation case fabricates a missing source."
+    },
+    {
+      "id": "spoken-undo",
+      "coverage": "Exact supported undo utterances restore the previous accepted version locally without a provider request. Undo correctness belongs to coordinator and revision-store tests."
+    },
+    {
+      "id": "cloud-draft",
+      "coverage": "Refinement of a cloud-origin draft is unavailable. No corpus case authorizes cloud egress."
+    },
+    {
+      "id": "cancel-failure-interruption",
+      "coverage": "Cancellation, transcription/provider failure, and Dictation interruption retain the accepted draft and fence stale generation. Test lifecycle and HUD arbitration deterministically."
+    },
+    {
+      "id": "origin-and-target-binding",
+      "coverage": "A revision must retain the original action, capture, target, provider, and accepted base-version identity. Synthetic text cases cannot establish live target correctness."
+    }
+  ]
+}

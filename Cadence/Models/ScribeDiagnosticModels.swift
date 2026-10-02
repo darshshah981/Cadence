@@ -15,6 +15,7 @@ enum ScribeDiagnosticKind: String, Codable, Equatable, Sendable {
     case manualRetryRequested
     case reviewFallbackChosen
     case insertionVerificationCompleted
+    case insertionAttemptCompleted
     case providerRemoved
     case migrationCompleted
 }
@@ -58,6 +59,7 @@ enum ScribeDiagnosticOutcome: String, Codable, Equatable, Sendable {
     case transcriptionFailed
     case targetChanged
     case insertionFailed
+    case insertionAttempted
     case migrated
     case retained
     case failed

@@ -167,6 +167,8 @@ struct MainWindowView: View {
             onDismiss: appModel.dismissScribeProviderSetup
         ) {
             ScribeProviderSetupView(
+                onDeviceUnavailableReason: appModel.onDeviceScribeUnavailableReason,
+                onSelectOnDevice: { try await appModel.selectOnDeviceScribeProvider() },
                 onConnectDeepSeek: { try await appModel.connectDeepSeekForScribe(credential: $0) },
                 onConnectOpenAI: { try await appModel.connectOpenAIForScribe(model: $0, credential: $1) },
                 onConnectOpenRouter: { try await appModel.connectOpenRouterForScribe(model: $0, credential: $1) },

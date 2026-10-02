@@ -15,13 +15,37 @@ final class ScribePanelViewModel: ObservableObject {
     @Published private(set) var closeRequestRevision = 0
     @Published private(set) var panelWidth = CadenceDesignMetrics.compactActionBreakpoint
     @Published private(set) var isDiscardAlertPresented = false
+    @Published private(set) var canRefineReviewedDraft = false
+    @Published private(set) var canUndoRefinement = false
+    @Published private(set) var refinementUnavailableReason: String?
+    @Published private(set) var isRefining = false
+    @Published private(set) var lastRefinementInstruction: String?
+    @Published private(set) var selectedTextContextStatus: String?
+    @Published private(set) var sessionMemoryContextStatus: String?
+    @Published private(set) var sessionFactsReviewSource: ScribeSessionFactsReviewSource?
+    @Published private(set) var selectedTextReviewSource: ScribeSelectedTextReviewSource?
+    @Published private(set) var insertionOutcomeUncertain = false
+    @Published private(set) var isInspectingSource = false
+    @Published private(set) var isInspectingFacts = false
+    var isInspectingContext: Bool { isInspectingSource || isInspectingFacts }
 
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
     var onRetry: (() -> Void)?
     var onReRecord: (() -> Void)?
+    var onRefine: (() -> Void)?
+    var onUndoRefinement: (() -> Void)?
+    var onCancelRefinement: (() -> Void)?
     var onUseLiteral: (() -> Void)?
     var onInsert: (() -> Void)?
+    var onExcludeSelectedTextSource: ((UUID) -> Void)?
+    var onInspectSelectedTextSource: ((UUID) -> Bool)?
+    var onRecordWithoutSelectedSource: ((UUID) -> Void)?
+    var onRefreshSelectedTextSource: ((UUID) -> Void)?
+    var onRegenerateWithoutSessionFacts: ((UUID) -> Void)?
+    var onRegenerateWithoutSessionFact: ((UUID, UUID) -> Void)?
+    var onSavePersistentMemory: ((UUID) -> Void)?
+    var onConfirmPersistentMemoryForget: ((UUID) -> Void)?
     var onInsertUnpolished: (() -> Void)?
     var onCopyPolished: (() -> Void)?
     var onCopyUnpolished: (() -> Void)?
@@ -37,6 +61,56 @@ final class ScribePanelViewModel: ObservableObject {
 
     func setDiscardAlertPresented(_ isPresented: Bool) {
         isDiscardAlertPresented = isPresented
+    }
+
+    var refinementHelp: String {
+        refinementUnavailableReason ?? "Say how to change this draft. Your current draft stays available."
+    }
+
+    func updateSelectedTextContextStatus(_ status: String?) {
+        selectedTextContextStatus = status
+    }
+
+    func updateSessionMemoryContextStatus(_ status: String?) {
+        sessionMemoryContextStatus = status
+    }
+
+    func updateSessionFactsReviewSource(_ source: ScribeSessionFactsReviewSource?) {
+        if sessionFactsReviewSource?.id != source?.id { isInspectingFacts = false }
+        sessionFactsReviewSource = source
+    }
+
+    func setInspectingFacts(_ value: Bool, sourceID: UUID? = nil) {
+        if let sourceID, sessionFactsReviewSource?.id != sourceID { return }
+        isInspectingFacts = value && sessionFactsReviewSource != nil
+    }
+
+    func updateSelectedTextReviewSource(_ source: ScribeSelectedTextReviewSource?) {
+        if selectedTextReviewSource?.id != source?.id { isInspectingSource = false }
+        selectedTextReviewSource = source
+    }
+
+    func updateInsertionOutcomeUncertain(_ value: Bool) {
+        insertionOutcomeUncertain = value
+    }
+
+    func setInspectingSource(_ value: Bool, sourceID: UUID? = nil) {
+        if let sourceID, selectedTextReviewSource?.id != sourceID { return }
+        isInspectingSource = value && selectedTextReviewSource != nil
+    }
+
+    func updateRefinement(
+        canRefineReviewedDraft: Bool,
+        canUndoRefinement: Bool,
+        unavailableReason: String?,
+        isRefining: Bool,
+        lastInstruction: String? = nil
+    ) {
+        self.canRefineReviewedDraft = canRefineReviewedDraft
+        self.canUndoRefinement = canUndoRefinement
+        self.refinementUnavailableReason = unavailableReason
+        self.isRefining = isRefining
+        self.lastRefinementInstruction = lastInstruction
     }
 
     func apply(
@@ -131,6 +205,34 @@ struct ScribePanelView: View {
                         .accessibilityValue(environmentCue)
                         .accessibilityIdentifier("scribe-environment-cue")
                 }
+                if showsEnvironmentCue, let source = model.selectedTextReviewSource {
+                    ScribeSelectedTextSourceControl(source: source, identifier: "scribe-selected-text-context",
+                        canInspect: { model.onInspectSelectedTextSource?(source.id) ?? false },
+                        onExclude: { model.onExcludeSelectedTextSource?($0) },
+                        onRecordNewMessage: { model.onRecordWithoutSelectedSource?($0) },
+                        onRefresh: { model.onRefreshSelectedTextSource?($0) },
+                        onPresentationChange: { model.setInspectingSource($0, sourceID: source.id) })
+                } else if showsEnvironmentCue, let status = model.selectedTextContextStatus {
+                    Text(status)
+                        .font(.caption)
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .help("This draft used selected text from TextEdit, processed on this Mac.")
+                        .accessibilityIdentifier("scribe-selected-text-context")
+                }
+                if showsEnvironmentCue, let source = model.sessionFactsReviewSource {
+                    ScribeSessionFactsControl(
+                        source: source, identifier: "scribe-session-memory-context",
+                        onRegenerateWithoutFacts: { model.onRegenerateWithoutSessionFacts?($0) },
+                        onRegenerateWithoutFact: { model.onRegenerateWithoutSessionFact?($0, $1) },
+                        onPresentationChange: { model.setInspectingFacts($0, sourceID: source.id) }
+                    )
+                } else if showsEnvironmentCue, let status = model.sessionMemoryContextStatus {
+                    Text(status)
+                        .font(.caption)
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .help("This draft used explicitly saved facts from this TextEdit document on this Mac.")
+                        .accessibilityIdentifier("scribe-session-memory-context")
+                }
             }
             Spacer()
             CadenceActionButton(title: "Close", role: .icon, accessibilityIdentifier: "scribe-close") {
@@ -150,23 +252,82 @@ struct ScribePanelView: View {
             listening
         case .transcribing:
             cancellableStatus(
-                title: "Transcribing request…",
-                detail: "Your speech stays on this Mac."
+                title: model.isRefining ? "Transcribing refinement…" : "Transcribing request…",
+                detail: model.isRefining ? "Your previous draft stays available." : "Your speech stays on this Mac."
             )
         case .generating:
             cancellableStatus(
-                title: "Drafting…",
-                detail: "You can cancel generation at any time."
+                title: model.isRefining ? "Refining draft…" : "Drafting…",
+                detail: model.isRefining ? "Cancel to return to your previous draft." : "You can cancel generation at any time."
             )
         case .generatingSlow:
             cancellableStatus(
-                title: "Still drafting…",
-                detail: "The provider is taking longer than usual. You can keep waiting or cancel safely."
+                title: model.isRefining ? "Still refining…" : "Still drafting…",
+                detail: model.isRefining ? "Your previous draft is safe. You can keep waiting or cancel." : "The provider is taking longer than usual. You can keep waiting or cancel safely."
             )
         case let .reviewing(result):
-            review(result)
+            ScrollView {
+                review(result)
+            }
+        case let .persistentMemoryProposal(proposal):
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(proposal.replacingFact == nil
+                         ? "Save this fact for this document?"
+                         : "Correct this saved fact?")
+                        .font(.headline)
+                    Text("Only the exact fact below will be encrypted on this Mac for up to 30 days. It will not be added to Compose history or sent to a writing provider.")
+                        .font(.caption)
+                        .foregroundStyle(FlowTheme.textSecondary)
+                    if let previous = proposal.replacingFact {
+                        Text("Replace:")
+                            .font(.caption.weight(.semibold))
+                        Text(previous)
+                            .textSelection(.enabled)
+                        Text("With:")
+                            .font(.caption.weight(.semibold))
+                    }
+                    Text(proposal.fact)
+                        .textSelection(.enabled)
+                    HStack {
+                        Button("Discard") { model.onCancel?() }
+                            .keyboardShortcut(.cancelAction)
+                        Spacer()
+                        Button(proposal.replacingFact == nil ? "Save fact" : "Save correction") {
+                            model.onSavePersistentMemory?(proposal.proposalID)
+                        }
+                            .accessibilityIdentifier("scribe-memory-save")
+                            .keyboardShortcut(.defaultAction)
+                    }
+                }
+            }
+        case let .persistentMemoryForgetProposal(proposal):
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Forget saved facts for this document?")
+                    .font(.headline)
+                Text("Remove \(proposal.factCount) saved \(proposal.factCount == 1 ? "fact" : "facts") for this document from this Mac?")
+                    .foregroundStyle(FlowTheme.textSecondary)
+                HStack {
+                    Button("Keep facts") { model.onCancel?() }
+                        .keyboardShortcut(.cancelAction)
+                    Spacer()
+                    Button("Forget facts") {
+                        model.onConfirmPersistentMemoryForget?(proposal.proposalID)
+                    }
+                    .accessibilityIdentifier("scribe-memory-forget-confirm")
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+        case let .memoryNotice(notice):
+            VStack(alignment: .leading, spacing: 12) {
+                statusView(icon: "checkmark.circle", title: notice.title, detail: notice.detail)
+                Button("Done") { model.onClose?() }
+                    .accessibilityIdentifier("scribe-memory-done")
+            }
         case let .insertionRecovery(result):
-            insertionRecovery(result)
+            ScrollView {
+                insertionRecovery(result)
+            }
         case .inserting:
             statusView(icon: "keyboard", title: "Inserting draft…", detail: "Cadence is writing into the original app.")
         case .succeeded:
@@ -193,8 +354,8 @@ struct ScribePanelView: View {
         VStack(alignment: .leading, spacing: 14) {
             statusView(
                 icon: "waveform.circle.fill",
-                title: "Listening…",
-                detail: "No app text is being read."
+                title: model.isRefining ? "Say how to change this draft…" : "Listening…",
+                detail: model.isRefining ? "Your previous draft stays available." : "No app text is being read."
             )
             actionGroup
         }
@@ -205,12 +366,18 @@ struct ScribePanelView: View {
             if let failureMessage = model.failureMessage {
                 statusView(
                     icon: "exclamationmark.triangle",
-                    title: "Latest polish attempt failed",
+                    title: "Previous draft kept",
                     detail: failureMessage
                 )
                 .accessibilityIdentifier("scribe-polish-retry-failure")
+                if let instruction = model.lastRefinementInstruction {
+                    Text("Last refinement: \(instruction)")
+                        .font(.caption)
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .accessibilityIdentifier("scribe-refinement-instruction")
+                }
             }
-            Text("Draft ready")
+            Text(model.selectedTextReviewSource?.isUnchanged == true ? "No changes made" : "Draft ready")
                 .font(.headline)
                 .foregroundStyle(FlowTheme.textPrimary)
             Text("Review the result before it affects the original app.")
@@ -236,6 +403,7 @@ struct ScribePanelView: View {
             .frame(minHeight: 120, maxHeight: 220)
             .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
+            refinementActions
             actionGroup
         }
     }
@@ -244,7 +412,7 @@ struct ScribePanelView: View {
         VStack(alignment: .leading, spacing: 12) {
             statusView(
                 icon: "arrow.uturn.backward.circle",
-                title: "Draft not inserted",
+                title: "Check insertion",
                 detail: model.failureMessage ?? "Return to the original app and insertion point. Your draft is still here."
             )
             .accessibilityIdentifier("scribe-insertion-recovery-status")
@@ -259,6 +427,7 @@ struct ScribePanelView: View {
             .frame(minHeight: 100, maxHeight: 200)
             .background(FlowTheme.subtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
+            refinementActions
             actionGroup
         }
     }
@@ -278,8 +447,8 @@ struct ScribePanelView: View {
         VStack(alignment: .leading, spacing: 12) {
             statusView(
                 icon: "checkmark.circle.fill",
-                title: "Inserted into \(model.targetDisplayName)",
-                detail: "The Compose draft was inserted successfully."
+                title: "Insertion attempted in \(model.targetDisplayName)",
+                detail: "Cadence sent the draft as keystrokes. Check that it appeared before sending."
             )
             actionGroup
         }
@@ -304,13 +473,62 @@ struct ScribePanelView: View {
         ScribeActionPolicy.showsEnvironmentCue(model.state)
     }
 
+    private var refinementActions: some View {
+        HStack(spacing: 12) {
+            CadenceActionButton(
+                title: "Refine",
+                role: .quiet,
+                accessibilityIdentifier: "scribe-refine"
+            ) { model.onRefine?() }
+            .disabled(!model.canRefineReviewedDraft)
+            .help(model.refinementHelp)
+            .accessibilityHint(model.refinementHelp)
+            CadenceActionButton(
+                title: "Undo refinement",
+                role: .quiet,
+                accessibilityIdentifier: "scribe-undo-refinement"
+            ) { model.onUndoRefinement?() }
+            .disabled(!model.canUndoRefinement)
+            .help("Restore the previous draft")
+        }
+    }
+
+    @ViewBuilder
     private var actionGroup: some View {
+        if model.isRefining {
+            HStack(spacing: 12) {
+                CadenceActionButton(
+                    title: "Cancel refinement",
+                    role: .quiet,
+                    accessibilityIdentifier: "scribe-cancel-refinement"
+                ) { model.onCancelRefinement?() }
+                .help("Keep the previous draft")
+                if case .listening = model.state {
+                    CadenceActionButton(
+                        title: "Stop and refine",
+                        role: .primary,
+                        keyboardShortcut: .defaultAction,
+                        accessibilityIdentifier: "scribe-stop-refinement"
+                    ) { model.onStop?() }
+                }
+            }
+        } else {
+            standardActionGroup
+        }
+    }
+
+    private var standardActionGroup: some View {
         let actions = ScribeActionPolicy.actions(
             for: model.state,
             hasLiteralTranscript: model.literalTranscript?.isEmpty == false,
             canRetryGeneration: model.canRetryGeneration,
             targetDisplayName: model.targetDisplayName
-        )
+        ).filter { action in
+            (!model.insertionOutcomeUncertain
+             && model.selectedTextReviewSource?.isExcluded != true
+             && model.selectedTextReviewSource?.isUnchanged != true)
+                || (action.route != .insert && action.route != .insertUnpolished)
+        }
         let usesVerticalLayout = model.panelWidth < CadenceDesignMetrics.compactActionBreakpoint
             || actions.count > 4
         return CadenceActionGroup(
@@ -318,6 +536,7 @@ struct ScribePanelView: View {
             layoutWidth: model.panelWidth,
             perform: perform
         )
+        .disabled(model.isInspectingContext)
         // A review can expose seven recovery actions. Keep that ordered
         // control group operable in the compact panel even when surrounding
         // explanatory text honors a larger accessibility category.
@@ -347,6 +566,10 @@ struct ScribePanelView: View {
     }
 
     private func requestClose() {
+        if model.isRefining {
+            model.onCancelRefinement?()
+            return
+        }
         if ScribeActionPolicy.requiresDiscardConfirmation(
             for: model.state,
             hasRecoverableContent: hasRecoverableContent
@@ -358,7 +581,8 @@ struct ScribePanelView: View {
     }
 
     private var closeAccessibilityHint: String {
-        ScribeActionPolicy.requiresDiscardConfirmation(
+        if model.isRefining { return "Cancel refinement and keep the previous draft." }
+        return ScribeActionPolicy.requiresDiscardConfirmation(
             for: model.state,
             hasRecoverableContent: hasRecoverableContent
         )
@@ -428,7 +652,7 @@ final class ScribePanelWindowController {
         switch state {
         case .idle:
             show(size: Metrics.directReady)
-        case .reviewing, .insertionRecovery:
+        case .reviewing, .persistentMemoryProposal, .persistentMemoryForgetProposal, .memoryNotice, .insertionRecovery:
             show(size: Metrics.review)
         default:
             show(size: Metrics.status)
@@ -436,6 +660,7 @@ final class ScribePanelWindowController {
     }
 
     func close() {
+        viewModel.updateSelectedTextContextStatus(nil)
         panel?.orderOut(nil)
     }
 
@@ -529,7 +754,7 @@ final class ScribePanelWindowController {
             #if DEBUG
             if ScribeLaunchFixtures.current == .controlSemantics { return false }
             #endif
-            return viewModel?.isDiscardAlertPresented != true
+            return viewModel?.isDiscardAlertPresented != true && viewModel?.isInspectingContext != true
         }
 
         #if DEBUG

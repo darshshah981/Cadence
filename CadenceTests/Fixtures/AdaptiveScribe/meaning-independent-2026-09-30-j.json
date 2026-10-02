@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Tenth independent U3 meaning reserve frozen after ninth-reserve repairs before first on-device generation.",
+  "evaluationOrder": "Keep first-run policy readiness, semantic review and any repaired development run separate.",
+  "semanticCriteria": {
+    "acceptable": "A sendable draft preserving the intended person, all stated factual and action statuses, dates, conditions, uncertainty, numerical units, and exact literals.",
+    "critical": "A missing or changed addressee, alternative, negation, amount, unit, condition, time direction or exact literal; invented action or copied writer instruction.",
+    "minor": "Harmless sentence shape or tone differences.",
+    "gate": "All 16 first-run cases must be review-ready with zero critical meaning errors and zero literal violations."
+  },
+  "cases": [
+    {"id":"meaning-j-packed-not-shipped","family":"messaging","spoken":"Tell Noa the order is packed but has not shipped.","exampleDraft":"Noa, the order is packed but has not shipped.","required":["Noa","packed","not shipped"],"forbidden":["order shipped"]},
+    {"id":"meaning-j-invoice-due-or-paid","family":"messaging","spoken":"Ask Tia whether the invoice is due Monday or has already been paid.","exampleDraft":"Tia, is the invoice due Monday, or has it already been paid?","required":["Tia","invoice","Monday","paid"],"forbidden":["invoice was paid"]},
+    {"id":"meaning-j-trip-vs-follow-up","family":"general","spoken":"The trip ended Tuesday, and the follow-up is scheduled Friday. Write this formally.","exampleDraft":"The trip concluded on Tuesday, and the follow-up is scheduled for Friday.","required":["trip","Tuesday","follow-up","Friday"],"forbidden":["trip is scheduled","follow-up ended"]},
+    {"id":"meaning-j-shipping-not-tax","family":"messaging","spoken":"Tell Paul the total is $68 including shipping, but not taxes.","exampleDraft":"Paul, the total is $68 including shipping, but not taxes.","required":["Paul","$68","shipping","not taxes"],"forbidden":["including taxes"]},
+    {"id":"meaning-j-may-join-if-long","family":"messaging","spoken":"Tell Kim I may join after two if the call runs long.","exampleDraft":"Kim, I may join after two if the call runs long.","required":["Kim","may","after two","if"],"forbidden":["I will join"]},
+    {"id":"meaning-j-two-deploy-gates","family":"messaging","spoken":"Tell Eli do not deploy until QA and security both approve.","exampleDraft":"Eli, do not deploy until QA and security both approve.","required":["Eli","do not deploy","QA","security"],"forbidden":["deploy now"]},
+    {"id":"meaning-j-payment-expected","family":"messaging","spoken":"Draft a note to Zoë saying payment is expected, not received.","exampleDraft":"Zoë, payment is expected, not received.","required":["Zoë","expected","not received"],"forbidden":["payment received"]},
+    {"id":"meaning-j-small-percent","family":"general","spoken":"The rate is 0.4%, not 4%. Make this concise.","exampleDraft":"The rate is 0.4%, not 4%.","required":["0.4%","not 4%"],"forbidden":["rate is 4%"]},
+    {"id":"meaning-j-availability-et","family":"messaging","spoken":"Reply to Luz: Thursday works only before 10 a.m. ET.","exampleDraft":"Luz, Thursday works only before 10 a.m. ET.","required":["Luz","Thursday","before 10 a.m. ET"],"forbidden":["after 10 a.m.","PT"]},
+    {"id":"meaning-j-ticket-reopen-condition","family":"messaging","spoken":"Ask Max if ticket ZX-19 can reopen after QA signs off.","exampleDraft":"Max, can ticket ZX-19 reopen after QA signs off?","required":["Max","ZX-19","after QA"],"forbidden":["before QA","ticket reopened"]},
+    {"id":"meaning-j-paid-receipt-pending","family":"messaging","spoken":"Tell Ben invoice ID-441 is paid, but the receipt is still pending.","exampleDraft":"Ben, invoice ID-441 is paid, but the receipt is still pending.","required":["Ben","ID-441","paid","receipt","pending"],"forbidden":["receipt was sent"]},
+    {"id":"meaning-j-monthly-not-annual","family":"messaging","spoken":"Tell Lea the fee is $16 monthly, not annually.","exampleDraft":"Lea, the fee is $16 monthly, not annually.","required":["Lea","$16","monthly","not annually"],"forbidden":["$16 annually"]},
+    {"id":"meaning-j-code-no-edit","family":"coding","spoken":"Ask the coding agent to inspect literal verbatim Sources/Cache.swift end literal without changing code.","exampleDraft":"Inspect Sources/Cache.swift without changing code.","required":["Sources/Cache.swift","without changing code"],"forbidden":["I changed","I fixed"]},
+    {"id":"meaning-j-vendor-condition","family":"general","spoken":"We hope to finish Monday if the vendor responds; there is no guarantee yet.","exampleDraft":"We hope to finish Monday if the vendor responds, but there is no guarantee yet.","required":["hope","Monday","if","vendor","no guarantee"],"forbidden":["we will finish Monday"]},
+    {"id":"meaning-j-exact-note","family":"messaging","spoken":"Include the exact phrase \"awaiting review\" in a note to Val.","exampleDraft":"Val, “awaiting review”","required":["Val","awaiting review"],"forbidden":["review is complete"]},
+    {"id":"meaning-j-past-vs-scheduled","family":"general","spoken":"The meeting was Monday, and the demo is scheduled for Thursday. Write this formally.","exampleDraft":"The meeting took place on Monday, and the demo is scheduled for Thursday.","required":["meeting","Monday","demo","Thursday"],"forbidden":["meeting is scheduled","demo happened"]}
+  ]
+}

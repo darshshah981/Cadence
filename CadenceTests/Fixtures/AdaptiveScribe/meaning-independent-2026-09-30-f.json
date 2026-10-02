@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh U3 meaning reserve frozen after the fifth-reserve recipient and budget-bound repairs. Mark exposed after first generation.",
+  "evaluationOrder": "Freeze corpus and semantic criteria before production request export and on-device generation. Review meaning separately from policy readiness.",
+  "semanticCriteria": {
+    "acceptable": "The reviewed draft preserves every supplied recipient, state, correction, condition, qualifier, amount, unit, literal, and timing relationship. A source-free transformation is rejected before review.",
+    "critical": "A changed or missing recipient, status, corrected value, negation, condition, number, unit, literal, timezone, or action state; invented completion or send claim; unsupported content reaching review.",
+    "minor": "Tone, punctuation, or formatting difference without a meaning change.",
+    "gate": "Zero critical meaning errors and zero literal violations across these 16 cases. Record safe missing-source rejection separately from successful drafting."
+  },
+  "cases": [
+    {
+      "id": "meaning-f-credit-not-refund",
+      "family": "messaging",
+      "spoken": "Tell Nia the account credit is $48.75, and the refund has not been issued.",
+      "exampleDraft": "Nia, the account credit is $48.75, and the refund has not been issued.",
+      "required": ["Nia", "$48.75", "not been issued"],
+      "forbidden": ["refund was issued"]
+    },
+    {
+      "id": "meaning-f-correction-and-rehearsal",
+      "family": "messaging",
+      "spoken": "Tell Ezra the launch was Tuesday, actually Thursday, but rehearsal remains Monday.",
+      "exampleDraft": "Ezra, the launch is Thursday, but rehearsal remains Monday.",
+      "required": ["Ezra", "Thursday", "Monday"],
+      "forbidden": ["launch was Tuesday", "rehearsal is Thursday"]
+    },
+    {
+      "id": "meaning-f-two-unrelated-dates",
+      "family": "general",
+      "spoken": "The audit closed May 4, and renewal starts May 9. Write this formally.",
+      "exampleDraft": "The audit closed on May 4, and the renewal begins on May 9.",
+      "required": ["audit", "May 4", "renewal", "May 9"],
+      "forbidden": ["audit closed May 9", "renewal starts May 4"]
+    },
+    {
+      "id": "meaning-f-two-approvals",
+      "family": "messaging",
+      "spoken": "Ask Farah whether we can deploy only after both legal and security approve.",
+      "exampleDraft": "Farah, can we deploy only after both legal and security approve?",
+      "required": ["Farah", "legal", "security", "after"],
+      "forbidden": ["before approval", "legal or security"]
+    },
+    {
+      "id": "meaning-f-uncertain-conditional",
+      "family": "messaging",
+      "spoken": "Tell Iris I might join Friday if the outage is resolved.",
+      "exampleDraft": "Iris, I might join Friday if the outage is resolved.",
+      "required": ["Iris", "might", "Friday", "if"],
+      "forbidden": ["I will join Friday"]
+    },
+    {
+      "id": "meaning-f-invoice-vs-order",
+      "family": "messaging",
+      "spoken": "Tell Caleb the invoice is paid, but the purchase order is still pending.",
+      "exampleDraft": "Caleb, the invoice is paid, but the purchase order is still pending.",
+      "required": ["Caleb", "invoice", "paid", "purchase order", "pending"],
+      "forbidden": ["purchase order is paid", "invoice is pending"]
+    },
+    {
+      "id": "meaning-f-code-file-no-edit",
+      "family": "coding",
+      "spoken": "Draft a request to inspect literal verbatim src/Billing.swift end literal without editing files.",
+      "exampleDraft": "Inspect src/Billing.swift without editing files.",
+      "required": ["src/Billing.swift", "without editing files"],
+      "forbidden": ["I inspected", "I edited"]
+    },
+    {
+      "id": "meaning-f-upload-code-and-state",
+      "family": "messaging",
+      "spoken": "Tell Lila the upload returned 202, not 200, and processing is still pending.",
+      "exampleDraft": "Lila, the upload returned 202, not 200, and processing is still pending.",
+      "required": ["Lila", "202", "not 200", "pending"],
+      "forbidden": ["processing is complete"]
+    },
+    {
+      "id": "meaning-f-price-period",
+      "family": "general",
+      "spoken": "The price is $149 per year, not $149 per month. Make this concise.",
+      "exampleDraft": "The price is $149 per year, not per month.",
+      "required": ["$149", "per year", "not"],
+      "forbidden": ["$149 per month is the price"]
+    },
+    {
+      "id": "meaning-f-call-timezone",
+      "family": "messaging",
+      "spoken": "Reply to Uma: I can call Tuesday after 4 p.m. PT, not before.",
+      "exampleDraft": "Uma, I can call Tuesday after 4 p.m. PT, not before.",
+      "required": ["Uma", "Tuesday", "after 4 p.m. PT", "not before"],
+      "forbidden": ["before 4 p.m.", "ET"]
+    },
+    {
+      "id": "meaning-f-reminder-vs-contract",
+      "family": "messaging",
+      "spoken": "Tell Arjun the reminder was sent, but the contract itself has not been sent.",
+      "exampleDraft": "Arjun, the reminder was sent, but the contract itself has not been sent.",
+      "required": ["Arjun", "reminder", "sent", "contract", "not been sent"],
+      "forbidden": ["contract was sent"]
+    },
+    {
+      "id": "meaning-f-quoted-note",
+      "family": "messaging",
+      "spoken": "Include the exact phrase \"pending QA sign-off\" in a note to Mona.",
+      "exampleDraft": "Mona, \"pending QA sign-off\"",
+      "required": ["Mona", "pending QA sign-off"],
+      "forbidden": ["QA is complete"]
+    },
+    {
+      "id": "meaning-f-review-before-publish",
+      "family": "messaging",
+      "spoken": "Tell Priya to wait until review finishes before publishing the draft.",
+      "exampleDraft": "Priya, please wait until review finishes before publishing the draft.",
+      "required": ["Priya", "review", "before publishing"],
+      "forbidden": ["publish now"]
+    },
+    {
+      "id": "meaning-f-pilot-ended-expansion-not-started",
+      "family": "general",
+      "spoken": "Write this clearly: The pilot ended last week; the expansion has not started.",
+      "exampleDraft": "The pilot ended last week, and the expansion has not started.",
+      "required": ["pilot", "ended", "last week", "expansion", "not started"],
+      "forbidden": ["expansion started"]
+    },
+    {
+      "id": "meaning-f-source-free-url",
+      "family": "general",
+      "spoken": "Please include https://status.example.org/incidents/22 in the update.",
+      "exampleDraft": "Please include https://status.example.org/incidents/22 in the update.",
+      "required": ["https://status.example.org/incidents/22"],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-f-issue-blocked-until",
+      "family": "messaging",
+      "spoken": "Ask Theo whether issue QX-77 is blocked until security signs off.",
+      "exampleDraft": "Theo, is issue QX-77 blocked until security signs off?",
+      "required": ["Theo", "QX-77", "blocked", "until security"],
+      "forbidden": ["security signed off", "issue is resolved"]
+    }
+  ]
+}

@@ -35,6 +35,33 @@ enum TranscriptCopyCommit {
     }
 }
 
+@MainActor
+enum ComposeCopyCommit {
+    @discardableResult
+    static func perform(
+        _ text: String,
+        onCopied: () -> Void,
+        onFailure: () -> Void
+    ) -> Bool {
+        perform(text, using: SystemTextPasteboardWriter(), onCopied: onCopied, onFailure: onFailure)
+    }
+
+    @discardableResult
+    static func perform(
+        _ text: String,
+        using pasteboard: TextPasteboardWriting,
+        onCopied: () -> Void,
+        onFailure: () -> Void
+    ) -> Bool {
+        guard pasteboard.replaceContents(with: text) else {
+            onFailure()
+            return false
+        }
+        onCopied()
+        return true
+    }
+}
+
 enum HUDCopyLastAction {
     @discardableResult
     static func perform(
