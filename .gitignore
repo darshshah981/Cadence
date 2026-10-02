@@ -35,3 +35,10 @@ local/
 
 # Agent-local working state (Codex CLI environments/screenshots, etc.)
 .codex/
+
+# Credentials and checkout-specific configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+.compound-engineering/config.local.yaml

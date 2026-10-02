@@ -3,6 +3,26 @@ import Testing
 @testable import Cadence
 
 struct ScribeLiteralNormalizerTests {
+    @Test
+    func protectedUnicodeLiteralsRequireExactBytesRatherThanVisualEquivalence() throws {
+        let decomposed = "src/cafe\u{0301}.swift"
+        let composed = "src/café.swift"
+        // Swift's normal String equality treats these spellings as equivalent.
+        #expect(decomposed == composed)
+        #expect(Array(decomposed.utf8) != Array(composed.utf8))
+        let literals = [ScribeExactLiteral(id: 1, value: decomposed, source: .alreadyExact)]
+        let spoken = "Inspect \(decomposed)."
+        let valid = try ScribeRequestPolicy.validateOutput(
+            spoken, requiredLiterals: literals, spokenRequest: spoken
+        )
+        #expect(Array(valid.utf8) == Array(spoken.utf8))
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateOutput(
+                "Inspect \(composed).", requiredLiterals: literals, spokenRequest: spoken
+            )
+        }
+    }
+
     @Test(arguments: [
         ("literal camel case parse capital I capital D end literal", "parseID"),
         ("literal pascal case capital A capital P capital I client dot swift end literal", "APIClient.swift"),
@@ -125,7 +145,7 @@ struct ScribeLiteralNormalizerTests {
         )
 
         #expect(input.systemMessage == ScribeRequestPolicy.systemMessage)
-        #expect(input.userMessage.contains("Processed dictation (JSON data)"))
+        #expect(input.userMessage.contains("Spoken writing request:\nDecline politely"))
         #expect(input.userMessage.contains("Decline politely"))
         #expect(!input.userMessage.contains("<context>"))
         #expect(input.userMessage.contains("Write a message that can be pasted into a conversational team chat."))

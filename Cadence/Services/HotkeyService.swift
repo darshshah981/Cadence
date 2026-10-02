@@ -160,11 +160,21 @@ struct ModifierOnlyGestureEngine: Sendable {
     }
 }
 
-final class HotkeyService: HotkeyServing {
-    private enum ModifierOnlyTuning {
-        static let activationDelay: TimeInterval = 0.24
-    }
+enum ModifierOnlyActivationTiming {
+    static let standardDelay: TimeInterval = 0.24
+    static let defaultScribeDelay: TimeInterval = 0.16
 
+    static func delay(for action: HotkeyAction, bindings: [HotkeyBinding]) -> TimeInterval {
+        if action == .scribe,
+           bindings.contains(where: { $0.isEnabled && $0.action == .scribe
+               && $0.shortcut == .defaultScribe }) {
+            return defaultScribeDelay
+        }
+        return standardDelay
+    }
+}
+
+final class HotkeyService: HotkeyServing {
     var onPress: ((HotkeyAction) -> Void)?
     var onRelease: ((HotkeyAction) -> Void)?
     var onQuickTap: ((HotkeyAction) -> Void)?
@@ -472,7 +482,8 @@ final class HotkeyService: HotkeyServing {
                     self.onPress?(action)
                 }
                 pendingModifierOnlyWorkItems[action] = workItem
-                DispatchQueue.main.asyncAfter(deadline: .now() + ModifierOnlyTuning.activationDelay, execute: workItem)
+                let delay = ModifierOnlyActivationTiming.delay(for: action, bindings: bindings)
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
             case let .cancelScheduled(action):
                 pendingModifierOnlyWorkItems[action]?.cancel()
                 pendingModifierOnlyWorkItems[action] = nil

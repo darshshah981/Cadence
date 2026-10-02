@@ -7,6 +7,16 @@ struct ScribeNotchPresentationTests {
     private let requestID = UUID()
 
     @Test
+    func savedFactReviewSourceIdentifiesDurableFactsAndOffersExplicitExclusion() {
+        let source = ScribeSessionFactsReviewSource(
+            id: requestID, facts: ["A saved project fact."], recordIDs: [UUID()], kind: .saved
+        )
+        #expect(source.status == "Saved facts · This Mac")
+        #expect(source.allowsRegeneration)
+        #expect(source.facts == ["A saved project fact."])
+    }
+
+    @Test
     func listeningKeepsTheNotchHiddenAndUsesTheScribePill() {
         let projection = ScribeNotchPresentation.project(
             state: .listening(requestID: requestID),
@@ -62,6 +72,67 @@ struct ScribeNotchPresentationTests {
         ))
         #expect(projection.pill == .transcribing)
         #expect(projection.allowsReviewActions)
+    }
+
+    @Test @MainActor
+    func screenDraftReviewDisablesTheOriginalDraftInsertionShortcut() {
+        let model = ScribeNotchViewModel()
+        let result = ScribeResult(requestID: requestID, text: "Original draft")
+        model.apply(.project(
+            state: .reviewing(result), literalTranscript: "Original words",
+            failureMessage: nil
+        ))
+        model.updateScreenDraftPhase(.awaitingCaptureApproval)
+        #expect(model.isInspectingContext)
+        #expect(!model.permitsReviewedInsertion)
+        #expect(ScribeReviewKeyboardPolicy.commands(
+            for: model.presentation.content,
+            isInspectingSource: model.isInspectingContext,
+            permitsInsertion: model.permitsReviewedInsertion
+        ).isEmpty)
+        model.updateScreenDraftPhase(.ready("Copy-only draft"))
+        #expect(!model.permitsReviewedInsertion)
+        model.updateScreenDraftPhase(.idle)
+        #expect(model.permitsReviewedInsertion)
+    }
+
+    @Test
+    func durableFactProposalShowsExactFactWithoutGlobalInsertShortcut() {
+        let proposal = ComposePersistentMemoryReviewProposal(
+            requestID: requestID, proposalID: UUID(),
+            fact: "The synthetic project uses SwiftUI."
+        )
+        let projection = ScribeNotchPresentation.project(
+            state: .persistentMemoryProposal(proposal),
+            literalTranscript: "Cadence, remember for later that the synthetic project uses SwiftUI.",
+            failureMessage: nil
+        )
+        #expect(projection.content == .persistentMemoryProposal(proposal))
+        #expect(projection.allowsReviewActions)
+        #expect(ScribeReviewKeyboardPolicy.commands(for: projection.content).isEmpty)
+        #expect(ScribeActionPolicy.actions(
+            for: .persistentMemoryProposal(proposal), hasLiteralTranscript: true,
+            canRetryGeneration: false
+        ).isEmpty)
+    }
+
+    @Test
+    func durableForgetProposalOffersReviewWithoutGlobalInsertShortcut() {
+        let proposal = ComposePersistentMemoryForgetReview(
+            requestID: requestID, proposalID: UUID(), factCount: 2
+        )
+        let projection = ScribeNotchPresentation.project(
+            state: .persistentMemoryForgetProposal(proposal),
+            literalTranscript: "Cadence, forget saved facts for this document",
+            failureMessage: nil
+        )
+        #expect(projection.content == .persistentMemoryForgetProposal(proposal))
+        #expect(projection.allowsReviewActions)
+        #expect(ScribeReviewKeyboardPolicy.commands(for: projection.content).isEmpty)
+        #expect(ScribeActionPolicy.actions(
+            for: .persistentMemoryForgetProposal(proposal), hasLiteralTranscript: true,
+            canRetryGeneration: false
+        ).isEmpty)
     }
 
     @Test
@@ -196,6 +267,19 @@ struct ScribeNotchPresentationTests {
         #expect(
             ScribeNotchFailureRecovery.contextRecovery(for: .secureField) == nil
         )
+        #expect(ScribeNotchFailureRecovery.contextRecovery(for: .captureCleared) == ScribeNotchFailureRecovery.none)
+    }
+
+    @Test
+    func endedContextDoesNotOfferADeadRetryAction() {
+        let presentation = ScribeNotchPresentation.project(
+            state: .failed(requestID: UUID(), error: .unavailable), literalTranscript: nil,
+            failureMessage: ScribeContextError.captureCleared.userMessage, canRetryGeneration: false,
+            failureRecovery: .contextRecovery(for: .captureCleared)
+        )
+        #expect(presentation.content == .failure(
+            message: ScribeContextError.captureCleared.userMessage, literalTranscript: nil, recovery: .none
+        ))
     }
 
     @Test
@@ -472,8 +556,134 @@ struct ScribeNotchCopyInteractionTests {
 @MainActor
 struct ScribeNotchKeyboardInteractionTests {
     @Test
-    func failureLocalEventsFollowKeyWindowFocusAndStopOnClose() throws {
+    func uncertainInsertionLeavesCopyAvailableWithoutAnotherInsertShortcut() {
+        let keyboard = FakeScribeReviewKeyboardMonitor()
+        let outside = FakeScribeOutsideClickMonitor()
+        let controller = ScribeNotchWindowController(outsideClickMonitor: outside, reviewKeyboardMonitor: keyboard)
+        defer { controller.close() }
+        let result = ScribeResult(requestID: UUID(), text: "Reviewed draft")
+        var insertions = 0
+        var copies = 0
+        controller.viewModel.onInsert = { insertions += 1 }
+        controller.viewModel.onCopy = { copies += 1 }
+        controller.viewModel.updateInsertionOutcomeUncertain(true)
+        controller.update(.init(content: .insertionRecovery(message: "Check original app", result: result), pill: .failed))
+
+        #expect(!controller.viewModel.permitsReviewedInsertion)
+        #expect(keyboard.commands == [.copy, .discard])
+        keyboard.emit(.insert)
+        keyboard.emit(.copy)
+        #expect(insertions == 0 && copies == 1)
+    }
+
+    @Test
+    func staleInspectorCallbacksCannotRestoreShortcutsInANewerInspector() {
+        let old = ScribeSelectedTextReviewSource(id: UUID(), text: "Old", includedUTF8Bytes: 3, isExcluded: false)
+        let current = ScribeSelectedTextReviewSource(id: UUID(), text: "Current", includedUTF8Bytes: 7, isExcluded: false)
+        let notch = ScribeNotchViewModel()
+        let panel = ScribePanelViewModel()
+        notch.updateSelectedTextReviewSource(old)
+        panel.updateSelectedTextReviewSource(old)
+        notch.setInspectingSource(true, sourceID: old.id)
+        panel.setInspectingSource(true, sourceID: old.id)
+        notch.updateSelectedTextReviewSource(current)
+        panel.updateSelectedTextReviewSource(current)
+        #expect(!notch.isInspectingSource && !panel.isInspectingSource)
+        notch.setInspectingSource(true, sourceID: current.id)
+        panel.setInspectingSource(true, sourceID: current.id)
+        notch.setInspectingSource(false, sourceID: old.id)
+        panel.setInspectingSource(false, sourceID: old.id)
+        #expect(notch.isInspectingSource && panel.isInspectingSource)
+        #expect(!notch.permitsReviewedInsertion)
+        notch.updateSelectedTextReviewSource(nil)
+        panel.updateSelectedTextReviewSource(nil)
+        #expect(!notch.isInspectingSource && !panel.isInspectingSource)
+    }
+
+    @Test
+    func sourceInspectorOwnsKeyboardAndExcludedDraftCannotInsert() {
+        let keyboard = FakeScribeReviewKeyboardMonitor()
+        let outside = FakeScribeOutsideClickMonitor()
+        let controller = ScribeNotchWindowController(outsideClickMonitor: outside, reviewKeyboardMonitor: keyboard)
+        defer { controller.close() }
+        let result = ScribeResult(requestID: UUID(), text: "Previous draft")
+        let id = UUID()
+        let source = ScribeSelectedTextReviewSource(id: id, text: "Source", includedUTF8Bytes: 6, isExcluded: false)
+        var insertions = 0
+        var copies = 0
+        var outsideDismissals = 0
+        controller.viewModel.onInsert = { insertions += 1 }
+        controller.viewModel.onCopy = { copies += 1 }
+        controller.onOutsideClickAfterCopy = { outsideDismissals += 1 }
+        controller.update(.init(content: .ready(result), pill: .scribed))
+        controller.viewModel.updateSelectedTextReviewSource(source)
+        #expect(keyboard.commands.contains(.insert))
+        controller.showCopyFeedback("Copied")
+        controller.viewModel.setInspectingSource(true)
+        #expect(keyboard.commands.isEmpty)
+        keyboard.emit(.insert)
+        keyboard.emit(.copy)
+        outside.emit(NSPoint(x: -100_000, y: -100_000))
+        #expect(insertions == 0 && copies == 0 && outsideDismissals == 0)
+        #expect(controller.viewModel.presentation.content == .ready(result))
+        controller.viewModel.updateSelectedTextReviewSource(.init(id: id, text: source.text, includedUTF8Bytes: 6, isExcluded: true))
+        controller.viewModel.setInspectingSource(false)
+        #expect(keyboard.commands == [.copy, .discard])
+        #expect(!controller.viewModel.permitsReviewedInsertion)
+        keyboard.emit(.insert)
+        keyboard.emit(.copy)
+        #expect(insertions == 0 && copies == 1)
+        controller.viewModel.updateSelectedTextReviewSource(.init(id: id, text: source.text, includedUTF8Bytes: 6, isExcluded: false, isUnchanged: true))
+        #expect(keyboard.commands == [.copy, .discard])
+        #expect(!controller.viewModel.permitsReviewedInsertion)
+        keyboard.emit(.insert)
+        #expect(insertions == 0)
+        controller.viewModel.updateSelectedTextReviewSource(source)
+        #expect(keyboard.commands.contains(.insert))
+        controller.viewModel.updateSelectedTextReviewSource(nil)
+        #expect(controller.viewModel.selectedTextReviewSource == nil)
+        #expect(!controller.viewModel.isInspectingSource)
+    }
+
+    @Test
+    func sessionFactsInspectorSuspendsReviewCommandsAndClearsWithSource() {
+        let keyboard = FakeScribeReviewKeyboardMonitor()
+        let outside = FakeScribeOutsideClickMonitor()
+        let controller = ScribeNotchWindowController(outsideClickMonitor: outside, reviewKeyboardMonitor: keyboard)
+        defer { controller.close() }
+        let result = ScribeResult(requestID: UUID(), text: "Could you share an update?")
+        let source = ScribeSessionFactsReviewSource(id: UUID(), facts: ["The refund is delayed."])
+        var insertions = 0
+        var copies = 0
+        controller.viewModel.onInsert = { insertions += 1 }
+        controller.viewModel.onCopy = { copies += 1 }
+        controller.update(.init(content: .ready(result), pill: .scribed))
+        controller.viewModel.updateSessionFactsReviewSource(source)
+        #expect(keyboard.commands.contains(.insert))
+
+        controller.viewModel.setInspectingFacts(true, sourceID: source.id)
+        #expect(keyboard.commands.isEmpty)
+        #expect(!controller.viewModel.permitsReviewedInsertion)
+        keyboard.emit(.insert)
+        keyboard.emit(.copy)
+        #expect(insertions == 0 && copies == 0)
+
+        let newer = ScribeSessionFactsReviewSource(id: UUID(), facts: ["The refund was approved."])
+        controller.viewModel.updateSessionFactsReviewSource(newer)
+        #expect(!controller.viewModel.isInspectingFacts)
+        controller.viewModel.setInspectingFacts(true, sourceID: newer.id)
+        controller.viewModel.setInspectingFacts(false, sourceID: source.id)
+        #expect(controller.viewModel.isInspectingFacts)
+        controller.viewModel.updateSessionFactsReviewSource(nil)
+        #expect(!controller.viewModel.isInspectingFacts)
+        #expect(controller.viewModel.sessionFactsReviewSource == nil)
+        #expect(keyboard.commands.contains(.insert))
+    }
+
+    @Test
+    func failureLocalEventsFollowKeyWindowFocusAndStopOnClose() async throws {
         let application = NSApplication.shared
+        let previousForegroundApplication = NSWorkspace.shared.frontmostApplication
         let previousKeyWindow = application.keyWindow
         let existingWindows = Set(application.windows.map(ObjectIdentifier.init))
         let controller = ScribeNotchWindowController(
@@ -489,6 +699,10 @@ struct ScribeNotchKeyboardInteractionTests {
             controller.close()
             otherWindow.close()
             previousKeyWindow?.makeKey()
+            if application.isActive,
+               previousForegroundApplication?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+                previousForegroundApplication?.activate()
+            }
         }
         var copyCount = 0
         var discardCount = 0
@@ -501,8 +715,18 @@ struct ScribeNotchKeyboardInteractionTests {
         let panel = try #require(application.windows.first {
             !existingWindows.contains(ObjectIdentifier($0)) && $0 is NSPanel
         })
-        panel.makeKey()
-        #expect(panel.isKeyWindow)
+        // The hosted test app can be inactive. WindowServer must acknowledge
+        // activation/focus before synthetic local key events are meaningful.
+        // This simulates explicit user focus, not recovery auto-activation.
+        application.activate(ignoringOtherApps: true)
+        let activationDeadline = ContinuousClock.now + .seconds(1)
+        while !application.isActive && ContinuousClock.now < activationDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(application.isActive)
+        panel.makeKeyAndOrderFront(nil)
+        await waitForKeyWindow(panel)
+        try #require(panel.isKeyWindow)
 
         func sendKeys(to window: NSWindow) throws {
             for (keyCode, modifiers, characters) in [
@@ -525,7 +749,8 @@ struct ScribeNotchKeyboardInteractionTests {
         #expect(discardCount == 1)
 
         otherWindow.makeKeyAndOrderFront(nil)
-        #expect(!panel.isKeyWindow)
+        await waitForKeyWindow(otherWindow)
+        try #require(otherWindow.isKeyWindow && !panel.isKeyWindow)
         try sendKeys(to: otherWindow)
         #expect(otherWindow.receivedKeyCodes == [8, 53])
         #expect(copyCount == 1)
@@ -533,14 +758,24 @@ struct ScribeNotchKeyboardInteractionTests {
 
         // Reacquire recovery focus, then tear it down while its monitor is active.
         panel.makeKey()
-        #expect(panel.isKeyWindow)
+        await waitForKeyWindow(panel)
+        try #require(panel.isKeyWindow)
         controller.close()
         otherWindow.makeKeyAndOrderFront(nil)
+        await waitForKeyWindow(otherWindow)
+        try #require(otherWindow.isKeyWindow)
         otherWindow.receivedKeyCodes.removeAll()
         try sendKeys(to: otherWindow)
         #expect(otherWindow.receivedKeyCodes == [8, 53])
         #expect(copyCount == 1)
         #expect(discardCount == 1)
+    }
+
+    private func waitForKeyWindow(_ window: NSWindow) async {
+        let deadline = ContinuousClock.now + .seconds(1)
+        while !window.isKeyWindow && ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     @Test
@@ -653,6 +888,39 @@ struct ScribeHUDProjectionTests {
 
 @MainActor
 struct ScribeNotchViewModelTests {
+    @Test
+    func sessionMemoryCueAppearsOnlyForTheCurrentReview() {
+        let viewModel = ScribeNotchViewModel()
+        #expect(viewModel.sessionMemoryContextStatus == nil)
+        #expect(viewModel.sessionFactsReviewSource == nil)
+        viewModel.updateSessionMemoryContextStatus("Session facts · This Mac")
+        let source = ScribeSessionFactsReviewSource(id: UUID(), facts: ["The refund is delayed."])
+        viewModel.updateSessionFactsReviewSource(source)
+        #expect(viewModel.sessionMemoryContextStatus == "Session facts · This Mac")
+        #expect(viewModel.sessionFactsReviewSource == source)
+        viewModel.resetImmediately()
+        #expect(viewModel.sessionMemoryContextStatus == nil)
+        #expect(viewModel.sessionFactsReviewSource == nil)
+    }
+
+    @Test
+    func panelFactsInspectorIgnoresStaleDismissalAndClearsOnReviewEnd() {
+        let panel = ScribePanelViewModel()
+        let first = ScribeSessionFactsReviewSource(id: UUID(), facts: ["The refund is delayed."])
+        let current = ScribeSessionFactsReviewSource(id: UUID(), facts: ["The refund was approved."])
+        panel.updateSessionFactsReviewSource(first)
+        panel.setInspectingFacts(true, sourceID: first.id)
+        #expect(panel.isInspectingContext)
+        panel.updateSessionFactsReviewSource(current)
+        #expect(!panel.isInspectingContext)
+        panel.setInspectingFacts(true, sourceID: current.id)
+        panel.setInspectingFacts(false, sourceID: first.id)
+        #expect(panel.isInspectingContext)
+        panel.updateSessionFactsReviewSource(nil)
+        #expect(!panel.isInspectingContext)
+        #expect(panel.sessionFactsReviewSource == nil)
+    }
+
     @Test(arguments: [false, true])
     func resultPublishesFullTextAndActionsSynchronously(reducedMotion: Bool) {
         let viewModel = ScribeNotchViewModel()
@@ -710,6 +978,38 @@ struct ScribeNotchViewModelTests {
         #expect(viewModel.displayedResult.isEmpty)
         #expect(!viewModel.showsReviewActions)
         #expect(completionCount == 1)
+    }
+
+    @Test
+    func enablingReducedMotionFinishesAnActiveTypingTransition() async {
+        let viewModel = ScribeNotchViewModel()
+        let source = String(repeating: "Synthetic source text. ", count: 100)
+        viewModel.apply(ScribeNotchPresentation(
+            content: .typingTranscript(source, isSlow: false), pill: .transcribing
+        ))
+        try? await Task.sleep(for: .milliseconds(150))
+        #expect(viewModel.displayedSource != source)
+
+        viewModel.setReducedMotion(true)
+        #expect(viewModel.surfaceSize == ScribeNotchGeometry.surfaceSize)
+        #expect(viewModel.contentOpacity == 1)
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(viewModel.displayedSource == source)
+        #expect(viewModel.statusText == "Composing")
+    }
+
+    @Test
+    func enablingReducedMotionCollapsesAnActiveDismissalImmediately() {
+        let viewModel = ScribeNotchViewModel()
+        viewModel.apply(ScribeNotchPresentation(
+            content: .ready(ScribeResult(requestID: UUID(), text: "Ready")), pill: .scribed
+        ))
+        viewModel.apply(ScribeNotchPresentation(content: .hidden, pill: .hidden))
+        viewModel.setReducedMotion(true)
+
+        #expect(viewModel.surfaceSize == ScribeNotchMotion.collapsedHardwareSize)
+        #expect(viewModel.contentOpacity == 0)
+        #expect(!viewModel.showsReviewActions)
     }
 
     @Test

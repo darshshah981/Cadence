@@ -4,6 +4,35 @@ import Testing
 @MainActor
 struct ScribeProviderSetupModelTests {
     @Test
+    func localStatusRespectsDisabledStateAndShowsSpecificRecovery() {
+        let preparing = "Apple Intelligence is preparing its model."
+        #expect(ScribeProviderReadiness.disabled.statusText(
+            configuredKind: .legacyLocal,
+            onDeviceUnavailableReason: nil
+        ) == "Compose is disabled · no API key needed")
+        #expect(ScribeProviderReadiness.disabled.statusText(
+            configuredKind: .legacyLocal,
+            onDeviceUnavailableReason: preparing
+        ) == "Compose is disabled · no API key needed")
+        #expect(ScribeProviderReadiness.disabled.statusText(
+            configuredKind: .deepSeek,
+            onDeviceUnavailableReason: nil
+        ) == "Compose is disabled · provider key retained")
+        #expect(ScribeProviderReadiness.temporarilyUnavailable(.legacyLocal).statusText(
+            configuredKind: .legacyLocal,
+            onDeviceUnavailableReason: preparing
+        ) == preparing)
+        #expect(ScribeProviderReadiness.ready(.legacyLocal).statusText(
+            configuredKind: .legacyLocal,
+            onDeviceUnavailableReason: nil
+        ) == "On-device · no API key · review before insert")
+        #expect(ScribeProviderReadiness.ready(.deepSeek).statusText(
+            configuredKind: .deepSeek,
+            onDeviceUnavailableReason: preparing
+        ) == "DeepSeek connected · review before insert")
+    }
+
+    @Test
     func providerSetupPlacementCoversEveryReadinessAndConfigurationState() {
         let expectations: [(ScribeProviderReadiness, ScribeProviderSetupPlacement)] = [
             (.setupRequired, .summary),

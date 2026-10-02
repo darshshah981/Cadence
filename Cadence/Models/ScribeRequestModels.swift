@@ -45,6 +45,15 @@ struct NormalizedScribeTranscript: Equatable, Sendable {
 struct ProviderSafeScribeInput: Equatable, Sendable {
     let systemMessage: String
     let userMessage: String
+    /// A compiler-vetted local formatting result. Never produced by a remote
+    /// provider compiler or inferred by the generator from prompt wording.
+    let preparedDraft: String?
+
+    init(systemMessage: String, userMessage: String, preparedDraft: String? = nil) {
+        self.systemMessage = systemMessage
+        self.userMessage = userMessage
+        self.preparedDraft = preparedDraft
+    }
 
     static let connectionValidation = ProviderSafeScribeInput(
         systemMessage: "Return only OK.",

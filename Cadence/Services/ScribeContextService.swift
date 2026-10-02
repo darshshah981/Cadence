@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import CoreGraphics
 import Foundation
 
 enum ScribeContextError: String, Error, Equatable, Sendable {
@@ -11,7 +12,9 @@ enum ScribeContextError: String, Error, Equatable, Sendable {
     case unsupportedSelection
     case invalidContent
     case targetChanged
+    case selectionChanged
     case captureCleared
+    case insertionUnconfirmed
 
     var userMessage: String {
         switch self {
@@ -31,8 +34,12 @@ enum ScribeContextError: String, Error, Equatable, Sendable {
             return "The selection contains content Cadence cannot safely use."
         case .targetChanged:
             return "Return to the original app before inserting."
+        case .selectionChanged:
+            return "The original selection changed. Copy this draft or select the text and start a new Compose request."
         case .captureCleared:
             return "This Compose request has ended. Start a new request to continue."
+        case .insertionUnconfirmed:
+            return "Cadence could not confirm insertion. Check the original app; your draft is still available to copy."
         }
     }
 }
@@ -59,11 +66,13 @@ protocol ScribeAccessibilityReading: AnyObject {
     func pinFocusedTarget() throws
     func readPinnedSnapshot() throws -> ScribeAccessibilityReadSnapshot
     func readCurrentFocusSnapshot() throws -> ScribeAccessibilityReadSnapshot
+    func readPinnedWindowFrame() -> CGRect?
     func restorePinnedTargetFocus(processIdentifier: pid_t) throws
     func clearPinnedTarget()
 }
 
 extension ScribeAccessibilityReading {
+    func readPinnedWindowFrame() -> CGRect? { nil }
     func readCurrentFocusSnapshot() throws -> ScribeAccessibilityReadSnapshot {
         try readPinnedSnapshot()
     }
@@ -76,9 +85,28 @@ protocol ScribeContextServing: AnyObject {
     func prepareTarget() async throws
     func capture() throws -> ScribeContextSnapshot
     func verifyTarget(for capture: ScribeContextSnapshot) throws -> Bool
+    func verifyTargetAllowingComposeReviewFocus(for capture: ScribeContextSnapshot) throws -> Bool
+    func pinnedWindowFrame(for capture: ScribeContextSnapshot) throws -> CGRect?
+    func restoreTargetForContextRefresh(_ capture: ScribeContextSnapshot) async throws
     func insert(_ text: String, for capture: ScribeContextSnapshot) async throws -> Bool
+    func insert(_ text: String, for capture: ScribeContextSnapshot, selectedTextPreflight: @escaping @MainActor () async -> Bool) async throws -> Bool
     func clear(_ capture: ScribeContextSnapshot)
     func discardPreparedTarget()
+}
+
+extension ScribeContextServing {
+    func pinnedWindowFrame(for _: ScribeContextSnapshot) throws -> CGRect? { nil }
+    func verifyTargetAllowingComposeReviewFocus(for capture: ScribeContextSnapshot) throws -> Bool {
+        try verifyTarget(for: capture)
+    }
+    func restoreTargetForContextRefresh(_ capture: ScribeContextSnapshot) async throws {
+        throw ScribeContextError.unsupportedSelection
+    }
+    // Existing adapters do not gain selected-range replacement authority merely
+    // by supporting ordinary insertion. They must implement this boundary.
+    func insert(_ text: String, for capture: ScribeContextSnapshot, selectedTextPreflight: @escaping @MainActor () async -> Bool) async throws -> Bool {
+        throw ScribeContextError.unsupportedSelection
+    }
 }
 
 @MainActor
@@ -89,9 +117,12 @@ final class ScribeContextService: ScribeContextServing {
     private let reader: ScribeAccessibilityReading
     private let processAuthority: any RuntimeApplicationProcessAuthorizing
     private let targetAuthority: (any ApplicationTargetAuthorizing)?
+    private let targetCapability: any DictationTargetCapabilityServing
     private let transientControlProcessIdentifier: pid_t
     private let insertionFocusSettleDelay: Duration
+    private let focusAcquisitionRetryDelay: Duration
     private let textInsertion: TextInsertionServing
+    private let frontmostProcessIdentifier: @MainActor () -> pid_t?
     private enum CaptureMode {
         case accessibilityElement
         case application
@@ -105,6 +136,8 @@ final class ScribeContextService: ScribeContextServing {
 
     private var preparedApplicationTarget: ApplicationTargetCapture?
     private var activeCaptures: [UUID: ActiveCapture] = [:]
+    private var insertionsInFlight: Set<UUID> = []
+    private var insertionsAttempted: Set<UUID> = []
 
     convenience init() {
         self.init(
@@ -126,16 +159,24 @@ final class ScribeContextService: ScribeContextServing {
         reader: ScribeAccessibilityReading,
         processAuthority: any RuntimeApplicationProcessAuthorizing,
         targetAuthority: (any ApplicationTargetAuthorizing)? = nil,
+        targetCapability: (any DictationTargetCapabilityServing)? = nil,
         transientControlProcessIdentifier: pid_t = ProcessInfo.processInfo.processIdentifier,
         insertionFocusSettleDelay: Duration = ScribeContextService.defaultInsertionFocusSettleDelay,
-        textInsertion: TextInsertionServing = TextInsertionService()
+        focusAcquisitionRetryDelay: Duration = .milliseconds(40),
+        textInsertion: TextInsertionServing = TextInsertionService(),
+        frontmostProcessIdentifier: @escaping @MainActor () -> pid_t? = {
+            NSWorkspace.shared.frontmostApplication?.processIdentifier
+        }
     ) {
         self.reader = reader
         self.processAuthority = processAuthority
         self.targetAuthority = targetAuthority
+        self.targetCapability = targetCapability ?? SystemDictationTargetCapabilityService()
         self.transientControlProcessIdentifier = transientControlProcessIdentifier
         self.insertionFocusSettleDelay = insertionFocusSettleDelay
+        self.focusAcquisitionRetryDelay = focusAcquisitionRetryDelay
         self.textInsertion = textInsertion
+        self.frontmostProcessIdentifier = frontmostProcessIdentifier
     }
 
     func prepareTarget() async throws {
@@ -156,12 +197,29 @@ final class ScribeContextService: ScribeContextServing {
             // sufficient to begin when an editor does not publish a focused
             // accessibility element.
             do {
-                try reader.pinFocusedTarget()
+                try await pinFocusedTargetWithRetry()
             } catch ScribeContextError.noFocusedTarget {
                 reader.clearPinnedTarget()
             }
         } else {
-            try reader.pinFocusedTarget()
+            try await pinFocusedTargetWithRetry()
+        }
+    }
+
+    private func pinFocusedTargetWithRetry() async throws {
+        // WebKit can publish document focus before the AX focused-element
+        // attribute becomes readable. Retry only that transient absence;
+        // permission, secure-field and other failures keep their own paths.
+        for attempt in 0..<4 {
+            try Task.checkCancellation()
+            do {
+                try reader.pinFocusedTarget()
+                return
+            } catch ScribeContextError.noFocusedTarget {
+                reader.clearPinnedTarget()
+                guard attempt < 3 else { throw ScribeContextError.noFocusedTarget }
+                try await Task.sleep(for: focusAcquisitionRetryDelay)
+            }
         }
     }
 
@@ -226,6 +284,9 @@ final class ScribeContextService: ScribeContextServing {
             processIdentifier: expectedProcessIdentifier,
             bundleIdentifier: expectedBundleIdentifier
         )
+        if raw != nil {
+            try validateCapability(for: applicationTarget)
+        }
         let verificationToken = raw?.verificationToken
             ?? "application:\(captureID.uuidString)"
         let capture = ScribeContextSnapshot(
@@ -253,6 +314,43 @@ final class ScribeContextService: ScribeContextServing {
         try verifyTarget(for: capture, allowingTransientControlFocus: false)
     }
 
+    /// A user may focus Cadence's review button to confirm a proposal. Keep
+    /// the original capture and process fence, allowing only that transient
+    /// control focus; the memory adapter separately revalidates the same file
+    /// and window before any durable write.
+    func verifyTargetAllowingComposeReviewFocus(for capture: ScribeContextSnapshot) throws -> Bool {
+        try verifyTarget(for: capture, allowingTransientControlFocus: true)
+    }
+
+    /// Read geometry only when the user explicitly requests screen context.
+    /// Normal Compose capture and verification do no extra AX round trips.
+    func pinnedWindowFrame(for capture: ScribeContextSnapshot) throws -> CGRect? {
+        guard try verifyTarget(for: capture, allowingTransientControlFocus: true),
+              activeCaptures[capture.id]?.mode == .accessibilityElement else {
+            throw ScribeContextError.targetChanged
+        }
+        let frame = reader.readPinnedWindowFrame()
+        guard try verifyTarget(for: capture, allowingTransientControlFocus: true) else {
+            throw ScribeContextError.targetChanged
+        }
+        return frame
+    }
+
+    /// Explicit refresh restores only the already-pinned field. It cannot
+    /// promote application-only insertion authority into source-reading access,
+    /// retarget another editor, read content, or emit insertion events.
+    func restoreTargetForContextRefresh(_ capture: ScribeContextSnapshot) async throws {
+        guard try verifyTarget(for: capture, allowingTransientControlFocus: true),
+              activeCaptures[capture.id]?.mode == .accessibilityElement else {
+            throw ScribeContextError.unsupportedSelection
+        }
+        try Task.checkCancellation()
+        try reader.restorePinnedTargetFocus(processIdentifier: capture.target.processIdentifier)
+        try await Task.sleep(for: insertionFocusSettleDelay)
+        try Task.checkCancellation()
+        guard try verifyTarget(for: capture) else { throw ScribeContextError.targetChanged }
+    }
+
     private func verifyTarget(
         for capture: ScribeContextSnapshot,
         allowingTransientControlFocus: Bool
@@ -272,7 +370,7 @@ final class ScribeContextService: ScribeContextServing {
             return true
         }
 
-        let current = try reader.readCurrentFocusSnapshot()
+        let current = try readCurrentFocus(for: capture)
         let originalTargetIsFocused = current.target == capture.target
             && current.verificationToken == capture.verificationToken
             && current.recognitionSignature == capture.recognitionSignature
@@ -285,10 +383,27 @@ final class ScribeContextService: ScribeContextServing {
     }
 
     func insert(_ text: String, for capture: ScribeContextSnapshot) async throws -> Bool {
+        try await insert(text, for: capture, preflight: nil)
+    }
+
+    func insert(_ text: String, for capture: ScribeContextSnapshot, selectedTextPreflight: @escaping @MainActor () async -> Bool) async throws -> Bool {
+        try await insert(text, for: capture, preflight: selectedTextPreflight)
+    }
+
+    private func insert(_ text: String, for capture: ScribeContextSnapshot, preflight: (@MainActor () async -> Bool)?) async throws -> Bool {
         guard let activeCapture = try verifyInsertionAuthority(for: capture) else {
             return false
         }
+        // The coordinator also fences its review action, but the captured
+        // target itself must not authorize two overlapping or repeated posts.
+        guard !insertionsInFlight.contains(capture.id),
+              !insertionsAttempted.contains(capture.id) else {
+            throw ScribeContextError.insertionUnconfirmed
+        }
+        insertionsInFlight.insert(capture.id)
+        defer { insertionsInFlight.remove(capture.id) }
         if activeCapture.mode == .application {
+            guard preflight == nil else { throw ScribeContextError.unsupportedSelection }
             guard let targetAuthority,
                   targetAuthority.activate(capture.applicationTarget) else {
                 throw ScribeContextError.targetChanged
@@ -302,12 +417,13 @@ final class ScribeContextService: ScribeContextServing {
             } catch {
                 throw ScribeContextError.targetChanged
             }
+            try validateCapability(for: capture.applicationTarget)
+            try Task.checkCancellation()
+            try reservePosting(for: capture)
             try await textInsertion.insert(text)
             return true
         }
-        try reader.restorePinnedTargetFocus(
-            processIdentifier: capture.applicationTarget.process.processIdentifier
-        )
+        try restorePinnedTargetFocusIfNeeded(for: capture)
         try await Task.sleep(for: insertionFocusSettleDelay)
         guard processAuthority.verify(activeCapture.runtimeIdentity) else {
             throw ScribeContextError.targetChanged
@@ -316,21 +432,66 @@ final class ScribeContextService: ScribeContextServing {
         // changing the system-wide verification token even though the pinned
         // element remains valid. Reassert the exact pinned element instead of
         // rejecting on that transient wrapper identity.
-        try reader.restorePinnedTargetFocus(
-            processIdentifier: capture.applicationTarget.process.processIdentifier
-        )
+        try restorePinnedTargetFocusIfNeeded(for: capture)
         let restoredFocus = try reader.readCurrentFocusSnapshot()
-        guard restoredFocus.target.processIdentifier
-                == capture.target.processIdentifier,
+        guard restoredFocus.target == capture.target,
+              restoredFocus.verificationToken == capture.verificationToken,
+              restoredFocus.recognitionSignature == capture.recognitionSignature,
               processAuthority.verify(activeCapture.runtimeIdentity) else {
             throw ScribeContextError.targetChanged
+        }
+        try validateCapability(for: capture.applicationTarget)
+
+        if let preflight {
+            guard await preflight() else { throw ScribeContextError.selectionChanged }
+            try Task.checkCancellation()
+            // The selection read suspends. Recheck the pinned identity and
+            // permission immediately before emitting any replacement events.
+            guard try verifyTarget(for: capture),
+                  processAuthority.verify(activeCapture.runtimeIdentity) else {
+                throw ScribeContextError.targetChanged
+            }
+            try validateCapability(for: capture.applicationTarget)
         }
 
         // Some editors report a successful AXSelectedText write while silently
         // ignoring it. Use the same Unicode event path as normal dictation once
         // the exact captured process has been restored and revalidated.
+        try Task.checkCancellation()
+        try reservePosting(for: capture)
         try await textInsertion.insert(text)
         return true
+    }
+
+    private func restorePinnedTargetFocusIfNeeded(for capture: ScribeContextSnapshot) throws {
+        // A web composer may expose an outer AXButton while its inner DOM editor
+        // already owns the keyboard cursor. Re-focusing that wrapper can disturb
+        // the cursor. Preserve it only when the frontmost process and exact pinned
+        // field/window identity still match; insertion revalidates them afterward.
+        if frontmostProcessIdentifier() == capture.target.processIdentifier,
+           let current = try? reader.readCurrentFocusSnapshot(),
+           current.target == capture.target,
+           current.verificationToken == capture.verificationToken,
+           current.recognitionSignature == capture.recognitionSignature {
+            return
+        }
+        try reader.restorePinnedTargetFocus(
+            processIdentifier: capture.applicationTarget.process.processIdentifier
+        )
+    }
+
+    private func reservePosting(for capture: ScribeContextSnapshot) throws {
+        // An action may be cancelled while focus restoration or selected-text
+        // preflight is suspended. Refuse posting if its capture was cleared
+        // during that work. Once posting begins, do not retry a possible prefix.
+        guard activeCaptures[capture.id]?.verificationToken == capture.verificationToken else {
+            throw ScribeContextError.captureCleared
+        }
+        guard insertionsInFlight.contains(capture.id),
+              !insertionsAttempted.contains(capture.id) else {
+            throw ScribeContextError.insertionUnconfirmed
+        }
+        insertionsAttempted.insert(capture.id)
     }
 
     private func verifyInsertionAuthority(
@@ -351,19 +512,50 @@ final class ScribeContextService: ScribeContextServing {
             return activeCapture
         }
 
-        let current = try reader.readCurrentFocusSnapshot()
-        let capturedProcessIsFocused = current.target.processIdentifier
-            == capture.target.processIdentifier
+        let current = try readCurrentFocus(for: capture)
+        let capturedTargetIsFocused = current.target == capture.target
+            && current.verificationToken == capture.verificationToken
+            && current.recognitionSignature == capture.recognitionSignature
         let cadenceReviewIsFocused = current.target.processIdentifier
             == transientControlProcessIdentifier
-        guard capturedProcessIsFocused || cadenceReviewIsFocused,
+        guard capturedTargetIsFocused || cadenceReviewIsFocused,
               processAuthority.verify(activeCapture.runtimeIdentity) else {
             throw ScribeContextError.targetChanged
         }
         return activeCapture
     }
 
+    private func readCurrentFocus(for capture: ScribeContextSnapshot) throws -> ScribeAccessibilityReadSnapshot {
+        do {
+            return try reader.readCurrentFocusSnapshot()
+        } catch ScribeContextError.noFocusedTarget {
+            // A different app may expose no focused AX element at all. The
+            // live process identity still proves the original target changed.
+            if let frontmost = frontmostProcessIdentifier(),
+               frontmost != capture.target.processIdentifier {
+                throw ScribeContextError.targetChanged
+            }
+            throw ScribeContextError.noFocusedTarget
+        }
+    }
+
+    private func validateCapability(for capture: ApplicationTargetCapture) throws {
+        switch targetCapability.assessFocusedElement(for: capture) {
+        case .editable, .unknown:
+            // Unknown includes web editors such as Muse that expose an
+            // AXButton with a cursor-text hint. It remains eligible for the
+            // guarded Unicode path and never gains an automatic Return key.
+            return
+        case .notEditable(.secureTextRole):
+            throw ScribeContextError.secureField
+        case .notEditable:
+            throw ScribeContextError.unsupportedSelection
+        }
+    }
+
     func clear(_ capture: ScribeContextSnapshot) {
+        insertionsInFlight.remove(capture.id)
+        insertionsAttempted.remove(capture.id)
         if let activeCapture = activeCaptures.removeValue(forKey: capture.id) {
             processAuthority.release(activeCapture.runtimeIdentity)
         }
@@ -440,7 +632,7 @@ final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
         }
         return try snapshot(
             focusedElement: focusedElement,
-            window: window,
+            window: window
         )
     }
 
@@ -449,8 +641,13 @@ final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
         let (focusedElement, window) = try currentFocusedElementAndWindow()
         return try snapshot(
             focusedElement: focusedElement,
-            window: window,
+            window: window
         )
+    }
+
+    func readPinnedWindowFrame() -> CGRect? {
+        guard isTrusted, let pinnedWindow else { return nil }
+        return readWindowFrame(pinnedWindow)
     }
 
     private func snapshot(
@@ -530,11 +727,26 @@ final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
     }
 
     private func currentFocusedElementAndWindow() throws -> (AXUIElement, AXUIElement) {
-        let system = AXUIElementCreateSystemWide()
-        let focusedElement = try copyElementAttribute(
-            kAXFocusedUIElementAttribute as CFString,
-            from: system
-        )
+        let focusedElement: AXUIElement
+        do {
+            focusedElement = try copyElementAttribute(
+                kAXFocusedUIElementAttribute as CFString,
+                from: AXUIElementCreateSystemWide()
+            )
+        } catch {
+            // Some hosts expose focus on their application AX object while
+            // the system-wide query is unavailable. Read only the app that is
+            // frontmost *now*; querying the pinned app here could incorrectly
+            // bless a target after the user switched to another application.
+            guard let frontmost = NSWorkspace.shared.frontmostApplication,
+                  frontmost.processIdentifier > 0 else {
+                throw ScribeContextError.noFocusedTarget
+            }
+            focusedElement = try copyElementAttribute(
+                kAXFocusedUIElementAttribute as CFString,
+                from: AXUIElementCreateApplication(frontmost.processIdentifier)
+            )
+        }
         let window = (try? copyElementAttribute(kAXWindowAttribute as CFString, from: focusedElement))
             ?? focusedElement
         return (focusedElement, window)
@@ -572,5 +784,27 @@ final class SystemScribeAccessibilityReader: ScribeAccessibilityReading {
             return nil
         }
         return value as? String
+    }
+
+    private func readWindowFrame(_ window: AXUIElement) -> CGRect? {
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString,
+                                            &positionValue) == .success,
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString,
+                                            &sizeValue) == .success,
+              let positionValue, let sizeValue,
+              CFGetTypeID(positionValue) == AXValueGetTypeID(),
+              CFGetTypeID(sizeValue) == AXValueGetTypeID() else { return nil }
+        let position = unsafeBitCast(positionValue, to: AXValue.self)
+        let size = unsafeBitCast(sizeValue, to: AXValue.self)
+        var origin = CGPoint.zero
+        var dimensions = CGSize.zero
+        guard AXValueGetValue(position, .cgPoint, &origin),
+              AXValueGetValue(size, .cgSize, &dimensions),
+              origin.x.isFinite, origin.y.isFinite,
+              dimensions.width.isFinite, dimensions.height.isFinite,
+              dimensions.width > 0, dimensions.height > 0 else { return nil }
+        return CGRect(origin: origin, size: dimensions)
     }
 }

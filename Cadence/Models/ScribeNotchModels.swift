@@ -1,12 +1,46 @@
 import AppKit
 import Foundation
 
+/// The frozen facts included in one reviewed local draft. The review surface
+/// displays these exact values without looking up or retaining other memory.
+/// `id` is the draft action ID, so a control from an earlier draft cannot act
+/// on another draft sharing the same local memory-consent revision.
+struct ScribeSessionFactsReviewSource: Equatable, Identifiable, Sendable {
+    enum Kind: Equatable, Sendable { case session, saved, mixed }
+    let id: UUID
+    let facts: [String]
+    let recordIDs: [UUID]
+    let kind: Kind
+
+    init(id: UUID, facts: [String], recordIDs: [UUID] = [], kind: Kind = .session) {
+        self.id = id
+        self.facts = facts
+        self.kind = kind
+        // A malformed producer can never make an index select another fact.
+        self.recordIDs = recordIDs.count == facts.count
+            && Set(recordIDs).count == recordIDs.count ? recordIDs : []
+    }
+
+    var status: String {
+        switch kind {
+        case .session: "Session facts · This Mac"
+        case .saved: "Saved facts · This Mac"
+        case .mixed: "Saved and session facts · This Mac"
+        }
+    }
+
+    var allowsRegeneration: Bool { !facts.isEmpty && recordIDs.count == facts.count }
+}
+
 enum ScribeNotchContent: Equatable, Sendable {
     case hidden
     case transcribing
     case typingTranscript(String, isSlow: Bool)
     case replacing(source: String, result: ScribeResult)
     case ready(ScribeResult)
+    case persistentMemoryProposal(ComposePersistentMemoryReviewProposal)
+    case persistentMemoryForgetProposal(ComposePersistentMemoryForgetReview)
+    case memoryNotice(ComposeSessionMemoryNotice)
     case insertionRecovery(message: String, result: ScribeResult)
     case inserting
     case failure(
@@ -50,7 +84,9 @@ enum ScribeNotchFailureRecovery: Equatable, Sendable {
         case .noFocusedTarget, .targetChanged:
             return .returnToTargetApp
         case .captureCleared:
-            return .retryGeneration
+            // The old capture no longer authorizes work. Retrying the same
+            // request cannot recover it; the message asks for a new invocation.
+            return ScribeNotchFailureRecovery.none
         default:
             return nil
         }
@@ -71,7 +107,7 @@ struct ScribeNotchPresentation: Equatable, Sendable {
 
     var allowsReviewActions: Bool {
         switch content {
-        case .replacing, .ready, .insertionRecovery, .failure:
+        case .replacing, .ready, .persistentMemoryProposal, .persistentMemoryForgetProposal, .memoryNotice, .insertionRecovery, .failure:
             return true
         default:
             return false
@@ -117,6 +153,12 @@ struct ScribeNotchPresentation: Equatable, Sendable {
                 content: .replacing(source: literal ?? "", result: result),
                 pill: .transcribing
             )
+        case let .persistentMemoryProposal(proposal):
+            return Self(content: .persistentMemoryProposal(proposal), pill: .scribed)
+        case let .persistentMemoryForgetProposal(proposal):
+            return Self(content: .persistentMemoryForgetProposal(proposal), pill: .scribed)
+        case let .memoryNotice(notice):
+            return Self(content: .memoryNotice(notice), pill: .scribed)
         case let .insertionRecovery(result):
             return Self(
                 content: .insertionRecovery(
@@ -205,7 +247,7 @@ enum ScribeHUDProjection {
         failureMessage: String? = nil
     ) -> HUDVisualState {
         switch state {
-        case .idle, .cancelled:
+        case .idle, .cancelled, .persistentMemoryProposal, .persistentMemoryForgetProposal, .memoryNotice:
             return .idle
         case .listening:
             return .scribeRecording
@@ -218,7 +260,7 @@ enum ScribeHUDProjection {
         case .succeeded:
             return .idle
         case .insertionRecovery:
-            return .error(message: "Draft not inserted")
+            return .error(message: "Check insertion")
         case let .failed(_, error):
             return .error(message: failureMessage ?? error.userMessage)
         }
@@ -239,5 +281,34 @@ enum ScribeHUDRestorationAction: Equatable {
         guard isDictationIdle else { return .leaveCurrentHUD }
         if discardedComposedDraft { return .hide }
         return requiredPermissionsGranted ? .showReadyLogo : .showIdle
+    }
+}
+
+/// An interrupted refinement may restore only its own retained draft, after
+/// Dictation has relinquished both recording and its terminal HUD feedback.
+struct ScribeRefinementInterruption: Equatable {
+    enum Resolution: Equatable {
+        case wait
+        case restoreReview
+        case forget
+    }
+
+    let actionID: UUID
+
+    func resolution(
+        dictationState: DictationSessionState,
+        dictationHUD: HUDVisualState,
+        activeActionID: UUID?,
+        scribeState: ScribeSessionState,
+        isRefining: Bool
+    ) -> Resolution {
+        guard activeActionID == actionID else { return .forget }
+        guard dictationState == .idle, dictationHUD == .idle, !isRefining else {
+            return .wait
+        }
+        switch scribeState {
+        case .reviewing, .insertionRecovery: return .restoreReview
+        default: return .forget
+        }
     }
 }

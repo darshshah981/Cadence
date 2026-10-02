@@ -180,7 +180,11 @@ struct ProviderLibraryMigrationService {
     ) throws -> ScribeProviderLibrary {
         switch legacy {
         case .absent:
-            return ScribeProviderLibrary(revision: 1, configurations: [], activeConfigurationID: nil)
+            // Only a first migration with no previous provider receives the
+            // built-in default. A completed migration never re-enables a
+            // provider the user disabled or removed.
+            let local = try ScribeProviderLibraryConfiguration.onDevice(id: existingID ?? makeID())
+            return ScribeProviderLibrary(revision: 1, configurations: [local], activeConfigurationID: local.id)
         case .rejected:
             throw AdaptiveScribeMigrationError.sourceRejected
         case let .valid(configuration):

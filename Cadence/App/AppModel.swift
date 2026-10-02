@@ -10,6 +10,10 @@ private let preferencesLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Cadence",
     category: "Preferences"
 )
+private let scribeStartupLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Cadence",
+    category: "ScribeStartup"
+)
 
 enum MenuScreen: Equatable {
     case home
@@ -73,6 +77,21 @@ final class AppModel: ObservableObject {
         static let scribeModifiers = "Cadence.scribeModifiers"
         static let scribeKeyDisplay = "Cadence.scribeKeyDisplay"
         static let scribeSidedModifierKeyCodes = "Cadence.scribeSidedModifierKeyCodes"
+        static let scribeSelectedTextContextEnabled = "Cadence.scribeSelectedTextContextEnabled"
+        static let scribeGlobalWritingDefaults = "Cadence.scribeGlobalWritingDefaults"
+        static let scribeScopedWritingPreferences = "Cadence.scribeScopedWritingPreferences"
+        static let scribeSelectedTextContextTextEditAllowed = "Cadence.scribeSelectedTextContextTextEditAllowed"
+        static let scribeSelectedTextContextDisclosureRevision = "Cadence.scribeSelectedTextContextDisclosureRevision"
+        static let scribeSessionMemoryEnabled = "Cadence.scribeSessionMemoryEnabled"
+        static let scribeSessionMemoryTextEditAllowed = "Cadence.scribeSessionMemoryTextEditAllowed"
+        static let scribeSessionMemoryRememberExplicitFacts = "Cadence.scribeSessionMemoryRememberExplicitFacts"
+        static let scribeSessionMemoryRememberChosenDrafts = "Cadence.scribeSessionMemoryRememberChosenDrafts"
+        static let scribeSessionMemoryUseFactsInLocalDrafts = "Cadence.scribeSessionMemoryUseFactsInLocalDrafts"
+        static let scribeSessionMemoryDisclosureRevision = "Cadence.scribeSessionMemoryDisclosureRevision"
+        static let scribePersistentMemoryEnabled = "Cadence.scribePersistentMemoryEnabled"
+        static let scribePersistentMemoryTextEditAllowed = "Cadence.scribePersistentMemoryTextEditAllowed"
+        static let scribePersistentMemoryUseFactsInLocalDrafts = "Cadence.scribePersistentMemoryUseFactsInLocalDrafts"
+        static let scribePersistentMemoryDisclosureRevision = "Cadence.scribePersistentMemoryDisclosureRevision"
         static let transcriptHistory = "FlowState.transcriptHistory"
         static let showsShortcutDock = "Cadence.showsShortcutDock"
         static let meetingCaptureSource = "Cadence.meetingCaptureSource"
@@ -109,6 +128,32 @@ final class AppModel: ObservableObject {
     @Published private(set) var adaptiveScribeV2Availability: AdaptiveScribeAvailability = .setupRequired
     @Published private(set) var showsLegacyWritingProfileNotice = false
     @Published private(set) var scribeAppAdaptationEnabled = true
+    @Published private(set) var scribeSelectedTextContextPreferences: ComposeSelectedTextContextPreferences
+    @Published private(set) var scribeSessionMemoryPreferences: ComposeSessionMemoryPreferences
+    @Published private(set) var scribePersistentMemoryPreferences: ComposePersistentMemoryPreferences
+    @Published private(set) var scribePersistentMemoryStatus: String?
+    var scribePersistentMemoryAvailable: Bool {
+        featureFlags.composePersistentMemoryEnabled
+            && scribePersistentMemoryRuntime?.isOpen == true
+    }
+    @Published private(set) var scribeGlobalWritingDefaults = ComposeGlobalWritingDefaults()
+    @Published private(set) var scribeGlobalWritingDefaultsUnavailable = false
+    @Published private(set) var scribeTextEditWritingDefaults = ComposeTextEditWritingDefaults()
+    @Published private(set) var scribeTextEditWritingDefaultsUnavailable = false
+    var scribeTextEditWritingDefaultsSupersededByProfile: Bool {
+        let application = InstalledApplicationDescriptor(
+            bundleURL: URL(fileURLWithPath: "/System/Applications/TextEdit.app"),
+            bundleIdentifier: ScribeTextEditDocumentIdentityAdapter.bundleIdentifier,
+            displayName: "TextEdit", version: nil, build: nil,
+            isInstalled: true, isRunning: false
+        )
+        return ScribeGuidanceResolver.resolve(
+            application: .exact(application),
+            adaptationEnabled: scribeAppAdaptationEnabled,
+            configurationLoadResult: applicationConfigurationStore.load(),
+            presetState: ScribePresetCatalogStateStore(defaults: defaults).load()
+        ).resolutionSource == .configuredApplication
+    }
     @Published private(set) var writingEnvironmentPreferenceState: WritingEnvironmentPreferenceLoadResult = .absent
     @Published var isScribeProviderSetupPresented = false
     @Published private(set) var hudState = HUDState.idle
@@ -165,6 +210,13 @@ final class AppModel: ObservableObject {
     private let hotkeyService: HotkeyService
     private let coordinator: DictationCoordinator
     private let scribeCoordinator: ScribeCoordinator
+    private let scribeScreenDraftReviewController: ComposeScreenDraftReviewController
+    private let scribePerformanceSamples: ScribePerformanceSampleBuffer
+    private let scribePerformanceRecorder: ScribePerformanceRecorder
+    private let scribeSelectedTextContextController: ComposeSelectedTextContextController
+    private let scribeSessionMemoryConsentController: ComposeSessionMemoryConsentController
+    private let scribeSessionMemoryContextController: ComposeSessionMemoryContextController?
+    private let scribePersistentMemoryRuntime: ComposePersistentMemoryRuntime?
     private let scribeTranscriptionEngine: TranscriptionEngine
     private let scribeProviderV2Controller: ScribeProviderV2Controller
     private let scribeProviderRuntime: ScribeProviderRuntime
@@ -191,7 +243,9 @@ final class AppModel: ObservableObject {
     private var scribeReplacementCompleted = false
     private var hidesHUDForComposedDraftDiscard = false
     private var activeScribeTriggerMode: DictationTriggerMode?
+    private var isScribeReRecording = false
     private var scribeShortcutReleasePending = false
+    private var interruptedScribeRefinement: ScribeRefinementInterruption?
     private var scribeRecoveryApplication: ApplicationProcessIdentity?
     private var scribeAudioLevel = 0.0
     private var scribeWaveformLevels = Array(repeating: 0.0, count: 16)
@@ -356,6 +410,68 @@ final class AppModel: ObservableObject {
         let permissionsService = PermissionsService()
         self.permissionsService = permissionsService
         self.permissions = permissionsService.snapshot()
+        let selectedTextContextPreferences = ComposeSelectedTextContextPreferences(
+            isEnabled: (defaults.object(forKey: PreferenceKey.scribeSelectedTextContextEnabled) as? Bool) ?? false,
+            textEditAllowed: (defaults.object(forKey: PreferenceKey.scribeSelectedTextContextTextEditAllowed) as? Bool) ?? false,
+            disclosureRevision: (defaults.object(forKey: PreferenceKey.scribeSelectedTextContextDisclosureRevision) as? Int) ?? 0
+        )
+        self.scribeSelectedTextContextPreferences = selectedTextContextPreferences
+        let savedMemoryDisclosureRevision =
+            (defaults.object(forKey: PreferenceKey.scribeSessionMemoryDisclosureRevision) as? Int) ?? 0
+        let memoryConsentIsCurrent =
+            savedMemoryDisclosureRevision == ComposeSessionMemoryPreferences.currentDisclosureRevision
+        let sessionMemoryPreferences = ComposeSessionMemoryPreferences(
+            isEnabled: memoryConsentIsCurrent
+                && ((defaults.object(forKey: PreferenceKey.scribeSessionMemoryEnabled) as? Bool) ?? false),
+            textEditAllowed: memoryConsentIsCurrent
+                && ((defaults.object(forKey: PreferenceKey.scribeSessionMemoryTextEditAllowed) as? Bool) ?? false),
+            rememberExplicitFacts: memoryConsentIsCurrent
+                && ((defaults.object(forKey: PreferenceKey.scribeSessionMemoryRememberExplicitFacts) as? Bool) ?? false),
+            rememberChosenDrafts: memoryConsentIsCurrent
+                && ((defaults.object(forKey: PreferenceKey.scribeSessionMemoryRememberChosenDrafts) as? Bool) ?? false),
+            useFactsInLocalDrafts: memoryConsentIsCurrent
+                && ((defaults.object(forKey: PreferenceKey.scribeSessionMemoryUseFactsInLocalDrafts) as? Bool) ?? false),
+            disclosureRevision: ComposeSessionMemoryPreferences.currentDisclosureRevision
+        )
+        self.scribeSessionMemoryPreferences = sessionMemoryPreferences
+        let persistentDisclosureRevision =
+            (defaults.object(forKey: PreferenceKey.scribePersistentMemoryDisclosureRevision) as? Int) ?? 0
+        let persistentConsentIsCurrent =
+            persistentDisclosureRevision == ComposePersistentMemoryPreferences.currentDisclosureRevision
+        let persistentMemoryPreferences = ComposePersistentMemoryPreferences(
+            isEnabled: persistentConsentIsCurrent
+                && ((defaults.object(forKey: PreferenceKey.scribePersistentMemoryEnabled) as? Bool) ?? false),
+            textEditAllowed: persistentConsentIsCurrent
+                && ((defaults.object(forKey: PreferenceKey.scribePersistentMemoryTextEditAllowed) as? Bool) ?? false),
+            useFactsInLocalDrafts: persistentConsentIsCurrent
+                && ((defaults.object(forKey: PreferenceKey.scribePersistentMemoryUseFactsInLocalDrafts) as? Bool) ?? false),
+            acceptedDisclosureRevision: persistentDisclosureRevision
+        )
+        self.scribePersistentMemoryPreferences = persistentMemoryPreferences
+        self.scribePersistentMemoryStatus = nil
+        let sessionMemoryConsentController = ComposeSessionMemoryConsentController(
+            preferences: sessionMemoryPreferences,
+            enabled: { featureFlags.composeMemoryEnabled && featureFlags.composeAdaptersEnabled }
+        )
+        self.scribeSessionMemoryConsentController = sessionMemoryConsentController
+        do {
+            self.scribeGlobalWritingDefaults = try ComposeGlobalWritingDefaultsStore(defaults: defaults, key: PreferenceKey.scribeGlobalWritingDefaults).load()
+        } catch { self.scribeGlobalWritingDefaultsUnavailable = true }
+        do {
+            self.scribeTextEditWritingDefaults = try ComposeTextEditWritingDefaultsStore(
+                archive: .init(defaults: defaults, key: PreferenceKey.scribeScopedWritingPreferences)
+            ).load()
+        } catch { self.scribeTextEditWritingDefaultsUnavailable = true }
+        let selectedTextContextController = ComposeSelectedTextContextController(
+            preferences: featureFlags.effectiveSelectedTextPreferences(selectedTextContextPreferences),
+            permissions: {
+                ScribeContextPlatformPermissions(
+                    accessibility: permissionsService.coreSnapshot(screenRecordingGranted: false).accessibilityGranted,
+                    screenRecording: false
+                )
+            }
+        )
+        self.scribeSelectedTextContextController = selectedTextContextController
 
         let hudController = HUDWindowController(
             defaults: defaults,
@@ -387,11 +503,9 @@ final class AppModel: ObservableObject {
         #if DEBUG
         legacyScribeProvider = ScribeLaunchFixtures.disablesLegacyProvider
             ? nil
-            : (scribeProvider.capabilities.contains(.semanticGeneration) ? scribeProvider : nil)
+            : scribeProvider
         #else
-        legacyScribeProvider = scribeProvider.capabilities.contains(.semanticGeneration)
-            ? scribeProvider
-            : nil
+        legacyScribeProvider = scribeProvider
         #endif
         let scribeConfigurationStore = ScribeProviderConfigurationStore(defaults: defaults)
         let scribeProviderLibraryStore = ScribeProviderLibraryStore(defaults: defaults)
@@ -448,7 +562,7 @@ final class AppModel: ObservableObject {
             personalizationStore: personalizationStore
         ).migrate(
             scribeEnabled: initialScribeBinding.isEnabled,
-            legacyLocalAvailable: legacyScribeProvider != nil,
+            legacyLocalAvailable: legacyScribeProvider?.capabilities.contains(.semanticGeneration) == true,
             providerConfiguration: scribeConfigurationStore.load()
         )
         let v2MigrationResult = try? AdaptiveScribeMigrationService(
@@ -540,13 +654,19 @@ final class AppModel: ObservableObject {
             personalizationStore: personalizationStore,
             waveformSensitivity: waveformSensitivity
         )
-        self.scribeCoordinator = ScribeCoordinator(
+        let scribeContextService = ScribeContextService(targetAuthority: applicationTargetAuthority)
+        let scribePerformanceSamples = ScribePerformanceSampleBuffer()
+        let scribePerformanceRecorder = ScribePerformanceRecorder(sink: scribePerformanceSamples)
+        self.scribePerformanceSamples = scribePerformanceSamples
+        self.scribePerformanceRecorder = scribePerformanceRecorder
+        let scribeCoordinator = ScribeCoordinator(
             audioCaptureService: scribeAudioCaptureService,
             transcriptionEngine: scribeTranscriptionEngine,
             provider: scribeProvider,
             providerActionResolver: { try await scribeProviderV2Controller.actionForNewRequest() },
-            contextService: ScribeContextService(targetAuthority: applicationTargetAuthority),
+            contextService: scribeContextService,
             sessionArbiter: voiceSessionArbiter,
+            selectedTextContext: selectedTextContextController,
             personalizationStore: personalizationStore,
             applicationGuidanceResolver: { target, signature in
                 let descriptor = InstalledApplicationDescriptor(
@@ -572,6 +692,14 @@ final class AppModel: ObservableObject {
                 )
             },
             writingEnvironmentPreferences: { writingEnvironmentStore.load() },
+            globalWritingDefaults: {
+                (try? ComposeGlobalWritingDefaultsStore(defaults: defaults, key: PreferenceKey.scribeGlobalWritingDefaults).load()) ?? .init()
+            },
+            applicationWritingDefaults: { target in
+                (try? ComposeTextEditWritingDefaultsStore(
+                    archive: .init(defaults: defaults, key: PreferenceKey.scribeScopedWritingPreferences)
+                ).values(for: target)) ?? []
+            },
             adaptationEnabled: {
                 (defaults.object(forKey: AdaptiveScribeMigrationService.adaptationEnabledKey) as? Bool) ?? true
             },
@@ -579,8 +707,159 @@ final class AppModel: ObservableObject {
                 guard adaptiveScribeReaderMonitor.authorizeProviderDispatch() else { return false }
                 return await scribeProviderV2Controller.authorizeDispatch(action.actionIdentity)
             },
+            performanceRecorder: scribePerformanceRecorder,
             transcriptionConfiguration: initialTranscriptionConfiguration
         )
+        self.scribeCoordinator = scribeCoordinator
+        let screenConsent = ComposeScreenContextConsentController(
+            actionIsCurrent: { [weak scribeCoordinator] id in
+                scribeCoordinator?.screenContextReviewCandidate?.request.id == id
+            },
+            captureIsCurrent: { [weak scribeCoordinator] capture in
+                scribeCoordinator?.screenContextReviewCandidate?.capture == capture
+            },
+            providerIsCurrent: { [weak scribeCoordinator] binding in
+                guard let action = scribeCoordinator?.screenContextReviewCandidate?.providerAction else {
+                    return false
+                }
+                return action.actionIdentity == binding.actionIdentity
+                    && action.destination.recipientOrigin == binding.recipientOrigin
+                    && action.destination.disclosureVersion == binding.providerDisclosureRevision
+            }
+        )
+        let screenPicker = SystemComposeScreenWindowPicker(
+            enabled: { featureFlags.composeContextEnabled },
+            currentActionID: { [weak scribeCoordinator] in
+                scribeCoordinator?.screenContextReviewCandidate?.request.id
+            },
+            currentCapture: { [weak scribeCoordinator] in
+                scribeCoordinator?.screenContextReviewCandidate?.capture
+            }
+        )
+        let screenPermissions: @MainActor () -> ScribeContextPlatformPermissions = {
+            let snapshot = permissionsService.snapshot()
+            return .init(
+                accessibility: snapshot.accessibilityGranted,
+                screenRecording: snapshot.screenRecordingGranted
+            )
+        }
+        let screenAction = ComposeScreenContextActionController(
+            picker: screenPicker,
+            policy: { [weak scribeCoordinator] in
+                guard let candidate = scribeCoordinator?.screenContextReviewCandidate else {
+                    return .init()
+                }
+                return screenConsent.policy(
+                    actionID: candidate.request.id, capture: candidate.capture
+                )
+            },
+            permissions: screenPermissions,
+            actionIsCurrent: { [weak scribeCoordinator] id in
+                scribeCoordinator?.screenContextReviewCandidate?.request.id == id
+            },
+            captureIsCurrent: { [weak scribeCoordinator] capture in
+                scribeCoordinator?.screenContextReviewCandidate?.capture == capture
+            },
+            focusedWindowFrame: { capture in
+                try scribeContextService.pinnedWindowFrame(for: capture)
+            },
+            targetIsCurrent: { capture in
+                (try? scribeContextService.verifyTargetAllowingComposeReviewFocus(for: capture)) == true
+            }
+        )
+        self.scribeScreenDraftReviewController = ComposeScreenDraftReviewController(
+            consent: screenConsent, screen: screenAction,
+            candidateIsCurrent: { [weak scribeCoordinator] candidate in
+                scribeCoordinator?.screenContextReviewIsCurrent(candidate) == true
+            },
+            authorizeProviderDispatch: { [weak scribeCoordinator] candidate in
+                await scribeCoordinator?.authorizeScreenContextProviderDispatch(candidate) == true
+            },
+            permissions: screenPermissions
+        )
+        let sessionMemoryContextController = try? ComposeSessionMemoryContextController(
+            consent: sessionMemoryConsentController,
+            enabled: { featureFlags.composeMemoryEnabled && featureFlags.composeAdaptersEnabled },
+            permissions: {
+                ScribeContextPlatformPermissions(
+                    accessibility: permissionsService.coreSnapshot(screenRecordingGranted: false).accessibilityGranted,
+                    screenRecording: false
+                )
+            },
+            actionIsCurrent: { [weak scribeCoordinator] actionID in
+                scribeCoordinator?.activeRequestID == actionID
+            },
+            targetIsCurrent: { capture in
+                capture.recognitionSignature?.role == "AXTextArea"
+                    && (try? scribeContextService.verifyTargetAllowingComposeReviewFocus(for: capture)) == true
+            }
+        )
+        self.scribeSessionMemoryContextController = sessionMemoryContextController
+        scribeCoordinator.installSessionMemoryContext(sessionMemoryContextController)
+
+        // Constructing this owner is inert. Only a previously confirmed choice
+        // may reopen an existing domain; a new key/domain requires the explicit
+        // Settings confirmation action below.
+        let persistentMemoryRuntime: ComposePersistentMemoryRuntime?
+        do {
+            guard let bundleID = Bundle.main.bundleIdentifier,
+                  let support = FileManager.default.urls(
+                    for: .applicationSupportDirectory, in: .userDomainMask
+                  ).first else {
+                throw ComposePersistentMemoryRuntimeError.unavailable
+            }
+            let directory = support.appendingPathComponent("Cadence", isDirectory: true)
+                .appendingPathComponent("PersistentMemory", isDirectory: true)
+                .appendingPathComponent(bundleID, isDirectory: true)
+            let domain = try ScribePersistentMemoryDomainStore(
+                directoryURL: directory, applicationBundleIdentifier: bundleID
+            )
+            let consent = ComposePersistentMemoryConsentController(
+                preferences: persistentMemoryPreferences,
+                enabled: { featureFlags.composePersistentMemoryEnabled }
+            )
+            persistentMemoryRuntime = try ComposePersistentMemoryRuntime(
+                consent: consent, domainStore: domain,
+                adapter: ScribeTextEditDocumentIdentityAdapter(),
+                enabled: { featureFlags.composePersistentMemoryEnabled },
+                permissions: {
+                    ScribeContextPlatformPermissions(
+                        accessibility: permissionsService.coreSnapshot(
+                            screenRecordingGranted: false
+                        ).accessibilityGranted,
+                        screenRecording: false
+                    )
+                },
+                actionIsCurrent: { [weak scribeCoordinator] actionID in
+                    scribeCoordinator?.activeRequestID == actionID
+                },
+                targetIsCurrent: { capture in
+                    capture.recognitionSignature?.role == "AXTextArea"
+                        && (try? scribeContextService.verifyTargetAllowingComposeReviewFocus(for: capture)) == true
+                },
+                onInvalidated: { [weak scribeCoordinator] in
+                    scribeCoordinator?.persistentMemoryDidInvalidate()
+                }
+            )
+        } catch {
+            persistentMemoryRuntime = nil
+            if persistentMemoryPreferences.isEnabled {
+                scribePersistentMemoryStatus = "Saved memory is unavailable on this Mac."
+            }
+        }
+        self.scribePersistentMemoryRuntime = persistentMemoryRuntime
+        scribeCoordinator.installPersistentMemoryContext(persistentMemoryRuntime)
+        if featureFlags.composePersistentMemoryEnabled,
+           persistentMemoryPreferences.permitsTextEditRetention,
+           let persistentMemoryRuntime {
+            do {
+                if try !persistentMemoryRuntime.openExisting() {
+                    scribePersistentMemoryStatus = "Saved memory could not be opened. No new store was created."
+                }
+            } catch {
+                scribePersistentMemoryStatus = "Saved memory could not be opened. Existing data was preserved."
+            }
+        }
 
         focusedApplicationMonitor.onChange = { identity in
             applicationPresentationArbiter.updateLive(identity)
@@ -729,17 +1008,10 @@ final class AppModel: ObservableObject {
     }
 
     var scribeProviderStatus: String {
-        switch scribeProviderReadiness {
-        case .disabled: return "Compose is disabled · provider key retained"
-        case .setupRequired: return "Provider setup required · literal Dictation remains available"
-        case .validating: return "Validating the selected provider…"
-        case let .ready(kind): return "\(kind.displayName) connected · review before insert"
-        case let .temporarilyUnavailable(kind): return "\(kind.displayName) is temporarily unavailable"
-        case .configurationInvalid: return "Provider configuration needs repair"
-        case let .needsAttention(kind): return "\(kind.displayName) needs attention"
-        case let .deprecated(kind): return "\(kind.displayName) needs a Cadence update"
-        case .removed: return "Provider removed · provider setup required"
-        }
+        scribeProviderReadiness.statusText(
+            configuredKind: configuredScribeProviderKind,
+            onDeviceUnavailableReason: OnDeviceScribeService.unavailableReason
+        )
     }
 
     var scribeReadiness: ScribeReadiness {
@@ -1025,6 +1297,12 @@ final class AppModel: ObservableObject {
     }
 
     func refreshPermissions(includeScreenRecording: Bool = true) async {
+        if featureFlags.scribeEnabled, configuredScribeProviderKind == .legacyLocal {
+            await scribeProviderV2Controller.reloadReadiness()
+            if scribeProviderReadiness != scribeProviderV2Controller.readiness {
+                scribeProviderReadiness = scribeProviderV2Controller.readiness
+            }
+        }
         let snapshot = includeScreenRecording
             ? permissionsService.snapshot()
             : permissionsService.coreSnapshot(screenRecordingGranted: permissions.screenRecordingGranted)
@@ -2456,14 +2734,20 @@ final class AppModel: ObservableObject {
 
     private func bindCoordinator() {
         coordinator.onStateChange = { [weak self] state in
-            self?.state = state
+            guard let self else { return }
+            self.state = state
             if case .listening = state {
-                self?.clearTransientCaptureErrorIfNeeded()
+                self.clearTransientCaptureErrorIfNeeded()
+                self.interruptScribeRefinementForDictationIfNeeded()
+            } else if case .idle = state {
+                self.restoreInterruptedScribeRefinementIfReady()
             }
         }
 
         coordinator.onHUDChange = { [weak self] hudState in
-            self?.hudState = hudState
+            guard let self else { return }
+            self.hudState = hudState
+            self.restoreInterruptedScribeRefinementIfReady()
         }
 
         coordinator.onTranscript = { [weak self] transcript, sessionID in
@@ -2618,6 +2902,17 @@ final class AppModel: ObservableObject {
 
     private var activeConfiguredScribeConfigurationID: UUID? {
         scribeProviderV2Controller.activeConfigurationID
+    }
+
+    var onDeviceScribeUnavailableReason: String? {
+        OnDeviceScribeService.unavailableReason
+    }
+
+    func selectOnDeviceScribeProvider() async throws {
+        try await scribeProviderV2Controller.selectOnDevice(
+            activeAction: scribeCoordinator.activeProviderActionIdentity
+        )
+        scribeProviderReadiness = scribeProviderV2Controller.readiness
     }
 
     func presentScribeProviderSetup() {
@@ -3006,6 +3301,202 @@ final class AppModel: ObservableObject {
     func setScribeAppAdaptationEnabled(_ enabled: Bool) {
         scribeAppAdaptationEnabled = enabled
         defaults.set(enabled, forKey: AdaptiveScribeMigrationService.adaptationEnabledKey)
+    }
+
+    func setScribeSelectedTextContextEnabled(_ enabled: Bool) {
+        var preferences = scribeSelectedTextContextPreferences
+        preferences.isEnabled = enabled
+        saveScribeSelectedTextContextPreferences(preferences)
+    }
+
+    func saveScribeGlobalWritingDefaults(_ value: ComposeGlobalWritingDefaults, replacing expected: ComposeGlobalWritingDefaults) throws {
+        try ComposeGlobalWritingDefaultsStore(defaults: defaults, key: PreferenceKey.scribeGlobalWritingDefaults).save(value, replacing: expected)
+        scribeGlobalWritingDefaults = value
+    }
+
+    func reloadScribeGlobalWritingDefaults() {
+        do {
+            scribeGlobalWritingDefaults = try ComposeGlobalWritingDefaultsStore(defaults: defaults, key: PreferenceKey.scribeGlobalWritingDefaults).load()
+            scribeGlobalWritingDefaultsUnavailable = false
+        } catch { scribeGlobalWritingDefaultsUnavailable = true }
+    }
+
+    func removeUnreadableScribeGlobalWritingDefaults() throws {
+        try ComposeGlobalWritingDefaultsStore(defaults: defaults, key: PreferenceKey.scribeGlobalWritingDefaults).removeUnreadableDefaults()
+        reloadScribeGlobalWritingDefaults()
+    }
+
+    func resetScribeGlobalWritingDefaults(replacing expected: ComposeGlobalWritingDefaults) throws {
+        try ComposeGlobalWritingDefaultsStore(defaults: defaults, key: PreferenceKey.scribeGlobalWritingDefaults).reset(replacing: expected)
+        scribeGlobalWritingDefaults = .init()
+    }
+
+    func saveScribeTextEditWritingDefaults(
+        _ value: ComposeTextEditWritingDefaults,
+        replacing expected: ComposeTextEditWritingDefaults
+    ) throws {
+        try ComposeTextEditWritingDefaultsStore(
+            archive: .init(defaults: defaults, key: PreferenceKey.scribeScopedWritingPreferences)
+        ).save(value, replacing: expected)
+        reloadScribeTextEditWritingDefaults()
+    }
+
+    func reloadScribeTextEditWritingDefaults() {
+        do {
+            scribeTextEditWritingDefaults = try ComposeTextEditWritingDefaultsStore(
+                archive: .init(defaults: defaults, key: PreferenceKey.scribeScopedWritingPreferences)
+            ).load()
+            scribeTextEditWritingDefaultsUnavailable = false
+        } catch { scribeTextEditWritingDefaultsUnavailable = true }
+    }
+
+    func resetScribeTextEditWritingDefaults(
+        replacing expected: ComposeTextEditWritingDefaults
+    ) throws {
+        try ComposeTextEditWritingDefaultsStore(
+            archive: .init(defaults: defaults, key: PreferenceKey.scribeScopedWritingPreferences)
+        ).reset(replacing: expected)
+        reloadScribeTextEditWritingDefaults()
+    }
+
+    func removeUnreadableScribeScopedWritingPreferences() throws {
+        try ComposeScopedWritingPreferenceArchive(
+            defaults: defaults, key: PreferenceKey.scribeScopedWritingPreferences
+        ).removeUnreadableArchive()
+        reloadScribeTextEditWritingDefaults()
+    }
+
+    func setScribeSelectedTextTextEditAllowed(_ allowed: Bool) {
+        var preferences = scribeSelectedTextContextPreferences
+        preferences.textEditAllowed = allowed
+        saveScribeSelectedTextContextPreferences(preferences)
+    }
+
+    private func saveScribeSelectedTextContextPreferences(
+        _ preferences: ComposeSelectedTextContextPreferences
+    ) {
+        var preferences = preferences
+        preferences.disclosureRevision = ComposeSelectedTextContextPreferences.currentDisclosureRevision
+        guard preferences != scribeSelectedTextContextPreferences else { return }
+        defaults.set(preferences.isEnabled, forKey: PreferenceKey.scribeSelectedTextContextEnabled)
+        defaults.set(preferences.textEditAllowed, forKey: PreferenceKey.scribeSelectedTextContextTextEditAllowed)
+        defaults.set(preferences.disclosureRevision, forKey: PreferenceKey.scribeSelectedTextContextDisclosureRevision)
+        scribeSelectedTextContextPreferences = preferences
+        scribeSelectedTextContextController.updatePreferences(
+            featureFlags.effectiveSelectedTextPreferences(preferences)
+        )
+    }
+
+    func setScribeSessionMemoryEnabled(_ enabled: Bool) {
+        var preferences = scribeSessionMemoryPreferences
+        preferences.isEnabled = enabled
+        saveScribeSessionMemoryPreferences(preferences)
+    }
+
+    func setScribeSessionMemoryTextEditAllowed(_ allowed: Bool) {
+        var preferences = scribeSessionMemoryPreferences
+        preferences.textEditAllowed = allowed
+        saveScribeSessionMemoryPreferences(preferences)
+    }
+
+    func setScribeSessionMemoryRememberExplicitFacts(_ allowed: Bool) {
+        var preferences = scribeSessionMemoryPreferences
+        preferences.rememberExplicitFacts = allowed
+        saveScribeSessionMemoryPreferences(preferences)
+    }
+
+    func setScribeSessionMemoryRememberChosenDrafts(_ allowed: Bool) {
+        var preferences = scribeSessionMemoryPreferences
+        preferences.rememberChosenDrafts = allowed
+        saveScribeSessionMemoryPreferences(preferences)
+    }
+
+    func setScribeSessionMemoryUseFactsInLocalDrafts(_ allowed: Bool) {
+        var preferences = scribeSessionMemoryPreferences
+        preferences.useFactsInLocalDrafts = allowed
+        saveScribeSessionMemoryPreferences(preferences)
+    }
+
+    private func saveScribeSessionMemoryPreferences(_ value: ComposeSessionMemoryPreferences) {
+        var preferences = value
+        preferences.disclosureRevision = ComposeSessionMemoryPreferences.currentDisclosureRevision
+        guard preferences != scribeSessionMemoryPreferences else { return }
+        defaults.set(preferences.isEnabled, forKey: PreferenceKey.scribeSessionMemoryEnabled)
+        defaults.set(preferences.textEditAllowed, forKey: PreferenceKey.scribeSessionMemoryTextEditAllowed)
+        defaults.set(preferences.rememberExplicitFacts, forKey: PreferenceKey.scribeSessionMemoryRememberExplicitFacts)
+        defaults.set(preferences.rememberChosenDrafts, forKey: PreferenceKey.scribeSessionMemoryRememberChosenDrafts)
+        defaults.set(preferences.useFactsInLocalDrafts, forKey: PreferenceKey.scribeSessionMemoryUseFactsInLocalDrafts)
+        defaults.set(preferences.disclosureRevision, forKey: PreferenceKey.scribeSessionMemoryDisclosureRevision)
+        scribeSessionMemoryPreferences = preferences
+        if let scribeSessionMemoryContextController {
+            scribeSessionMemoryContextController.updatePreferences(preferences)
+        } else {
+            scribeSessionMemoryConsentController.updatePreferences(preferences)
+        }
+    }
+
+    /// Called only from the Settings confirmation after the retention and
+    /// backup terms are visible. It does not save or infer a fact.
+    func enableScribePersistentMemory() throws {
+        guard featureFlags.composePersistentMemoryEnabled,
+              let scribePersistentMemoryRuntime else {
+            throw ComposePersistentMemoryRuntimeError.unavailable
+        }
+        let previous = scribePersistentMemoryPreferences
+        let accepted = ComposePersistentMemoryPreferences(
+            isEnabled: true, textEditAllowed: true,
+            acceptedDisclosureRevision: ComposePersistentMemoryPreferences.currentDisclosureRevision
+        )
+        scribePersistentMemoryRuntime.updatePreferences(accepted)
+        do {
+            try scribePersistentMemoryRuntime.activate(authority: .confirmedByUser)
+        } catch {
+            scribePersistentMemoryRuntime.updatePreferences(previous)
+            scribePersistentMemoryStatus = "Saved memory could not be enabled. Existing data was preserved."
+            throw error
+        }
+        persistScribePersistentMemoryPreferences(accepted)
+        scribePersistentMemoryStatus = nil
+    }
+
+    func disableScribePersistentMemory() {
+        var preferences = scribePersistentMemoryPreferences
+        preferences.isEnabled = false
+        scribePersistentMemoryRuntime?.updatePreferences(preferences)
+        persistScribePersistentMemoryPreferences(preferences)
+        scribePersistentMemoryStatus = nil
+    }
+
+    func setScribePersistentMemoryUseFactsInLocalDrafts(_ allowed: Bool) {
+        guard scribePersistentMemoryPreferences.permitsTextEditRetention,
+              scribePersistentMemoryRuntime?.isOpen == true else { return }
+        var preferences = scribePersistentMemoryPreferences
+        preferences.useFactsInLocalDrafts = allowed
+        guard preferences != scribePersistentMemoryPreferences else { return }
+        scribePersistentMemoryRuntime?.updatePreferences(preferences)
+        persistScribePersistentMemoryPreferences(preferences)
+    }
+
+    /// A separate Settings confirmation authorizes durable deletion even if
+    /// the feature has since been disabled or rolled back.
+    @discardableResult
+    func forgetAllScribePersistentMemory() throws -> Bool {
+        guard let scribePersistentMemoryRuntime else {
+            throw ComposePersistentMemoryRuntimeError.unavailable
+        }
+        let didHaveStore = try scribePersistentMemoryRuntime.forgetAll(authority: .confirmedByUser)
+        scribePersistentMemoryStatus = nil
+        return didHaveStore
+    }
+
+    private func persistScribePersistentMemoryPreferences(_ preferences: ComposePersistentMemoryPreferences) {
+        defaults.set(preferences.isEnabled, forKey: PreferenceKey.scribePersistentMemoryEnabled)
+        defaults.set(preferences.textEditAllowed, forKey: PreferenceKey.scribePersistentMemoryTextEditAllowed)
+        defaults.set(preferences.useFactsInLocalDrafts,
+                     forKey: PreferenceKey.scribePersistentMemoryUseFactsInLocalDrafts)
+        defaults.set(preferences.acceptedDisclosureRevision,
+                     forKey: PreferenceKey.scribePersistentMemoryDisclosureRevision)
+        scribePersistentMemoryPreferences = preferences
     }
 
     func selectSettingsCategory(_ category: SettingsCategoryID) {
@@ -3441,14 +3932,25 @@ final class AppModel: ObservableObject {
     }
 
     private func beginScribe(triggerMode: DictationTriggerMode) {
+        guard !isScribeReRecording else { return }
         guard revalidateAdaptiveScribeReaders() else { return }
 
+        let startupID = UUID()
+        scribePerformanceRecorder.begin(actionID: startupID)
         scribeRecoveryApplication = focusedApplicationMonitor.currentExternal?.process
         activeScribeTriggerMode = triggerMode
         scribeShortcutReleasePending = false
         Task { @MainActor [weak self] in
             guard let self else { return }
+            var recordingStarted = false
+            var startupOutcome: ScribePerformanceTerminalOutcome = .failed
+            defer {
+                if !recordingStarted {
+                    self.scribePerformanceRecorder.finish(actionID: startupID, outcome: startupOutcome)
+                }
+            }
             let currentPermissions = await ScribePermissionGate.evaluate(using: self.permissionsService)
+            self.scribePerformanceRecorder.mark(.permissionsChecked, actionID: startupID)
             if self.permissions != currentPermissions {
                 self.permissions = currentPermissions
             }
@@ -3463,8 +3965,20 @@ final class AppModel: ObservableObject {
             }
 
             do {
+                if self.configuredScribeProviderKind == .legacyLocal {
+                    await self.scribeProviderV2Controller.reloadReadiness()
+                    self.scribeProviderReadiness = self.scribeProviderV2Controller.readiness
+                }
+                self.scribePerformanceRecorder.mark(.providerPreflightCompleted, actionID: startupID)
                 try await self.scribeTranscriptionEngine.updateConfiguration(self.transcriptionConfiguration)
-                try await self.scribeCoordinator.beginDirectDictation()
+                self.scribePerformanceRecorder.mark(.transcriptionConfigured, actionID: startupID)
+                try await self.scribeCoordinator.beginDirectDictation(actionID: startupID)
+                recordingStarted = true
+                if let elapsed = self.scribePerformanceRecorder.elapsedNanoseconds(
+                    for: .listening, actionID: startupID
+                ) {
+                    scribeStartupLogger.debug("Compose recognized-shortcut-to-listening milliseconds=\(elapsed / 1_000_000, privacy: .public)")
+                }
                 self.feedbackService.playScribeActivationSound()
                 self.lastError = nil
                 if self.activeScribeTriggerMode == .holdToTalk,
@@ -3479,7 +3993,9 @@ final class AppModel: ObservableObject {
                 await self.scribeProviderV2Controller.reloadReadiness()
                 self.scribeProviderReadiness = self.scribeProviderV2Controller.readiness
                 self.presentScribeStartFailure(
-                    error.userMessage,
+                    self.configuredScribeProviderKind == .legacyLocal
+                        ? (OnDeviceScribeService.unavailableReason ?? error.userMessage)
+                        : error.userMessage,
                     failureRecovery: .providerRecovery(for: error)
                 )
             } catch let error as ScribeContextError {
@@ -3496,6 +4012,7 @@ final class AppModel: ObservableObject {
             } catch is CancellationError {
                 self.activeScribeTriggerMode = nil
                 self.scribeShortcutReleasePending = false
+                startupOutcome = .cancelled
                 return
             } catch {
                 self.activeScribeTriggerMode = nil
@@ -3530,6 +4047,7 @@ final class AppModel: ObservableObject {
         dismissImmediately: Bool = false,
         discardsReviewedDraft: Bool = false
     ) {
+        scribeScreenDraftReviewController.cancel()
         activeScribeTriggerMode = nil
         scribeShortcutReleasePending = false
         if discardsReviewedDraft,
@@ -3579,7 +4097,8 @@ final class AppModel: ObservableObject {
             } catch let error as ScribeContextError {
                 self.updateScribePresentation(
                     self.scribeState,
-                    failureMessageOverride: error.userMessage
+                    failureMessageOverride: self.scribeCoordinator.failure == .memoryUnavailable
+                        ? nil : error.userMessage
                 )
             } catch {
                 self.lastError = "Cadence could not safely insert that draft. Copy it instead."
@@ -3607,17 +4126,58 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func reRecordScribe() {
+    private func refreshScribeSelectedSource(id: UUID) {
         Task { @MainActor [weak self] in
             guard let self else { return }
+            _ = await self.scribeCoordinator.refreshSelectedTextSource(id: id)
+        }
+    }
+
+    private func regenerateScribeWithoutSessionFacts(id: UUID) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            _ = await self.scribeCoordinator.regenerateWithoutSessionFacts(id: id)
+        }
+    }
+
+    private func regenerateScribeWithoutSessionFact(sourceID: UUID, recordID: UUID) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            _ = await self.scribeCoordinator.regenerateWithoutSessionFact(
+                sourceID: sourceID, recordID: recordID
+            )
+        }
+    }
+
+    private func reRecordScribe(excludingSourceID: UUID? = nil) {
+        guard !isScribeReRecording else { return }
+        if let excludingSourceID {
+            guard let source = scribeCoordinator.selectedTextReviewSource,
+                  source.id == excludingSourceID, source.isExcluded else { return }
+        }
+        isScribeReRecording = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isScribeReRecording = false }
+            self.activeScribeTriggerMode = .tapToStartStop
+            self.scribeShortcutReleasePending = false
             do {
-                try await self.scribeCoordinator.reRecord()
+                if let excludingSourceID {
+                    guard try await self.scribeCoordinator.recordReplacementWithoutSelectedSource(id: excludingSourceID) else {
+                        self.activeScribeTriggerMode = nil
+                        return
+                    }
+                } else {
+                    try await self.scribeCoordinator.reRecord()
+                }
             } catch let error as ScribeContextError {
+                self.activeScribeTriggerMode = nil
                 self.presentScribeStartFailure(
                     error.userMessage,
                     failureRecovery: .contextRecovery(for: error)
                 )
             } catch {
+                self.activeScribeTriggerMode = nil
                 self.presentScribeStartFailure(
                     "Compose could not start a new recording.",
                     failureRecovery: .retryGeneration
@@ -3626,29 +4186,145 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func refineScribeDraft() {
+        guard scribeCoordinator.canRefineReviewedDraft else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let currentPermissions = await ScribePermissionGate.evaluate(using: self.permissionsService)
+            if self.permissions != currentPermissions {
+                self.permissions = currentPermissions
+            }
+            guard self.scribeCoordinator.canRefineReviewedDraft else { return }
+            guard currentPermissions.microphoneGranted else {
+                self.presentScribeRefinementFailure("Allow microphone access in Cadence settings to refine this draft. Your previous draft is still here.")
+                return
+            }
+            do {
+                try await self.scribeTranscriptionEngine.updateConfiguration(self.transcriptionConfiguration)
+                guard self.scribeCoordinator.canRefineReviewedDraft else { return }
+                self.activeScribeTriggerMode = .tapToStartStop
+                self.scribeShortcutReleasePending = false
+                try await self.scribeCoordinator.beginRefinement()
+                self.feedbackService.playScribeActivationSound()
+                self.lastError = nil
+            } catch is CancellationError {
+                self.activeScribeTriggerMode = nil
+                self.scribeShortcutReleasePending = false
+                self.updateScribePresentation(self.scribeState)
+            } catch let VoiceSessionArbiterError.busy(activeKind) {
+                self.presentScribeRefinementFailure("Stop the active \(activeKind.displayName) session before refining. Your previous draft is still here.")
+            } catch let error as ScribeContextError {
+                self.presentScribeRefinementFailure("\(error.userMessage) Your previous draft is still here.")
+            } catch {
+                self.presentScribeRefinementFailure("Refinement could not start recording. Your previous draft is still here. Try again.")
+            }
+        }
+    }
+
+    private func presentScribeRefinementFailure(_ message: String) {
+        activeScribeTriggerMode = nil
+        scribeShortcutReleasePending = false
+        lastError = message
+        updateScribePresentation(scribeState, failureMessageOverride: message)
+    }
+
+    private func cancelScribeRefinement() {
+        guard scribeCoordinator.isRefining else { return }
+        activeScribeTriggerMode = nil
+        scribeShortcutReleasePending = false
+        Task { @MainActor [weak self] in
+            await self?.scribeCoordinator.cancelRefinement()
+        }
+    }
+
+    private func undoScribeRefinement() {
+        guard scribeCoordinator.canUndoRefinement else { return }
+        scribeCoordinator.undoRefinement()
+    }
+
+    private func interruptScribeRefinementForDictationIfNeeded() {
+        guard scribeCoordinator.isRefining,
+              let actionID = scribeCoordinator.activeRequestID else { return }
+        let interruption = ScribeRefinementInterruption(actionID: actionID)
+        interruptedScribeRefinement = interruption
+        scribeCoordinator.invalidateRefinementCompletion()
+        activeScribeTriggerMode = nil
+        scribeShortcutReleasePending = false
+        scribePanelWindowController.close()
+        scribeNotchWindowController.close()
+        Task { @MainActor [weak self] in
+            guard let self,
+                  self.interruptedScribeRefinement == interruption,
+                  self.scribeCoordinator.activeRequestID == actionID else { return }
+            await self.scribeCoordinator.cancelRefinement()
+            self.restoreInterruptedScribeRefinementIfReady()
+        }
+    }
+
+    private func interruptedScribeRefinementResolution(
+        _ interruption: ScribeRefinementInterruption
+    ) -> ScribeRefinementInterruption.Resolution {
+        interruption.resolution(
+            dictationState: state,
+            dictationHUD: hudState.visualState,
+            activeActionID: scribeCoordinator.activeRequestID,
+            scribeState: scribeState,
+            isRefining: scribeCoordinator.isRefining
+        )
+    }
+
+    private func restoreInterruptedScribeRefinementIfReady() {
+        guard let interruption = interruptedScribeRefinement else { return }
+        switch interruptedScribeRefinementResolution(interruption) {
+        case .wait:
+            return
+        case .forget:
+            interruptedScribeRefinement = nil
+        case .restoreReview:
+            // Dictation publishes its HUD immediately after its callback.
+            // Resume on the next main-actor turn so that write cannot hide
+            // the restored review, and recheck ownership before presenting.
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.interruptedScribeRefinement == interruption,
+                      self.interruptedScribeRefinementResolution(interruption) == .restoreReview else { return }
+                self.interruptedScribeRefinement = nil
+                self.updateScribePresentation(self.scribeState)
+            }
+        }
+    }
+
     private func copyPolishedScribeResult() {
-        guard let text = scribeCoordinator.takeReviewedDraftForCopy(),
-              let historyDraft = scribeCoordinator.reviewedHistoryDraft() else { return }
-        NSPasteboard.general.clearContents()
-        if NSPasteboard.general.setString(text, forType: .string) {
-            appendComposeDraftToHistory(historyDraft)
-            scribeNotchWindowController.showCopyFeedback("Copied to clipboard")
+        guard let text = scribeCoordinator.takeReviewedDraftForCopy() else { return }
+        commitScribeCopy(text, historyDraft: scribeCoordinator.reviewedHistoryDraft()) { [self] in
+            scribeCoordinator.noteReviewedDraftCopied()
         }
     }
 
     private func copyUnpolishedScribeResult() {
         guard let text = scribeCoordinator.takeUnpolishedDraftForCopy(),
               let historyDraft = scribeCoordinator.unpolishedHistoryDraft() else { return }
-        NSPasteboard.general.clearContents()
-        if NSPasteboard.general.setString(text, forType: .string) {
-            appendComposeDraftToHistory(historyDraft)
+        commitScribeCopy(text, historyDraft: historyDraft)
+    }
+
+    private func commitScribeCopy(
+        _ text: String, historyDraft: ComposeHistoryDraft?, onCopied: (() -> Void)? = nil
+    ) {
+        ComposeCopyCommit.perform(text, onCopied: { [self] in
+            onCopied?()
+            if let historyDraft { appendComposeDraftToHistory(historyDraft) }
             scribeNotchWindowController.showCopyFeedback("Copied to clipboard")
-        }
+        }, onFailure: { [self] in
+            scribeNotchWindowController.showCopyFeedback("Couldn't copy — try again")
+        })
     }
 
     private var scribeFailureMessage: String? {
         switch scribeCoordinator.failure {
         case let .provider(error):
+            if scribeCoordinator.usesSelectedTextContext {
+                return error.selectedTextRewriteMessage + " Compose has not changed your selected text."
+            }
             return error.userMessage
         case let .context(error):
             return error.userMessage
@@ -3658,8 +4334,37 @@ final class AppModel: ObservableObject {
             return "Cadence did not hear a request. Record the request again or use Dictation."
         case .transcription:
             return "Cadence could not transcribe that request. Try again or use Dictation."
+        case .memoryUnavailable:
+            return "Session memory is unavailable or changed for this document. Start a new Compose request. Cadence did not insert this result."
+        case .memoryAmbiguous:
+            return "This document has several saved facts. Say which issue you want an update on, then try again. No new draft was generated."
+        case .persistentMemoryUnavailable:
+            return "Saved memory is unavailable or this document changed. No fact was saved. Review Saved memory in Compose Settings."
         case .literalRepair:
             return "Cadence could not resolve an exact literal. Use the spoken words, record the request again, or cancel Compose."
+        case .missingSource:
+            return "Include the text you want rewritten in your recording, then say how to change it. Your original words are still available."
+        case .missingConversationSource:
+            return "Cadence cannot verify which message you mean by ‘this.’ Say the reply you want to send, or start a new request with the message details. Your original words are still available."
+        case let .capability(rejection):
+            if scribeCoordinator.usesSelectedTextContext {
+                switch rejection {
+                case .inputTooLarge:
+                    return "This selection is too long for Compose. Select less text and start again."
+                case .unavailable, .unsupportedModality, .unsupportedTask:
+                    return "The selected provider cannot rewrite this selection. Cancel this request."
+                }
+            }
+            return rejection.userMessage
+        case .recipientRestriction:
+            if scribeCoordinator.usesSelectedTextContext {
+                return "The rewrite may have dropped a restriction in the selection. Try again or cancel. Compose has not changed your selected text."
+            }
+            return "The draft may have dropped a restriction you gave the recipient. Try again or use your original words."
+        case .refinementUnchanged:
+            return "No changes made. Your draft is unchanged."
+        case .selectedTextUnchanged:
+            return "The rewrite matches your selected text."
         case nil:
             return nil
         }
@@ -3670,6 +4375,10 @@ final class AppModel: ObservableObject {
         failureMessageOverride: String? = nil,
         failureRecoveryOverride: ScribeNotchFailureRecovery? = nil
     ) {
+        if interruptedScribeRefinement != nil {
+            restoreInterruptedScribeRefinementIfReady()
+            if interruptedScribeRefinement != nil { return }
+        }
         if case .failed = state,
            scribeCoordinator.failure == .transcriptionEmpty,
            scribeCoordinator.reviewedResult == nil,
@@ -3687,9 +4396,73 @@ final class AppModel: ObservableObject {
         }
 
         let resolvedFailureMessage = failureMessageOverride ?? scribeFailureMessage
+        let selectedTextContextStatus: String?
+        switch state {
+        case .reviewing, .insertionRecovery:
+            selectedTextContextStatus = scribeCoordinator.usesSelectedTextContext
+                ? scribeCoordinator.selectedTextContextStatus : nil
+        default:
+            selectedTextContextStatus = nil
+        }
+        scribeNotchWindowController.viewModel.updateSelectedTextContextStatus(selectedTextContextStatus)
+        scribePanelWindowController.viewModel.updateSelectedTextContextStatus(selectedTextContextStatus)
+        let sessionMemoryStatus: String?
+        switch state {
+        case .reviewing, .insertionRecovery:
+            sessionMemoryStatus = scribeCoordinator.sessionMemoryReviewStatus
+        default:
+            sessionMemoryStatus = nil
+        }
+        scribeNotchWindowController.viewModel.updateSessionMemoryContextStatus(sessionMemoryStatus)
+        scribePanelWindowController.viewModel.updateSessionMemoryContextStatus(sessionMemoryStatus)
+        let sessionFactsSource = sessionMemoryStatus == nil ? nil : scribeCoordinator.sessionFactsReviewSource
+        scribeNotchWindowController.viewModel.updateSessionFactsReviewSource(sessionFactsSource)
+        scribePanelWindowController.viewModel.updateSessionFactsReviewSource(sessionFactsSource)
+        let reviewSource = selectedTextContextStatus == nil ? nil : scribeCoordinator.selectedTextReviewSource
+        scribeNotchWindowController.viewModel.updateSelectedTextReviewSource(reviewSource)
+        scribePanelWindowController.viewModel.updateSelectedTextReviewSource(reviewSource)
+        let insertionOutcomeUncertain = scribeCoordinator.insertionOutcomeUncertain
+        scribeNotchWindowController.viewModel.updateInsertionOutcomeUncertain(insertionOutcomeUncertain)
+        scribePanelWindowController.viewModel.updateInsertionOutcomeUncertain(insertionOutcomeUncertain)
+        let canUseScreenContext: Bool
+        if #available(macOS 15.2, *) {
+            canUseScreenContext = featureFlags.composeContextEnabled
+                && scribeCoordinator.screenContextReviewCandidate != nil
+        } else {
+            canUseScreenContext = false
+        }
+        scribeNotchWindowController.viewModel.updateScreenDraftAvailability(canUseScreenContext)
+        let reviewNotice: String?
+        if case .reviewing = state {
+            reviewNotice = reviewSource?.isExcluded == true ? reviewSource?.exclusionMessage : resolvedFailureMessage
+        } else {
+            reviewNotice = nil
+        }
+        scribeNotchWindowController.viewModel.updateRefinement(
+            canRefineReviewedDraft: scribeCoordinator.canRefineReviewedDraft,
+            canUndoRefinement: scribeCoordinator.canUndoRefinement,
+            unavailableReason: scribeCoordinator.refinementUnavailableReason,
+            isRefining: scribeCoordinator.isRefining,
+            reviewNotice: reviewNotice,
+            lastInstruction: scribeCoordinator.lastRefinementInstruction
+        )
+        scribePanelWindowController.viewModel.updateRefinement(
+            canRefineReviewedDraft: scribeCoordinator.canRefineReviewedDraft,
+            canUndoRefinement: scribeCoordinator.canUndoRefinement,
+            unavailableReason: scribeCoordinator.refinementUnavailableReason,
+            isRefining: scribeCoordinator.isRefining,
+            lastInstruction: scribeCoordinator.lastRefinementInstruction
+        )
+        let presentationTranscript: String?
+        if case .failed = state {
+            presentationTranscript = scribeCoordinator.literalRecoveryTranscript
+        } else {
+            presentationTranscript = scribeCoordinator.isRefining
+                ? scribeCoordinator.lastRefinementInstruction : scribeCoordinator.literalTranscript
+        }
         let presentation = ScribeNotchPresentation.project(
             state: state,
-            literalTranscript: scribeCoordinator.literalTranscript,
+            literalTranscript: presentationTranscript,
             failureMessage: resolvedFailureMessage,
             canRetryGeneration: scribeCoordinator.canRetryGeneration,
             failureRecovery: failureRecoveryOverride
@@ -3703,7 +4476,7 @@ final class AppModel: ObservableObject {
             scribePanelWindowController.update(
                 state: state,
                 failureMessage: failureMessageOverride ?? scribeFailureMessage,
-                literalTranscript: scribeCoordinator.literalTranscript,
+                literalTranscript: scribeCoordinator.literalRecoveryTranscript,
                 environmentCue: scribeCoordinator.resolvedEnvironment?.cue,
                 targetDisplayName: scribeCoordinator.targetDisplayName,
                 exactLiterals: scribeCoordinator.exactLiterals,
@@ -3725,6 +4498,7 @@ final class AppModel: ObservableObject {
         for state: ScribeSessionState,
         failureMessage: String? = nil
     ) {
+        guard interruptedScribeRefinement == nil else { return }
         let visualState = ScribeHUDProjection.visualState(
             for: state,
             replacementCompleted: scribeReplacementCompleted,
@@ -3791,6 +4565,9 @@ final class AppModel: ObservableObject {
     }
 
     private func bindScribeCoordinator() {
+        scribeScreenDraftReviewController.onPhaseChange = { [weak self] phase in
+            self?.scribeNotchWindowController.viewModel.updateScreenDraftPhase(phase)
+        }
         coordinator.onScribeRequested = { [weak self] in
             self?.handleScribeShortcutPress()
         }
@@ -3802,8 +4579,12 @@ final class AppModel: ObservableObject {
         }
         scribeCoordinator.onStateChange = { [weak self] state in
             guard let self else { return }
+            if self.scribeCoordinator.screenContextReviewCandidate == nil {
+                self.scribeScreenDraftReviewController.cancel()
+            }
             self.scribeState = state
-            if case .transcribing = state {
+            if case .transcribing = state,
+               self.interruptedScribeRefinement == nil {
                 self.playScribeProcessingFeedback()
             }
             self.updateScribePresentation(state)
@@ -3822,8 +4603,23 @@ final class AppModel: ObservableObject {
         }
         viewModel.onRetry = { [weak self] in self?.retryScribe() }
         viewModel.onReRecord = { [weak self] in self?.reRecordScribe() }
+        viewModel.onRefine = { [weak self] in self?.refineScribeDraft() }
+        viewModel.onUndoRefinement = { [weak self] in self?.undoScribeRefinement() }
+        viewModel.onCancelRefinement = { [weak self] in self?.cancelScribeRefinement() }
         viewModel.onUseLiteral = { [weak self] in self?.scribeCoordinator.useLiteralTranscript() }
         viewModel.onInsert = { [weak self] in self?.insertScribeResult() }
+        viewModel.onExcludeSelectedTextSource = { [weak self] in self?.scribeCoordinator.excludeSelectedTextSource(id: $0) }
+        viewModel.onInspectSelectedTextSource = { [weak self] in self?.scribeCoordinator.canInspectSelectedTextSource(id: $0) ?? false }
+        viewModel.onRecordWithoutSelectedSource = { [weak self] in self?.reRecordScribe(excludingSourceID: $0) }
+        viewModel.onRefreshSelectedTextSource = { [weak self] in self?.refreshScribeSelectedSource(id: $0) }
+        viewModel.onRegenerateWithoutSessionFacts = { [weak self] in self?.regenerateScribeWithoutSessionFacts(id: $0) }
+        viewModel.onRegenerateWithoutSessionFact = { [weak self] in self?.regenerateScribeWithoutSessionFact(sourceID: $0, recordID: $1) }
+        viewModel.onSavePersistentMemory = { [weak self] in
+            _ = self?.scribeCoordinator.confirmPersistentMemoryProposal(id: $0)
+        }
+        viewModel.onConfirmPersistentMemoryForget = { [weak self] in
+            _ = self?.scribeCoordinator.confirmPersistentMemoryForgetProposal(id: $0)
+        }
         viewModel.onInsertUnpolished = { [weak self] in self?.insertUnpolishedScribeResult() }
         viewModel.onCopyPolished = { [weak self] in self?.copyPolishedScribeResult() }
         viewModel.onCopyUnpolished = { [weak self] in self?.copyUnpolishedScribeResult() }
@@ -3838,7 +4634,47 @@ final class AppModel: ObservableObject {
         }
 
         let notchViewModel = scribeNotchWindowController.viewModel
+        notchViewModel.onBeginScreenDraft = { [weak self] in
+            guard let self,
+                  let candidate = self.scribeCoordinator.screenContextReviewCandidate,
+                  self.featureFlags.composeContextEnabled else { return }
+            if !self.scribeScreenDraftReviewController.begin(candidate) {
+                self.scribeNotchWindowController.showCopyFeedback("Screen context is unavailable")
+            }
+        }
+        notchViewModel.onApproveScreenReading = { [weak self] in
+            guard let self else { return }
+            guard self.permissionsService.requestScreenRecordingAccess() else {
+                self.scribeScreenDraftReviewController.cancel()
+                self.scribeNotchWindowController.showCopyFeedback("Screen Recording access is needed")
+                return
+            }
+            self.scribeScreenDraftReviewController.approveLocalReading()
+        }
+        notchViewModel.onApproveScreenProviderUse = { [weak self] in
+            self?.scribeScreenDraftReviewController.approveProviderUse()
+        }
+        notchViewModel.onCopyScreenDraft = { [weak self] in
+            guard let self,
+                  let text = self.scribeScreenDraftReviewController.copyableDraft() else { return }
+            self.commitScribeCopy(text, historyDraft: nil)
+        }
+        notchViewModel.onCancelScreenDraft = { [weak self] in
+            self?.scribeScreenDraftReviewController.cancel()
+        }
         notchViewModel.onInsert = { [weak self] in self?.insertScribeResult() }
+        notchViewModel.onExcludeSelectedTextSource = { [weak self] in self?.scribeCoordinator.excludeSelectedTextSource(id: $0) }
+        notchViewModel.onInspectSelectedTextSource = { [weak self] in self?.scribeCoordinator.canInspectSelectedTextSource(id: $0) ?? false }
+        notchViewModel.onRecordWithoutSelectedSource = { [weak self] in self?.reRecordScribe(excludingSourceID: $0) }
+        notchViewModel.onRefreshSelectedTextSource = { [weak self] in self?.refreshScribeSelectedSource(id: $0) }
+        notchViewModel.onRegenerateWithoutSessionFacts = { [weak self] in self?.regenerateScribeWithoutSessionFacts(id: $0) }
+        notchViewModel.onRegenerateWithoutSessionFact = { [weak self] in self?.regenerateScribeWithoutSessionFact(sourceID: $0, recordID: $1) }
+        notchViewModel.onSavePersistentMemory = { [weak self] in
+            _ = self?.scribeCoordinator.confirmPersistentMemoryProposal(id: $0)
+        }
+        notchViewModel.onConfirmPersistentMemoryForget = { [weak self] in
+            _ = self?.scribeCoordinator.confirmPersistentMemoryForgetProposal(id: $0)
+        }
         notchViewModel.onCopy = { [weak self] in
             guard let self else { return }
             if case .failed = self.scribeState {
@@ -3851,6 +4687,9 @@ final class AppModel: ObservableObject {
             self?.cancelScribe(discardsReviewedDraft: true)
         }
         notchViewModel.onRetry = { [weak self] in self?.retryScribe() }
+        notchViewModel.onRefine = { [weak self] in self?.refineScribeDraft() }
+        notchViewModel.onUndoRefinement = { [weak self] in self?.undoScribeRefinement() }
+        notchViewModel.onCancelRefinement = { [weak self] in self?.cancelScribeRefinement() }
         notchViewModel.onConfigureProvider = { [weak self] in
             self?.presentScribeProviderSetup()
         }
@@ -3990,14 +4829,15 @@ final class AppModel: ObservableObject {
                 kind: .insertionVerificationCompleted,
                 phase: .insertion,
                 provider: diagnosticProvider,
-                outcome: .targetChanged
+                outcome: scribeCoordinator.failure == .context(.insertionUnconfirmed)
+                    ? .insertionFailed : .targetChanged
             )
         case .succeeded:
             event = ScribeDiagnosticEvent(
-                kind: .insertionVerificationCompleted,
+                kind: .insertionAttemptCompleted,
                 phase: .insertion,
                 provider: diagnosticProvider,
-                outcome: .success
+                outcome: .insertionAttempted
             )
         case .cancelled:
             event = ScribeDiagnosticEvent(
@@ -4016,7 +4856,7 @@ final class AppModel: ObservableObject {
                     fallback: scribeCoordinator.failure
                 )
             )
-        case .idle, .inserting:
+        case .idle, .inserting, .persistentMemoryProposal, .persistentMemoryForgetProposal, .memoryNotice:
             event = nil
         }
         if let event { await scribeDiagnosticsService.record(event) }
@@ -4085,7 +4925,7 @@ final class AppModel: ObservableObject {
         case .provider(.timedOut): return .timedOut
         case .provider(.cancelled): return .cancelled
         case .provider: return .providerUnavailable
-        case .voiceSessionBusy, .literalRepair, nil: return .otherSafeCategory
+        case .voiceSessionBusy, .memoryUnavailable, .memoryAmbiguous, .persistentMemoryUnavailable, .literalRepair, .missingSource, .missingConversationSource, .capability, .recipientRestriction, .refinementUnchanged, .selectedTextUnchanged, nil: return .otherSafeCategory
         }
     }
 
@@ -5469,20 +6309,18 @@ final class AppModel: ObservableObject {
 
     private static func makeScribeProvider() -> any ScribeProvider {
         #if DEBUG
-        return MockScribeProvider(responses: [
-            .success("This is a local preview draft from Cadence. Review it before inserting.")
-        ])
-        #else
+        if ScribeLaunchFixtures.usesIsolatedRuntimeStorage {
+            return MockScribeProvider(responses: [
+                .success("This is a local preview draft from Cadence. Review it before inserting.")
+            ])
+        }
+        #endif
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
-            let provider = FoundationModelsScribeProvider()
-            if provider.capabilities.contains(.semanticGeneration) {
-                return provider
-            }
+            return FoundationModelsScribeProvider()
         }
         #endif
         return UnavailableScribeProvider()
-        #endif
     }
 }
 

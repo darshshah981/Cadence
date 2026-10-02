@@ -1,7 +1,9 @@
 # Cadence Codebase Guide
 
 Generated: July 2, 2026
-Source-audited: July 3, 2026
+Runtime boundary and workspace status updated: October 2, 2026
+
+Authoritative workspace and current verification: [Compose current status](compose-current-status.md). Historical feature evidence is archived separately.
 
 This guide explains how the Cadence codebase is organized, how the major runtime flows work, and where to make changes safely.
 
@@ -33,6 +35,114 @@ defaults delete com.darshshah.Cadence.debug Cadence.feature.scribe
 ```
 
 For one launch, pass `--enable-scribe` or `--disable-scribe`. Automation can set `CADENCE_SCRIBE_ENABLED=true` or `false`. Launch arguments take precedence over the environment, which takes precedence over the local preference. `--scribe-fixture` enables Compose only for the existing Debug fixture path.
+
+## Compose Subfeature Flags
+
+Compose also has separate rollout switches for optional context, memory, and
+surface adapters. `Cadence.feature.composeContext`, `Cadence.feature.composeMemory`,
+and `Cadence.feature.composeAdapters` default off. These unfinished TextEdit
+and screen-context previews require an explicit development rollout override
+before their controls appear. Existing explicit overrides remain respected;
+turning a rollout switch on still grants no content access by itself. Their corresponding environment
+variables are `CADENCE_COMPOSE_CONTEXT_ENABLED`, `CADENCE_COMPOSE_MEMORY_ENABLED`,
+and `CADENCE_COMPOSE_ADAPTERS_ENABLED`. Launch overrides use
+`--enable-compose-context` / `--disable-compose-context`, with matching
+`compose-memory` and `compose-adapters` forms. The Compose master switch takes
+precedence, and memory/adapters cannot resolve enabled when context is off.
+Disabling context preserves saved user preferences but prevents the selected-text
+controller from receiving an active grant and hides that Settings section until
+the next launch. The memory and adapter switches grant no access by themselves:
+when both are enabled, a separate current disclosure and default-off Settings
+permissions can authorize TextEdit
+document identity on an explicit Compose action. Neither flag itself grants
+consent, retention, or provider transmission.
+
+The separate `compose-persistent-memory` rollout switch also defaults off and
+requires memory and adapters. AppModel constructs its encrypted-domain runtime
+inertly. Settings can confirm creation of a local namespace and Keychain key
+after displaying the 30-day retention and backup terms; launch only reopens a
+previously confirmed domain. A second Settings confirmation deletes all current
+encrypted records even after access is turned off. The exact voice command
+“Cadence, remember for later that …” proposes one fact for the current verified
+TextEdit document. Exact phrases also inspect current facts, propose an old-to-new
+correction, or propose forgetting this document's facts. Save, correction, and
+forget require confirmation on the review surface; the commands bypass the
+writing provider and insertion. A forget review carries a durable revision, so
+an intervening save prevents deletion. A separate default-off local-draft
+control permits relevant saved facts from that verified document in Apple
+Intelligence requests only. The coordinator pins and rechecks the fact set
+before publishing a draft, Copy, or Insert; changed facts invalidate the draft.
+Cloud destinations remain transcript-only for saved memory.
+
+Screenshot context is an explicit, copy-only Compose review action on macOS
+15.2 or newer when the Compose context flag is enabled and the current provider
+is on-device. The production notch offers “Use screen” for a live draft review
+or a source-free reply failure. One control approves local reading, then the
+system window picker selects the original pinned window for exact-window
+capture and Vision OCR. A second control shows the recognized text and asks
+before sending it to Apple Intelligence on this Mac. Neither step runs on the
+ordinary shortcut path. `ComposeScreenDraftReviewController` keeps the old
+draft or recovery state underneath, and offers only Copy for its new result.
+The original Accessibility-focused window frame is read from the pinned AX
+window only after an explicit screen-context request; ordinary recording does
+no geometry read. The picker choice must match that frame, so another window
+in the same app cannot be substituted merely because its process ID matches.
+A missing frame fails closed. Frame equality still needs signed live-app
+certification.
+`ComposeScreenContextConsentController` is the action-scoped grant owner:
+local OCR and exact-provider text transmission need separate explicit approval
+calls, and neither approval creates a retention grant. The controller drops
+the screenshot immediately after local OCR; the recognized text and its draft
+stay in memory only while the originating Compose action remains valid.
+`ComposeScreenTextDraftCompiler` can turn one complete, high-confidence OCR
+snapshot into a bounded, text-only input for the local provider. It rechecks
+the exact action, pinned window/process, screen-capture grant, separate
+provider-transmission grant, source hash and 120-second freshness before use.
+Recognized screen text is labeled untrusted data, and image bytes cannot enter
+the text-provider input. A resulting draft is copy-only: the compiler cannot
+certify conversation identity or grant insertion into a recipient field.
+The local provider route rechecks action, target and consent before dispatch,
+after generation and before Copy. Signed live picker/capture behavior and
+recipient-field certification remain unverified; this route never inserts.
+The hardware-notch inset is reserved by the containing surface, so the screen
+review content adds only a small inner top margin. Offscreen synthetic frames
+cover floating and hardware layouts with long source/draft text; their buttons
+stay visible while the text scrolls.
+Cancelling the system picker revokes that action's screen grant and returns to
+the underlying Compose review; other picker and capture failures retain an
+unavailable screen-context state for explicit recovery.
+
+The first native conversation identity adapter is
+`ScribeTextEditDocumentIdentityAdapter`. It can identify a saved TextEdit file
+from a live Accessibility document attribute and exact window/process binding.
+It is registered only through the separately opted-in session-memory controller
+when both rollout switches are enabled; the adapter flag alone cannot activate it.
+Controlled AX checks cover synthetic saved files, A→B→A switching, process
+restart, and replacement of a file at the same path; they do not certify all
+TextEdit states or other apps. `ScribeConversationActionScope` is the
+deny-by-default action owner. It requires current action/target authority and a
+distinct session-memory capture grant before exposing a verified identity.
+The coordinator schedules identity work after microphone startup and clears it
+when the action ends. `ScribeSessionMemoryStore` separately requires current-action
+authority and a retention grant for every write; it drops stale pending
+operations. A separate default-off setting allows bounded explicit voice
+commands to remember, inspect, or forget facts for a verified saved TextEdit
+document during the current app session. These commands stay local and do not
+create a draft or history entry. A third default-off control allows relevant
+explicit facts from that verified document to enter only a local Apple
+Intelligence draft. Relevance normally requires a shared specific word; a
+small set of generic follow-up requests can use the sole explicit fact in the
+verified document. Multiple facts require the user to name an issue before
+provider dispatch. The coordinator
+compares record IDs and text on retry so
+a changed or revoked fact set cannot silently replace the pinned request or
+publish a late model result. Review, Copy and Insert recheck the fact snapshot;
+changed or revoked facts discard the memory-backed draft. A quiet review cue
+identifies when session facts informed a draft. Changing only local draft use
+leaves the saved session facts intact but invalidates the current memory-backed
+action. Memory-backed drafts do not enter ordinary Compose history.
+Cloud drafts remain transcript-only. Automatic fact extraction and persistent
+memory use in provider requests are not connected.
 
 ## Granola Feature Flag
 
@@ -182,9 +292,38 @@ Key files:
 Core invariant:
 
 - Dictation should be short and responsive. It should not depend on meeting-note storage or meeting final-pass transcription.
-- A successfully inserted or copied Compose result may reuse the local transcript-history store as one linked record containing final composed text plus the original dictation. Failed, discarded, cancelled, and review-only Compose drafts remain memory-only.
+- A successfully inserted or copied ordinary Compose result may reuse the local transcript-history store as one linked record containing final composed text plus the original dictation. Contextual and session-memory-backed drafts are excluded from this history. Failed, discarded, cancelled, and review-only Compose drafts remain memory-only.
+
+Dictation verifies the captured app before assessing the focused control. Definite
+non-text controls use copy-only delivery. Unknown custom editors receive keyboard
+insertion with a clipboard backup and no automatic Return key. Some web composers,
+including Muse, expose the focused editor as `AXButton` with a `cursor-text` DOM
+class. `SystemDictationTargetCapabilityService` reads that non-content hint and
+treats the role as unknown rather than definitely non-editable. It does not read
+the field's text, bypass target verification, or grant confirmed editability.
+Ordinary buttons without that hint and secure text fields remain copy-only.
+
+Compose insertion rechecks the exact captured field after restoring focus.
+Each capture permits at most one posting attempt. An overlapping or repeated
+Insert is refused, including after a partial event failure; a failed check
+before posting leaves the capture eligible while its action remains active.
+If the system-wide AX focused-element query is unavailable, its reader queries
+only the application that is frontmost at that moment; it never substitutes
+the originally pinned application. Initial focus acquisition retries a
+transient missing AX element for up to four attempts, then fails closed. The
+controlled native/WebKit host exercises this path; see the U5 evidence in
+[the Compose roadmap ledger](compose-roadmap-progress.md).
+During insertion, a missing focused AX element is reported as a changed target
+when the independently observed frontmost process differs from the captured
+process. The original capture is never redirected to that new process.
 
 ## Compose Interaction Behavior
+
+Compose interprets spoken writing directions (tone, length, format, wording)
+while preserving instructions meant for the recipient. See
+[the instruction-following contract](scribe-instruction-following.md) for
+examples and the synthetic evaluation harness. Screen content and prior
+conversations are not supplied to the provider.
 
 Compose review exposes the complete current result and its actions immediately; decorative motion does not delay Copy or Insert. Actionable failures and failures with retained words remain visible until resolved or dismissed. Failure shortcuts belong to the focused review panel, so a passive failure does not take Copy from another app. Successful Copy still keeps the review open until the next outside click. Insertion continues to verify the pinned target and hide the review before restoring that target.
 
@@ -511,3 +650,39 @@ flowchart LR
 ```
 
 The most important reliability principle in this codebase is to keep raw capture data durable before doing lossy processing. Dictation can be ephemeral because its job is immediate insertion. Meetings should be durable because users expect long recordings to survive final transcription errors.
+
+## Key-free Compose default
+
+Fresh provider-library migration installs an active `legacyLocal` configuration
+(displayed as Apple Intelligence). The persisted kind remains unchanged for
+compatibility. `FoundationModelsScribeProvider` uses the on-device system model;
+`OnDeviceScribeService` supplies current availability and actionable UI copy.
+Existing provider-library migration markers prevent a removed or disabled
+provider being silently restored. Legacy cloud configurations are migrated as
+before. The built-in provider requires macOS 26+ and Apple Intelligence; older
+or ineligible Macs can choose a cloud provider explicitly.
+
+Settings > Compose > Manage > Replace includes the built-in choice without
+credential or remote-disclosure screens. The choice runs through the same
+active-action guard as cloud setup and preserves other library entries. Local
+availability is checked at readiness, acquisition, dispatch, and generation.
+Normal Debug builds use the real local provider; only explicit UI fixtures and
+test hosts use a mock. See [on-device verification](scribe-on-device.md).
+
+
+## Grounded selected-text rewrite runtime
+
+The opted-in TextEdit selection route runs through
+`ComposeSelectedTextContextController.compileRewrite` and
+`ComposeContextCompiler.compileSelectedRewrite`. The latter preserves the
+existing `ComposeSelectedTextRewritePolicy` prompt while sharing full-source
+provenance, byte budgets and output obligations with the grounded compiler.
+`ScribeCoordinator` pins that compilation and checks live policy and expiry
+before exposing a result or allowing insertion; the existing bounded selection
+reader still verifies the actual selection immediately before replacement.
+
+`ComposeGroundedFieldReference` represents either a verified conversation field
+or an invocation-only capture. The latter grants no conversation key or memory
+scope and cannot enter the reply path. General grounded replies remain unwired.
+See [grounded context](scribe-grounded-context.md) for verification and remaining
+gates. This wiring adds no capture permission, cloud egress or history retention.

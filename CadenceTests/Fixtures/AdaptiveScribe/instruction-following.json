@@ -1,0 +1,314 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "description": "Spoken writing directions versus recipient content. Expected drafts are examples, not exact-match semantic scores.",
+  "cases": [
+    {
+      "id": "casual-message",
+      "family": "general",
+      "spoken": "Tell Alex I will be ten minutes late. Keep it casual.",
+      "exampleDraft": "Hey Alex, I'll be ten minutes late.",
+      "required": [
+        "ten minutes"
+      ],
+      "forbidden": [
+        "keep it casual",
+        "tell Alex"
+      ]
+    },
+    {
+      "id": "formal-rewrite",
+      "family": "general",
+      "spoken": "We shipped the update. Make that more formal.",
+      "exampleDraft": "We have released the update.",
+      "required": [
+        "update"
+      ],
+      "forbidden": [
+        "more formal",
+        "make that"
+      ]
+    },
+    {
+      "id": "tone-first",
+      "family": "messaging",
+      "spoken": "Keep this warm and short. Tell Maya the preview is ready for review.",
+      "exampleDraft": "Maya, the preview is ready for your review.",
+      "required": [
+        "preview",
+        "review"
+      ],
+      "forbidden": [
+        "keep this warm"
+      ]
+    },
+    {
+      "id": "bullets",
+      "family": "general",
+      "spoken": "Put this in two bullets: the build is ready and testing starts Tuesday.",
+      "exampleDraft": "- The build is ready.\n- Testing starts Tuesday.",
+      "required": [
+        "build",
+        "Tuesday"
+      ],
+      "forbidden": [
+        "put this"
+      ]
+    },
+    {
+      "id": "plain-dictation",
+      "family": "general",
+      "spoken": "The review is on Tuesday and I might join late.",
+      "exampleDraft": "The review is on Tuesday, and I might join late.",
+      "required": [
+        "Tuesday",
+        "might"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "recipient-question",
+      "family": "general",
+      "spoken": "Can you send me the report by Friday?",
+      "exampleDraft": "Can you send me the report by Friday?",
+      "required": [
+        "report",
+        "Friday"
+      ],
+      "forbidden": [
+        "I have sent",
+        "I sent"
+      ]
+    },
+    {
+      "id": "recipient-direction",
+      "family": "messaging",
+      "spoken": "Tell Alex to keep the announcement casual.",
+      "exampleDraft": "Alex, please keep the announcement casual.",
+      "required": [
+        "announcement",
+        "casual"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "quoted-direction",
+      "family": "general",
+      "spoken": "Include the exact sentence \"Keep it casual\" in the note.",
+      "exampleDraft": "Keep it casual",
+      "required": [
+        "Keep it casual"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "inspect-only",
+      "family": "coding",
+      "spoken": "Ask Codex to investigate the crash without changing code. Keep the prompt short.",
+      "exampleDraft": "Investigate the crash without changing code.",
+      "required": [
+        "crash",
+        "without changing code"
+      ],
+      "forbidden": [
+        "I investigated",
+        "I fixed",
+        "keep the prompt short"
+      ]
+    },
+    {
+      "id": "coding-question",
+      "family": "coding",
+      "spoken": "Ask the coding agent why the login fails. Do not make any changes.",
+      "exampleDraft": "Explain why login fails. Do not make any changes.",
+      "required": [
+        "login",
+        "Do not make any changes"
+      ],
+      "forbidden": [
+        "because",
+        "I changed"
+      ]
+    },
+    {
+      "id": "coding-literals",
+      "family": "coding",
+      "spoken": "Ask the coding agent to inspect src/Auth.swift with --verbose. Do not edit files. Make this a concise prompt.",
+      "exampleDraft": "Inspect src/Auth.swift with --verbose. Do not edit files.",
+      "required": [
+        "src/Auth.swift",
+        "--verbose",
+        "Do not edit files"
+      ],
+      "forbidden": [
+        "make this a concise prompt"
+      ]
+    },
+    {
+      "id": "quoted-code-instruction",
+      "family": "coding",
+      "spoken": "Ask the coding agent to find the string \"make it shorter\" in src/Copy.swift without editing files.",
+      "exampleDraft": "Find the string \"make it shorter\" in src/Copy.swift without editing files.",
+      "required": [
+        "make it shorter",
+        "src/Copy.swift",
+        "without editing files"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "self-correction",
+      "family": "messaging",
+      "spoken": "Tell Sam the meeting is Tuesday, sorry, Thursday. Keep it short.",
+      "exampleDraft": "Sam, the meeting is Thursday.",
+      "required": [
+        "Thursday"
+      ],
+      "forbidden": [
+        "Tuesday",
+        "sorry",
+        "keep it short"
+      ]
+    },
+    {
+      "id": "no-invention",
+      "family": "general",
+      "spoken": "Tell Jo I cannot attend. Keep it polite and do not give a reason.",
+      "exampleDraft": "Jo, I'm sorry, but I can't attend.",
+      "required": [
+        "Jo"
+      ],
+      "forbidden": [
+        "because",
+        "appointment",
+        "conflict",
+        "do not give a reason"
+      ]
+    },
+    {
+      "id": "missing-context",
+      "family": "general",
+      "spoken": "Make this shorter.",
+      "exampleDraft": "Make this shorter.",
+      "required": [],
+      "forbidden": [
+        "meeting",
+        "project",
+        "Alex",
+        "Tuesday"
+      ]
+    },
+    {
+      "id": "request-not-execution",
+      "family": "general",
+      "spoken": "Write a short note asking Lee to delete the draft after review.",
+      "exampleDraft": "Lee, please delete the draft after review.",
+      "required": [
+        "Lee",
+        "delete",
+        "after review"
+      ],
+      "forbidden": [
+        "I deleted",
+        "has been deleted"
+      ]
+    },
+    {
+      "id": "formal-greeting",
+      "family": "general",
+      "spoken": "Hey, how's it going? Write this formally.",
+      "exampleDraft": "Hello, how are you?",
+      "required": [],
+      "forbidden": [
+        "write this formally"
+      ]
+    },
+    {
+      "id": "framed-formal-greeting",
+      "family": "general",
+      "spoken": "Okay, can you help me with this? Hey, how's it going? Write this formally.",
+      "exampleDraft": "Hello, how are you?",
+      "required": [],
+      "forbidden": [
+        "write this formally",
+        "help me with this"
+      ]
+    },
+    {
+      "id": "quoted-formal-instruction",
+      "family": "general",
+      "spoken": "Include the exact sentence \"Write this formally\" in the note.",
+      "exampleDraft": "Write this formally",
+      "required": [
+        "Write this formally"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "recipient-formal-instruction",
+      "family": "general",
+      "spoken": "Tell Alex to write this formally.",
+      "exampleDraft": "Alex, please write this formally.",
+      "required": [
+        "Alex",
+        "write this formally"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "framed-short-formal-greeting",
+      "family": "general",
+      "spoken": "Okay, can you help with this? Hey, how's it going? Write this formally.",
+      "exampleDraft": "Hello, how are you?",
+      "required": [],
+      "forbidden": [
+        "write this formally",
+        "help with this"
+      ]
+    },
+    {
+      "id": "reply-destination",
+      "family": "general",
+      "spoken": "I'm unsure, but I think it will work. Can you please write this as a response in Codex?",
+      "exampleDraft": "I'm unsure, but I think it will work.",
+      "required": [
+        "unsure",
+        "think"
+      ],
+      "forbidden": [
+        "response in Codex",
+        "here's",
+        "```"
+      ]
+    },
+    {
+      "id": "reply-recipient-constraint",
+      "family": "coding",
+      "spoken": "Investigate the crash. Do not edit files. Write this as a reply in Codex.",
+      "exampleDraft": "Investigate the crash. Do not edit files.",
+      "required": [
+        "crash",
+        "Do not edit files"
+      ],
+      "forbidden": [
+        "reply in Codex",
+        "here's",
+        "```"
+      ]
+    },
+    {
+      "id": "upbeat-schedule-announcement",
+      "family": "messaging",
+      "spoken": "Make this upbeat and brief. Tell Nora the rehearsal starts at nine.",
+      "exampleDraft": "Nora, the rehearsal starts at nine!",
+      "required": [
+        "Nora",
+        "nine"
+      ],
+      "forbidden": [
+        "Make this upbeat",
+        "good news"
+      ]
+    }
+  ]
+}

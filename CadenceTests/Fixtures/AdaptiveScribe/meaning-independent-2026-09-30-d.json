@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh independent U3 meaning reserve frozen after the clarity and named-prohibition repairs. Mark exposed after first generation run.",
+  "evaluationOrder": "Freeze corpus and global rubric before production request export and model generation. Report generation, review readiness, and human semantic judgment separately.",
+  "semanticCriteria": {
+    "acceptable": "A draft or safe recovery preserves recipient, time direction, amounts, units, identifiers, exact URL/path/flag bytes, negation, uncertainty, conditions, action status, and the final explicit correction.",
+    "critical": "Changed or missing recipient, fact, restriction, condition, uncertainty, exact technical literal, or action status; invented completion or send claim; unsupported content reaching review.",
+    "minor": "Style or task-format weakness without meaning change.",
+    "gate": "All 20 cases have zero critical semantic errors and zero exact-literal violations. Safe rejection is recorded separately from a successful draft."
+  },
+  "cases": [
+    {
+      "id": "meaning-d-past-future",
+      "family": "general",
+      "spoken": "The migration completed on Friday, but the rollout will begin Monday. Write this formally.",
+      "exampleDraft": "The migration was completed on Friday, and the rollout will begin Monday.",
+      "required": [
+        "Friday",
+        "Monday"
+      ],
+      "forbidden": [
+        "migration will begin"
+      ]
+    },
+    {
+      "id": "meaning-d-do-not-close",
+      "family": "messaging",
+      "spoken": "Tell Harper not to close ticket EF-31 until support confirms.",
+      "exampleDraft": "Harper, do not close ticket EF-31 until support confirms.",
+      "required": [
+        "Harper",
+        "EF-31",
+        "do not close",
+        "until support confirms"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-tax-order",
+      "family": "general",
+      "spoken": "The invoice is $2,300 before tax, not after tax. Make this clear.",
+      "exampleDraft": "The invoice is $2,300 before tax, not after tax.",
+      "required": [
+        "$2,300",
+        "before tax",
+        "not after tax"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-at-most",
+      "family": "messaging",
+      "spoken": "Tell Rowan the queue has at most seven items, not at least seven.",
+      "exampleDraft": "Rowan, the queue has at most seven items, not at least seven.",
+      "required": [
+        "Rowan",
+        "at most seven",
+        "not at least seven"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-unmeasured",
+      "family": "messaging",
+      "spoken": "Tell Iris the patch may reduce latency, but we have not measured it yet.",
+      "exampleDraft": "Iris, the patch may reduce latency, but we have not measured it yet.",
+      "required": [
+        "Iris",
+        "may reduce",
+        "not measured"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-units",
+      "family": "messaging",
+      "spoken": "Tell Marco the result was 14 ms, not 14 seconds.",
+      "exampleDraft": "Marco, the result was 14 ms, not 14 seconds.",
+      "required": [
+        "Marco",
+        "14 ms",
+        "14 seconds"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-code-path",
+      "family": "coding",
+      "spoken": "Ask the coding agent to inspect services/CacheIndex.swift without modifying files.",
+      "exampleDraft": "Inspect services/CacheIndex.swift without modifying files.",
+      "required": [
+        "services/CacheIndex.swift",
+        "without modifying files"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-url",
+      "family": "general",
+      "spoken": "Please include https://status.example.org/incidents/9 in the update.",
+      "exampleDraft": "Please include https://status.example.org/incidents/9 in the update.",
+      "required": [
+        "https://status.example.org/incidents/9"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-delayed",
+      "family": "messaging",
+      "spoken": "Tell Zoë the handoff is delayed, not canceled.",
+      "exampleDraft": "Zoë, the handoff is delayed, not canceled.",
+      "required": [
+        "Zoë",
+        "delayed",
+        "not canceled"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-past-approval",
+      "family": "messaging",
+      "spoken": "Tell Priya the deadline was yesterday and approval is expected tomorrow.",
+      "exampleDraft": "Priya, the deadline was yesterday, and approval is expected tomorrow.",
+      "required": [
+        "Priya",
+        "yesterday",
+        "expected tomorrow"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-unsent",
+      "family": "messaging",
+      "spoken": "Draft a message to Nia saying I plan to send the invoice next week, but I have not sent it yet.",
+      "exampleDraft": "Nia, I plan to send the invoice next week, but I have not sent it yet.",
+      "required": [
+        "Nia",
+        "next week",
+        "not sent"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-do-not-publish",
+      "family": "messaging",
+      "spoken": "Tell Omar do not publish unless legal signs off.",
+      "exampleDraft": "Omar, do not publish unless legal signs off.",
+      "required": [
+        "Omar",
+        "do not publish",
+        "unless legal"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-below-budget",
+      "family": "messaging",
+      "spoken": "Tell Elise the budget is below $900, not above $900.",
+      "exampleDraft": "Elise, the budget is below $900, not above $900.",
+      "required": [
+        "Elise",
+        "below $900",
+        "not above $900"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-split-status",
+      "family": "general",
+      "spoken": "The document is approved, but the deployment is still pending. Write this professionally.",
+      "exampleDraft": "The document is approved, but the deployment remains pending.",
+      "required": [
+        "document",
+        "approved",
+        "deployment",
+        "pending"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-exact-phrase",
+      "family": "general",
+      "spoken": "Use the exact phrase \"waiting for verification\" in the update.",
+      "exampleDraft": "The update is waiting for verification.",
+      "required": [
+        "waiting for verification"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-flag",
+      "family": "coding",
+      "spoken": "Ask the coding agent to run tools/scan.sh with --dry-run without editing files.",
+      "exampleDraft": "Run tools/scan.sh with --dry-run without editing files.",
+      "required": [
+        "tools/scan.sh",
+        "--dry-run",
+        "without editing files"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-utc",
+      "family": "messaging",
+      "spoken": "Tell Mateo the call is at 15:45 UTC, not 15:45 local time.",
+      "exampleDraft": "Mateo, the call is at 15:45 UTC, not 15:45 local time.",
+      "required": [
+        "Mateo",
+        "15:45 UTC",
+        "local time"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-case-open",
+      "family": "messaging",
+      "spoken": "Tell Lena case RS-42 remains open until QA closes it.",
+      "exampleDraft": "Lena, case RS-42 remains open until QA closes it.",
+      "required": [
+        "Lena",
+        "RS-42",
+        "remains open",
+        "until QA"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-uncertain",
+      "family": "general",
+      "spoken": "I suspect the new setting could help, but I am not certain. Write this formally.",
+      "exampleDraft": "I suspect the new setting may help, but I am not certain.",
+      "required": [
+        "suspect",
+        "may help",
+        "not certain"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-d-no-refund",
+      "family": "messaging",
+      "spoken": "Tell Dara no refund has been issued; the request is only under review.",
+      "exampleDraft": "Dara, no refund has been issued; the request is only under review.",
+      "required": [
+        "Dara",
+        "no refund",
+        "under review"
+      ],
+      "forbidden": []
+    }
+  ]
+}

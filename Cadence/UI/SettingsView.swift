@@ -194,6 +194,34 @@ struct SettingsView: View {
                     ScribeProviderManagementView(appModel: appModel)
                 }
             }
+            if appModel.featureFlags.composeContextEnabled {
+                settingsSection(title: "Selected text (preview)") {
+                    FlowSectionCard {
+                        ScribeSelectedTextContextSettingsView(appModel: appModel)
+                    }
+                }
+            }
+            if appModel.featureFlags.composeMemoryEnabled && appModel.featureFlags.composeAdaptersEnabled {
+                settingsSection(title: "TextEdit session memory (preview)") {
+                    FlowSectionCard {
+                        ScribeSessionMemorySettingsView(appModel: appModel)
+                    }
+                }
+            }
+            if appModel.featureFlags.composePersistentMemoryEnabled
+                || appModel.scribePersistentMemoryPreferences.acceptedDisclosureRevision > 0 {
+                settingsSection(title: "Saved memory (preview)") {
+                    FlowSectionCard {
+                        ScribePersistentMemorySettingsView(appModel: appModel)
+                    }
+                }
+            }
+            settingsSection(title: "My writing defaults") {
+                FlowSectionCard { ComposeGlobalWritingDefaultsView(appModel: appModel) }
+            }
+            settingsSection(title: "TextEdit writing defaults") {
+                FlowSectionCard { ComposeTextEditWritingDefaultsView(appModel: appModel) }
+            }
             appsSection
         }
     }

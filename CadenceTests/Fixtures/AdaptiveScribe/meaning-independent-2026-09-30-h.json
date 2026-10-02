@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Eighth independent U3 meaning reserve frozen after seventh-reserve repairs, before production export and first model run.",
+  "evaluationOrder": "Score only first-run outputs against these frozen criteria. Later repairs turn this corpus into development evidence.",
+  "semanticCriteria": {
+    "acceptable": "A review-ready draft preserves each stated recipient, exact identifier, status, condition, uncertainty, chronology, quantity, unit, negation, and action boundary.",
+    "critical": "Missing or changed recipient, identifier, fact, amount, unit, date, condition, uncertainty or negation; reversal of relative timing; invented completion; copied writer frame presented as sendable output.",
+    "minor": "Stylistic difference without a change to meaning or audience.",
+    "gate": "All 16 first-run cases generate review-ready drafts with zero critical meaning errors and zero deterministic literal violations."
+  },
+  "cases": [
+    {"id":"meaning-h-approved-but-blocked","family":"messaging","spoken":"Tell Sora the draft is approved, but the release remains blocked.","exampleDraft":"Sora, the draft is approved, but the release remains blocked.","required":["Sora","draft","approved","release","blocked"],"forbidden":["release is approved"]},
+    {"id":"meaning-h-permit-window","family":"messaging","spoken":"Ask Eli whether the permit is valid through June 3 or expires before then.","exampleDraft":"Eli, is the permit valid through June 3, or does it expire before then?","required":["Eli","permit","June 3","before"],"forbidden":["permit expires after June 3"]},
+    {"id":"meaning-h-demo-and-review","family":"general","spoken":"The demo happened Monday; the review is scheduled for Thursday. Write this formally.","exampleDraft":"The demo took place on Monday, and the review is scheduled for Thursday.","required":["demo","Monday","review","Thursday"],"forbidden":["demo is scheduled","review happened"]},
+    {"id":"meaning-h-net-not-gross","family":"messaging","spoken":"Tell Jude the transfer is $720.40 net of fees, not gross.","exampleDraft":"Jude, the transfer is $720.40 net of fees, not gross.","required":["Jude","$720.40","net of fees","not gross"],"forbidden":["gross transfer"]},
+    {"id":"meaning-h-maybe-if","family":"messaging","spoken":"Tell Zoë I might meet at noon if the office reopens.","exampleDraft":"Zoë, I might meet at noon if the office reopens.","required":["Zoë","might","noon","if"],"forbidden":["I will meet at noon"]},
+    {"id":"meaning-h-wait-for-both-replies","family":"messaging","spoken":"Tell Ken do not archive the thread until both replies arrive.","exampleDraft":"Ken, do not archive the thread until both replies arrive.","required":["Ken","do not archive","both replies"],"forbidden":["archive now"]},
+    {"id":"meaning-h-order-pending","family":"messaging","spoken":"Draft a message to Ana saying order ZX-41 is pending, not canceled.","exampleDraft":"Ana, order ZX-41 is pending, not canceled.","required":["Ana","ZX-41","pending","not canceled"],"forbidden":["order was canceled"]},
+    {"id":"meaning-h-rate-change","family":"general","spoken":"The tax rate rose from 8% to 9%, not by 9 percentage points.","exampleDraft":"The tax rate rose from 8% to 9%, not by 9 percentage points.","required":["8%","9%","not by 9 percentage points"],"forbidden":["rose by 9 percentage points"]},
+    {"id":"meaning-h-reply-after-qa","family":"messaging","spoken":"Reply to Min: I will send the draft after QA, not before.","exampleDraft":"Min, I will send the draft after QA, not before.","required":["Min","after QA","not before"],"forbidden":["send before QA"]},
+    {"id":"meaning-h-account-active-expiry","family":"messaging","spoken":"Tell Rui the account is active, but the subscription expires tomorrow.","exampleDraft":"Rui, the account is active, but the subscription expires tomorrow.","required":["Rui","account","active","subscription","tomorrow"],"forbidden":["account expires tomorrow"]},
+    {"id":"meaning-h-code-inspect-only","family":"coding","spoken":"Ask the coding agent to inspect literal verbatim Sources/Sync.swift end literal and leave the file unchanged.","exampleDraft":"Inspect Sources/Sync.swift and leave the file unchanged.","required":["Sources/Sync.swift","unchanged"],"forbidden":["I inspected","I changed"]},
+    {"id":"meaning-h-refund-not-issued","family":"messaging","spoken":"Tell Bea the refund may arrive Friday, but it has not been issued.","exampleDraft":"Bea, the refund may arrive Friday, but it has not been issued.","required":["Bea","may","Friday","not been issued"],"forbidden":["refund was issued"]},
+    {"id":"meaning-h-decimal-percent","family":"general","spoken":"The rate is 0.8%, not 8%. Write this clearly.","exampleDraft":"The rate is 0.8%, not 8%.","required":["0.8%","not 8%"],"forbidden":["rate is 8%"]},
+    {"id":"meaning-h-closed-and-open","family":"messaging","spoken":"Tell Eve the case closed Tuesday, but the new issue is still open.","exampleDraft":"Eve, the case closed Tuesday, but the new issue is still open.","required":["Eve","case","Tuesday","new issue","open"],"forbidden":["new issue is closed"]},
+    {"id":"meaning-h-logs-before-review","family":"messaging","spoken":"Ask Omar whether review can begin only after the logs finish uploading.","exampleDraft":"Omar, can review begin only after the logs finish uploading?","required":["Omar","review","only after","logs"],"forbidden":["before logs finish"]},
+    {"id":"meaning-h-build-vs-deployment","family":"general","spoken":"The build is ready for review, but deployment has not begun.","exampleDraft":"The build is ready for review, but deployment has not begun.","required":["build","ready for review","deployment","not begun"],"forbidden":["deployment is complete"]}
+  ]
+}

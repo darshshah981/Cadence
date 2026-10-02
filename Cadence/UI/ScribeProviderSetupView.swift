@@ -131,7 +131,11 @@ final class ScribeProviderSetupModel: ObservableObject {
 struct ScribeProviderSetupView: View {
     @StateObject private var model = ScribeProviderSetupModel()
     @State private var validationTask: Task<Void, Never>?
+    @State private var selectedOnDevice = false
+    @State private var localFailure: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let onDeviceUnavailableReason: String?
+    let onSelectOnDevice: () async throws -> Void
     let onConnectDeepSeek: (String) async throws -> Void
     let onConnectOpenAI: (String, String) async throws -> Void
     let onConnectOpenRouter: (String, String) async throws -> Void
@@ -146,7 +150,9 @@ struct ScribeProviderSetupView: View {
         VStack(alignment: .leading, spacing: 18) {
             header
             Divider()
-            content
+            ScrollView {
+                content.frame(maxWidth: .infinity, alignment: .leading)
+            }
                 .id(model.stage)
                 .transition(
                     reduceMotion
@@ -215,8 +221,16 @@ struct ScribeProviderSetupView: View {
 
     private var providerChoice: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Choose where Cadence sends Compose text. No provider is preselected, and choosing does not start a network request.")
+            Text("Use Apple Intelligence on this Mac without an API key, or connect a cloud provider.")
                 .foregroundStyle(FlowTheme.textSecondary)
+            providerCard(
+                title: "Apple Intelligence · Built in",
+                detail: onDeviceUnavailableReason ?? "No API key or account. Your draft stays on this Mac.",
+                action: selectOnDevice
+            )
+            .disabled(onDeviceUnavailableReason != nil || validationTask != nil)
+            .accessibilityIdentifier("scribe-provider-on-device")
+            if let localFailure { setupError(localFailure) }
             providerCard(
                 title: "DeepSeek",
                 detail: "Release-tested DeepSeek V4 Flash profile at api.deepseek.com.",
@@ -347,9 +361,13 @@ struct ScribeProviderSetupView: View {
             }
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(FlowTheme.success)
-            Text("Connection test succeeded. Cadence received one compatible, non-streaming text completion from this endpoint and model configuration.")
+            Text(selectedOnDevice
+                ? "Apple Intelligence is available on this Mac. Compose runs on device without an API key or cloud account."
+                : "Connection test succeeded. Cadence received one compatible, non-streaming text completion from this endpoint and model configuration.")
                 .foregroundStyle(FlowTheme.textSecondary)
-            Text("Review every draft before inserting it. A successful check does not certify provider privacy, security, model quality, or permanent availability.")
+            Text(selectedOnDevice
+                ? "Best for short messages and everyday rewrites. Review drafts carefully; complex instructions may work better with a cloud provider."
+                : "Review every draft before inserting it. A successful check does not certify provider privacy, security, model quality, or permanent availability.")
                 .font(.caption)
                 .foregroundStyle(FlowTheme.textTertiary)
         }
@@ -446,6 +464,21 @@ struct ScribeProviderSetupView: View {
             .font(.caption)
             .foregroundStyle(.red)
             .accessibilityElement(children: .combine)
+    }
+
+    private func selectOnDevice() {
+        localFailure = nil
+        validationTask?.cancel()
+        validationTask = Task { @MainActor in
+            defer { validationTask = nil }
+            do {
+                try await onSelectOnDevice()
+                selectedOnDevice = true
+                model.validationSucceeded()
+            } catch {
+                localFailure = "Apple Intelligence could not be selected. Check its availability in System Settings and try again."
+            }
+        }
     }
 
     private func connect() {
@@ -557,7 +590,7 @@ struct ScribeProviderSetupView: View {
 
     private var subtitle: String {
         switch model.stage {
-        case .chooseProvider: return "Local transcription, optional cloud drafting"
+        case .chooseProvider: return "On-device by default, cloud providers optional"
         case .advancedConfiguration: return "No network request occurs on this step"
         case .disclosure: return "Review before any validation request"
         case .credential: return "Candidate key is not saved before success"

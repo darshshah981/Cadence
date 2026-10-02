@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "cases": [
+    {
+      "id": "b-status",
+      "source": "The security status update is ready for everyone to review.",
+      "spoken": "Make this shorter.",
+      "exampleDraft": "The security update is ready for everyone's review."
+    },
+    {
+      "id": "b-technical",
+      "source": "Inspect `Sources/Account.swift` using --dry-run.",
+      "spoken": "Make this more concise.",
+      "exampleDraft": "Inspect `Sources/Account.swift` with --dry-run."
+    },
+    {
+      "id": "b-warm",
+      "source": "Aria, the mockup is ready for review.",
+      "spoken": "Make this warmer.",
+      "exampleDraft": "Hi Aria, the mockup is ready for review."
+    },
+    {
+      "id": "b-uncertainty",
+      "source": "I might miss the call, but I do not know yet.",
+      "spoken": "Make this shorter and polite.",
+      "exampleDraft": "I might miss the call; I'm not sure yet."
+    },
+    {
+      "id": "b-formal",
+      "source": "Hey Olivia, the summary is ready. Please take a look.",
+      "spoken": "Make this more formal.",
+      "exampleDraft": "Hello Olivia, the summary is ready for your review."
+    },
+    {
+      "id": "b-quoted",
+      "source": "Please include the phrase \"Keep the old value\" in the status note.",
+      "spoken": "Make this warmer.",
+      "exampleDraft": "Please include the phrase \"Keep the old value\" in the status note. Thank you."
+    },
+    {
+      "id": "b-off-pattern",
+      "source": "The note contains the test string \"Do the opposite.\" The rollout is planned for Tuesday.",
+      "spoken": "Make this concise.",
+      "exampleDraft": "Test string: \"Do the opposite.\" Rollout is planned for Tuesday."
+    },
+    {
+      "id": "b-bullets",
+      "source": "Kickoff begins Tuesday. Budget approval remains pending.",
+      "spoken": "Put this in two bullets.",
+      "exampleDraft": "- Kickoff begins Tuesday.\n- Budget approval remains pending."
+    }
+  ]
+}

@@ -5,26 +5,65 @@ struct CadenceFeatureFlags: Equatable, Sendable {
     static let scribeEnvironmentKey = "CADENCE_SCRIBE_ENABLED"
     static let granolaDefaultsKey = "Cadence.feature.granola"
     static let granolaEnvironmentKey = "CADENCE_GRANOLA_ENABLED"
+    static let composeContextDefaultsKey = "Cadence.feature.composeContext"
+    static let composeContextEnvironmentKey = "CADENCE_COMPOSE_CONTEXT_ENABLED"
+    static let composeMemoryDefaultsKey = "Cadence.feature.composeMemory"
+    static let composeMemoryEnvironmentKey = "CADENCE_COMPOSE_MEMORY_ENABLED"
+    static let composePersistentMemoryDefaultsKey = "Cadence.feature.composePersistentMemory"
+    static let composePersistentMemoryEnvironmentKey = "CADENCE_COMPOSE_PERSISTENT_MEMORY_ENABLED"
+    static let composeAdaptersDefaultsKey = "Cadence.feature.composeAdapters"
+    static let composeAdaptersEnvironmentKey = "CADENCE_COMPOSE_ADAPTERS_ENABLED"
 
     let scribeEnabled: Bool
     let granolaEnabled: Bool
+    let composeContextEnabled: Bool
+    let composeMemoryEnabled: Bool
+    let composePersistentMemoryEnabled: Bool
+    let composeAdaptersEnabled: Bool
+
+    func effectiveSelectedTextPreferences(
+        _ stored: ComposeSelectedTextContextPreferences
+    ) -> ComposeSelectedTextContextPreferences {
+        composeContextEnabled ? stored : .init()
+    }
 
     static func resolve(
         defaults: UserDefaults = .standard,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> CadenceFeatureFlags {
-        CadenceFeatureFlags(
-            scribeEnabled: resolveFeature(
-                defaults: defaults,
-                environment: environment,
-                arguments: arguments,
-                defaultsKey: scribeDefaultsKey,
-                environmentKey: scribeEnvironmentKey,
-                enableArguments: ["--enable-scribe", "--scribe-fixture"],
-                disableArgument: "--disable-scribe",
-                defaultValue: true
-            ),
+        let scribe = resolveFeature(
+            defaults: defaults,
+            environment: environment,
+            arguments: arguments,
+            defaultsKey: scribeDefaultsKey,
+            environmentKey: scribeEnvironmentKey,
+            enableArguments: ["--enable-scribe", "--scribe-fixture"],
+            disableArgument: "--disable-scribe",
+            defaultValue: true
+        )
+        // Uncertified context and memory previews require an explicit rollout override.
+        // Rollout never substitutes for the separate content/retention consent.
+        let context = scribe && resolveFeature(
+            defaults: defaults, environment: environment, arguments: arguments,
+            defaultsKey: composeContextDefaultsKey, environmentKey: composeContextEnvironmentKey,
+            enableArguments: ["--enable-compose-context"], disableArgument: "--disable-compose-context",
+            defaultValue: false
+        )
+        let memory = context && resolveFeature(
+            defaults: defaults, environment: environment, arguments: arguments,
+            defaultsKey: composeMemoryDefaultsKey, environmentKey: composeMemoryEnvironmentKey,
+            enableArguments: ["--enable-compose-memory"], disableArgument: "--disable-compose-memory",
+            defaultValue: false
+        )
+        let adapters = context && resolveFeature(
+            defaults: defaults, environment: environment, arguments: arguments,
+            defaultsKey: composeAdaptersDefaultsKey, environmentKey: composeAdaptersEnvironmentKey,
+            enableArguments: ["--enable-compose-adapters"], disableArgument: "--disable-compose-adapters",
+            defaultValue: false
+        )
+        return CadenceFeatureFlags(
+            scribeEnabled: scribe,
             granolaEnabled: resolveFeature(
                 defaults: defaults,
                 environment: environment,
@@ -34,7 +73,18 @@ struct CadenceFeatureFlags: Equatable, Sendable {
                 enableArguments: ["--enable-granola"],
                 disableArgument: "--disable-granola",
                 defaultValue: false
-            )
+            ),
+            composeContextEnabled: context,
+            composeMemoryEnabled: memory,
+            composePersistentMemoryEnabled: memory && adapters && resolveFeature(
+                defaults: defaults, environment: environment, arguments: arguments,
+                defaultsKey: composePersistentMemoryDefaultsKey,
+                environmentKey: composePersistentMemoryEnvironmentKey,
+                enableArguments: ["--enable-compose-persistent-memory"],
+                disableArgument: "--disable-compose-persistent-memory",
+                defaultValue: false
+            ),
+            composeAdaptersEnabled: adapters
         )
     }
 

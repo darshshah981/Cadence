@@ -183,6 +183,10 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
     let resolvedEnvironment: ResolvedWritingEnvironment?
     let resolvedGuidance: ResolvedScribeGuidance?
     let exactLiterals: [ScribeExactLiteral]
+    let writingDefaults: [ComposeWritingPreferenceValue]
+    var effectiveWritingDefaults: [ComposeWritingPreferenceValue] {
+        resolvedGuidance?.resolutionSource == .configuredApplication ? [] : writingDefaults
+    }
 
     init(
         id: UUID = UUID(),
@@ -192,7 +196,8 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
         style: ScribeStyleInstructions? = nil,
         resolvedEnvironment: ResolvedWritingEnvironment? = nil,
         resolvedGuidance: ResolvedScribeGuidance? = nil,
-        exactLiterals: [ScribeExactLiteral] = []
+        exactLiterals: [ScribeExactLiteral] = [],
+        writingDefaults: [ComposeWritingPreferenceValue] = []
     ) {
         self.id = id
         self.intent = intent
@@ -202,6 +207,7 @@ struct ScribeRequest: Equatable, Identifiable, Sendable {
         self.resolvedEnvironment = resolvedEnvironment
         self.resolvedGuidance = resolvedGuidance
         self.exactLiterals = exactLiterals
+        self.writingDefaults = writingDefaults
     }
 
     /// The only constructor for newly-created Scribe work. The legacy intent
@@ -266,8 +272,9 @@ enum ScribeOutputPolicy {
     static let maximumUTF8Bytes = 64 * 1_024
 
     static func normalizedOutput(_ text: String) throws -> String {
-        let normalized = text.precomposedStringWithCanonicalMapping
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Preserve the original Unicode representation: normalizing a path or
+        // identifier can change its bytes even when it looks identical.
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else {
             throw ScribeProviderError.emptyResult
         }
@@ -291,8 +298,13 @@ enum ScribeSessionState: Equatable, Sendable {
     case generating(requestID: UUID)
     case generatingSlow(requestID: UUID)
     case reviewing(ScribeResult)
+    case persistentMemoryProposal(ComposePersistentMemoryReviewProposal)
+    case persistentMemoryForgetProposal(ComposePersistentMemoryForgetReview)
+    case memoryNotice(ComposeSessionMemoryNotice)
     case insertionRecovery(ScribeResult)
     case inserting(requestID: UUID)
+    /// The guarded insertion call returned after posting events; destination
+    /// content was not read back or confirmed in production.
     case succeeded(requestID: UUID)
     case cancelled(requestID: UUID?)
     case failed(requestID: UUID?, error: ScribeProviderError)
@@ -310,6 +322,12 @@ enum ScribeSessionState: Equatable, Sendable {
             return requestID
         case let .reviewing(result), let .insertionRecovery(result):
             return result.requestID
+        case let .persistentMemoryProposal(proposal):
+            return proposal.requestID
+        case let .persistentMemoryForgetProposal(proposal):
+            return proposal.requestID
+        case let .memoryNotice(notice):
+            return notice.requestID
         case let .cancelled(requestID), let .failed(requestID, _):
             return requestID
         }

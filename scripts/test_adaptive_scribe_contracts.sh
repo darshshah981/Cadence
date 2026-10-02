@@ -61,6 +61,7 @@ for filter in "${FILTERS[@]}"; do
 done
 
 echo "Running Adaptive Scribe focused contract suites…"
+python3 -m unittest scripts.tests.test_verify_scribe_privacy_canaries
 set +e
 xcodebuild test \
   -project Cadence.xcodeproj \
@@ -78,7 +79,8 @@ if [[ -d "$LOG_DIR" ]]; then
   echo "Scanning contract test logs for privacy canaries…"
   bash "$ROOT_DIR/scripts/verify_scribe_privacy_canaries.sh" "$LOG_DIR"
 else
-  echo "Warning: no test log directory at $LOG_DIR; skipped canary scan." >&2
+  echo "Adaptive Scribe contract evidence is incomplete: no test log directory to scan." >&2
+  exit 2
 fi
 
 if [[ "$status" -ne 0 ]]; then

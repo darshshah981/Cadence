@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Eleventh independent U3 meaning reserve, frozen after tenth-reserve repairs and before any production export or on-device generation.",
+  "evaluationOrder": "Record first-run generation and policy readiness, then inspect each output against the frozen semantic criteria before changing code.",
+  "semanticCriteria": {
+    "acceptable": "The 14 contentful requests produce sendable drafts for the named recipient when stated, preserving supplied status, condition, uncertainty, time, numerical value and unit, exact literal and negative restriction. The two source-free modifier requests must be rejected before review.",
+    "critical": "Copied writer command, missing addressee, invented or changed outcome, dropped condition or negation, altered number or unit, altered literal, invented document or recipient task, or source-free modifier marked ready.",
+    "minor": "Different grammar or style with all supplied substance preserved.",
+    "gate": "All 14 contentful cases review-ready with zero critical meaning or literal errors, plus both source-free cases rejected before review."
+  },
+  "cases": [
+    {"id":"meaning-l-merge-not-deployed","family":"messaging","spoken":"Tell Sora the branch was merged Tuesday, but the deployment is still pending.","exampleDraft":"Sora, the branch was merged Tuesday, but the deployment is still pending.","required":["Sora","merged Tuesday","deployment","pending"],"forbidden":["deployed Tuesday"]},
+    {"id":"meaning-l-train-conditional","family":"messaging","spoken":"Tell Ben I may join after 4 p.m. if the train arrives on time.","exampleDraft":"Ben, I may join after 4 p.m. if the train arrives on time.","required":["Ben","may","after 4 p.m.","if","train arrives on time"],"forbidden":["I will join"]},
+    {"id":"meaning-l-dispute-undecided","family":"messaging","spoken":"Draft a note to Cam saying the dispute was filed, but no decision has been made yet.","exampleDraft":"Cam, the dispute was filed, but no decision has been made yet.","required":["Cam","dispute","filed","no decision"],"forbidden":["dispute was resolved"]},
+    {"id":"meaning-l-paid-or-approved","family":"messaging","spoken":"Ask Nia whether the invoice is paid or just approved.","exampleDraft":"Nia, is the invoice paid or just approved?","required":["Nia","invoice","paid","approved"],"forbidden":["invoice is paid"]},
+    {"id":"meaning-l-per-month-not-year","family":"messaging","spoken":"Tell Zeke the service costs $60 per month, not $60 per year.","exampleDraft":"Zeke, the service costs $60 per month, not $60 per year.","required":["Zeke","$60 per month","not $60 per year"],"forbidden":["$60 per year is the cost"]},
+    {"id":"meaning-l-approximate-bound","family":"messaging","spoken":"Tell Zoë the figure is at least $300, not exactly $300.","exampleDraft":"Zoë, the figure is at least $300, not exactly $300.","required":["Zoë","at least $300","not exactly $300"],"forbidden":["figure is exactly $300"]},
+    {"id":"meaning-l-warranty-and-repair","family":"general","spoken":"The warranty began Monday, and the repair is scheduled Friday. Write this formally.","exampleDraft":"The warranty began on Monday, and the repair is scheduled for Friday.","required":["warranty","began","Monday","repair","scheduled","Friday"],"forbidden":["warranty is scheduled","repair began"]},
+    {"id":"meaning-l-legal-condition","family":"messaging","spoken":"Reply to Pat: I cannot approve this until legal signs off.","exampleDraft":"Pat, I cannot approve this until legal signs off.","required":["Pat","cannot approve","until legal signs off"],"forbidden":["I approved"]},
+    {"id":"meaning-l-code-review-only","family":"coding","spoken":"Ask the coding agent to review literal verbatim Sources/Billing.swift end literal and leave the tests unchanged.","exampleDraft":"Review Sources/Billing.swift and leave the tests unchanged.","required":["Sources/Billing.swift","leave the tests unchanged"],"forbidden":["I reviewed","I changed"]},
+    {"id":"meaning-l-exact-phrase-target","family":"messaging","spoken":"Tell Talia to include the exact phrase \"approval still pending\" in the note and not claim payment.","exampleDraft":"Talia, include the exact phrase \"approval still pending\" in the note and do not claim payment.","required":["Talia","approval still pending","note","not claim payment"],"forbidden":["payment was made"]},
+    {"id":"meaning-l-rate-precision","family":"general","spoken":"The conversion rate is 1.2%, not 12%. Make this concise.","exampleDraft":"The conversion rate is 1.2%, not 12%.","required":["1.2%","not 12%"],"forbidden":["rate is 12%"]},
+    {"id":"meaning-l-tracking-uncertainty","family":"messaging","spoken":"Tell Jana the shipment might arrive Thursday, but tracking is still unavailable.","exampleDraft":"Jana, the shipment might arrive Thursday, but tracking is still unavailable.","required":["Jana","might","Thursday","tracking","unavailable"],"forbidden":["will arrive","tracking is available"]},
+    {"id":"meaning-l-staging-scope","family":"messaging","spoken":"Ask Omar whether the change is safe for staging only, not production.","exampleDraft":"Omar, is the change safe for staging only, not production?","required":["Omar","safe","staging only","not production"],"forbidden":["safe for production"]},
+    {"id":"meaning-l-followup-not-closed","family":"messaging","spoken":"Tell Ellis the follow-up is open until both reviews are complete.","exampleDraft":"Ellis, the follow-up is open until both reviews are complete.","required":["Ellis","follow-up","open","until both reviews"],"forbidden":["follow-up was closed"]},
+    {"id":"meaning-l-source-free-link","family":"messaging","spoken":"Include https://example.test/case/12 in my note to Kai.","exampleDraft":"[needs note content]","required":["missing source"],"forbidden":["https://example.test/case/12"]},
+    {"id":"meaning-l-source-free-phrase","family":"messaging","spoken":"Put the phrase \"waiting on QA\" in my update to Maya.","exampleDraft":"[needs update content]","required":["missing source"],"forbidden":["waiting on QA"]}
+  ]
+}

@@ -13,19 +13,20 @@ if [[ $# -eq 0 ]]; then
   exit 2
 fi
 
-existing_paths=()
 for path in "$@"; do
-  if [[ ! -e "$path" ]]; then
-    echo "Privacy scan path does not exist (skipped): $path" >&2
-    continue
+  if [[ ! -e "$path" || -L "$path" ]]; then
+    echo "Privacy canary scan refused: a requested artifact path is missing or is a symlink." >&2
+    exit 2
   fi
-  existing_paths+=("$path")
+  if ! nested_symlink="$(find "$path" -type l -print -quit 2>/dev/null)"; then
+    echo "Privacy canary scan could not inspect a requested artifact tree." >&2
+    exit 2
+  fi
+  if [[ -n "$nested_symlink" ]]; then
+    echo "Privacy canary scan refused: an artifact tree contains a symlink." >&2
+    exit 2
+  fi
 done
-
-if [[ ${#existing_paths[@]} -eq 0 ]]; then
-  echo "Privacy canary scan found no existing artifact paths to inspect." >&2
-  exit 2
-fi
 
 # Taxonomy from the U12 verification contract: transcript, selection/secret,
 # origin, model, app, guidance, request/response, PID, user-path, identifier.
@@ -54,27 +55,37 @@ scan_for_canary() {
   local canary="$1"
   shift
   if command -v rg >/dev/null 2>&1; then
-    rg --hidden --no-ignore --text --fixed-strings --quiet -- "$canary" "$@"
+    rg --hidden --no-ignore --text --fixed-strings --quiet -- "$canary" "$@" 2>/dev/null
     return $?
   fi
   # Fallback when ripgrep is unavailable (local shells without brew rg).
   # Uses recursive binary-safe fixed-string search.
-  grep -R -F -a -I -q -- "$canary" "$@" 2>/dev/null
+  grep -R -F -a -q -- "$canary" "$@" 2>/dev/null
 }
 
 failed=0
-matched=()
+scan_error=0
+matched_count=0
 for canary in "${CANARIES[@]}"; do
-  if scan_for_canary "$canary" "${existing_paths[@]}"; then
-    echo "Privacy canary leaked into runtime evidence: $canary" >&2
-    matched+=("$canary")
+  if scan_for_canary "$canary" "$@"; then
+    matched_count=$((matched_count + 1))
     failed=1
+  else
+    scan_status=$?
+    if [[ "$scan_status" -ne 1 ]]; then
+      scan_error=1
+    fi
   fi
 done
 
 if [[ "$failed" -ne 0 ]]; then
-  echo "Privacy canary scan FAILED (${#matched[@]} match(es)). Evidence bundle is invalid." >&2
+  echo "Privacy canary scan FAILED ($matched_count match(es)). Evidence bundle is invalid." >&2
   exit 1
 fi
 
-echo "Scribe privacy canary scan passed for ${#existing_paths[@]} runtime artifact path(s)."
+if [[ "$scan_error" -ne 0 ]]; then
+  echo "Privacy canary scan could not inspect every requested artifact." >&2
+  exit 2
+fi
+
+echo "Scribe privacy canary scan passed for $# runtime artifact path(s)."

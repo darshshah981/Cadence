@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh reserve C frozen before export or generation. Tests 20 OpenAI-destination requests: 18 model drafts and 2 explicitly exact prepared notes; prepared notes do not represent model generation quality.",
+  "semanticCriteria": {
+    "gate": "At least 19 of 20 useful review-ready drafts; zero critical changes to meaning, recipients, exact words, restrictions, uncertainty, privacy or writing-direction separation. A rejected draft is not useful.",
+    "critical": "Changed or invented operative facts, dropped recipient or condition, changed exact literal, a consumed writer instruction in the message, an invented task, disclosed excluded reason or claimed execution.",
+    "minor": "Faithful stylistic paraphrase, capitalization outside exact text, punctuation or list formatting that retains all operative meaning.",
+    "review": "Grade the first model outputs using frozen per-case criteria and production output guards. Preserve failures; do not tune or rerun before grading."
+  },
+  "cases": [
+    {
+      "id": "arrival",
+      "family": "general",
+      "spoken": "Did the invoice reach you yesterday? Write this professionally.",
+      "exampleDraft": "Did the invoice reach you yesterday?",
+      "completionCriteria": "Arrival question and yesterday retained; no review or approval task."
+    },
+    {
+      "id": "can-not-will",
+      "family": "messaging",
+      "spoken": "Tell Jules I can share the notes after breakfast, but I cannot promise the screenshots. Keep it brief.",
+      "exampleDraft": "Jules, I can share the notes after breakfast, but cannot promise the screenshots.",
+      "completionCriteria": "Jules; ability not promise; notes after breakfast; screenshot boundary."
+    },
+    {
+      "id": "belief-and-doubt",
+      "family": "general",
+      "spoken": "I suspect the count includes canceled orders, but I am unsure. Can you check before we publish? Make this professional.",
+      "exampleDraft": "I suspect the count includes canceled orders, but I am unsure. Can you check before we publish?",
+      "completionCriteria": "Both suspect and unsure; canceled-order hypothesis; check before publication."
+    },
+    {
+      "id": "exact-note-one",
+      "family": "messaging",
+      "spoken": "Write a note to Mina with the exact words \"Wait for the signed form\".",
+      "exampleDraft": "Mina, Wait for the signed form.",
+      "completionCriteria": "Mina and exact capitalized quoted text; no writer framing. Prepared exact route expected."
+    },
+    {
+      "id": "exact-note-two",
+      "family": "messaging",
+      "spoken": "Write a note to Arjun containing the exact words \"Do not remove this line\".",
+      "exampleDraft": "Arjun, Do not remove this line.",
+      "completionCriteria": "Arjun and exact command-like body; no exact-words writer frame. Prepared exact route expected."
+    },
+    {
+      "id": "private-decline",
+      "family": "messaging",
+      "spoken": "Tell Priya I cannot attend on Sunday because I need to travel. Leave out the reason.",
+      "exampleDraft": "Priya, I cannot attend on Sunday.",
+      "completionCriteria": "Priya, cannot attend Sunday; no travel or writer direction."
+    },
+    {
+      "id": "corrected-day",
+      "family": "messaging",
+      "spoken": "Tell Noah the appointment is Monday. Actually it is Tuesday. Ask whether he is available.",
+      "exampleDraft": "Noah, the appointment is Tuesday. Are you available?",
+      "completionCriteria": "Noah; only Tuesday, no Monday; availability question."
+    },
+    {
+      "id": "edit-for-recipient",
+      "family": "messaging",
+      "spoken": "Ask Emma to simplify the explanation but not change any numerical examples.",
+      "exampleDraft": "Emma, please simplify the explanation without changing any numerical examples.",
+      "completionCriteria": "Emma; recipient task plus all numerical examples protected."
+    },
+    {
+      "id": "coding-readonly",
+      "family": "coding",
+      "spoken": "Ask Codex to compare `src/Input.swift` and `src/Output.swift`. Do not edit them or open a pull request.",
+      "exampleDraft": "Compare src/Input.swift and src/Output.swift. Do not edit them or open a pull request.",
+      "completionCriteria": "Direct comparison task; exact paths; both action restrictions; no execution claim."
+    },
+    {
+      "id": "coding-explain",
+      "family": "coding",
+      "spoken": "Ask Claude to explain why `parseHeader` fails on an empty string. Do not rewrite it.",
+      "exampleDraft": "Explain why parseHeader fails on an empty string. Do not rewrite it.",
+      "completionCriteria": "Direct explanation; identifier; empty-string condition; no rewrite."
+    },
+    {
+      "id": "three-statuses",
+      "family": "general",
+      "spoken": "Write three bullets: the scan is complete; the upload is pending; the verification failed.",
+      "exampleDraft": "- The scan is complete.\n- The upload is pending.\n- The verification failed.",
+      "completionCriteria": "Exactly three bullets, preserve each distinct status."
+    },
+    {
+      "id": "tentative-draft",
+      "family": "messaging",
+      "spoken": "Tell Sam I expect the outline tomorrow unless the requirements change.",
+      "exampleDraft": "Sam, I expect the outline tomorrow unless the requirements change.",
+      "completionCriteria": "Sam; expectation not guarantee; tomorrow; requirements condition."
+    },
+    {
+      "id": "negative-price",
+      "family": "general",
+      "spoken": "It costs $34 per user per month, not per year.",
+      "exampleDraft": "It costs $34 per user per month, not per year.",
+      "completionCriteria": "Amount, user unit, month, negative year contrast."
+    },
+    {
+      "id": "time-choice",
+      "family": "messaging",
+      "spoken": "Ask Zoe if 2:15 PM CT on Wednesday works, or if Thursday would be better.",
+      "exampleDraft": "Zoe, does 2:15 PM CT on Wednesday work, or would Thursday be better?",
+      "completionCriteria": "Zoe; exact time, zone, weekday alternatives; question."
+    },
+    {
+      "id": "uncertain-code-reply",
+      "family": "coding",
+      "spoken": "I might be mistaken, but the first request may have expired. Write this as a response in Codex.",
+      "exampleDraft": "I might be mistaken, but the first request may have expired.",
+      "completionCriteria": "Uncertainty and may have expired; statement remains response, no invented task."
+    },
+    {
+      "id": "queue-boundary",
+      "family": "messaging",
+      "spoken": "Tell Isla case CASE-94 is waiting and has not been resolved.",
+      "exampleDraft": "Isla, case CASE-94 is waiting and has not been resolved.",
+      "completionCriteria": "Isla, exact case ID, waiting and not resolved."
+    },
+    {
+      "id": "capacity-boundary",
+      "family": "messaging",
+      "spoken": "Tell Liam I can check two pages this afternoon, but not the entire manuscript. Make it polite.",
+      "exampleDraft": "Liam, I can check two pages this afternoon, but not the entire manuscript.",
+      "completionCriteria": "Liam; ability, two pages, this afternoon, manuscript exclusion."
+    },
+    {
+      "id": "warm-acknowledgment",
+      "family": "messaging",
+      "spoken": "Tell Ava I appreciate her help while we gather the records. Make this warm.",
+      "exampleDraft": "Ava, I really appreciate your help while we gather the records.",
+      "completionCriteria": "Ava; appreciation; ongoing gathering, no completion invented."
+    },
+    {
+      "id": "not-shipped",
+      "family": "messaging",
+      "spoken": "Tell Eli order ORD-52 is packed but has not shipped.",
+      "exampleDraft": "Eli, order ORD-52 is packed but has not shipped.",
+      "completionCriteria": "Eli, exact order ID, packed not shipped."
+    },
+    {
+      "id": "approval-boundary",
+      "family": "general",
+      "spoken": "I can explain the proposal, but I cannot authorize it. Could you send it to the reviewer? Write this professionally.",
+      "exampleDraft": "I can explain the proposal, but I cannot authorize it. Could you send it to the reviewer?",
+      "completionCriteria": "Ability not promise; cannot authorize; recipient forwarding question."
+    }
+  ]
+}

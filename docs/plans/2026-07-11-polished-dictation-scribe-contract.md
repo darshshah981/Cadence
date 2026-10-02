@@ -1,5 +1,9 @@
 # Polished-dictation Scribe contract
 
+> The spoken-instruction boundary is superseded by
+> [Scribe instruction-following](../scribe-instruction-following.md). This
+> historical contract no longer requires writing directions to remain in the draft.
+
 Date: 2026-07-11  
 Wayfinder ticket: [Define the polished-dictation Scribe contract](https://github.com/darshshah981/Cadence/issues/37)  
 Baseline: Adaptive Scribe PR #34 at `04391d3`

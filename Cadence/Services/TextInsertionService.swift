@@ -21,6 +21,7 @@ enum DictationTargetCapabilityReason: String, Equatable, Sendable {
     case selectedTextSettable
     case standardTextRole
     case editableAncestor
+    case webTextCursorHint
     case secureTextRole
     case nonTextRole
     case unrecognizedRole
@@ -58,6 +59,9 @@ struct FocusedTextElementCapability: Equatable, Sendable {
     let role: String?
     let selectedTextIsSettable: Bool
     var editableAncestorIsEditable = false
+    var hasTextCursorHint = false
+    var subrole: String? = nil
+    var hasSecureEditableAncestor = false
 }
 
 enum DictationTargetCapabilityPolicy {
@@ -89,11 +93,13 @@ enum DictationTargetCapabilityPolicy {
         _ capability: FocusedTextElementCapability,
         bundleIdentifier _: String
     ) -> DictationTargetCapabilityAssessment {
+        guard capability.role != "AXSecureTextField",
+              capability.subrole != "AXSecureTextField",
+              !capability.hasSecureEditableAncestor else {
+            return .notEditable(.secureTextRole)
+        }
         guard let role = capability.role else {
             return .unknown(.roleUnavailable)
-        }
-        guard role != "AXSecureTextField" else {
-            return .notEditable(.secureTextRole)
         }
         if capability.selectedTextIsSettable {
             return .editable(.selectedTextSettable)
@@ -103,6 +109,12 @@ enum DictationTargetCapabilityPolicy {
         }
         if capability.editableAncestorIsEditable {
             return .editable(.editableAncestor)
+        }
+        // Some web composers expose a containing button instead of the actual
+        // editor. A text-cursor hint makes that role inconclusive, not confirmed
+        // editable: attempt typing with clipboard backup, but never press Return.
+        if role == "AXButton", capability.hasTextCursorHint {
+            return .unknown(.webTextCursorHint)
         }
         if nonTextRoles.contains(role) {
             return .notEditable(.nonTextRole)
@@ -133,10 +145,15 @@ final class SystemDictationTargetCapabilityService: DictationTargetCapabilitySer
 
         let focusedElement = unsafeBitCast(focusedValue, to: AXUIElement.self)
         let role = stringAttribute(kAXRoleAttribute as CFString, from: focusedElement)
+        let subrole = stringAttribute(kAXSubroleAttribute as CFString, from: focusedElement)
         let editableAncestor = elementAttribute(
             "AXEditableAncestor" as CFString,
             from: focusedElement
         )
+        let secureAncestor = editableAncestor.map {
+            stringAttribute(kAXRoleAttribute as CFString, from: $0) == "AXSecureTextField"
+                || stringAttribute(kAXSubroleAttribute as CFString, from: $0) == "AXSecureTextField"
+        } ?? false
         return DictationTargetCapabilityPolicy.assess(
             FocusedTextElementCapability(
                 role: role,
@@ -146,10 +163,23 @@ final class SystemDictationTargetCapabilityService: DictationTargetCapabilitySer
                 ),
                 editableAncestorIsEditable: editableAncestor.flatMap {
                     stringAttribute(kAXRoleAttribute as CFString, from: $0)
-                }.map { $0 != "AXSecureTextField" } ?? false
+                }.map { $0 != "AXSecureTextField" } ?? false,
+                hasTextCursorHint: role == "AXButton" && hasTextCursorHint(focusedElement),
+                subrole: subrole,
+                hasSecureEditableAncestor: secureAncestor
             ),
             bundleIdentifier: capture.process.bundleIdentifier
         )
+    }
+
+    private func hasTextCursorHint(_ element: AXUIElement) -> Bool {
+        // Read only non-content accessibility metadata. Do not inspect editor
+        // values, selected text, surrounding content, or an app-specific label.
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element, "AXDOMClassList" as CFString, &value
+        ) == .success, let classes = value as? [String] else { return false }
+        return classes.contains("cursor-text")
     }
 
     private func isSettable(_ attribute: CFString, on element: AXUIElement) -> Bool {
@@ -198,11 +228,62 @@ enum GuardedTextInsertionError: Error, Equatable, Sendable {
     case uncertainPartialInsertion
 }
 
+protocol UnicodeScalarEventPosting {
+    func post(_ scalar: Unicode.Scalar) throws
+}
+
+struct SystemUnicodeScalarEventPoster: UnicodeScalarEventPosting {
+    private let source: CGEventSource
+
+    init() throws {
+        guard let source = CGEventSource(stateID: .hidSystemState) else {
+            throw CadenceError.eventSourceUnavailable
+        }
+        self.source = source
+    }
+
+    func events(for scalar: Unicode.Scalar) throws -> [CGEvent] {
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+            throw CadenceError.eventSourceUnavailable
+        }
+        // A non-BMP scalar is a UTF-16 surrogate pair. Sending the halves as
+        // separate key events lets editors observe invalid intermediate text.
+        let units = Array(String(scalar).utf16)
+        units.withUnsafeBufferPointer { buffer in
+            keyDown.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: buffer.baseAddress!)
+            keyUp.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: buffer.baseAddress!)
+        }
+        return [keyDown, keyUp]
+    }
+
+    func post(_ scalar: Unicode.Scalar) throws {
+        try autoreleasepool {
+            for event in try events(for: scalar) {
+                event.post(tap: .cghidEventTap)
+            }
+        }
+    }
+}
+
 final class TextInsertionService: TextInsertionServing {
     private var lastInsertedText = ""
+    private let isAccessibilityTrusted: () -> Bool
+    private let unicodePosterFactory: () throws -> any UnicodeScalarEventPosting
+
+    init(
+        isAccessibilityTrusted: @escaping () -> Bool = { AXIsProcessTrusted() },
+        unicodePosterFactory: @escaping () throws -> any UnicodeScalarEventPosting = {
+            try SystemUnicodeScalarEventPoster()
+        }
+    ) {
+        self.isAccessibilityTrusted = isAccessibilityTrusted
+        self.unicodePosterFactory = unicodePosterFactory
+    }
 
     func insert(_ text: String) async throws {
-        guard AXIsProcessTrusted() else {
+        try Task.checkCancellation()
+        guard isAccessibilityTrusted() else {
             throw CadenceError.accessibilityPermissionMissing
         }
 
@@ -217,32 +298,20 @@ final class TextInsertionService: TextInsertionServing {
     }
 
     func pressReturn() async throws {
-        guard AXIsProcessTrusted() else {
+        guard isAccessibilityTrusted() else {
             throw CadenceError.accessibilityPermissionMissing
         }
         try await postModifiedKeystroke(keyCode: 36, modifiers: [])
     }
 
     private func postUnicodeString(_ text: String) async throws {
-        guard let source = CGEventSource(stateID: .hidSystemState) else {
-            throw CadenceError.eventSourceUnavailable
-        }
+        let poster = try unicodePosterFactory()
 
         var insertedScalars = 0
-        for scalar in text.utf16 {
+        for scalar in text.unicodeScalars {
             do {
-                try autoreleasepool {
-                guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-                      let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
-                    throw CadenceError.eventSourceUnavailable
-                }
-
-                var value = scalar
-                keyDown.keyboardSetUnicodeString(stringLength: 1, unicodeString: &value)
-                keyUp.keyboardSetUnicodeString(stringLength: 1, unicodeString: &value)
-                keyDown.post(tap: .cghidEventTap)
-                keyUp.post(tap: .cghidEventTap)
-                }
+                try Task.checkCancellation()
+                try poster.post(scalar)
                 insertedScalars += 1
             } catch {
                 if insertedScalars > 0 {

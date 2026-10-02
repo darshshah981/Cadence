@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "First-run local Compose check for exact coding-agent targets outside the coding-app environment.",
+  "evaluationOrder": "Freeze these four requests before generation; preserve the first run and score review readiness separately from semantic usefulness.",
+  "semanticCriteria": {
+    "acceptable": "Each draft is a usable request to the coding agent, retains every written file path and flag, preserves the task and any no-change boundary, and makes no claim that work was done.",
+    "critical": "A changed or missing file target or flag, dropped no-change boundary, request to edit unrelated files, fabricated completion, or writer instructions copied into the outgoing prompt.",
+    "gate": "Four of four generated and review-ready, with no critical error and all four useful as coding prompts."
+  },
+  "cases": [
+    {
+      "id": "coding-target-inspect",
+      "family": "general",
+      "spoken": "Ask Codex to inspect `src/Auth.swift` with --no-cache without editing files.",
+      "exampleDraft": "Inspect `src/Auth.swift` with --no-cache without editing files.",
+      "required": ["src/Auth.swift", "--no-cache", "without editing files"],
+      "forbidden": ["I inspected", "I edited"]
+    },
+    {
+      "id": "coding-target-fix",
+      "family": "general",
+      "spoken": "Ask Codex to fix src/Auth.swift without changing the public API.",
+      "exampleDraft": "Fix src/Auth.swift without changing the public API.",
+      "required": ["src/Auth.swift", "without changing the public API"],
+      "forbidden": ["I fixed", "src/Auth.swift.bak"]
+    },
+    {
+      "id": "coding-target-rename",
+      "family": "general",
+      "spoken": "Ask Codex to rename src/Auth.swift to src/Login.swift and do not edit other files.",
+      "exampleDraft": "Rename src/Auth.swift to src/Login.swift and do not edit other files.",
+      "required": ["src/Auth.swift", "src/Login.swift", "do not edit other files"],
+      "forbidden": ["I renamed", "src/Auth.swift.bak"]
+    },
+    {
+      "id": "coding-target-remove",
+      "family": "general",
+      "spoken": "Ask Claude to remove lib/Old.swift but leave the tests unchanged.",
+      "exampleDraft": "Remove lib/Old.swift, leaving the tests unchanged.",
+      "required": ["lib/Old.swift", "tests unchanged"],
+      "forbidden": ["I removed", "lib/Old.swift.bak"]
+    }
+  ]
+}

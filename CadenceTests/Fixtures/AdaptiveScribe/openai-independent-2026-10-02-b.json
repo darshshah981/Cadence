@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh independent OpenAI Compose reserve B, October 2. Freeze and commit after reserve A repairs, before export or generation.",
+  "semanticCriteria": {
+    "gate": "At least 19 of 20 useful review-ready drafts; zero critical changes to meaning, recipients, exact words, restrictions, uncertainty, privacy or writing-direction separation. A rejected draft is not useful.",
+    "critical": "Changed or invented operative facts, dropped recipient or condition, changed exact literal, a consumed writer instruction in the message, an invented task, disclosed excluded reason or claimed execution.",
+    "minor": "Faithful stylistic paraphrase, capitalization outside exact text, punctuation or list formatting that retains all operative meaning.",
+    "review": "Grade the first model outputs using frozen per-case criteria and production output guards. Preserve failures; do not tune or rerun before grading."
+  },
+  "cases": [
+    {
+      "id": "receipt",
+      "family": "general",
+      "spoken": "Have you received the attachment I sent? Please make this professional.",
+      "exampleDraft": "Have you received the attachment I sent?",
+      "completionCriteria": "Receipt question remains receipt, not reading or approval; no unsolicited task."
+    },
+    {
+      "id": "ability",
+      "family": "messaging",
+      "spoken": "Tell Rosa I can send the agenda on Saturday, but I cannot promise a final budget yet. Make this shorter.",
+      "exampleDraft": "Rosa, I can send the agenda Saturday, but cannot promise a final budget yet.",
+      "completionCriteria": "Rosa, ability not promise, Saturday, explicit budget boundary."
+    },
+    {
+      "id": "uncertainty",
+      "family": "general",
+      "spoken": "I believe the missing row is a duplicate, but I am uncertain. Could you check before deleting it? Make this professional.",
+      "exampleDraft": "I believe the missing row is a duplicate, but I am uncertain. Could you check before deleting it?",
+      "completionCriteria": "Both belief and knowledge qualifiers, duplicate hypothesis, check before deletion."
+    },
+    {
+      "id": "exact-address",
+      "family": "messaging",
+      "spoken": "Write a note to Omar with the exact words \"Keep the original receipt\".",
+      "exampleDraft": "Omar, Keep the original receipt",
+      "completionCriteria": "Omar and exact body; no use-these-words direction."
+    },
+    {
+      "id": "private-reason",
+      "family": "messaging",
+      "spoken": "Tell Leah I cannot join the workshop on Friday because I have an appointment. Do not mention the reason.",
+      "exampleDraft": "Leah, I cannot join the workshop on Friday.",
+      "completionCriteria": "Leah, cannot join workshop Friday; omit appointment and writer direction."
+    },
+    {
+      "id": "corrected-hour",
+      "family": "messaging",
+      "spoken": "Tell Tessa the call starts at 10 AM. Correction, it starts at 11 AM. Ask if she can make it.",
+      "exampleDraft": "Tessa, the call starts at 11 AM. Can you make it?",
+      "completionCriteria": "Tessa, only 11 AM, availability question; omit superseded 10 AM."
+    },
+    {
+      "id": "recipient-edit",
+      "family": "messaging",
+      "spoken": "Ask Yusuf to make the summary shorter but leave the legal wording unchanged.",
+      "exampleDraft": "Yusuf, please shorten the summary but leave the legal wording unchanged.",
+      "completionCriteria": "Yusuf; recipient editing task and exact preservation restriction remain."
+    },
+    {
+      "id": "coding-restriction",
+      "family": "coding",
+      "spoken": "Ask Claude to inspect `app/Queue.swift` with --verbose. Do not alter files or create a commit.",
+      "exampleDraft": "Inspect app/Queue.swift with --verbose. Do not alter files or create a commit.",
+      "completionCriteria": "Direct task, path, flag, both negative action constraints; no claimed work."
+    },
+    {
+      "id": "two-bullets",
+      "family": "general",
+      "spoken": "Write two bullets: the download finished; the import is not finished.",
+      "exampleDraft": "- The download finished.\n- The import is not finished.",
+      "completionCriteria": "Exactly two bullets, distinguish positive download from negative import."
+    },
+    {
+      "id": "not-delivered",
+      "family": "messaging",
+      "spoken": "Tell Sienna the parcel has been dispatched, but delivery has not been confirmed.",
+      "exampleDraft": "Sienna, the parcel has been dispatched, but delivery has not been confirmed.",
+      "completionCriteria": "Sienna; dispatched not delivered; unconfirmed delivery retained."
+    },
+    {
+      "id": "zone-options",
+      "family": "messaging",
+      "spoken": "Ask Marco whether 4 PM ET on Thursday works, or if Friday is easier.",
+      "exampleDraft": "Marco, does 4 PM ET on Thursday work, or is Friday easier?",
+      "completionCriteria": "Marco, 4 PM ET, Thursday and Friday alternatives, no firm appointment."
+    },
+    {
+      "id": "cost-unit",
+      "family": "general",
+      "spoken": "The charge is $62 per device per year, not $62 for all devices.",
+      "exampleDraft": "The charge is $62 per device per year, not $62 for all devices.",
+      "completionCriteria": "Amount, device unit, yearly period, explicit negative total contrast."
+    },
+    {
+      "id": "literal-command",
+      "family": "messaging",
+      "spoken": "Write a note to Ada containing the exact words \"Do not shorten this sentence\".",
+      "exampleDraft": "Ada, Do not shorten this sentence",
+      "completionCriteria": "Ada and exact command-like body retained as recipient content."
+    },
+    {
+      "id": "casual-question",
+      "family": "messaging",
+      "spoken": "Ask Theo if he can look at the photo after dinner. Make it casual.",
+      "exampleDraft": "Theo, can you look at the photo after dinner?",
+      "completionCriteria": "Theo, permissive question, photo, after dinner; no new task or deadline."
+    },
+    {
+      "id": "coding-reply",
+      "family": "coding",
+      "spoken": "I might be wrong, but I think the connection dropped before the timeout. Write this as a reply in Codex.",
+      "exampleDraft": "I might be wrong, but I think the connection dropped before the timeout.",
+      "completionCriteria": "Uncertain statement remains reply, temporal relation retained; no invented investigation."
+    },
+    {
+      "id": "pending-payment",
+      "family": "messaging",
+      "spoken": "Tell Mei payment INV-208 is pending, and no confirmation has arrived.",
+      "exampleDraft": "Mei, payment INV-208 is pending and no confirmation has arrived.",
+      "completionCriteria": "Mei, exact ID, pending status, no confirmation or claim of payment."
+    },
+    {
+      "id": "ability-question",
+      "family": "general",
+      "spoken": "I can prepare the outline, but I cannot approve the spending. Could you review it? Write this professionally.",
+      "exampleDraft": "I can prepare the outline, but I cannot approve the spending. Could you review it?",
+      "completionCriteria": "Ability not promise, approval boundary, recipient review question."
+    },
+    {
+      "id": "capacity",
+      "family": "messaging",
+      "spoken": "Tell Owen I can help with one section this month, but not the full report. Keep it concise.",
+      "exampleDraft": "Owen, I can help with one section this month, but not the full report.",
+      "completionCriteria": "Owen, one section, this month, full-report exclusion and ability."
+    },
+    {
+      "id": "warm-patience",
+      "family": "messaging",
+      "spoken": "Tell Nina I appreciate her patience while the documents are checked. Make this warm.",
+      "exampleDraft": "Nina, I really appreciate your patience while the documents are checked.",
+      "completionCriteria": "Nina, appreciation, ongoing document check, no completion implied."
+    },
+    {
+      "id": "not-accepted",
+      "family": "messaging",
+      "spoken": "Tell Hugo the quote is $180, but I have not accepted it.",
+      "exampleDraft": "Hugo, the quote is $180, but I have not accepted it.",
+      "completionCriteria": "Hugo, amount, explicit nonacceptance; no agreement or payment."
+    }
+  ]
+}

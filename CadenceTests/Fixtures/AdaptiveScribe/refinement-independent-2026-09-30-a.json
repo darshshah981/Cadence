@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "description": "Fresh synthetic Apple Intelligence voice-refinement reserve, frozen before production export and first generation.",
+  "fieldNotes": {
+    "originalSpokenRequest": "Original source speech, normalized by the production literal normalizer before constructing the original request.",
+    "baseDraft": "Existing accepted review text used as the revision source. Every generation case has a nonempty draft.",
+    "instruction": "New revision speech applied to the accepted draft, kept distinct from the original source.",
+    "spoken": "Compatibility alias equal to instruction. This is revision speech, not originalSpokenRequest.",
+    "exactLiterals": "Expected production-derived protected literals from normalized original and revision speech.",
+    "expectedProtectedText": "Expected production-derived spans from the supported keep-first-sentence command.",
+    "required": "Conservative substring checks only. A heuristic failure is not by itself a human semantic judgment.",
+    "forbidden": "Known unsafe or instruction-leaking snippets; this list is not exhaustive."
+  },
+  "cases": [
+    {
+      "id": "refinement-a-warmer",
+      "family": "messaging",
+      "originalSpokenRequest": "Tell Tara the update is ready for review.",
+      "baseDraft": "Tara, the update is ready for review.",
+      "instruction": "Make it warmer, and keep it brief.",
+      "exampleDraft": "Hi Tara, the update is ready for your review.",
+      "required": [
+        "Tara",
+        "update",
+        "review"
+      ],
+      "forbidden": [
+        "make it warmer",
+        "keep it brief",
+        "I reviewed"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [],
+      "spoken": "Make it warmer, and keep it brief."
+    },
+    {
+      "id": "refinement-a-concise",
+      "family": "general",
+      "originalSpokenRequest": "Tell Rae the release is ready and testing starts Wednesday. We will share the test results after testing.",
+      "baseDraft": "Rae, the release is ready, and testing starts Wednesday. We will share the test results after testing.",
+      "instruction": "Make it more concise. Keep all the timing.",
+      "exampleDraft": "Rae, the release is ready. Testing starts Wednesday; results will follow testing.",
+      "required": [
+        "Rae",
+        "release",
+        "Wednesday",
+        "results"
+      ],
+      "forbidden": [
+        "make it more concise",
+        "keep all the timing",
+        "Monday",
+        "results are ready"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [],
+      "spoken": "Make it more concise. Keep all the timing."
+    },
+    {
+      "id": "refinement-a-first-sentence",
+      "family": "messaging",
+      "originalSpokenRequest": "Tell Nia I cannot attend. I appreciate the invitation and hope the event goes well.",
+      "baseDraft": "Nia, I cannot attend. Thank you for the invitation, and I hope the event goes well.",
+      "instruction": "Keep the first sentence unchanged. Make the rest warmer and shorter.",
+      "exampleDraft": "Nia, I cannot attend. Thanks for inviting me; I hope it goes well!",
+      "required": [
+        "Nia, I cannot attend."
+      ],
+      "forbidden": [
+        "keep the first sentence",
+        "warmer and shorter",
+        "because",
+        "schedule conflict"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [
+        "Nia, I cannot attend."
+      ],
+      "spoken": "Keep the first sentence unchanged. Make the rest warmer and shorter."
+    },
+    {
+      "id": "refinement-a-technical-restrictions",
+      "family": "coding",
+      "originalSpokenRequest": "Ask the coding agent to inspect literal verbatim src/Payments.swift end literal with literal flag trace end literal. Do not edit files.",
+      "baseDraft": "Please inspect src/Payments.swift and use --trace while you investigate. Do not edit files.",
+      "instruction": "Make it more concise without dropping the restriction or changing the path and flag.",
+      "exampleDraft": "Inspect src/Payments.swift with --trace. Do not edit files.",
+      "required": [
+        "src/Payments.swift",
+        "--trace",
+        "Do not edit files"
+      ],
+      "forbidden": [
+        "I inspected",
+        "I changed",
+        "I edited",
+        "make it more concise"
+      ],
+      "exactLiterals": [
+        "src/Payments.swift",
+        "--trace"
+      ],
+      "expectedProtectedText": [],
+      "spoken": "Make it more concise without dropping the restriction or changing the path and flag."
+    },
+    {
+      "id": "refinement-a-uncertainty",
+      "family": "messaging",
+      "originalSpokenRequest": "Tell Ava I might miss the demo. I do not know yet. Do not give a reason.",
+      "baseDraft": "Ava, I might miss the demo, but I do not know yet.",
+      "instruction": "Make it more concise and polite. Keep the uncertainty and do not add a reason.",
+      "exampleDraft": "Ava, I might miss the demo; I'm not sure yet.",
+      "required": [
+        "Ava",
+        "demo"
+      ],
+      "forbidden": [
+        "will miss",
+        "because",
+        "due to",
+        "appointment",
+        "keep the uncertainty"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [],
+      "spoken": "Make it more concise and polite. Keep the uncertainty and do not add a reason."
+    },
+    {
+      "id": "refinement-a-recipient-question",
+      "family": "messaging",
+      "originalSpokenRequest": "Ask Emi whether the summary can be sent by Monday.",
+      "baseDraft": "Emi, can you send the summary by Monday?",
+      "instruction": "Make it more polite without changing the request.",
+      "exampleDraft": "Emi, could you please send the summary by Monday?",
+      "required": [
+        "Emi",
+        "summary",
+        "Monday",
+        "?"
+      ],
+      "forbidden": [
+        "I sent",
+        "I have sent",
+        "has been sent",
+        "make it more polite"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [],
+      "spoken": "Make it more polite without changing the request."
+    },
+    {
+      "id": "refinement-a-quoted-direction",
+      "family": "messaging",
+      "originalSpokenRequest": "Tell Omar the status note must include the exact phrase literal verbatim Make it formal end literal.",
+      "baseDraft": "Omar, please include the phrase \"Make it formal\" in the status note.",
+      "instruction": "Make this message warmer. Keep the quoted phrase unchanged.",
+      "exampleDraft": "Hi Omar, please include \"Make it formal\" in the status note.",
+      "required": [
+        "Omar",
+        "Make it formal",
+        "status note"
+      ],
+      "forbidden": [
+        "keep the quoted phrase",
+        "make this message warmer",
+        "I included"
+      ],
+      "exactLiterals": [
+        "Make it formal"
+      ],
+      "expectedProtectedText": [],
+      "spoken": "Make this message warmer. Keep the quoted phrase unchanged."
+    },
+    {
+      "id": "refinement-a-first-sentence-bullets",
+      "family": "general",
+      "originalSpokenRequest": "Give the team an update: the draft is ready. Security review starts Monday. Legal approval is still pending.",
+      "baseDraft": "The draft is ready.\nSecurity review starts Monday.\nLegal approval is still pending.",
+      "instruction": "Keep the first sentence exactly. Turn the rest into two bullets.",
+      "exampleDraft": "The draft is ready.\n- Security review starts Monday.\n- Legal approval is still pending.",
+      "required": [
+        "The draft is ready.",
+        "Monday",
+        "pending"
+      ],
+      "forbidden": [
+        "turn the rest",
+        "keep the first sentence",
+        "approval is complete",
+        "approved"
+      ],
+      "exactLiterals": [],
+      "expectedProtectedText": [
+        "The draft is ready."
+      ],
+      "spoken": "Keep the first sentence exactly. Turn the rest into two bullets."
+    }
+  ],
+  "semanticCriteria": {
+    "acceptable": "All eight effective drafts preserve facts, recipient, protected first sentences, technical literals and no-edit restrictions, and visibly apply the requested edit. A safe no-op remains recoverable but does not count as a successful edit.",
+    "critical": "Changed fact or timing, dropped protected or exact text, lost restriction, invented completion or recipient action, or copied revision instruction into the draft.",
+    "gate": "Eight review-ready effective drafts, zero critical errors, and at least seven of eight visibly satisfying the edit request on first-run manual review."
+  }
+}

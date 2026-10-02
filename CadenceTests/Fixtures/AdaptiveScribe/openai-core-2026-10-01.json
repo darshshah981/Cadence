@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Frozen first OpenAI Direct core writing comparison. Freeze before any generation.",
+  "semanticCriteria": {
+    "gate": "At least 19 of 20 useful policy-ready drafts and zero critical meaning, recipient, instruction-leak, literal, privacy, or false-action errors.",
+    "minor": "Faithful paraphrase or weak style counts as minor; a rejection is not useful.",
+    "review": "Software output-policy acceptance plus explicit semantic review of each first output. No retries or production edits before grading."
+  },
+  "cases": [
+    {
+      "id": "formal-greeting",
+      "family": "general",
+      "spoken": "Hey, how's it going? Write this formally.",
+      "exampleDraft": "Hello, how are you?",
+      "completionCriteria": "Formal greeting; omit writing direction."
+    },
+    {
+      "id": "casual-update",
+      "family": "messaging",
+      "spoken": "Tell Priya the draft is ready for her review. Make this casual.",
+      "exampleDraft": "Hi Priya, the draft is ready for your review.",
+      "completionCriteria": "Address Priya; ready for review; casual."
+    },
+    {
+      "id": "concise-delay",
+      "family": "messaging",
+      "spoken": "Tell Omar I cannot join the call today, but I can review the notes tomorrow. Keep it short.",
+      "exampleDraft": "Omar, I can't join today\u2019s call, but I can review the notes tomorrow.",
+      "completionCriteria": "Keep both constraints and times; address Omar."
+    },
+    {
+      "id": "hour-correction",
+      "family": "messaging",
+      "spoken": "Tell Lia the call is at 11 AM. Sorry, make that 12 PM. Ask her to confirm.",
+      "exampleDraft": "Lia, the call is at 12 PM. Can you confirm?",
+      "completionCriteria": "Only corrected time; address Lia; confirmation question."
+    },
+    {
+      "id": "conditional-delivery",
+      "family": "messaging",
+      "spoken": "Tell Dev I can send the report Thursday if finance approves it Wednesday. Otherwise I need until Monday.",
+      "exampleDraft": "Dev, I can send the report Thursday if finance approves it Wednesday; otherwise, I need until Monday.",
+      "completionCriteria": "Preserve condition, all weekdays, and recipient."
+    },
+    {
+      "id": "uncertain-diagnosis",
+      "family": "coding",
+      "spoken": "I might be mistaken, but I think the slowdown starts in the parser. Write this as a Codex reply.",
+      "exampleDraft": "I might be mistaken, but I think the slowdown starts in the parser.",
+      "completionCriteria": "Preserve uncertainty; omit placement direction; no invented diagnosis."
+    },
+    {
+      "id": "read-only-code",
+      "family": "coding",
+      "spoken": "Ask Codex to inspect literal verbatim src/Cache.swift end literal with literal flag no cache end literal. Do not edit any files.",
+      "exampleDraft": "Inspect src/Cache.swift with --no-cache. Do not edit any files.",
+      "completionCriteria": "Exact path and flag; recipient instruction preserved; no claimed execution."
+    },
+    {
+      "id": "recipient-edit-limit",
+      "family": "messaging",
+      "spoken": "Tell Sara to revise only the introduction and leave the conclusion unchanged.",
+      "exampleDraft": "Sara, please revise only the introduction and leave the conclusion unchanged.",
+      "completionCriteria": "The editing instruction is for Sara, not Cadence."
+    },
+    {
+      "id": "private-decline",
+      "family": "messaging",
+      "spoken": "Tell Andre I cannot attend because of a personal appointment. Do not include the reason.",
+      "exampleDraft": "Andre, I cannot attend.",
+      "completionCriteria": "Address Andre, decline, omit personal appointment and writing direction."
+    },
+    {
+      "id": "negative-status",
+      "family": "messaging",
+      "spoken": "Tell Mei ticket ZX-42 is still under review and has not been approved.",
+      "exampleDraft": "Mei, ticket ZX-42 is still under review and has not been approved.",
+      "completionCriteria": "Exact ticket, recipient, negative status."
+    },
+    {
+      "id": "cost-unit",
+      "family": "general",
+      "spoken": "The plan costs $75 per seat per month, not $75 for the entire team.",
+      "exampleDraft": "The plan costs $75 per seat per month, not $75 for the entire team.",
+      "completionCriteria": "Preserve amount, units, period, negative contrast."
+    },
+    {
+      "id": "quoted-words",
+      "family": "messaging",
+      "spoken": "Write a note to Noah with the exact words \"Wait until security approves\".",
+      "exampleDraft": "Noah, Wait until security approves.",
+      "completionCriteria": "Noah and exact quoted text; no assistant introduction."
+    },
+    {
+      "id": "timezone-question",
+      "family": "messaging",
+      "spoken": "Ask Tessa whether she can meet at 4 PM ET on Tuesday, not Wednesday.",
+      "exampleDraft": "Tessa, can you meet at 4 PM ET on Tuesday, not Wednesday?",
+      "completionCriteria": "Recipient, question, time, zone, weekday contrast."
+    },
+    {
+      "id": "warm-feedback",
+      "family": "messaging",
+      "spoken": "Tell Imani I appreciate her feedback and I would love to hear her thoughts on the revised outline. Make it warm.",
+      "exampleDraft": "Hi Imani, I appreciate your feedback and would love your thoughts on the revised outline.",
+      "completionCriteria": "Warm, recipient, appreciation, request; no direction leak."
+    },
+    {
+      "id": "two-bullets",
+      "family": "general",
+      "spoken": "Put this into two bullets: the prototype is ready; the launch date is still undecided.",
+      "exampleDraft": "- The prototype is ready.\n- The launch date is still undecided.",
+      "completionCriteria": "Exactly two bullets; preserve uncertainty."
+    },
+    {
+      "id": "retain-question",
+      "family": "general",
+      "spoken": "I am not sure the export includes archived records. Can you check? Write this professionally.",
+      "exampleDraft": "I am unsure whether the export includes archived records. Could you please check?",
+      "completionCriteria": "Keep uncertainty and question; no invented answer."
+    },
+    {
+      "id": "recipient-no-submit",
+      "family": "coding",
+      "spoken": "Write a prompt asking Codex to check the validation rule, but not submit the form.",
+      "exampleDraft": "Check the validation rule, but do not submit the form.",
+      "completionCriteria": "Recipient restriction survives; no claimed execution."
+    },
+    {
+      "id": "complete-response",
+      "family": "general",
+      "spoken": "Okay, I don't know what I'm doing, but I think this will work. Write it as a response in Codex.",
+      "exampleDraft": "I do not know what I am doing, but I think this will work.",
+      "completionCriteria": "Complete uncertainty, intended response; no scaffolding or backticks."
+    },
+    {
+      "id": "friendly-request",
+      "family": "messaging",
+      "spoken": "Ask Jules to send the invoice number when she has a moment. Keep the message friendly.",
+      "exampleDraft": "Hi Jules, could you send me the invoice number when you have a moment?",
+      "completionCriteria": "Recipient, invoice number, no urgency invented; friendly."
+    },
+    {
+      "id": "wording-correction",
+      "family": "messaging",
+      "spoken": "Tell Ren the refund is pending. Actually, the replacement is pending, not the refund.",
+      "exampleDraft": "Ren, the replacement is pending, not the refund.",
+      "completionCriteria": "Corrected subject and contrast; no claim refund is pending."
+    }
+  ]
+}

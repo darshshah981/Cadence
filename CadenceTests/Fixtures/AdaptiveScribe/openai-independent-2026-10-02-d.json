@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Fresh reserve D committed before export or generation after C writer-frame repair. Twenty OpenAI-destination requests; two exact prepared notes and eighteen model generations. Same frozen quality gate; no retries.",
+  "semanticCriteria": {
+    "gate": "At least 19 of 20 useful review-ready drafts; zero critical changes to meaning, recipients, exact words, restrictions, uncertainty, privacy or writing-direction separation. A rejected draft is not useful.",
+    "critical": "Changed or invented operative facts, dropped recipient or condition, changed exact literal, a consumed writer instruction in the message, an invented task, disclosed excluded reason or claimed execution.",
+    "minor": "Faithful stylistic paraphrase, capitalization outside exact text, punctuation or list formatting that retains all operative meaning.",
+    "review": "Grade the first model outputs using frozen per-case criteria and production output guards. Preserve failures; do not tune or rerun before grading."
+  },
+  "cases": [
+    {
+      "id": "received-report",
+      "family": "general",
+      "spoken": "Have you received the quarterly report? Make this professional.",
+      "exampleDraft": "Have you received the quarterly report?",
+      "completionCriteria": "Receipt question remains receipt; no review, approval, invented follow-up."
+    },
+    {
+      "id": "available-capacity",
+      "family": "messaging",
+      "spoken": "Tell Mira I can check the figures tonight, but I cannot guarantee the charts. Keep this concise.",
+      "exampleDraft": "Mira, I can check the figures tonight, but cannot guarantee the charts.",
+      "completionCriteria": "Mira, ability not promise, figures tonight, no chart guarantee."
+    },
+    {
+      "id": "uncertain-count",
+      "family": "general",
+      "spoken": "I think the count excludes returns, but I am not sure. Please check before sending it. Write this professionally.",
+      "exampleDraft": "I think the count excludes returns, but I am not sure. Please check before sending it.",
+      "completionCriteria": "Both uncertainty qualifiers, exclusion hypothesis, check before send."
+    },
+    {
+      "id": "exact-first",
+      "family": "messaging",
+      "spoken": "Write a note to Felix saying the exact words \"Do not approve the invoice yet\".",
+      "exampleDraft": "Felix, Do not approve the invoice yet.",
+      "completionCriteria": "Felix and exact quoted body, no writer instructions. Prepared exact route expected."
+    },
+    {
+      "id": "exact-second",
+      "family": "messaging",
+      "spoken": "Write a note to Ruby containing the exact words \"Save the previous version\".",
+      "exampleDraft": "Ruby, Save the previous version.",
+      "completionCriteria": "Ruby and exact capitalized body, no writer framing. Prepared exact route expected."
+    },
+    {
+      "id": "private-absence",
+      "family": "messaging",
+      "spoken": "Tell Amira I cannot attend the dinner on Thursday because I have a medical appointment. Leave out the reason.",
+      "exampleDraft": "Amira, I cannot attend the dinner on Thursday.",
+      "completionCriteria": "Amira, dinner Thursday decline; no medical reason or writer direction. Fictional synthetic request only."
+    },
+    {
+      "id": "corrected-date",
+      "family": "messaging",
+      "spoken": "Tell Luca the delivery is Friday. Actually, it is Saturday. Ask if that works.",
+      "exampleDraft": "Luca, the delivery is Saturday. Does that work?",
+      "completionCriteria": "Luca, only Saturday, no Friday; ask if acceptable."
+    },
+    {
+      "id": "retain-examples",
+      "family": "messaging",
+      "spoken": "Ask Beth to shorten the introduction but preserve every quoted example.",
+      "exampleDraft": "Beth, please shorten the introduction but preserve every quoted example.",
+      "completionCriteria": "Beth; recipient editing task and all quoted examples retained."
+    },
+    {
+      "id": "coding-compare",
+      "family": "coding",
+      "spoken": "Ask Codex to compare `core/Reader.swift` and `core/Writer.swift`. Do not modify them or publish changes.",
+      "exampleDraft": "Compare core/Reader.swift and core/Writer.swift. Do not modify them or publish changes.",
+      "completionCriteria": "Direct comparison task; exact paths; both negative restrictions; no Ask Codex to frame or execution claim."
+    },
+    {
+      "id": "coding-explanation",
+      "family": "coding",
+      "spoken": "Ask Claude to explain why `readIndex` fails when the file is empty. Do not implement changes.",
+      "exampleDraft": "Explain why readIndex fails when the file is empty. Do not implement changes.",
+      "completionCriteria": "Direct explanation; exact identifier; empty-file condition; implementation restriction."
+    },
+    {
+      "id": "status-bullets",
+      "family": "general",
+      "spoken": "Write three bullets: the build succeeded; the review is pending; the release is blocked.",
+      "exampleDraft": "- The build succeeded.\n- The review is pending.\n- The release is blocked.",
+      "completionCriteria": "Exactly three bullets, distinct success, pending and blocked states."
+    },
+    {
+      "id": "conditional-plan",
+      "family": "messaging",
+      "spoken": "Tell Andre I expect the draft by noon unless the source data changes.",
+      "exampleDraft": "Andre, I expect the draft by noon unless the source data changes.",
+      "completionCriteria": "Andre; expectation not guarantee; noon; data-change condition."
+    },
+    {
+      "id": "unit-negation",
+      "family": "general",
+      "spoken": "The fee is $29 per account per month, not per quarter.",
+      "exampleDraft": "The fee is $29 per account per month, not per quarter.",
+      "completionCriteria": "Amount, account unit, monthly period, explicit negative quarter contrast."
+    },
+    {
+      "id": "time-options",
+      "family": "messaging",
+      "spoken": "Ask Freya if 8:45 AM PT on Tuesday works, or whether Wednesday is preferable.",
+      "exampleDraft": "Freya, does 8:45 AM PT on Tuesday work, or would Wednesday be preferable?",
+      "completionCriteria": "Freya, exact time and zone, two weekday options, question."
+    },
+    {
+      "id": "uncertain-response",
+      "family": "coding",
+      "spoken": "I might be wrong, but I think the second attempt used an expired token. Write this as a response in Codex.",
+      "exampleDraft": "I might be wrong, but I think the second attempt used an expired token.",
+      "completionCriteria": "Both uncertainty and hypothesis, second attempt and expired token; statement, no task invented."
+    },
+    {
+      "id": "pending-request",
+      "family": "messaging",
+      "spoken": "Tell Jonas request TASK-61 is pending and has not been accepted or rejected.",
+      "exampleDraft": "Jonas, request TASK-61 is pending and has not been accepted or rejected.",
+      "completionCriteria": "Jonas, exact ID, pending and both negative decisions."
+    },
+    {
+      "id": "limited-help",
+      "family": "messaging",
+      "spoken": "Tell Camille I can review one chapter tomorrow, but not the whole book. Make it polite.",
+      "exampleDraft": "Camille, I can review one chapter tomorrow, but not the whole book.",
+      "completionCriteria": "Camille; ability, one chapter tomorrow, whole-book boundary."
+    },
+    {
+      "id": "warm-thanks",
+      "family": "messaging",
+      "spoken": "Tell Dylan I appreciate his patience while we check the application. Make it warm.",
+      "exampleDraft": "Dylan, I really appreciate your patience while we check the application.",
+      "completionCriteria": "Dylan, appreciation, ongoing check, no outcome invented."
+    },
+    {
+      "id": "not-complete",
+      "family": "messaging",
+      "spoken": "Tell Esme ticket TKT-307 is assigned but has not been resolved.",
+      "exampleDraft": "Esme, ticket TKT-307 is assigned but has not been resolved.",
+      "completionCriteria": "Esme, exact ID, assigned not resolved."
+    },
+    {
+      "id": "authorization",
+      "family": "general",
+      "spoken": "I can explain the figures, but I cannot approve the budget. Could you ask the budget owner? Write this professionally.",
+      "exampleDraft": "I can explain the figures, but I cannot approve the budget. Could you ask the budget owner?",
+      "completionCriteria": "Ability not promise, approval boundary, recipient question; no invented approval."
+    }
+  ]
+}

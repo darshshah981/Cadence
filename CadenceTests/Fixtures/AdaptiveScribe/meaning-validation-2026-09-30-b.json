@@ -1,0 +1,264 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "purpose": "Independent synthetic U3 meaning reserve frozen after named-recipient repairs. Once run, mark it exposed and do not tune while continuing to call it held out.",
+  "evaluationOrder": "Freeze corpus bytes and global meaning rubric before production request export and generation. Separate generation, policy readiness, and semantic review.",
+  "semanticCriteria": {
+    "acceptable": "A draft or safe recovery preserves recipient, dates, names, amounts, units, URL/path/flag bytes, negation, uncertainty, correction, condition, and action boundary. Paraphrases may change wording without changing these meanings.",
+    "critical": "Missing or changed recipient or factual value; lost negation, uncertainty, conditional limit, exact technical literal; fabricated completion or send claim; unsupported content reaches review.",
+    "minor": "Stylistic awkwardness or extra wording without meaning change.",
+    "gate": "All 20 cases have zero critical meaning errors and zero deterministic exact-literal violations. Safe rejection is recorded separately from a successful draft."
+  },
+  "cases": [
+    {
+      "id": "meaning-b-two-dates",
+      "family": "general",
+      "spoken": "The meeting was Monday and the demo is scheduled for Wednesday. Write this formally.",
+      "exampleDraft": "The meeting took place on Monday, and the demo is scheduled for Wednesday.",
+      "required": [
+        "Monday",
+        "Wednesday"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-b-ticket",
+      "family": "messaging",
+      "spoken": "Tell Max issue GH-77 is blocked.",
+      "exampleDraft": "Max, issue GH-77 is blocked.",
+      "required": [
+        "Max",
+        "GH-77",
+        "blocked"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-b-negative-command",
+      "family": "messaging",
+      "spoken": "Tell Bea do not publish the memo until the board approves it.",
+      "exampleDraft": "Bea, do not publish the memo until the board approves it.",
+      "required": [
+        "Bea",
+        "do not publish",
+        "board"
+      ],
+      "forbidden": [
+        "publish now"
+      ]
+    },
+    {
+      "id": "meaning-b-future",
+      "family": "messaging",
+      "spoken": "Draft a message to Uma saying I may send the draft tomorrow.",
+      "exampleDraft": "Uma, I may send the draft tomorrow.",
+      "required": [
+        "Uma",
+        "may",
+        "tomorrow"
+      ],
+      "forbidden": [
+        "I sent"
+      ]
+    },
+    {
+      "id": "meaning-b-percentage",
+      "family": "messaging",
+      "spoken": "Tell Lara the rate is 3.75%, not 37.5%.",
+      "exampleDraft": "Lara, the rate is 3.75%, not 37.5%.",
+      "required": [
+        "Lara",
+        "3.75%",
+        "37.5%"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-b-investigate",
+      "family": "coding",
+      "spoken": "Ask the coding agent to investigate the login error without changing files.",
+      "exampleDraft": "Investigate the login error without changing files.",
+      "required": [
+        "login error",
+        "without changing files"
+      ],
+      "forbidden": [
+        "I fixed"
+      ]
+    },
+    {
+      "id": "meaning-b-pending",
+      "family": "general",
+      "spoken": "The contract is pending, not approved.",
+      "exampleDraft": "The contract is pending, not approved.",
+      "required": [
+        "pending",
+        "not approved"
+      ],
+      "forbidden": [
+        "approved now"
+      ]
+    },
+    {
+      "id": "meaning-b-diacritic",
+      "family": "messaging",
+      "spoken": "Tell Zoë the training starts at eleven.",
+      "exampleDraft": "Zoë, the training starts at eleven.",
+      "required": [
+        "Zoë",
+        "eleven"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-b-conditional",
+      "family": "messaging",
+      "spoken": "Tell Omar the delivery might happen Friday if QA passes.",
+      "exampleDraft": "Omar, the delivery might happen Friday if QA passes.",
+      "required": [
+        "Omar",
+        "Friday",
+        "if QA passes"
+      ],
+      "forbidden": [
+        "definitely Friday"
+      ]
+    },
+    {
+      "id": "meaning-b-no-guarantee",
+      "family": "general",
+      "spoken": "I hope the fix helps, but this is not a guarantee.",
+      "exampleDraft": "I hope the fix helps, but this is not a guarantee.",
+      "required": [
+        "hope",
+        "not a guarantee"
+      ],
+      "forbidden": [
+        "guaranteed"
+      ]
+    },
+    {
+      "id": "meaning-b-correction",
+      "family": "messaging",
+      "spoken": "Tell Maya the call is Thursday, sorry, Friday.",
+      "exampleDraft": "Maya, the call is Friday.",
+      "required": [
+        "Maya",
+        "Friday"
+      ],
+      "forbidden": [
+        "Thursday"
+      ]
+    },
+    {
+      "id": "meaning-b-url",
+      "family": "general",
+      "spoken": "Please include https://docs.example.net/v3 exactly in the reply.",
+      "exampleDraft": "https://docs.example.net/v3",
+      "required": [
+        "https://docs.example.net/v3"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-b-quote",
+      "family": "general",
+      "spoken": "Use the exact phrase \"still under review\" in the note.",
+      "exampleDraft": "still under review",
+      "required": [
+        "still under review"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-b-path",
+      "family": "coding",
+      "spoken": "Draft a request to inspect src/Api.swift and leave it unchanged.",
+      "exampleDraft": "Inspect src/Api.swift and leave it unchanged.",
+      "required": [
+        "src/Api.swift",
+        "unchanged"
+      ],
+      "forbidden": [
+        "I edited"
+      ]
+    },
+    {
+      "id": "meaning-b-flag",
+      "family": "coding",
+      "spoken": "Ask the coding agent to check tools/verify.sh with --dry-run and do not edit files.",
+      "exampleDraft": "Check tools/verify.sh with --dry-run and do not edit files.",
+      "required": [
+        "tools/verify.sh",
+        "--dry-run",
+        "do not edit"
+      ],
+      "forbidden": [
+        "I ran"
+      ]
+    },
+    {
+      "id": "meaning-b-action",
+      "family": "coding",
+      "spoken": "Ask the coding agent to review the crash report and do not claim the bug is fixed.",
+      "exampleDraft": "Review the crash report. Do not claim the bug is fixed.",
+      "required": [
+        "crash report",
+        "do not claim"
+      ],
+      "forbidden": [
+        "I fixed"
+      ]
+    },
+    {
+      "id": "meaning-b-budget",
+      "family": "messaging",
+      "spoken": "Tell Ira the budget is under $5,000, not $50,000.",
+      "exampleDraft": "Ira, the budget is under $5,000, not $50,000.",
+      "required": [
+        "Ira",
+        "$5,000",
+        "$50,000"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-b-times",
+      "family": "general",
+      "spoken": "The test ran at 09:15, not 09:50.",
+      "exampleDraft": "The test ran at 09:15, not 09:50.",
+      "required": [
+        "09:15",
+        "09:50"
+      ],
+      "forbidden": []
+    },
+    {
+      "id": "meaning-b-only-after",
+      "family": "messaging",
+      "spoken": "Tell Kim we can release only after security review.",
+      "exampleDraft": "Kim, we can release only after security review.",
+      "required": [
+        "Kim",
+        "only after security review"
+      ],
+      "forbidden": [
+        "release now"
+      ]
+    },
+    {
+      "id": "meaning-b-approval",
+      "family": "messaging",
+      "spoken": "Ask Nora whether the form needs approval by Tuesday.",
+      "exampleDraft": "Nora, does the form need approval by Tuesday?",
+      "required": [
+        "Nora",
+        "form",
+        "Tuesday"
+      ],
+      "forbidden": [
+        "do you need approval"
+      ]
+    }
+  ]
+}

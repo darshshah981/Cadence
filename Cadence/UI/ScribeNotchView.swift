@@ -69,11 +69,55 @@ final class ScribeNotchViewModel: ObservableObject {
     @Published private(set) var feedbackOpacity = 0.0
     @Published private(set) var completedSourceTypeOn = false
     @Published private(set) var insertEmphasisRevision = 0
+    @Published private(set) var canRefineReviewedDraft = false
+    @Published private(set) var canUndoRefinement = false
+    @Published private(set) var refinementUnavailableReason: String?
+    @Published private(set) var isRefining = false
+    @Published private(set) var reviewNotice: String?
+    @Published private(set) var lastRefinementInstruction: String?
+    @Published private(set) var selectedTextContextStatus: String?
+    @Published private(set) var sessionMemoryContextStatus: String?
+    @Published private(set) var sessionFactsReviewSource: ScribeSessionFactsReviewSource?
+    @Published private(set) var selectedTextReviewSource: ScribeSelectedTextReviewSource?
+    @Published private(set) var insertionOutcomeUncertain = false
+    @Published private(set) var canUseScreenContext = false
+    @Published private(set) var screenDraftPhase: ComposeScreenDraftReviewPhase = .idle
+    @Published private(set) var isInspectingSource = false
+    @Published private(set) var isInspectingFacts = false
+    var isInspectingContext: Bool {
+        isInspectingSource || isInspectingFacts || screenDraftPhase != .idle
+    }
+    var permitsReviewedInsertion: Bool {
+        !insertionOutcomeUncertain
+            && selectedTextReviewSource?.isExcluded != true
+            && selectedTextReviewSource?.isUnchanged != true
+            && !isInspectingContext
+    }
+
+    func updateInsertionOutcomeUncertain(_ value: Bool) {
+        insertionOutcomeUncertain = value
+    }
 
     var onInsert: (() -> Void)?
+    var onBeginScreenDraft: (() -> Void)?
+    var onApproveScreenReading: (() -> Void)?
+    var onApproveScreenProviderUse: (() -> Void)?
+    var onCopyScreenDraft: (() -> Void)?
+    var onCancelScreenDraft: (() -> Void)?
+    var onExcludeSelectedTextSource: ((UUID) -> Void)?
+    var onInspectSelectedTextSource: ((UUID) -> Bool)?
+    var onRecordWithoutSelectedSource: ((UUID) -> Void)?
+    var onRefreshSelectedTextSource: ((UUID) -> Void)?
+    var onRegenerateWithoutSessionFacts: ((UUID) -> Void)?
+    var onRegenerateWithoutSessionFact: ((UUID, UUID) -> Void)?
+    var onSavePersistentMemory: ((UUID) -> Void)?
+    var onConfirmPersistentMemoryForget: ((UUID) -> Void)?
     var onCopy: (() -> Void)?
     var onDiscard: (() -> Void)?
     var onRetry: (() -> Void)?
+    var onRefine: (() -> Void)?
+    var onUndoRefinement: (() -> Void)?
+    var onCancelRefinement: (() -> Void)?
     var onConfigureProvider: (() -> Void)?
     var onReturnToTargetApp: (() -> Void)?
     var onOpenPermissions: (() -> Void)?
@@ -90,7 +134,101 @@ final class ScribeNotchViewModel: ObservableObject {
     }
 
     var showsReviewActions: Bool {
-        presentation.allowsReviewActions
+        presentation.allowsReviewActions && !isRefining
+    }
+
+    var allowsInteraction: Bool {
+        showsReviewActions || (isRefining && isVisible)
+    }
+
+    var showsRefinementActions: Bool {
+        switch presentation.content {
+        case .replacing, .ready, .insertionRecovery: return true
+        default: return false
+        }
+    }
+
+    private var readyStatusText: String {
+        if selectedTextReviewSource?.isUnchanged == true { return "No changes made" }
+        return reviewNotice == nil ? "Composed" : "Draft kept"
+    }
+
+    var refinementHelp: String {
+        refinementUnavailableReason ?? "Say how to change this draft. Your current draft stays available."
+    }
+
+    func updateSelectedTextContextStatus(_ status: String?) {
+        selectedTextContextStatus = status
+    }
+
+    func updateScreenDraftAvailability(_ available: Bool) {
+        canUseScreenContext = available
+    }
+
+    func updateScreenDraftPhase(_ next: ComposeScreenDraftReviewPhase) {
+        guard screenDraftPhase != next else { return }
+        screenDraftPhase = next
+        onInteractionAvailabilityChanged?(allowsInteraction)
+    }
+
+    func updateSessionMemoryContextStatus(_ status: String?) {
+        sessionMemoryContextStatus = status
+    }
+
+    func updateSessionFactsReviewSource(_ source: ScribeSessionFactsReviewSource?) {
+        guard sessionFactsReviewSource != source else { return }
+        if sessionFactsReviewSource?.id != source?.id { isInspectingFacts = false }
+        sessionFactsReviewSource = source
+        onInteractionAvailabilityChanged?(allowsInteraction)
+    }
+
+    func setInspectingFacts(_ isPresented: Bool, sourceID: UUID? = nil) {
+        if let sourceID, sessionFactsReviewSource?.id != sourceID { return }
+        let value = isPresented && sessionFactsReviewSource != nil
+        guard value != isInspectingFacts else { return }
+        isInspectingFacts = value
+        onInteractionAvailabilityChanged?(allowsInteraction)
+    }
+
+    func updateSelectedTextReviewSource(_ source: ScribeSelectedTextReviewSource?) {
+        guard selectedTextReviewSource != source else { return }
+        if selectedTextReviewSource?.id != source?.id { isInspectingSource = false }
+        selectedTextReviewSource = source
+        onInteractionAvailabilityChanged?(allowsInteraction)
+    }
+
+    func setInspectingSource(_ isPresented: Bool, sourceID: UUID? = nil) {
+        if let sourceID, selectedTextReviewSource?.id != sourceID { return }
+        let value = isPresented && selectedTextReviewSource != nil
+        guard value != isInspectingSource else { return }
+        isInspectingSource = value
+        onInteractionAvailabilityChanged?(allowsInteraction)
+    }
+
+    func updateRefinement(
+        canRefineReviewedDraft: Bool,
+        canUndoRefinement: Bool,
+        unavailableReason: String?,
+        isRefining: Bool,
+        reviewNotice: String? = nil,
+        lastInstruction: String? = nil
+    ) {
+        self.canRefineReviewedDraft = canRefineReviewedDraft
+        self.canUndoRefinement = canUndoRefinement
+        self.refinementUnavailableReason = unavailableReason
+        self.isRefining = isRefining
+        self.reviewNotice = reviewNotice
+        self.lastRefinementInstruction = lastInstruction
+        if isRefining, showsRefinementActions {
+            statusText = "Preparing refinement"
+        } else if !isRefining {
+            switch presentation.content {
+            case .replacing, .ready:
+                statusText = readyStatusText
+            default:
+                break
+            }
+        }
     }
 
     var failureLiteralTranscript: String? {
@@ -116,7 +254,23 @@ final class ScribeNotchViewModel: ObservableObject {
     }
 
     func setReducedMotion(_ reducedMotion: Bool) {
+        guard self.reducedMotion != reducedMotion else { return }
         self.reducedMotion = reducedMotion
+        guard reducedMotion else { return }
+
+        // Accessibility can change while source text is typing or the surface
+        // is collapsing. Stop that cosmetic work and settle the current state.
+        transitionTask?.cancel()
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            surfaceSize = isVisible ? ScribeNotchGeometry.surfaceSize : collapsedSize
+            contentOpacity = isVisible ? 1 : 0
+        }
+        transitionTask = Task { @MainActor [weak self] in
+            guard let self, !Task.isCancelled else { return }
+            await self.render(self.presentation.content)
+        }
     }
 
     func apply(_ next: ScribeNotchPresentation) {
@@ -154,7 +308,7 @@ final class ScribeNotchViewModel: ObservableObject {
             publishReadyResult(result)
             return
         default:
-            onInteractionAvailabilityChanged?(next.allowsReviewActions)
+            onInteractionAvailabilityChanged?(allowsInteraction)
         }
 
         transitionTask = Task { @MainActor [weak self] in
@@ -177,6 +331,7 @@ final class ScribeNotchViewModel: ObservableObject {
         feedbackTask = nil
         presentation = ScribeNotchPresentation(content: .hidden, pill: .hidden)
         completedResult = nil
+        isRefining = false
         onInteractionAvailabilityChanged?(false)
         surfaceSize = collapsedSize
         contentOpacity = 0
@@ -189,6 +344,17 @@ final class ScribeNotchViewModel: ObservableObject {
         feedbackOpacity = 0
         completedSourceTypeOn = false
         insertEmphasisRevision = 0
+        canRefineReviewedDraft = false
+        canUndoRefinement = false
+        refinementUnavailableReason = nil
+        reviewNotice = nil
+        lastRefinementInstruction = nil
+        selectedTextContextStatus = nil
+        sessionMemoryContextStatus = nil
+        sessionFactsReviewSource = nil
+        selectedTextReviewSource = nil
+        isInspectingSource = false
+        isInspectingFacts = false
     }
 
     func showFeedback(_ message: String) {
@@ -244,7 +410,9 @@ final class ScribeNotchViewModel: ObservableObject {
             completedSourceTypeOn = false
             clearText()
         case let .typingTranscript(text, isSlow):
-            statusText = isSlow ? "Still composing" : "Composing"
+            statusText = isRefining
+                ? (isSlow ? "Still refining" : "Refining")
+                : (isSlow ? "Still composing" : "Composing")
             completedSourceTypeOn = false
             actionsOpacity = 0
             resultOpacity = 0
@@ -261,8 +429,39 @@ final class ScribeNotchViewModel: ObservableObject {
         case .replacing, .ready:
             // Published by apply before scheduling any cosmetic work.
             return
+        case let .persistentMemoryProposal(proposal):
+            statusText = proposal.replacingFact == nil ? "Review saved fact" : "Review correction"
+            displayedSource = ""
+            if let previous = proposal.replacingFact {
+                displayedResult = "Replace this saved fact:\n\n\(previous)\n\nWith:\n\n\(proposal.fact)"
+            } else {
+                displayedResult = "Save this exact fact for this document for up to 30 days?\n\n\(proposal.fact)"
+            }
+            sourceOpacity = 0
+            resultOpacity = 1
+            withAnimation(reducedMotion ? nil : ScribeNotchMotion.content) {
+                actionsOpacity = 1
+            }
+        case let .persistentMemoryForgetProposal(proposal):
+            statusText = "Forget saved facts?"
+            displayedSource = ""
+            displayedResult = "Remove \(proposal.factCount) saved \(proposal.factCount == 1 ? "fact" : "facts") for this document from this Mac?"
+            sourceOpacity = 0
+            resultOpacity = 1
+            withAnimation(reducedMotion ? nil : ScribeNotchMotion.content) {
+                actionsOpacity = 1
+            }
+        case let .memoryNotice(notice):
+            statusText = notice.title
+            displayedSource = ""
+            displayedResult = notice.detail
+            sourceOpacity = 0
+            resultOpacity = 1
+            withAnimation(reducedMotion ? nil : ScribeNotchMotion.content) {
+                actionsOpacity = 1
+            }
         case let .insertionRecovery(message, result):
-            statusText = "Draft not inserted"
+            statusText = "Check insertion"
             displayedSource = ""
             displayedResult = "\(message)\n\n\(result.text)"
             sourceOpacity = 0
@@ -294,7 +493,7 @@ final class ScribeNotchViewModel: ObservableObject {
         resultOpacity = 1
         actionsOpacity = 1
         contentOpacity = 1
-        statusText = "Composed"
+        statusText = readyStatusText
         onInteractionAvailabilityChanged?(true)
         guard completedResult != result else { return }
         completedResult = result
@@ -466,7 +665,9 @@ struct ScribeNotchView: View {
                         .frame(height: ScribeNotchGeometry.hardwareNotchContentInset)
                         .accessibilityHidden(true)
                 }
-                if case .transcribing = model.presentation.content {
+                if model.screenDraftPhase != .idle {
+                    screenDraftCanvas
+                } else if case .transcribing = model.presentation.content {
                     transcribingCanvas
                 } else {
                     header
@@ -489,11 +690,121 @@ struct ScribeNotchView: View {
                 .blur(radius: 18)
                 .accessibilityHidden(true)
 
-            ScribeTranscribingStatusView(fontSize: 12, spacing: 8)
+            VStack(spacing: 12) {
+                ScribeTranscribingStatusView(fontSize: 12, spacing: 8)
+                if model.isRefining {
+                    cancelRefinementButton
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 12)
         .transition(.opacity)
+    }
+
+    private var screenDraftCanvas: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Text("Use visible context")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(FlowTheme.textPrimary)
+                Spacer()
+                Button("Back") { model.onCancelScreenDraft?() }
+                    .font(.system(size: 10, weight: .medium))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .accessibilityIdentifier("scribe-screen-back")
+            }
+            switch model.screenDraftPhase {
+            case .idle:
+                EmptyView()
+            case .awaitingCaptureApproval:
+                Text("Choose one window. Cadence will read its visible text on this Mac for this draft. The screenshot is not saved.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                Spacer(minLength: 0)
+                screenDraftAction("Choose window", identifier: "scribe-screen-approve-reading") {
+                    model.onApproveScreenReading?()
+                }
+            case .choosingAndReading:
+                Text("Choose the original window in the system picker. Cadence will read only that window on this Mac.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Waiting for window selection")
+                        .font(.system(size: 10))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                }
+                .padding(.top, 4)
+                Spacer(minLength: 0)
+            case let .awaitingProviderApproval(sourcePreview):
+                Text("Send this recognized text to Apple Intelligence on this Mac to draft a response? It will not be saved as memory.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                ScrollView {
+                    Text(sourcePreview)
+                        .font(.system(size: 11))
+                        .foregroundStyle(FlowTheme.textPrimary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityIdentifier("scribe-screen-source-preview")
+                screenDraftAction("Use text for draft", identifier: "scribe-screen-approve-provider") {
+                    model.onApproveScreenProviderUse?()
+                }
+            case .drafting:
+                Text("Drafting from the text you approved…")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Apple Intelligence is writing")
+                        .font(.system(size: 10))
+                        .foregroundStyle(FlowTheme.textSecondary)
+                }
+                .padding(.top, 4)
+                Spacer(minLength: 0)
+            case let .ready(text):
+                Text("Screen-grounded draft · Review and copy")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                ScrollView {
+                    Text(text)
+                        .font(.system(size: 12))
+                        .foregroundStyle(FlowTheme.textPrimary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityIdentifier("scribe-screen-draft")
+                screenDraftAction("Copy draft", identifier: "scribe-screen-copy") {
+                    model.onCopyScreenDraft?()
+                }
+            case .unavailable:
+                Text("Screen context is unavailable for this request. Your previous draft is still here.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, 13)
+        // The containing surface has already reserved the hardware-notch
+        // inset. Adding it again clips the preview and copy-only draft.
+        .padding(.top, model.hasHardwareNotch ? 9 : 10)
+        .padding(.bottom, 11)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityIdentifier("scribe-screen-review")
+    }
+
+    private func screenDraftAction(
+        _ title: String, identifier: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(title, action: action)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(FlowTheme.accent)
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .accessibilityIdentifier(identifier)
     }
 
     private var header: some View {
@@ -502,6 +813,47 @@ struct ScribeNotchView: View {
                 .id(model.statusText)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
             Spacer(minLength: 8)
+            if model.canUseScreenContext {
+                Button("Use screen") { model.onBeginScreenDraft?() }
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .buttonStyle(.plain)
+                    .help("Choose the original window and approve local visible-text reading")
+                    .accessibilityIdentifier("scribe-use-screen-context")
+            }
+            if model.showsRefinementActions, let source = model.selectedTextReviewSource {
+                ScribeSelectedTextSourceControl(source: source, identifier: "scribe-notch-selected-text-context",
+                    canInspect: { model.onInspectSelectedTextSource?(source.id) ?? false },
+                    onExclude: { model.onExcludeSelectedTextSource?($0) },
+                    onRecordNewMessage: { model.onRecordWithoutSelectedSource?($0) },
+                        onRefresh: { model.onRefreshSelectedTextSource?($0) },
+                    onPresentationChange: { model.setInspectingSource($0, sourceID: source.id) })
+            } else if model.showsRefinementActions, let status = model.selectedTextContextStatus {
+                Text(status)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .lineLimit(1)
+                    .help("This draft used selected text from TextEdit, processed on this Mac.")
+                    .accessibilityIdentifier("scribe-notch-selected-text-context")
+            }
+            if model.showsRefinementActions, let source = model.sessionFactsReviewSource {
+                ScribeSessionFactsControl(
+                    source: source, identifier: "scribe-notch-session-memory-context",
+                    onRegenerateWithoutFacts: { model.onRegenerateWithoutSessionFacts?($0) },
+                    onRegenerateWithoutFact: { model.onRegenerateWithoutSessionFact?($0, $1) },
+                    onPresentationChange: { model.setInspectingFacts($0, sourceID: source.id) }
+                )
+            } else if model.showsRefinementActions, let status = model.sessionMemoryContextStatus {
+                Text(status)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(FlowTheme.textSecondary)
+                    .lineLimit(1)
+                    .help("This draft used explicitly saved facts from this TextEdit document on this Mac.")
+                    .accessibilityIdentifier("scribe-notch-session-memory-context")
+            }
+            if model.isRefining {
+                cancelRefinementButton
+            }
         }
         .padding(.horizontal, 12)
         .frame(height: 34)
@@ -524,6 +876,22 @@ struct ScribeNotchView: View {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(FlowTheme.textPrimary)
+                } else if case .memoryNotice = model.presentation.content {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(FlowTheme.textPrimary)
+                } else if case .persistentMemoryProposal = model.presentation.content {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textPrimary)
+                } else if case .persistentMemoryForgetProposal = model.presentation.content {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(FlowTheme.textPrimary)
+                } else if model.reviewNotice != nil {
+                    Image(systemName: "exclamationmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(FlowTheme.textSecondary)
                 } else if case .failure = model.presentation.content {
                     Image(systemName: "exclamationmark")
                         .font(.system(size: 10, weight: .bold))
@@ -544,13 +912,25 @@ struct ScribeNotchView: View {
 
     private var textViewport: some View {
         ScrollView {
-            ZStack(alignment: .topLeading) {
-                Text(model.displayedSource)
-                    .foregroundStyle(FlowTheme.textSecondary)
-                    .opacity(model.sourceOpacity)
-                Text(model.displayedResult)
-                    .foregroundStyle(FlowTheme.textPrimary)
-                    .opacity(model.resultOpacity)
+            VStack(alignment: .leading, spacing: 8) {
+                if model.showsRefinementActions, let reviewNotice = model.reviewNotice {
+                    Text(reviewNotice)
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .accessibilityIdentifier("scribe-notch-refinement-notice")
+                    if let instruction = model.lastRefinementInstruction {
+                        Text("Last refinement: \(instruction)")
+                            .foregroundStyle(FlowTheme.textSecondary)
+                            .accessibilityIdentifier("scribe-notch-refinement-instruction")
+                    }
+                }
+                ZStack(alignment: .topLeading) {
+                    Text(model.displayedSource)
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .opacity(model.sourceOpacity)
+                    Text(model.displayedResult)
+                        .foregroundStyle(FlowTheme.textPrimary)
+                        .opacity(model.resultOpacity)
+                }
             }
             .font(.system(size: 12))
             .lineSpacing(3)
@@ -565,7 +945,53 @@ struct ScribeNotchView: View {
     @ViewBuilder
     private var actions: some View {
         HStack(spacing: 6) {
-            if case .failure = model.presentation.content {
+            if case let .persistentMemoryProposal(proposal) = model.presentation.content {
+                notchIconAction(
+                    systemName: "xmark", label: "Discard",
+                    accessibilityIdentifier: "scribe-notch-memory-discard"
+                ) { model.onDiscard?() }
+                .keyboardShortcut(.cancelAction)
+                Spacer(minLength: 0)
+                Button(proposal.replacingFact == nil ? "Save fact" : "Save correction") {
+                    model.onSavePersistentMemory?(proposal.proposalID)
+                }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(FlowTheme.accent)
+                    .buttonStyle(.plain)
+                    .frame(height: 28)
+                    .padding(.horizontal, 8)
+                    .accessibilityLabel(proposal.replacingFact == nil
+                        ? "Save this exact fact for this document"
+                        : "Save this correction for this document")
+                    .accessibilityIdentifier("scribe-notch-memory-save")
+                    .keyboardShortcut(.defaultAction)
+            } else if case let .persistentMemoryForgetProposal(proposal) = model.presentation.content {
+                notchIconAction(
+                    systemName: "xmark", label: "Keep facts",
+                    accessibilityIdentifier: "scribe-notch-memory-forget-cancel"
+                ) { model.onDiscard?() }
+                .keyboardShortcut(.cancelAction)
+                Spacer(minLength: 0)
+                Button("Forget facts") {
+                    model.onConfirmPersistentMemoryForget?(proposal.proposalID)
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(FlowTheme.accent)
+                .buttonStyle(.plain)
+                .frame(height: 28)
+                .padding(.horizontal, 8)
+                .accessibilityIdentifier("scribe-notch-memory-forget-confirm")
+                .keyboardShortcut(.defaultAction)
+            } else if case .memoryNotice = model.presentation.content {
+                Spacer(minLength: 0)
+                Button("Done") { model.onDiscard?() }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(FlowTheme.accent)
+                    .buttonStyle(.plain)
+                    .frame(height: 28)
+                    .padding(.horizontal, 8)
+                    .accessibilityIdentifier("scribe-notch-memory-done")
+            } else if case .failure = model.presentation.content {
                 notchIconAction(
                     systemName: "xmark",
                     label: "Discard",
@@ -641,10 +1067,29 @@ struct ScribeNotchView: View {
                 }
                 notchIconAction(
                     systemName: "doc.on.doc",
-                    label: "Copy",
+                    label: model.selectedTextReviewSource?.isExcluded == true ? "Copy previous draft" : "Copy",
                     accessibilityIdentifier: "scribe-notch-copy"
                 ) {
                     model.onCopy?()
+                }
+                if model.showsRefinementActions {
+                    Button("Refine") { model.onRefine?() }
+                        .font(.system(size: 11, weight: .semibold))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .disabled(!model.canRefineReviewedDraft)
+                        .opacity(model.canRefineReviewedDraft ? 1 : 0.4)
+                        .help(model.refinementHelp)
+                        .accessibilityHint(model.refinementHelp)
+                        .accessibilityIdentifier("scribe-notch-refine")
+                    Button("Undo") { model.onUndoRefinement?() }
+                        .font(.system(size: 11, weight: .medium))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(FlowTheme.textSecondary)
+                        .disabled(!model.canUndoRefinement)
+                        .opacity(model.canUndoRefinement ? 1 : 0.4)
+                        .help("Restore the previous draft")
+                        .accessibilityIdentifier("scribe-notch-undo-refinement")
                 }
                 Spacer(minLength: 0)
                 ScribeInsertActionButton(
@@ -652,18 +1097,29 @@ struct ScribeNotchView: View {
                 ) {
                     model.onInsert?()
                 }
+                .disabled(!model.permitsReviewedInsertion)
+                .opacity(model.permitsReviewedInsertion ? 1 : 0.4)
             }
         }
         .controlSize(.small)
         .padding(.horizontal, 10)
         .frame(height: 43)
-        .opacity(model.actionsOpacity)
+        .opacity(model.isRefining ? 0 : model.actionsOpacity)
         .allowsHitTesting(model.showsReviewActions)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(Color.white.opacity(0.08))
                 .frame(height: 0.5)
         }
+    }
+
+    private var cancelRefinementButton: some View {
+        Button("Cancel refinement") { model.onCancelRefinement?() }
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(FlowTheme.textSecondary)
+            .buttonStyle(.plain)
+            .help("Keep the previous draft (Escape)")
+            .accessibilityIdentifier("scribe-notch-cancel-refinement")
     }
 
     private func recoveryButton(
