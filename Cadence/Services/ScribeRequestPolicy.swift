@@ -150,7 +150,9 @@ enum ScribeRequestPolicy {
             "Spoken writing request:\n\(request.spokenTranscript)"
         ]
 
-        if !request.exactLiterals.isEmpty {
+        let literalsAlreadyInCloudRequest = destination == .openAIDirect
+            && request.exactLiterals.allSatisfy { request.spokenTranscript.contains($0.value) }
+        if !request.exactLiterals.isEmpty && !literalsAlreadyInCloudRequest {
             let literals = request.exactLiterals.map { literal in
                 ["id": literal.id, "value": literal.value] as [String: Any]
             }
@@ -901,6 +903,19 @@ enum ScribeRequestPolicy {
             body = lines.dropFirst().dropLast().joined(separator: "\n")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        if isLiteralMetadataBody(body, literals: literals, spokenRequest: spokenRequest) { return true }
+        // A cloud result appended the same opaque table after a valid draft.
+        // Recognize only a complete trailing JSON table/object with matching
+        // internal ids and values; user-requested JSON remains admissible.
+        for index in lines.indices.dropFirst() {
+            let suffix = lines[index...].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard suffix.hasPrefix("[") || suffix.hasPrefix("{") else { continue }
+            if isLiteralMetadataBody(suffix, literals: literals, spokenRequest: spokenRequest) { return true }
+        }
+        return false
+    }
+
+    private static func isLiteralMetadataBody(_ body: String, literals: [ScribeExactLiteral], spokenRequest: String) -> Bool {
         guard !spokenRequest.contains(body), let bytes = body.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: bytes) else { return false }
         // The original array-table leak is joined by the observed one-object

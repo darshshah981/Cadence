@@ -489,6 +489,7 @@ struct ScribeTests {
             "openai-independent-2026-10-02-b",
             "openai-independent-2026-10-02-c",
             "openai-independent-2026-10-02-d",
+            "openai-independent-2026-10-02-e",
             "instruction-independent-2026-09-30", "instruction-independent-2026-09-30-o",
             "instruction-independent-2026-09-30-p",
             "instruction-independent-2026-09-30-q", "instruction-independent-2026-09-30-r",
@@ -599,7 +600,7 @@ struct ScribeTests {
                     spokenRequest: normalized.text
                 ) == generated.trimmingCharacters(in: .whitespacesAndNewlines))
             }
-            let evaluationInput = ["openai-independent-2026-10-02-c", "openai-independent-2026-10-02-d"].contains(fixtureName)
+            let evaluationInput = ["openai-independent-2026-10-02-c", "openai-independent-2026-10-02-d", "openai-independent-2026-10-02-e"].contains(fixtureName)
                 ? try ScribeRequestPolicy.providerSafeInput(for: request, destination: .openAIDirect) : input
             var export = ["id": fixture.id, "system": evaluationInput.systemMessage, "user": evaluationInput.userMessage]
             if let prepared = evaluationInput.preparedDraft { export["preparedDraft"] = prepared }
@@ -646,7 +647,7 @@ struct ScribeTests {
         guard environment["CADENCE_RUN_OPENAI_CORE_COMPARISON"] == "1" else { return }
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let fixtureName = environment["CADENCE_SCRIBE_EVALUATION_CORPUS"] ?? "openai-core-2026-10-01"
-        try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a", "openai-independent-2026-10-02-b", "openai-independent-2026-10-02-c", "openai-independent-2026-10-02-d"].contains(fixtureName))
+        try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a", "openai-independent-2026-10-02-b", "openai-independent-2026-10-02-c", "openai-independent-2026-10-02-d", "openai-independent-2026-10-02-e"].contains(fixtureName))
         let independent = fixtureName != "openai-core-2026-10-01"
         let phase = environment["CADENCE_OPENAI_COMPARISON_PHASE"] ?? "first"
         try #require(["first", "development-1", "development-2"].contains(phase))
@@ -777,6 +778,24 @@ struct ScribeTests {
                 try ScribeRequestPolicy.validateDirectDraftRecipient(badDraft, spokenRequest: speech, protectedValues: [])
             }
         }
+    }
+
+    @Test
+    func appendedInternalLiteralTableIsNotPartOfACodingPrompt() throws {
+        let speech = "Ask Codex to compare `core/Reader.swift` and `core/Writer.swift`. Do not modify them or publish changes."
+        let literals = ScribeRequestPolicy.directCodingLiterals(in: speech, existing: [])
+        let table = #"[{"id":1,"value":"core/Reader.swift"},{"id":2,"value":"core/Writer.swift"}]"#
+        let draft = "Compare `core/Reader.swift` and `core/Writer.swift`. Do not modify them or publish changes."
+        // Actual first-run OpenAI result from reserve D.
+        #expect(throws: ScribeProviderError.invalidResult) {
+            try ScribeRequestPolicy.validateOutput(draft + "\n\n" + table, requiredLiterals: literals, spokenRequest: speech)
+        }
+        #expect(try ScribeRequestPolicy.validateOutput(draft, requiredLiterals: literals, spokenRequest: speech) == draft)
+        #expect(try ScribeRequestPolicy.validateOutput(table, requiredLiterals: literals,
+            spokenRequest: "Return this exact JSON: " + table) == table)
+        let input = try ScribeRequestPolicy.providerSafeInput(
+            for: .directDictation(processedDictation: speech, exactLiterals: literals), destination: .openAIDirect)
+        #expect(!input.userMessage.contains("Exact literals (JSON data)"))
     }
 
     @Test
