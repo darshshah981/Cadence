@@ -598,7 +598,7 @@ struct ScribeTests {
                     spokenRequest: normalized.text
                 ) == generated.trimmingCharacters(in: .whitespacesAndNewlines))
             }
-            let evaluationInput = corpusName == "openai-independent-2026-10-02-c"
+            let evaluationInput = fixtureName == "openai-independent-2026-10-02-c"
                 ? try ScribeRequestPolicy.providerSafeInput(for: request, destination: .openAIDirect) : input
             var export = ["id": fixture.id, "system": evaluationInput.systemMessage, "user": evaluationInput.userMessage]
             if let prepared = evaluationInput.preparedDraft { export["preparedDraft"] = prepared }
