@@ -697,7 +697,7 @@ private final class StopAfterOneUnicodeScalarPoster: UnicodeScalarEventPosting {
 
     init() throws { systemPoster = try SystemUnicodeScalarEventPoster() }
 
-    func post(_ scalar: UInt16) throws {
+    func post(_ scalar: Unicode.Scalar) throws {
         guard !posted else { throw CadenceError.eventSourceUnavailable }
         try systemPoster.post(scalar)
         posted = true

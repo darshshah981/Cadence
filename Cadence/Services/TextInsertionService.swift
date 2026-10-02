@@ -229,7 +229,7 @@ enum GuardedTextInsertionError: Error, Equatable, Sendable {
 }
 
 protocol UnicodeScalarEventPosting {
-    func post(_ scalar: UInt16) throws
+    func post(_ scalar: Unicode.Scalar) throws
 }
 
 struct SystemUnicodeScalarEventPoster: UnicodeScalarEventPosting {
@@ -242,17 +242,26 @@ struct SystemUnicodeScalarEventPoster: UnicodeScalarEventPosting {
         self.source = source
     }
 
-    func post(_ scalar: UInt16) throws {
+    func events(for scalar: Unicode.Scalar) throws -> [CGEvent] {
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+            throw CadenceError.eventSourceUnavailable
+        }
+        // A non-BMP scalar is a UTF-16 surrogate pair. Sending the halves as
+        // separate key events lets editors observe invalid intermediate text.
+        let units = Array(String(scalar).utf16)
+        units.withUnsafeBufferPointer { buffer in
+            keyDown.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: buffer.baseAddress!)
+            keyUp.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: buffer.baseAddress!)
+        }
+        return [keyDown, keyUp]
+    }
+
+    func post(_ scalar: Unicode.Scalar) throws {
         try autoreleasepool {
-            guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-                  let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
-                throw CadenceError.eventSourceUnavailable
+            for event in try events(for: scalar) {
+                event.post(tap: .cghidEventTap)
             }
-            var value = scalar
-            keyDown.keyboardSetUnicodeString(stringLength: 1, unicodeString: &value)
-            keyUp.keyboardSetUnicodeString(stringLength: 1, unicodeString: &value)
-            keyDown.post(tap: .cghidEventTap)
-            keyUp.post(tap: .cghidEventTap)
         }
     }
 }
@@ -299,7 +308,7 @@ final class TextInsertionService: TextInsertionServing {
         let poster = try unicodePosterFactory()
 
         var insertedScalars = 0
-        for scalar in text.utf16 {
+        for scalar in text.unicodeScalars {
             do {
                 try Task.checkCancellation()
                 try poster.post(scalar)
