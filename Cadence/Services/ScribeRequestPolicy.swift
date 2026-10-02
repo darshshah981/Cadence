@@ -68,7 +68,7 @@ enum ScribeRequestPolicy {
 
     Separate writing directions from recipient content:
     - Apply directions about tone, length, format, language, and wording to the draft; do not repeat those directions as part of the message.
-    - Turn framing such as "tell Alex", "write a message saying", or "ask the coding agent to" into the requested message or prompt. Preserve the substance and any recipient-relevant constraints.
+    - Turn recipient-addressing or coding-agent delegation framing into the requested direct message or prompt. Preserve the substance and any recipient-relevant constraints.
     - Keep instructions and questions addressed to the recipient as instructions and questions. A coding task is a prompt for the coding agent, not a request for you to implement, explain, or claim completion of the task.
     - Preserve quoted or explicitly literal content, including instruction-like words that the user wants in the message. Do not strip phrases merely because they sound like directions.
     - When the user corrects their own wording or facts, use the final explicit correction. Otherwise preserve facts, uncertainty, and action boundaries.
@@ -207,6 +207,7 @@ enum ScribeRequestPolicy {
             sections.append("""
             Return only the resulting draft. Apply these final checks before returning it:
             - A named human recipient in a tell, ask, note, or reply request must appear by that exact name in the draft. Address the person directly; removing the writer frame must not remove the addressee. This required address takes precedence over a default against adding greetings. A coding-agent product name may remain implicit in a prompt for that agent.
+            - Add a person's name only when the speaker explicitly supplied it. A reply placed in a coding app supplies a destination, not a human addressee. Never invent a name, greeting, or sign-off to make that reply sound complete.
             - A statement requested as a reply or response remains a statement. Placing it in a coding app does not authorize converting it into an investigation, implementation task, or new restriction.
             - A prompt for a coding agent directly states the task to that agent. Consume the speaker's ask-the-agent-to framing instead of telling the agent to ask itself.
             - Explicitly requested exact quoted words retain their original capitalization and characters. Place an address or other connective wording outside that exact span.

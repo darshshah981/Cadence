@@ -490,6 +490,7 @@ struct ScribeTests {
             "openai-independent-2026-10-02-c",
             "openai-independent-2026-10-02-d",
             "openai-independent-2026-10-02-e",
+            "openai-independent-2026-10-02-f",
             "instruction-independent-2026-09-30", "instruction-independent-2026-09-30-o",
             "instruction-independent-2026-09-30-p",
             "instruction-independent-2026-09-30-q", "instruction-independent-2026-09-30-r",
@@ -600,7 +601,7 @@ struct ScribeTests {
                     spokenRequest: normalized.text
                 ) == generated.trimmingCharacters(in: .whitespacesAndNewlines))
             }
-            let evaluationInput = ["openai-independent-2026-10-02-c", "openai-independent-2026-10-02-d", "openai-independent-2026-10-02-e"].contains(fixtureName)
+            let evaluationInput = ["openai-independent-2026-10-02-c", "openai-independent-2026-10-02-d", "openai-independent-2026-10-02-e", "openai-independent-2026-10-02-f"].contains(fixtureName)
                 ? try ScribeRequestPolicy.providerSafeInput(for: request, destination: .openAIDirect) : input
             var export = ["id": fixture.id, "system": evaluationInput.systemMessage, "user": evaluationInput.userMessage]
             if let prepared = evaluationInput.preparedDraft { export["preparedDraft"] = prepared }
@@ -647,7 +648,7 @@ struct ScribeTests {
         guard environment["CADENCE_RUN_OPENAI_CORE_COMPARISON"] == "1" else { return }
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let fixtureName = environment["CADENCE_SCRIBE_EVALUATION_CORPUS"] ?? "openai-core-2026-10-01"
-        try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a", "openai-independent-2026-10-02-b", "openai-independent-2026-10-02-c", "openai-independent-2026-10-02-d", "openai-independent-2026-10-02-e"].contains(fixtureName))
+        try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a", "openai-independent-2026-10-02-b", "openai-independent-2026-10-02-c", "openai-independent-2026-10-02-d", "openai-independent-2026-10-02-e", "openai-independent-2026-10-02-f"].contains(fixtureName))
         let independent = fixtureName != "openai-core-2026-10-01"
         let phase = environment["CADENCE_OPENAI_COMPARISON_PHASE"] ?? "first"
         try #require(["first", "development-1", "development-2"].contains(phase))
