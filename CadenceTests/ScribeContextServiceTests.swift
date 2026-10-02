@@ -301,6 +301,29 @@ struct ScribeContextServiceTests {
     }
 
     @Test
+    func alreadyFocusedCursorComposerKeepsItsExistingKeyboardFocus() async throws {
+        let reader = StubScribeAccessibilityReader(snapshot: .init(
+            target: .init(processIdentifier: 42, bundleIdentifier: "com.muse.app"),
+            verificationToken: "cursor-composer",
+            recognitionSignature: .init(role: "AXButton", subrole: nil, identifierAncestry: [])
+        ))
+        let insertion = StubScribeTextInsertionService()
+        let service = Self.makeService(
+            reader,
+            targetCapability: StubScribeTargetCapabilityService(.unknown(.webTextCursorHint)),
+            textInsertion: insertion,
+            frontmostProcessIdentifier: { 42 }
+        )
+        let capture = try service.capture()
+
+        #expect(try await service.insert("Draft", for: capture))
+        // The AX wrapper can be a button around the real web editor. Re-focusing
+        // that wrapper needlessly can replace its already-correct DOM cursor.
+        #expect(reader.restoredProcessIdentifiers.isEmpty)
+        #expect(insertion.insertedTexts == ["Draft"])
+    }
+
+    @Test
     func unknownCursorTargetRemainsEligibleForGuardedInsertion() async throws {
         let reader = StubScribeAccessibilityReader(snapshot: .init(
             target: .init(processIdentifier: 42, bundleIdentifier: "com.muse.app"),

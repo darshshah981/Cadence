@@ -423,9 +423,7 @@ final class ScribeContextService: ScribeContextServing {
             try await textInsertion.insert(text)
             return true
         }
-        try reader.restorePinnedTargetFocus(
-            processIdentifier: capture.applicationTarget.process.processIdentifier
-        )
+        try restorePinnedTargetFocusIfNeeded(for: capture)
         try await Task.sleep(for: insertionFocusSettleDelay)
         guard processAuthority.verify(activeCapture.runtimeIdentity) else {
             throw ScribeContextError.targetChanged
@@ -434,9 +432,7 @@ final class ScribeContextService: ScribeContextServing {
         // changing the system-wide verification token even though the pinned
         // element remains valid. Reassert the exact pinned element instead of
         // rejecting on that transient wrapper identity.
-        try reader.restorePinnedTargetFocus(
-            processIdentifier: capture.applicationTarget.process.processIdentifier
-        )
+        try restorePinnedTargetFocusIfNeeded(for: capture)
         let restoredFocus = try reader.readCurrentFocusSnapshot()
         guard restoredFocus.target == capture.target,
               restoredFocus.verificationToken == capture.verificationToken,
@@ -465,6 +461,23 @@ final class ScribeContextService: ScribeContextServing {
         try reservePosting(for: capture)
         try await textInsertion.insert(text)
         return true
+    }
+
+    private func restorePinnedTargetFocusIfNeeded(for capture: ScribeContextSnapshot) throws {
+        // A web composer may expose an outer AXButton while its inner DOM editor
+        // already owns the keyboard cursor. Re-focusing that wrapper can disturb
+        // the cursor. Preserve it only when the frontmost process and exact pinned
+        // field/window identity still match; insertion revalidates them afterward.
+        if frontmostProcessIdentifier() == capture.target.processIdentifier,
+           let current = try? reader.readCurrentFocusSnapshot(),
+           current.target == capture.target,
+           current.verificationToken == capture.verificationToken,
+           current.recognitionSignature == capture.recognitionSignature {
+            return
+        }
+        try reader.restorePinnedTargetFocus(
+            processIdentifier: capture.applicationTarget.process.processIdentifier
+        )
     }
 
     private func reservePosting(for capture: ScribeContextSnapshot) throws {
