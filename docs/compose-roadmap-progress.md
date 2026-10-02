@@ -7,6 +7,35 @@ first in a controlled TextEdit document and then in Muse. Work on this one goal;
 do not enable context or memory or expand the harness. The prior bounded OpenAI
 writing, controlled editor insertion, and installed readiness goal is complete.
 
+October 2 live Muse follow-up: the user reports that Insert was available but
+the field stayed empty. CUA confirms the empty composer and a clean generated
+draft in current Compose history. One ordinary diagnostic keystroke entered
+Muse successfully and was removed. Its AX composer remains a button around the
+editor, so passing the generic web fixture did not certify Muse.
+
+Source `7de834e` now preserves the existing keyboard cursor when the foreground
+process, exact captured field/window token and recognition signature still
+match. It skips redundant AX focus resets; changed targets and the final
+process, capability, secure-field and duplicate-insertion guards remain.
+The regression failed before the change, then **33 context tests and 15
+capability/insertion tests passed**. The first method-filter invocation executed
+zero tests and is excluded from verification. The existing current-source
+controlled editor suite passed **18/18**, with the saved synthetic canary
+originally generated at `871013c`; no new model calls or harness were added.
+
+A Developer ID signed universal Release at `7de834e` replaced the same
+`/Applications/Cadence.app` and its launch/OpenAI-enabled UI were verified. The
+old app is backed up, OAuth configuration is preserved, and there remains one
+Cadence app in Applications. This is a local, unnotarized test build. Evidence:
+private staging `evidence/u6-muse-focus-2026-10-02/`.
+
+**The Muse failure is not yet certified fixed.** The regression establishes
+removal of an unnecessary focus reset, not its causal role in the live failure.
+A new installed Muse trial must show the reviewed draft once in the unsent
+editor without foregrounding Cadence. TextEdit's earlier exact editor/history
+match is observed, but trigger-time focus still needs user confirmation. The
+installed voice-path goal remains incomplete; no other feature is started.
+
 October 2 completed checkpoint: source `871013c` passes the first run of a fresh,
 frozen 20-request lexical reserve in supported task families: **20 useful,
 policy-ready drafts and zero critical errors** on agent review against frozen
