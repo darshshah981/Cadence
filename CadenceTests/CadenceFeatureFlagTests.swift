@@ -4,7 +4,7 @@ import Testing
 
 struct CadenceFeatureFlagTests {
     @Test
-    func scribeAndTextEditMemoryControlsAreAvailableByDefault() throws {
+    func coreComposeIsAvailableAndExperimentalContextIsOffByDefault() throws {
         let suite = "CadenceFeatureFlagTests.default.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -17,10 +17,10 @@ struct CadenceFeatureFlagTests {
 
         #expect(flags.scribeEnabled)
         #expect(flags.granolaEnabled == false)
-        #expect(flags.composeContextEnabled)
-        #expect(flags.composeMemoryEnabled)
+        #expect(!flags.composeContextEnabled)
+        #expect(!flags.composeMemoryEnabled)
         #expect(!flags.composePersistentMemoryEnabled)
-        #expect(flags.composeAdaptersEnabled)
+        #expect(!flags.composeAdaptersEnabled)
         let consent = ComposeSessionMemoryPreferences()
         #expect(!consent.permitsTextEditUse)
         #expect(!consent.permitsTextEditRetention)
@@ -59,6 +59,7 @@ struct CadenceFeatureFlagTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let env = [
+            CadenceFeatureFlags.composeContextEnvironmentKey: "true",
             CadenceFeatureFlags.composeMemoryEnvironmentKey: "true",
             CadenceFeatureFlags.composePersistentMemoryEnvironmentKey: "true",
             CadenceFeatureFlags.composeAdaptersEnvironmentKey: "true"
@@ -101,6 +102,9 @@ struct CadenceFeatureFlagTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: CadenceFeatureFlags.scribeDefaultsKey)
         defaults.set(true, forKey: CadenceFeatureFlags.granolaDefaultsKey)
+        defaults.set(true, forKey: CadenceFeatureFlags.composeContextDefaultsKey)
+        defaults.set(true, forKey: CadenceFeatureFlags.composeMemoryDefaultsKey)
+        defaults.set(true, forKey: CadenceFeatureFlags.composeAdaptersDefaultsKey)
 
         let flags = CadenceFeatureFlags.resolve(
             defaults: defaults,
@@ -110,6 +114,10 @@ struct CadenceFeatureFlagTests {
 
         #expect(flags.scribeEnabled)
         #expect(flags.granolaEnabled)
+        #expect(flags.composeContextEnabled)
+        #expect(flags.composeMemoryEnabled)
+        #expect(flags.composeAdaptersEnabled)
+        #expect(!flags.composePersistentMemoryEnabled)
     }
 
     @Test

@@ -42,23 +42,25 @@ struct CadenceFeatureFlags: Equatable, Sendable {
             disableArgument: "--disable-scribe",
             defaultValue: true
         )
+        // Uncertified context and memory previews require an explicit rollout override.
+        // Rollout never substitutes for the separate content/retention consent.
         let context = scribe && resolveFeature(
             defaults: defaults, environment: environment, arguments: arguments,
             defaultsKey: composeContextDefaultsKey, environmentKey: composeContextEnvironmentKey,
             enableArguments: ["--enable-compose-context"], disableArgument: "--disable-compose-context",
-            defaultValue: true
+            defaultValue: false
         )
         let memory = context && resolveFeature(
             defaults: defaults, environment: environment, arguments: arguments,
             defaultsKey: composeMemoryDefaultsKey, environmentKey: composeMemoryEnvironmentKey,
             enableArguments: ["--enable-compose-memory"], disableArgument: "--disable-compose-memory",
-            defaultValue: true
+            defaultValue: false
         )
         let adapters = context && resolveFeature(
             defaults: defaults, environment: environment, arguments: arguments,
             defaultsKey: composeAdaptersDefaultsKey, environmentKey: composeAdaptersEnvironmentKey,
             enableArguments: ["--enable-compose-adapters"], disableArgument: "--disable-compose-adapters",
-            defaultValue: true
+            defaultValue: false
         )
         return CadenceFeatureFlags(
             scribeEnabled: scribe,

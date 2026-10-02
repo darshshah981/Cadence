@@ -1,7 +1,9 @@
 # Cadence Codebase Guide
 
 Generated: July 2, 2026
-Source-audited: July 3, 2026
+Runtime boundary and workspace status updated: October 2, 2026
+
+Authoritative workspace and current verification: [Compose current status](compose-current-status.md). Historical feature evidence is archived separately.
 
 This guide explains how the Cadence codebase is organized, how the major runtime flows work, and where to make changes safely.
 
@@ -37,10 +39,11 @@ For one launch, pass `--enable-scribe` or `--disable-scribe`. Automation can set
 ## Compose Subfeature Flags
 
 Compose also has separate rollout switches for optional context, memory, and
-surface adapters. `Cadence.feature.composeContext` defaults on so the existing
-explicit selected-text preview remains available; `Cadence.feature.composeMemory`
-and `Cadence.feature.composeAdapters` default on so the TextEdit pilot controls
-are visible. Their corresponding environment
+surface adapters. `Cadence.feature.composeContext`, `Cadence.feature.composeMemory`,
+and `Cadence.feature.composeAdapters` default off. These unfinished TextEdit
+and screen-context previews require an explicit development rollout override
+before their controls appear. Existing explicit overrides remain respected;
+turning a rollout switch on still grants no content access by itself. Their corresponding environment
 variables are `CADENCE_COMPOSE_CONTEXT_ENABLED`, `CADENCE_COMPOSE_MEMORY_ENABLED`,
 and `CADENCE_COMPOSE_ADAPTERS_ENABLED`. Launch overrides use
 `--enable-compose-context` / `--disable-compose-context`, with matching

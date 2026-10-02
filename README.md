@@ -4,6 +4,10 @@ Fast local dictation for macOS.
 
 Cadence is a small menu bar app for push-to-talk dictation. Hold a shortcut, speak, release, and Cadence inserts the text into the app you were already using. Optional Compose mode can refine a transcript with a model provider you configure before you insert, copy, or discard it.
 
+## Development status
+
+Use the Documents checkout on `codex/stabilize-cadence` as the authoritative development workspace. See [current feature status and verification](docs/compose-current-status.md) and [the codebase guide](docs/codebase-guide.md). The recovery clone is a preserved historical copy, not a second place to develop. Context, memory, and conversation adapters are unfinished previews and default off; normal Dictation and Compose remain available.
+
 ## Design
 
 Cadence is designed as a quiet menu bar utility: recent transcripts stay front and center, shortcut controls stay compact, and the recording pill appears only while dictation is active.
