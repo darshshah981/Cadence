@@ -487,6 +487,7 @@ struct ScribeTests {
             "openai-core-2026-10-01",
             "openai-independent-2026-10-02-a",
             "openai-independent-2026-10-02-b",
+            "openai-independent-2026-10-02-c",
             "instruction-independent-2026-09-30", "instruction-independent-2026-09-30-o",
             "instruction-independent-2026-09-30-p",
             "instruction-independent-2026-09-30-q", "instruction-independent-2026-09-30-r",
@@ -597,9 +598,11 @@ struct ScribeTests {
                     spokenRequest: normalized.text
                 ) == generated.trimmingCharacters(in: .whitespacesAndNewlines))
             }
-            exported.append([
-                "id": fixture.id, "system": input.systemMessage, "user": input.userMessage
-            ])
+            let evaluationInput = corpusName == "openai-independent-2026-10-02-c"
+                ? try ScribeRequestPolicy.providerSafeInput(for: request, destination: .openAIDirect) : input
+            var export = ["id": fixture.id, "system": evaluationInput.systemMessage, "user": evaluationInput.userMessage]
+            if let prepared = evaluationInput.preparedDraft { export["preparedDraft"] = prepared }
+            exported.append(export)
         }
         if ProcessInfo.processInfo.environment["CADENCE_EXPORT_ON_DEVICE_FIXTURES"] == "1" {
             let directory = ProcessInfo.processInfo.environment["CADENCE_SCRIBE_EVALUATION_DIRECTORY"]
@@ -642,11 +645,11 @@ struct ScribeTests {
         guard environment["CADENCE_RUN_OPENAI_CORE_COMPARISON"] == "1" else { return }
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let fixtureName = environment["CADENCE_SCRIBE_EVALUATION_CORPUS"] ?? "openai-core-2026-10-01"
-        try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a", "openai-independent-2026-10-02-b"].contains(fixtureName))
+        try #require(["openai-core-2026-10-01", "openai-independent-2026-10-02-a", "openai-independent-2026-10-02-b", "openai-independent-2026-10-02-c"].contains(fixtureName))
         let independent = fixtureName != "openai-core-2026-10-01"
         let phase = environment["CADENCE_OPENAI_COMPARISON_PHASE"] ?? "first"
         try #require(["first", "development-1", "development-2"].contains(phase))
-        try #require(fixtureName != "openai-independent-2026-10-02-b" || phase == "first")
+        try #require(fixtureName == "openai-independent-2026-10-02-a" || phase == "first")
         let directory = root.appendingPathComponent(independent && phase != "first"
             ? "Build/ComposeRoadmap/U2-openai-\(phase)-2026-10-02-a"
             : independent
@@ -699,7 +702,8 @@ struct ScribeTests {
                                         resolvedGuidance: guidance, exactLiterals: literals)
             let input = try ScribeRequestPolicy.providerSafeInput(for: request, destination: .openAIDirect)
             var row: [String: Any] = ["id": fixture.id,
-                "requestSHA256": EvaluationRequestExport.hash(system: input.systemMessage, user: input.userMessage)]
+                "requestSHA256": EvaluationRequestExport.hash(system: input.systemMessage, user: input.userMessage, preparedDraft: input.preparedDraft),
+                "generationPath": input.preparedDraft == nil ? "openai-model" : "prepared-exact-note"]
             let start = Date()
             do {
                 let result = try await provider.generate(ScribeProviderRequest(id: UUID(), input: input))

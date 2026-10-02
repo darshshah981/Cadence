@@ -82,6 +82,16 @@ enum ScribeRequestPolicy {
             return try localMemoryInput(for: request, facts: memoryFacts)
         }
         var preparedDraft: String?
+        if destination == .openAIDirect, permitsPreparedDraft(request),
+           ScribeDirectDraftPolicy.exactWordsNoteParts(in: request.spokenTranscript) != nil {
+            let writing = ScribeWritingDirectionParser.parse(
+                request.spokenTranscript, protectedValues: request.exactLiterals.map(\.value)
+            )
+            // An explicitly complete, exact quoted note has no semantic writing
+            // work to delegate. Preserve its bytes rather than ask a model to
+            // copy them with probabilistic capitalization or writer framing.
+            preparedDraft = ScribeDirectDraftPolicy.prepare(writing.request)
+        }
         if destination.providerKind == .legacyLocal {
             let writing = ScribeWritingDirectionParser.parse(
                 request.spokenTranscript, protectedValues: request.exactLiterals.map(\.value)

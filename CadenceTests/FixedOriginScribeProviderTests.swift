@@ -3,6 +3,24 @@ import Testing
 @testable import Cadence
 
 struct FixedOriginScribeProviderTests {
+    @Test(arguments: [
+        ("Write a note to Omar with the exact words \"Keep the original receipt\".", "Omar, Keep the original receipt."),
+        ("Write a note to Ada containing the exact words \"Do not shorten this sentence\".", "Ada, Do not shorten this sentence.")
+    ])
+    func explicitExactNoteAvoidsModelCapitalizationAndWriterFrameChanges(example: (String, String)) async throws {
+        let transport = U4RecordingTransport(results: [])
+        let provider = OpenAIDirectScribeProvider(model: try ScribeModelIdentifier("gpt-test"),
+            credentialLoader: { throw ScribeProviderError.invalidResult }, transport: transport)
+        let input = try ScribeRequestPolicy.providerSafeInput(
+            for: .directDictation(processedDictation: example.0), destination: .openAIDirect)
+        let request = ScribeProviderRequest(id: UUID(), input: input)
+        let result = try await provider.generate(request)
+        #expect(result.text == example.1)
+        #expect(result.requestID == request.id)
+        #expect(await transport.requests.isEmpty)
+        try ScribeRequestPolicy.validateDirectDraftRecipient(result.text, spokenRequest: example.0, protectedValues: [])
+    }
+
     @Test
     func openAIRequestIsCanonicalAndResponseIsStrict() async throws {
         let transport = U4RecordingTransport(results: [.success(U4Fixtures.response(

@@ -54,7 +54,11 @@ struct OpenAIDirectScribeProvider: ScribeProvider {
     }
 
     func generate(_ request: ScribeProviderRequest) async throws -> ScribeResult {
-        ScribeResult(
+        try Task.checkCancellation()
+        if let exactDraft = request.input.preparedDraft {
+            return ScribeResult(requestID: request.id, text: exactDraft, binding: request.resultBinding)
+        }
+        return ScribeResult(
             requestID: request.id,
             text: try await execute(input: request.input, phase: .generation, maxTokens: 1_024),
             binding: request.resultBinding

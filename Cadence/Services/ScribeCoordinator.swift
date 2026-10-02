@@ -1820,11 +1820,10 @@ final class ScribeCoordinator {
             retainReviewedDraftOrFail(.provider(.invalidResult), requestID: request.id)
             return
         }
-        // Prepared on-device drafts return without starting model work. Keep
+        // Prepared exact/on-device drafts return without starting model work. Keep
         // the existing transcribing presentation until review is ready rather
         // than publishing a one-frame composing state for an immediate result.
-        let immediateLocalDraft = providerAction.destination == .legacyLocal
-            && providerRequest.input.preparedDraft != nil
+        let immediateLocalDraft = providerRequest.input.preparedDraft != nil
             && { if case .transcribing = state { return true }; return false }()
         if !immediateLocalDraft {
             state = .generating(requestID: request.id)
