@@ -39,6 +39,22 @@ enum ScribeRequestPolicy {
         explicitCodingRequest.firstMatch(in: speech, range: NSRange(speech.startIndex..., in: speech)) != nil
     }
 
+    private static func namedCodingTask(in speech: String, writing: ScribeWritingDirectionParser.Result) -> (name: String, body: String)? {
+        if let frame = writing.request.recipientFrame, frame.kind == .ask,
+           isExplicitCodingRequest(speech), case .named(let name) = frame.recipient,
+           ["Codex", "Claude"].contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
+            return (name, frame.body)
+        }
+        // Backticks/quotes protect task literals and deliberately disable the
+        // general writing parser. An anchored destination prefix can still be
+        // removed without interpreting or changing anything in its task body.
+        let source = speech as NSString
+        let pattern = #"^\s*(?:please\s+)?ask\s+(Codex|Claude)\s+to\s+([\s\S]+)$"#
+        guard let expression = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = expression.firstMatch(in: speech, range: NSRange(location: 0, length: source.length)) else { return nil }
+        return (source.substring(with: match.range(at: 1)), source.substring(with: match.range(at: 2)))
+    }
+
     private static func writtenFlags(in text: String) -> [String] {
         writtenCommandFlag.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
             Range(match.range, in: text).map { String(text[$0]) }
@@ -168,14 +184,12 @@ enum ScribeRequestPolicy {
                 Preserve every listed qualifier in the draft, attached to the speaker's original statement. Keep that qualified statement as well as any confirmation question; do not collapse them into a question or a single hedge.
                 """)
             }
-            if let frame = writing.request.recipientFrame, frame.kind == .ask,
-               isExplicitCodingRequest(request.spokenTranscript),
-               case .named(let name) = frame.recipient,
-               ["Codex", "Claude"].contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
+            if let task = namedCodingTask(in: request.spokenTranscript, writing: writing) {
+                let name = task.name
                 if destination == .openAIDirect {
                     // Do not send both the consumed writer frame and its task
                     // body as competing content sources to the cloud model.
-                    sections[2] = "Spoken writing request:\n" + frame.body
+                    sections[2] = "Spoken writing request:\n" + task.body
                     if !writing.instructions.isEmpty {
                         sections.append("Explicit writing directions:\n" + writing.instructions.joined(separator: "\n"))
                     }
@@ -184,7 +198,7 @@ enum ScribeRequestPolicy {
                 // identity. Supply the parser's task body so preserving a
                 // destination name cannot preserve the writer wrapper.
                 sections.append("""
-                Recognized coding-agent task body:\n\(frame.body)
+                Recognized coding-agent task body:\n\(task.body)
                 Write this task directly to the coding agent. The destination wrapper is a consumed writing direction, not an exact name in the task body. Start with the task verb, never with "Ask \(name) to" or "Tell \(name) to".
                 """)
             }
@@ -696,10 +710,7 @@ enum ScribeRequestPolicy {
         protectedValues: [String]
     ) throws {
         let parsed = ScribeWritingDirectionParser.parse(spokenRequest, protectedValues: protectedValues)
-        if isExplicitCodingRequest(spokenRequest),
-           let recipient = parsed.request.recipientFrame?.recipient,
-           case .named(let name) = recipient,
-           ["Codex", "Claude"].contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }),
+        if namedCodingTask(in: spokenRequest, writing: parsed) != nil,
            output.range(of: #"^\s*(?:please\s+)?ask\s+(?:Codex|Claude)\s+to\b"#,
                         options: [.regularExpression, .caseInsensitive]) != nil {
             throw ScribeProviderError.invalidResult
