@@ -735,7 +735,7 @@ struct ScribeTests {
                 .write(to: directory.appendingPathComponent("first-results.json"), options: .atomic)
         }
         #expect(results.count == 20)
-        if independent && phase != "first" {
+        if independent && (phase != "first" || fixtureName == "openai-independent-2026-10-02-f") {
             // A single published host fixture connects the real provider output
             // to the existing insertion check. Never accept arbitrary file text.
             let literal = "SYNTHETIC alpha 314."

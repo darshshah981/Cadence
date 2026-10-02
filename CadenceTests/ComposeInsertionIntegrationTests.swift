@@ -301,7 +301,10 @@ struct ComposeInsertionIntegrationTests {
                 defer { service.clear(capture) }
                 try controller.requireCapturedHost(capture)
                 try await controller.requireAllEmpty()
-                _ = try await controller.command("quit")
+                // Terminate the owned synthetic process directly: its command
+                // acknowledgment can race process exit. The production refusal
+                // below still requires a genuinely dead captured process.
+                controller.terminateOwnedApplication()
                 try await controller.waitTerminated()
                 // The wrapper must not be invoked here. If production reaches
                 // it, its boundary error fails this case before any CGEvents.
